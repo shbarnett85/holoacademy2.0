@@ -30,6 +30,8 @@ app.get('/api/health', (_req, res) => {
     superadminConfigured: !!(process.env.SUPERADMIN_EMAILS?.trim()),
     guestConfigured: !!(process.env.GUEST_EMAIL?.trim()),
     supabaseConfigured: !!(process.env.SUPABASE_URL?.trim()),
+    togetherConfigured: !!(process.env.TOGETHER_API_KEY?.trim()),
+    anthropicConfigured: !!(process.env.ANTHROPIC_API_KEY?.trim()),
   })
 })
 
