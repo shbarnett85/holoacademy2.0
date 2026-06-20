@@ -49,7 +49,7 @@ export async function generateImage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'Qwen/Qwen-Image',
+        model: 'black-forest-labs/FLUX.1-schnell-Free',
         prompt,
         negative_prompt: extraNegative ? `${BASE_NEGATIVE}, ${extraNegative}` : BASE_NEGATIVE,
         width,
