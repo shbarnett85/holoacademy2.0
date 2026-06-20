@@ -15,14 +15,19 @@ export default function StudentHome() {
   const name = sessionStorage.getItem('holo_student_name') ?? ''
   const [quests, setQuests] = useState<AssignedQuest[]>([])
   const [loading, setLoading] = useState(true)
+  const [dbgError, setDbgError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoggedIn) return
     const token = sessionStorage.getItem('holo_token')
+    if (!token) { setLoading(false); setDbgError('אין token בסשן — נסה להתחבר מחדש'); return }
     fetch('/api/sessions/assigned', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((b) => setQuests(b.quests ?? []))
-      .catch(() => {})
+      .then(async (r) => {
+        const body = await r.json()
+        if (!r.ok) { setDbgError(`שגיאה ${r.status}: ${body.error ?? JSON.stringify(body)}`); return }
+        setQuests(body.quests ?? [])
+      })
+      .catch((e) => setDbgError(String(e)))
       .finally(() => setLoading(false))
   }, [isLoggedIn])
 
@@ -53,6 +58,12 @@ export default function StudentHome() {
       </h2>
 
       {loading && <p style={{ color: 'rgba(140,170,200,.5)', fontSize: 14 }}>טוען…</p>}
+
+      {dbgError && (
+        <div style={{ padding: '12px 16px', background: 'rgba(255,80,80,.1)', border: '1px solid rgba(255,80,80,.3)', borderRadius: 10, fontSize: 13, color: '#ff8099', marginBottom: 12 }}>
+          ⚠️ {dbgError}
+        </div>
+      )}
 
       {!loading && quests.length === 0 && (
         <div style={{ textAlign: 'center', padding: '3rem', background: 'rgba(4,9,18,.5)', borderRadius: 16, border: '1px solid rgba(47,243,255,.1)' }}>
