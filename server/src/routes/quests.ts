@@ -654,14 +654,22 @@ questsRouter.post('/:id/assign', requireStaff, async (req, res, next) => {
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureOwner(req, quest.created_by)
 
-    const rows = classIds.map((classId: string) => ({ quest_id: quest.id, class_id: classId }))
-    const { data: inserted, error: insErr } = await supabaseAdmin
-      .from('assignments')
-      .upsert(rows, { onConflict: 'quest_id,class_id', ignoreDuplicates: true })
-      .select('id, class_id')
-    if (insErr) throw new AppError(500, 'שגיאה ביצירת הקצאות: ' + insErr.message)
+    /* סינון כיתות שכבר מוקצות — מניעת כפילויות ללא unique constraint */
+    const { data: existing } = await supabaseAdmin
+      .from('assignments').select('class_id').eq('quest_id', quest.id).in('class_id', classIds)
+    const existingIds = new Set((existing ?? []).map((r: { class_id: string }) => r.class_id))
+    const newRows = classIds.filter((id: string) => !existingIds.has(id))
+      .map((classId: string) => ({ quest_id: quest.id, class_id: classId }))
 
-    res.status(201).json({ assignments: (inserted ?? []) })
+    const inserted: { id: string; class_id: string }[] = []
+    if (newRows.length > 0) {
+      const { data, error: insErr } = await supabaseAdmin
+        .from('assignments').insert(newRows).select('id, class_id')
+      if (insErr) throw new AppError(500, 'שגיאה ביצירת הקצאות: ' + insErr.message)
+      if (data) inserted.push(...data)
+    }
+
+    res.status(201).json({ assignments: inserted })
   } catch (err) {
     next(err)
   }
