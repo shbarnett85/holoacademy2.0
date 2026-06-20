@@ -26,22 +26,28 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     const classId = req.student!.classId
     if (!classId) return res.json({ quests: [] })
 
-    const { data, error } = await supabaseAdmin
+    const { data: asgData, error: asgErr } = await supabaseAdmin
       .from('assignments')
-      .select('quest_id, quests(id, title, game_data, art_style, created_at)')
+      .select('quest_id')
       .eq('class_id', classId)
-    if (error) throw new AppError(500, error.message)
+    if (asgErr) throw new AppError(500, asgErr.message)
 
-    const quests = (data ?? [])
-      .map((r: { quest_id: string; quests: { id: string; title: string; game_data: { scenes?: unknown[] }; art_style?: string; created_at: string } | null }) => r.quests)
-      .filter(Boolean)
-      .map((q: { id: string; title: string; game_data: { scenes?: unknown[] }; art_style?: string; created_at: string }) => ({
-        id: q.id,
-        title: q.title,
-        sceneCount: q.game_data?.scenes?.length ?? 0,
-        artStyle: q.art_style,
-        createdAt: q.created_at,
-      }))
+    const questIds = (asgData ?? []).map((r: { quest_id: string }) => r.quest_id)
+    if (questIds.length === 0) { res.json({ quests: [] }); return }
+
+    const { data: questData, error: qErr } = await supabaseAdmin
+      .from('quests')
+      .select('id, title, game_data, art_style, created_at')
+      .in('id', questIds)
+    if (qErr) throw new AppError(500, qErr.message)
+
+    const quests = (questData ?? []).map((q: { id: string; title: string; game_data: { scenes?: unknown[] }; art_style?: string; created_at: string }) => ({
+      id: q.id,
+      title: q.title,
+      sceneCount: (q.game_data as { scenes?: unknown[] })?.scenes?.length ?? 0,
+      artStyle: q.art_style,
+      createdAt: q.created_at,
+    }))
 
     res.json({ quests })
   } catch (err) { next(err) }
