@@ -69,9 +69,9 @@ export async function generateImage(
     const body = await res.text().catch(() => '')
     lastError = `Together AI החזיר ${res.status}: ${body.slice(0, 200)}`
 
-    /* rate limit — המתנה גדלה בין ניסיונות */
-    if (res.status === 429 && attempt < MAX_ATTEMPTS) {
-      await sleep(attempt * 15_000)
+    /* rate limit או דחייה זמנית — המתנה גדלה בין ניסיונות */
+    if ((res.status === 429 || res.status === 401) && attempt < MAX_ATTEMPTS) {
+      await sleep(attempt * 20_000)
       continue
     }
     break
