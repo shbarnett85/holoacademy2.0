@@ -121,6 +121,34 @@ authRouter.post('/auth/staff-login', async (req, res, next) => {
   }
 })
 
+/* POST /api/auth/guest-login — כניסה כמורה אורח ללא סיסמה (חשבון הדגמה).
+   האישורים נקראים מ-env: GUEST_EMAIL / GUEST_PASSWORD (ברירת מחדל: teacher@demo.com / demo1234).
+   אם החשבון לא קיים או הסיסמה שגויה, מחזיר 503 במקום 401. */
+authRouter.post('/auth/guest-login', async (req, res, next) => {
+  try {
+    const email = process.env.GUEST_EMAIL || 'teacher@demo.com'
+    const password = process.env.GUEST_PASSWORD || 'demo1234'
+
+    const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password })
+    if (error || !data.session || !data.user) throw new AppError(503, 'כניסת אורח אינה זמינה כרגע — פנה למנהל')
+
+    const { data: userRow, error: uErr } = await supabaseAdmin
+      .from('users').select('id, name, role, school_id').eq('auth_id', data.user.id).single()
+    if (uErr || !userRow) throw new AppError(503, 'חשבון האורח לא הוגדר — פנה למנהל')
+
+    res.json({
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+      },
+      staff: { userId: userRow.id, name: 'מורה אורח', role: userRow.role, schoolId: userRow.school_id, email },
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* GET /api/class/:urlCode — שלב 1: פרטי כיתה ורשימת תלמידים (ללא PIN!) */
 authRouter.get('/class/:urlCode', async (req, res, next) => {
   try {

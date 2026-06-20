@@ -31,6 +31,22 @@ export default function StaffLogin() {
   /* מעבר חגיגי אחרי התחברות מוצלחת — מציג WelcomeBurst ואז מנווט */
   const [welcome, setWelcome] = useState<{ name: string; role: StaffSession['staff']['role']; to: string } | null>(null)
 
+  async function guestLogin() {
+    setBusy(true)
+    setError(null)
+    try {
+      const { session, staff } = await apiJson<LoginResponse>('/api/auth/guest-login', { method: 'POST' })
+      setSession({ ...session, staff })
+      setWelcome({ name: staff.name, role: staff.role, to: '/creator/library' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'כניסת אורח נכשלה')
+      setShake(true)
+      setTimeout(() => setShake(false), 500)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submit() {
     if (busy || !email.trim() || !password) {
       if (!email.trim() || !password) { setShake(true); setTimeout(() => setShake(false), 500) }
@@ -102,7 +118,35 @@ export default function StaffLogin() {
           </button>
         </div>
 
-        <p style={{ fontSize: 13, marginTop: 20, color: 'rgba(160,200,240,.55)' }}>
+        {/* מפריד */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 16px' }}>
+          <div style={{ flex: 1, height: 1, background: 'rgba(120,180,220,.12)' }} />
+          <span style={{ fontSize: 12, color: 'rgba(140,170,200,.4)', fontFamily: 'var(--font-display)' }}>או</span>
+          <div style={{ flex: 1, height: 1, background: 'rgba(120,180,220,.12)' }} />
+        </div>
+
+        {/* כניסת אורח */}
+        <button
+          onClick={guestLogin}
+          disabled={busy}
+          style={{
+            width: '100%', padding: '11px', borderRadius: 11, cursor: busy ? 'default' : 'pointer',
+            fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+            color: 'rgba(255,200,120,.85)',
+            background: 'rgba(255,160,60,.06)',
+            border: '1px solid rgba(255,160,60,.28)',
+            opacity: busy ? 0.5 : 1,
+            transition: 'all .15s',
+          }}
+          onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = 'rgba(255,160,60,.12)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,160,60,.06)' }}
+        >
+          👤 כניסה כמורה אורח
+        </button>
+
+        <p style={{ fontSize: 12, marginTop: 10, color: 'rgba(140,170,200,.35)' }}>אורח רואה את מצב ההדגמה בלבד</p>
+
+        <p style={{ fontSize: 13, marginTop: 14, color: 'rgba(160,200,240,.55)' }}>
           אין לך חשבון?{' '}
           <Link to="/staff/signup" style={{ color: 'var(--holo-cyan-bright)' }}>הרשמה</Link>
         </p>
