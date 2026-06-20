@@ -35,7 +35,7 @@ export async function generateImage(
   height: number,
   extraNegative?: string,
 ): Promise<string> {
-  const apiKey = process.env.TOGETHER_API_KEY
+  const apiKey = process.env.TOGETHER_API_KEY?.trim()
   if (!apiKey) throw new Error('TOGETHER_API_KEY לא מוגדר ב-.env')
 
   const MAX_ATTEMPTS = 3
@@ -49,7 +49,7 @@ export async function generateImage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'black-forest-labs/FLUX.1-schnell-Free',
+        model: 'Qwen/Qwen-Image',
         prompt,
         negative_prompt: extraNegative ? `${BASE_NEGATIVE}, ${extraNegative}` : BASE_NEGATIVE,
         width,
