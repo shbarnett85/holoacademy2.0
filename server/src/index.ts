@@ -25,7 +25,12 @@ app.use(express.json({ limit: '2mb' }))
 
 /* endpoint בדיקה */
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true })
+  res.json({
+    ok: true,
+    superadminConfigured: !!(process.env.SUPERADMIN_EMAILS?.trim()),
+    guestConfigured: !!(process.env.GUEST_EMAIL?.trim()),
+    supabaseConfigured: !!(process.env.SUPABASE_URL?.trim()),
+  })
 })
 
 app.use('/api', authRouter)
