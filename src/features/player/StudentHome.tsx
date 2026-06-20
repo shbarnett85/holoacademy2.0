@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
-import { apiFetch } from '../../shared/lib/api'
 
 interface AssignedQuest {
   id: string
@@ -19,7 +18,8 @@ export default function StudentHome() {
 
   useEffect(() => {
     if (!isLoggedIn) return
-    apiFetch('/api/sessions/assigned')
+    const token = sessionStorage.getItem('holo_token')
+    fetch('/api/sessions/assigned', { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
       .then((b) => setQuests(b.quests ?? []))
       .catch(() => {})
