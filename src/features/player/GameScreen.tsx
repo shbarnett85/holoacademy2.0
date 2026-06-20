@@ -44,6 +44,8 @@ interface Props {
   saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number }) => void
   /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע */
   onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
+  /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
+  backPath?: string
 }
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
@@ -72,7 +74,7 @@ function EyeButton({ active, onToggle }: { active: boolean; onToggle: () => void
   )
 }
 
-export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete }: Props) {
+export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, backPath = '/creator/library' }: Props) {
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
   const [puzzleOpen, setPuzzleOpen] = useState(false)
@@ -224,7 +226,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <button
               className="holo-button"
               style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
-              onClick={() => navigate('/creator/library')}
+              onClick={() => navigate(backPath)}
             >
               חזרה לספרייה
             </button>
@@ -461,7 +463,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         justCollected={engine.justCollected}
         studentName={studentName}
         onUseItem={engine.useItem}
-        onExit={() => navigate('/creator/library')}
+        onExit={() => navigate(backPath)}
         hidden={eyeMode}
       />
     </div>

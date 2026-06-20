@@ -68,6 +68,7 @@ export default function Player() {
       initialState={initialState}
       saveResume={saveResume}
       onComplete={complete}
+      backPath="/student"
     />
   )
 }
