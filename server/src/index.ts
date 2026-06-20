@@ -44,7 +44,7 @@ if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const distPath = path.resolve(__dirname, '../../dist')
   app.use(express.static(distPath))
-  app.get('*', (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
+  app.get('{*path}', (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 }
 
 /* error handler מרכזי — תמיד אחרון */
