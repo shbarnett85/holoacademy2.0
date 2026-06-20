@@ -65,7 +65,7 @@ function LineChart({ labels, series, metric }: { labels: string[]; series: Serie
   )
 }
 
-export default function ProgressGraph({ studentId, studentName, className }: { studentId: string; studentName: string; className?: string }) {
+export default function ProgressGraph({ studentId, studentName: _studentName, className }: { studentId: string; studentName: string; className?: string }) {
   const [metric, setMetric] = useState<Metric>('text_level')
   const [range, setRange] = useState<Range>('year')
   const [compare, setCompare] = useState<string[]>([]) /* מזהי ישויות נוספות ל-overlay */

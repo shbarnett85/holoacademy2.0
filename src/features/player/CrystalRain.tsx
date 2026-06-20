@@ -66,8 +66,9 @@ export default function CrystalRain() {
 
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d')
     if (!ctx) return
+    const rc: CanvasRenderingContext2D = ctx
 
     const W = window.innerWidth
     const H = window.innerHeight
@@ -87,7 +88,7 @@ export default function CrystalRain() {
 
     function frame() {
       if (!alive) return
-      ctx.clearRect(0, 0, W, H)
+      rc.clearRect(0, 0, W, H)
 
       for (const c of crystals) {
         c.y += c.speed
@@ -95,7 +96,7 @@ export default function CrystalRain() {
         if (c.y > H + 40) {
           Object.assign(c, makeCrystal(W))
         }
-        drawDiamond(ctx, c.x, c.y, c.size, c.spin, c.color, c.opacity)
+        drawDiamond(rc, c.x, c.y, c.size, c.spin, c.color, c.opacity)
       }
 
       raf = requestAnimationFrame(frame)

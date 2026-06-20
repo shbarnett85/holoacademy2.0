@@ -132,7 +132,7 @@ export default function ProgressLens() {
 
       {/* צ'יפים: תלמידים + כיתות (קו ממוצע כיתתי) */}
       <div style={{ ...glass, padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: '0 0 auto' }}>
-        {students.map((s, i) => {
+        {students.map((s, _i) => {
           const on = selected.includes(s.studentId)
           const ci = selected.indexOf(s.studentId)
           return (

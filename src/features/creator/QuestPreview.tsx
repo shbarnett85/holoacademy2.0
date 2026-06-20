@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreatorStore, type GeneratedQuest } from './creatorStore'
 import { artStyleLabel } from '../../shared/lib/labels'
