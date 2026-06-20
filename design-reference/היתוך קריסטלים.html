@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>היתוך קריסטלים — HoloAcademy</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #02040a; overflow: hidden; font-family: 'Rubik', system-ui, sans-serif; }
+  #stage { position: fixed; inset: 0; }
+  canvas { display: block; width: 100%; height: 100%; }
+  .ui { position: fixed; z-index: 5; }
+  .label { top: 26px; right: 28px; color: rgba(150,210,235,.5); font-size: 12px; letter-spacing: .22em; text-transform: uppercase; font-family: 'Space Mono', monospace; }
+  .replay { bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 9px;
+    padding: 11px 22px; border-radius: 11px; cursor: pointer; color: #cdeffb; font-size: 14px; font-weight: 600;
+    background: rgba(10,20,38,.6); border: 1px solid rgba(47,243,255,.35); backdrop-filter: blur(8px);
+    transition: all .15s; opacity: 0; pointer-events: none; }
+  .replay.show { opacity: 1; pointer-events: auto; }
+  .replay:hover { background: rgba(47,243,255,.16); box-shadow: 0 0 20px rgba(47,243,255,.3); }
+</style>
+<script src="crystal-path.js"></script>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+<div class="ui label">FUSION · v2</div>
+<button class="ui replay" id="replay">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+  הרץ שוב
+</button>
+
+<script>
+(function () {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const replayBtn = document.getElementById('replay');
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * DPR; cv.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // crystal Path2D (viewBox 220 x 210, centre 110,105)
+  const CR_VB = window.CRYSTAL_VB || [0, 0, 220, 210];
+  const crPath = new Path2D(window.CRYSTAL_D || '');
+  const CRW = CR_VB[2], CRH = CR_VB[3];
+
+  // ── timeline (ms) ──────────────────────────────────────────────────────────
+  const T_FLASH    = 1200;   // crystals rush in continuously then detonate
+  const T_END      = 2650;   // burst settles
+  const LOOP       = 3050;
+  let start = performance.now();
+  let particles = [];
+  let filaments = [];
+  let lastExplodeSeed = -1;
+
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  const easeIn  = t => t * t * t;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const TAU = Math.PI * 2;
+
+  // three approach vectors (from corners toward centre)
+  const SRC = [ { a: -Math.PI * 0.5 },               // top
+                { a: Math.PI * 0.5 - Math.PI * 0.165 }, // bottom-right
+                { a: Math.PI * 0.5 + Math.PI * 0.165 } ]; // bottom-left
+
+  function makeBurst(cx, cy, scaleRef) {
+    particles = [];
+    filaments = [];
+    const N = 260;
+    for (let i = 0; i < N; i++) {
+      const ang = Math.random() * TAU;
+      const spd = (0.28 + Math.random() * 1.7) * scaleRef;
+      // colour: bias core->orange, outer->cyan, with white-hot fraction
+      const r = Math.random();
+      let col;
+      if (r < 0.30) col = [255, 244, 210];          // white-hot
+      else if (r < 0.62) col = [255, 150, 50];        // orange
+      else col = [60, 240, 255];                       // cyan
+      particles.push({
+        x: cx, y: cy, ang,
+        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+        life: 800 + Math.random() * 950,
+        size: (1.6 + Math.random() * 3.4) * (scaleRef / 0.4),
+        col, drag: 0.93 + Math.random() * 0.045,
+        glow: r < 0.45,
+      });
+    }
+    // plasma filaments (curved energy arcs)
+    for (let i = 0; i < 20; i++) {
+      const ang = Math.random() * TAU;
+      filaments.push({
+        ang, len: (120 + Math.random() * 200) * (scaleRef / 0.4),
+        wob: Math.random() * TAU, width: 1.5 + Math.random() * 2.5,
+        cyan: Math.random() > 0.5, life: 360 + Math.random() * 280,
+      });
+    }
+  }
+
+  function drawCrystal(x, y, scale, rot, opts) {
+    const { width = 9, glow = 22, alpha = 1 } = opts || {};
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(scale, scale);
+    ctx.translate(-CRW / 2, -CRH / 2);
+    // outer glow halo
+    ctx.shadowColor = 'rgba(60,225,255,0.95)'; ctx.shadowBlur = glow;
+    // solid cyan (תכלת) body with bright luminous facet edges
+    const g = ctx.createLinearGradient(0, 0, CRW * 0.2, CRH);
+    g.addColorStop(0, '#d6f7ff');
+    g.addColorStop(0.4, '#5fdcff');
+    g.addColorStop(1, '#1fb4f0');
+    ctx.fillStyle = g;
+    ctx.fill(crPath);
+    ctx.shadowBlur = 0;
+    // facet edges in bright white for the cut highlight
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(238,253,255,0.95)'; ctx.lineWidth = width;
+    ctx.stroke(crPath);
+    ctx.restore();
+  }
+
+  function frame(now) {
+    let t = (now - start) % LOOP;
+    const cx = W / 2, cy = H / 2;
+    const baseScale = Math.min(W, H) / 1100 * 0.42;     // crystal scale
+    const ringR = Math.min(W, H) * 0.30;                 // hover radius from centre
+
+    // backdrop
+    ctx.fillStyle = '#02040a';
+    ctx.fillRect(0, 0, W, H);
+    // faint vignette grid glow
+    const vg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.6);
+    vg.addColorStop(0, 'rgba(12,28,54,0.55)');
+    vg.addColorStop(1, 'rgba(2,4,10,0)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+
+    if (t < T_FLASH) {
+      // ── one continuous rush inward, accelerating into the merge ──
+      const p = clamp(t / T_FLASH, 0, 1);
+      const e = p * p;                               // accelerate (no hover/pause)
+      const startDist = Math.max(W, H) * 0.66;
+      const mergeDist = baseScale * 9;               // almost touching at centre
+      const dist = lerp(startDist, mergeDist, e);
+      const prox = clamp(1 - dist / startDist, 0, 1); // 0..1 closeness
+      // central glow ignites only once the crystals are nearly touching
+      const heat = Math.pow(clamp((prox - 0.8) / 0.2, 0, 1), 1.5);
+
+      // converging energy core grows with closeness
+      if (heat > 0.02) {
+        const coreR = lerp(6, 60, heat) * (1 + 0.12 * Math.sin(now / 40));
+        const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 3);
+        cg.addColorStop(0, `rgba(255,255,255,${0.55 * heat})`);
+        cg.addColorStop(0.3, `rgba(120,240,255,${0.45 * heat})`);
+        cg.addColorStop(0.7, `rgba(255,150,50,${0.2 * heat})`);
+        cg.addColorStop(1, 'rgba(255,150,50,0)');
+        ctx.fillStyle = cg;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      SRC.forEach((s, i) => {
+        const px = cx + Math.cos(s.a) * dist;
+        const py = cy + Math.sin(s.a) * dist;
+        const scl = baseScale * (1 + 0.16 * prox);
+        const aIn = clamp(p * 2.2, 0, 1);
+        const rot = s.a + Math.PI / 2 + (1 - e) * -1.1 + Math.sin(now / 140 + i) * 0.05 * prox;
+        const glow = 30 + 52 * heat;
+
+        // comet trail behind the crystal, pointing back the way it came (outward)
+        const trailLen = baseScale * (70 + 240 * e);
+        const tx = px + Math.cos(s.a) * trailLen;
+        const ty = py + Math.sin(s.a) * trailLen;
+        const tw = scl * CRW * 0.4;
+        const perp = s.a + Math.PI / 2;
+        const tg = ctx.createLinearGradient(px, py, tx, ty);
+        tg.addColorStop(0, 'rgba(150,244,255,0.6)');
+        tg.addColorStop(0.45, 'rgba(70,212,255,0.22)');
+        tg.addColorStop(1, 'rgba(40,180,255,0)');
+        ctx.save();
+        ctx.globalAlpha = aIn * (0.35 + 0.65 * e);
+        ctx.fillStyle = tg;
+        ctx.shadowColor = 'rgba(80,232,255,0.7)'; ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.moveTo(px + Math.cos(perp) * tw, py + Math.sin(perp) * tw);
+        ctx.lineTo(px - Math.cos(perp) * tw, py - Math.sin(perp) * tw);
+        ctx.lineTo(tx, ty);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+
+        // soft glow halo around the crystal (matches the reference bloom)
+        const haloR = scl * CRW * 1.0;
+        const hg = ctx.createRadialGradient(px, py, 0, px, py, haloR);
+        hg.addColorStop(0, 'rgba(130,242,255,0.55)');
+        hg.addColorStop(0.5, 'rgba(60,210,255,0.2)');
+        hg.addColorStop(1, 'rgba(40,180,255,0)');
+        ctx.save();
+        ctx.globalAlpha = aIn;
+        ctx.fillStyle = hg;
+        ctx.beginPath(); ctx.arc(px, py, haloR, 0, TAU); ctx.fill();
+        ctx.restore();
+
+        drawCrystal(px, py, scl, rot, { glow, alpha: aIn, width: 9 });
+      });
+      replayBtn.classList.remove('show');
+      lastExplodeSeed = -1;
+
+    } else {
+      // ── detonation + burst ──
+      if (lastExplodeSeed !== Math.floor((now - start) / LOOP)) {
+        makeBurst(cx, cy, baseScale);
+        lastExplodeSeed = Math.floor((now - start) / LOOP);
+      }
+      const tb = t - T_FLASH;                       // ms since flash
+      const totalB = T_END - T_FLASH;
+      const bp = clamp(tb / totalB, 0, 1);
+
+      // central flash: white -> cyan -> orange, fading
+      const flashA = Math.pow(1 - clamp(tb / 680, 0, 1), 2);
+      if (flashA > 0.01) {
+        const fr = lerp(60, Math.max(W, H) * 0.72, easeOut(clamp(tb / 680, 0, 1)));
+        const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, fr);
+        fg.addColorStop(0, `rgba(255,255,255,${0.98 * flashA})`);
+        fg.addColorStop(0.22, `rgba(165,248,255,${0.9 * flashA})`);
+        fg.addColorStop(0.5, `rgba(255,160,60,${0.6 * flashA})`);
+        fg.addColorStop(1, 'rgba(255,140,45,0)');
+        ctx.fillStyle = fg; ctx.fillRect(0, 0, W, H);
+      }
+
+      // shockwave rings (cyan + orange)
+      ctx.save();
+      for (let r = 0; r < 4; r++) {
+        const delay = r * 95;
+        const rp = clamp((tb - delay) / 950, 0, 1);
+        if (rp <= 0 || rp >= 1) continue;
+        const rad = easeOut(rp) * Math.min(W, H) * (0.46 + r * 0.07);
+        ctx.globalAlpha = (1 - rp) * 0.85;
+        ctx.lineWidth = lerp(8, 0.6, rp);
+        ctx.strokeStyle = (r % 2) ? 'rgba(255,160,55,0.95)' : 'rgba(90,242,255,0.95)';
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 22;
+        ctx.beginPath(); ctx.arc(cx, cy, rad, 0, TAU); ctx.stroke();
+      }
+      ctx.restore();
+
+      // plasma filaments shooting out
+      filaments.forEach(f => {
+        const fp = clamp(tb / f.life, 0, 1);
+        if (fp >= 1) return;
+        ctx.save();
+        ctx.globalAlpha = (1 - fp) * 0.85;
+        ctx.strokeStyle = f.cyan ? 'rgba(110,245,255,0.9)' : 'rgba(255,165,60,0.9)';
+        ctx.lineWidth = f.width;
+        ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14;
+        ctx.beginPath();
+        const reach = easeOut(fp) * f.len;
+        ctx.moveTo(cx, cy);
+        const segs = 6;
+        for (let q = 1; q <= segs; q++) {
+          const tt = q / segs;
+          const rr = reach * tt;
+          const wob = Math.sin(tt * 6 + f.wob) * 10 * (1 - tt);
+          ctx.lineTo(cx + Math.cos(f.ang) * rr - Math.sin(f.ang) * wob,
+                     cy + Math.sin(f.ang) * rr + Math.cos(f.ang) * wob);
+        }
+        ctx.stroke();
+        ctx.restore();
+      });
+
+      // particles
+      const dt = 16;
+      particles.forEach(p => {
+        const age = tb;
+        if (age > p.life) return;
+        // integrate (approx, frame-rate independent enough for a loop)
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.vx *= p.drag; p.vy *= p.drag;
+        const lp = age / p.life;
+        const a = (1 - lp);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 - 0.4 * lp), 0, TAU);
+        ctx.fillStyle = `rgba(${p.col[0]},${p.col[1]},${p.col[2]},${a})`;
+        if (p.glow) { ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12; } else ctx.shadowBlur = 6, ctx.shadowColor = `rgba(${p.col[0]},${p.col[1]},${p.col[2]},${a})`;
+        ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+
+      // re-integrate fix: reset positions each loop handled by makeBurst; but we mutate p.x.
+      // To keep loop deterministic we rebuild burst at each loop (lastExplodeSeed guard).
+
+      // glowing residual core that lingers then fades
+      const coreA = Math.pow(1 - bp, 1.6) * 0.6;
+      if (coreA > 0.01) {
+        const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 70);
+        cg.addColorStop(0, `rgba(200,250,255,${coreA})`);
+        cg.addColorStop(0.5, `rgba(80,235,255,${coreA * 0.6})`);
+        cg.addColorStop(1, 'rgba(255,150,55,0)');
+        ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H);
+      }
+
+      if (bp > 0.55) replayBtn.classList.add('show');
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  replayBtn.addEventListener('click', () => { start = performance.now(); lastExplodeSeed = -1; replayBtn.classList.remove('show'); });
+
+  // wait for crystal path then run
+  (function go() {
+    if (!window.CRYSTAL_D) { setTimeout(go, 40); return; }
+    requestAnimationFrame(frame);
+  })();
+})();
+</script>
+</body>
+</html>

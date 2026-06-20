@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#070b14}
+</style>
+</helmet>
+
+<div style="min-height:100vh;direction:rtl;font-family:'Heebo',sans-serif;color:#e7ecf3;background:radial-gradient(1200px 700px at 50% -12%, rgba(34,211,238,0.10), transparent 60%), radial-gradient(900px 620px at 88% 112%, rgba(217,70,239,0.12), transparent 60%), #070b14;padding:56px 28px 84px;overflow:hidden;position:relative">
+
+  <!-- faint orbital decoration -->
+  <svg width="520" height="520" viewBox="0 0 520 520" style="position:absolute;left:-120px;bottom:-160px;opacity:0.28;pointer-events:none" fill="none" stroke="rgba(120,160,210,0.5)" stroke-width="1">
+    <ellipse cx="260" cy="260" rx="240" ry="92" transform="rotate(-22 260 260)"/>
+    <ellipse cx="260" cy="260" rx="170" ry="64" transform="rotate(-22 260 260)"/>
+    <ellipse cx="260" cy="260" rx="100" ry="38" transform="rotate(-22 260 260)"/>
+    <circle cx="260" cy="260" r="6" fill="rgba(34,211,238,0.7)" stroke="none"/>
+  </svg>
+
+  <div style="max-width:1080px;margin:0 auto;position:relative;z-index:1">
+
+    <!-- HEADER -->
+    <div style="text-align:center;margin-bottom:50px">
+      <div style="font-family:'Space Mono',monospace;font-size:12px;letter-spacing:4px;color:#67e8f9;text-transform:uppercase">HoloAcademy · Studio</div>
+      <h1 style="font-weight:800;font-size:42px;letter-spacing:-0.5px;margin:14px 0 10px;background:linear-gradient(90deg,#7dd3fc,#a5f3fc 40%,#f0abfc);-webkit-background-clip:text;background-clip:text;color:transparent">ערכת אייקונים מותאמת</h1>
+      <p style="color:#9fb0c7;font-size:16px;line-height:1.7;max-width:600px;margin:0 auto">אייקונים בקו אחיד ברוח הממשק ההולוגרפי — לסוגי ההדמיה, לד״ר הולו ולשישה הסגנונות האמנותיים. כולם מחליפים את האימוג׳ים הקיימים.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:30px">
+
+      <!-- SECTION: DEMO TYPE -->
+      <div style="background:rgba(17,22,36,0.66);border:1px solid rgba(124,144,180,0.12);border-radius:18px;padding:24px;backdrop-filter:blur(6px)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:#5b6c86">01</span>
+          <h2 style="margin:0;font-weight:700;font-size:18px">סוג ההדמיה</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Tour (unselected) -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m10.065 12.493-6.18 1.318a.934.934 0 0 1-1.108-.702l-.537-2.15a1.07 1.07 0 0 1 .691-1.265l13.504-4.44"/><path d="m13.56 11.747 4.332-.924"/><path d="m16 21-3.105-6.21"/><path d="M16.485 5.94a2 2 0 0 1 1.455-2.425l1.09-.272a1 1 0 0 1 1.212.727l1.515 6.06a1 1 0 0 1-.727 1.213l-1.09.272a2 2 0 0 1-2.425-1.455z"/><path d="m6.158 8.633 1.114 4.456"/><path d="m8 21 3.105-6.21"/><circle cx="12" cy="13" r="2"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:16px">סיור</div>
+            <div style="font-size:12px;color:#8aa0b8">חקירה חופשית ולמידה</div>
+          </div>
+          <!-- Adventure (selected, cyan) -->
+          <div style="background:rgba(11,28,38,0.72);border:1px solid rgba(34,211,238,0.7);border-radius:14px;padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;box-shadow:0 0 0 1px rgba(34,211,238,0.35),0 0 26px rgba(34,211,238,0.18)">
+            <span style="color:#5eead4;filter:drop-shadow(0 0 9px rgba(34,211,238,0.6))">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:16px;color:#baf5ff">הרפתקה</div>
+            <div style="font-size:12px;color:#9fcfdb">מסע עם אתגרים ומשימות</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: DR HOLO -->
+      <div style="background:rgba(17,22,36,0.66);border:1px solid rgba(124,144,180,0.12);border-radius:18px;padding:24px;backdrop-filter:blur(6px)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:#5b6c86">02</span>
+          <h2 style="margin:0;font-weight:700;font-size:18px">דמות מנחה</h2>
+        </div>
+        <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <span style="color:#7fe3f5;filter:drop-shadow(0 0 8px rgba(34,211,238,0.5));display:flex">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10a7 7 0 0 1 14 0"/><circle cx="8.7" cy="11" r="2.3"/><circle cx="15.3" cy="11" r="2.3"/><path d="M11 11h2"/><path d="M5.4 10.6 6.4 11"/><path d="M18.6 10.6 17.6 11"/><path d="M6.2 13c0 5 2.6 8 5.8 8s5.8-3 5.8-8"/><path d="M9.6 15.5c1.6 1.1 3.2 1.1 4.8 0"/></svg>
+            </span>
+            <div>
+              <div style="font-weight:600;font-size:16px">ד״ר הולו</div>
+              <div style="font-size:12px;color:#8aa0b8">דמות מנחה הולוגרפית בהדמיה</div>
+            </div>
+          </div>
+          <div style="width:48px;height:27px;border-radius:14px;background:linear-gradient(90deg,#22d3ee,#7c5cff);position:relative;box-shadow:0 0 16px rgba(34,211,238,0.4);flex:none">
+            <div style="position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#eafdff;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION: ARTISTIC STYLES -->
+      <div style="background:rgba(17,22,36,0.66);border:1px solid rgba(124,144,180,0.12);border-radius:18px;padding:24px;backdrop-filter:blur(6px)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:#5b6c86">03</span>
+          <h2 style="margin:0;font-weight:700;font-size:18px">סגנון אמנותי</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+
+          <!-- Comics -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22,12 L15.33,13.38 L19.07,19.07 L13.38,15.33 L12,22 L10.62,15.33 L4.93,19.07 L8.67,13.38 L2,12 L8.67,10.62 L4.93,4.93 L10.62,8.67 L12,2 L13.38,8.67 L19.07,4.93 L15.33,10.62 Z"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px">קומיקס</div>
+          </div>
+
+          <!-- Realistic -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px">ריאליסטי</div>
+          </div>
+
+          <!-- Digital painting (selected, magenta) -->
+          <div style="background:rgba(28,13,33,0.72);border:1px solid rgba(217,70,239,0.7);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center;box-shadow:0 0 0 1px rgba(217,70,239,0.32),0 0 26px rgba(217,70,239,0.18)">
+            <span style="color:#f0a6ff;filter:drop-shadow(0 0 9px rgba(217,70,239,0.6))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px;color:#f6c8ff">ציור דיגיטלי</div>
+          </div>
+
+          <!-- 3D illustrated -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px">תלת-ממד מצויר</div>
+          </div>
+
+          <!-- Anime / manga -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12.5a1 1 0 0 1 0-0.9 10 9 0 0 1 17.5-1.2"/><path d="M21.5 11.5a1 1 0 0 1 0 0.9 10.5 10.5 0 0 1-18.2 2.4"/><circle cx="12" cy="12" r="3.4"/><circle cx="13.1" cy="10.9" r="0.9" fill="currentColor" stroke="none"/><path d="M19 4.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor" stroke="none"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px">אנימה / מנגה</div>
+          </div>
+
+          <!-- Children's book -->
+          <div style="background:rgba(13,18,30,0.7);border:1px solid rgba(124,144,180,0.14);border-radius:14px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;gap:11px;text-align:center">
+            <span style="color:#8fd5e6;filter:drop-shadow(0 0 6px rgba(34,211,238,0.35))">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+            </span>
+            <div style="font-weight:600;font-size:14px">ספר ילדים</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- SECTION: REFERENCE SHEET -->
+      <div style="background:rgba(17,22,36,0.5);border:1px solid rgba(124,144,180,0.1);border-radius:18px;padding:26px 24px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
+          <span style="font-family:'Space Mono',monospace;font-size:11px;letter-spacing:2px;color:#5b6c86">REF</span>
+          <h2 style="margin:0;font-weight:700;font-size:18px">מדריך האייקונים</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m10.065 12.493-6.18 1.318a.934.934 0 0 1-1.108-.702l-.537-2.15a1.07 1.07 0 0 1 .691-1.265l13.504-4.44"/><path d="m13.56 11.747 4.332-.924"/><path d="m16 21-3.105-6.21"/><path d="M16.485 5.94a2 2 0 0 1 1.455-2.425l1.09-.272a1 1 0 0 1 1.212.727l1.515 6.06a1 1 0 0 1-.727 1.213l-1.09.272a2 2 0 0 1-2.425-1.455z"/><path d="m6.158 8.633 1.114 4.456"/><path d="m8 21 3.105-6.21"/><circle cx="12" cy="13" r="2"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">סיור</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 🔭</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13" x2="19" y1="19" y2="13"/><line x1="16" x2="20" y1="16" y2="20"/><line x1="19" x2="21" y1="21" y2="19"/><polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5"/><line x1="5" x2="9" y1="14" y2="18"/><line x1="7" x2="4" y1="17" y2="20"/><line x1="3" x2="5" y1="19" y2="21"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">הרפתקה</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף ⚔️</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10a7 7 0 0 1 14 0"/><circle cx="8.7" cy="11" r="2.3"/><circle cx="15.3" cy="11" r="2.3"/><path d="M11 11h2"/><path d="M5.4 10.6 6.4 11"/><path d="M18.6 10.6 17.6 11"/><path d="M6.2 13c0 5 2.6 8 5.8 8s5.8-3 5.8-8"/><path d="M9.6 15.5c1.6 1.1 3.2 1.1 4.8 0"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">ד״ר הולו</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">דמות מנחה</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22,12 L15.33,13.38 L19.07,19.07 L13.38,15.33 L12,22 L10.62,15.33 L4.93,19.07 L8.67,13.38 L2,12 L8.67,10.62 L4.93,4.93 L10.62,8.67 L12,2 L13.38,8.67 L19.07,4.93 L15.33,10.62 Z"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">קומיקס</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 💥</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">ריאליסטי</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 📷</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="0.6" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">ציור דיגיטלי</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 🎨</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">תלת-ממד מצויר</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 🧸</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12.5a1 1 0 0 1 0-0.9 10 9 0 0 1 17.5-1.2"/><path d="M21.5 11.5a1 1 0 0 1 0 0.9 10.5 10.5 0 0 1-18.2 2.4"/><circle cx="12" cy="12" r="3.4"/><circle cx="13.1" cy="10.9" r="0.9" fill="currentColor" stroke="none"/><path d="M19 4.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor" stroke="none"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">אנימה / מנגה</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 🌸</div></div>
+          </div>
+
+          <div style="border:1px solid rgba(124,144,180,0.12);border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px">
+            <span style="color:#67e8f9;filter:drop-shadow(0 0 7px rgba(34,211,238,0.5));flex:none"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
+            <div><div style="font-weight:600;font-size:15px">ספר ילדים</div><div style="font-family:'Space Mono',monospace;font-size:11px;color:#7a8aa3;margin-top:3px">מחליף 📖</div></div>
+          </div>
+
+        </div>
+        <div style="text-align:center;margin-top:24px;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:1px;color:#5f7088">קו 1.5–1.6px · פינות מעוגלות · זוהר ניאון תואם פלטת הממשק (ציאן #22D3EE / מג׳נטה #D946EF)</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,217 @@
+# HoloAcademy
+
+מערכת פדגוגית ליצירת משחקי לומדה ("הדמיות") בעברית. מורה מתאר חומר לימוד, ו-Claude בונה הרפתקה אינטראקטיבית עם סצנות, אתגרים ותמונות. תלמידים נכנסים דרך קוד כיתה ומשחקים.
+
+## מבנה
+
+- `src/` — קליינט React + Vite + Tailwind (RTL).
+  - `features/player/` — מנוע המשחק ותצוגת התלמיד.
+  - `features/creator/` — טופס יצירה, ספרייה, תצוגה מקדימה ועריכת סצנות.
+  - `features/auth/` — כניסת תלמיד (קוד כיתה + PIN).
+  - `shared/lib/labels.ts` — תוויות עבריות לסוגי אתגרים (`puzzleTypeLabel`).
+  - **מערכת עיצוב (Claude Design)**: tokens ב-`index.css` — `--holo-cyan-bright`/`--holo-magenta`/`--holo-orange`/`--holo-bg-deep`/`--font-display` (Rubik)/`--font-mono` (Space Mono); אנימציות `holo-shake`/`holo-dot-pulse`. רקע מלא משותף למסכי הכניסה: `shared/ui/HoloBackdrop.tsx` (גרדיאנט עומק + כדורי זוהר + scanlines, ללא רשת). ספלאש פתיחה: `features/home/Splash.tsx` (התפוררות חלקיקים), מוצג פעם אחת לכל לשונית מ-`App.tsx` (`sessionStorage` `holo_splash_seen`). מסך טעינת היצירה `features/creator/GeneratingScreen.tsx` — מנוע חלקיקים על canvas (ליבת משושים/טבעות/זרמי דאטה), הודעות מתחלפות + מונה זמן + בר בלתי-מוגדר (משך אמיתי לא ידוע), עוצר ב-`prefers-reduced-motion` וכמויות חלקיקים מופחתות למחשבים חלשים. **אולפן היצירה** `features/creator/CreationForm.tsx` — פריסת 3 עמודות (חידות / מרכז: סיכום+תוכן+כפתור יצירה / התאמות) הנפרסות עד תחתית הדף (המרכז קצר יותר בגלל כפתור היצירה), neon sliders + glass panels + HoloEmblem. כל הלוגיקה נשמרה (store, שפר-עם-AI, השוואה, generate, finalQuiz, error/retry); הרכיב מציג `GeneratingScreen`/`QuestPreview` לפי `status`. **סרגל עליון משותף** `features/creator/StudioTopBar.tsx` (לוגו + טאבים שמנווטים ב-router create/library/analytics/manage + סטטוס + יציאה) ו-`studioStyles.ts` (`glass`/`micro`) — בשימוש גם ב-CreationForm וגם ב-**ספריית ההדמיות** `Library.tsx` (עיצוב חדש, 2 עמודות: "הספרייה שלי" מ-API אמיתי + "הדמיות מוכנות"/קהילה — ריקה כרגע עם empty-state ומבנה `CommunityQuest[]` להמשך). חלון סינון: חיפוש + צ׳יפים של מקצוע + טווח שכבות (`DualRange` עם pointer-events) + "נקה סינון". הסינון לפי מקצוע/שכבה חל על הקהילה בלבד; "הספרייה שלי" מסוננת לפי שם בלבד (להדמיות אין מטא מקצוע/שכבה). כרטיסי הדמיה: thumb/badge/chips/ערוך/הפעל.
+- `server/` — Express + tsx. Claude (Anthropic SDK) ליצירת התוכן, Together לתמונות, Cloudinary לאחסון, Supabase כ-DB.
+  - `src/routes/quests.ts` — יצירה (`/generate`), שליפה, עדכון סצנה (`PATCH /:id/scene`); סכמת zod ל-GameData.
+    - **מודלים ועלות-זמן**: הקריאה הראשית ב-`callClaude` רצה על **`claude-sonnet-4-6`** עם `output_config: { effort: 'medium' }` (streaming `.finalMessage()`). בדיקת העובדות והתיקון רצים על **`claude-haiku-4-5`** (`callHaiku`, `messages.create`). retry-ולידציה אחד נשאר על הקריאה הראשית.
+    - **בדיקת עובדות אסינכרונית**: אחרי שהקריאה הראשית עוברת ולידציה, מזריקים קושי, מסמנים `game_data.factCheck = { status: 'pending' }`, שומרים, ו**מחזירים את ההדמיה למורה מיד** (`201 { quest, warnings, hub }`). אז `void factCheckInBackground(...)` רץ ברקע (fire-and-forget, try/catch עצמאי): `runFactCheck` (haiku, מזהה שגיאות עובדתיות) → אם נמצאו, `scopedFactFix` שולח ל-haiku **רק את הסצנות שסומנו** + תיאור השגיאות ומבקש בחזרה רק שדות טקסט מתוקנים (`title/narrative/question/explanationCorrect/explanationIncorrect`) — **לא נוגע ב-id/חידות/מפתחות/מבנה** — וממזג; בדיקה חוזרת רק על הסצנות שתוקנו. בסיום כותב `factCheck = { status: 'done', warnings, correctedSceneIds }` ל-`game_data` ב-DB (ללא מיגרציה — המטא חי בתוך ה-jsonb). פירוק זמן נמדד: time-to-teacher ≈ הקריאה הראשית בלבד (~130ש׳), בדיקת העובדות ~20ש׳ ברקע ובלתי-נראית. הקליינט (`QuestPreview`) עושה polling קל ל-`GET /:id` כל 3ש׳ עד `status:'done'`, מציג אינדיקטור "🔍 בודק עובדות ברקע…", ובסיום ממזג את התוכן המעודכן חזרה ל-store + מציג את ה-warnings ואת מספר הסצנות שתוקנו (התרעה עדינה לרענון אם המורה ערך סצנה).
+    - **התאמה מגדרית-דקדוקית (form of address)**: שלוש צורות פנייה, כולן נקבעות **מראש ב-pre-generation** (לא מנוע נטיות בזמן ריצה): `male` (זכר יחיד — "אתה מגיע"), `female` (נקבה יחידה — "את מגיעה"), `plural` (רבים — "אתם מגיעים"; הצורה הניטרלית/הכיתתית, כי בעברית אין גוף שני יחיד ניטרלי — **בלי** "את/ה" עם לוכסנים). `FormOfAddress` + `formOfAddressRule(form)` ב-`questPrompt.ts`; הבלוק מוזרק לפרומפט (`formOfAddressInstructions`), חל על **כל** הטקסט הפונה לתלמיד (נרטיב/חידות/הסברים/דיאלוג ד"ר הולו/בחירות/השלכות/סיומים). `POST /generate` מקבל `formOfAddress` (ברירת מחדל **plural** — הגרסה הכיתתית/ניטרלית). המגדר הוא פרמטר נוסף לצד `text_level` והרמות.
+    - **וריאציה אישית ממוגדרת** (`POST /:id/personalize`, requireStaff+בעלות): מקבל `{ gender? | form? | studentId? }`, גוזר את הצורה (form מפורש > gender > מגדר התלמיד > plural), ו**משכתב את כל הטקסט הפונה לתלמיד** ב-`game_data` לצורה הנבחרת דרך haiku (`rephraseForAddress` → `collectAddressText`/`applyAddressText`: key→טקסט, שכתוב דקדוקי בלבד תוך שמירת משמעות/אורך/עובדות). מחזיר את ה-variant **בלי לשמור** (שכבת המשחק/הקצאה תבחר אותו). **מצב כיתתי (מקרן)** = הגרסה הבסיסית (plural), משותפת, ללא התאמת רמה אישית (הרמה היא זו שהמורה בחר ביצירה); **מצב אישי** = וריאציה ממוגדרת + מותאמת-רמה פר-תלמיד. *(מסך הקצאה/בחירת-מצב בפועל וצינור היצירה האישי בזמן משחק עדיין לא נבנו — הקאנטרקט מוכן.)* **עומק שאלות המוסר אינו מושפע מהמגדר** — נשאר לפי min(גיל, text_level) + עקיפת מורה; המגדר משפיע רק על צורת הפנייה הדקדוקית.
+    - **ספרייה ציבורית (שיתוף בין מורים) + מודרציה בדיעבד**: מורה משתף הדמיה למאגר שכל המורים רואים, **ללא אישור מראש**; מודרציה בדיעבד דרך דיווחים. סכמה (סעיף 9 ב-`schema.sql`, עמיד דרך `hasPublicQuests`/`hasQuestReports`): `quests.is_public`/`published_at`/`original_author_id` + טבלת `quest_reports` (quest_id, reporter_id, reason, status `open`/`reviewed`/`dismissed`). **routes**: `POST /quests/:id/share` (היוצר בלבד, מסמן is_public + published_at + original_author_id=created_by) ו-`/unshare`; **`routes/library.ts`** (מ-`/api/library`, `requireStaff` — כל מורה): `GET /` (כל הציבוריות + חיפוש `q`/סינון `subject`, מחזיר שם היוצר המקורי לקרדיט, סצנות וסוגי אתגרים), `POST /:id/copy` (**עותק עצמאי לעריכה** — game_data+הגדרות לרשומה חדשה עם created_by=המורה, is_public=false, status=draft, original_author_id נשמר לקרדיט), `POST /:id/report` (יוצר quest_reports). **admin** (`/api/admin`, super_admin): `GET /reports` + `PATCH /reports/:id` (status reviewed/dismissed + `unshare:true` להסרת ההדמיה). הקוד עמיד לפני המיגרציה — share→503, library→ריק, GET `/quests` מחזיר `is_public:false`. **קליינט**: `Library.tsx` (גם `/library`) — בכרטיסי "הספרייה שלי" כפתור "שתף לספרייה 🌐"/"הסר" + badge "🌐 משותפת" + מודאל אישור; עמודת "ספרייה ציבורית" מ-`GET /api/library` עם "השתמש (העתק אליי) 📥" + "דווח 🚩" (מודאל סיבה) + קרדיט "נוצר במקור על ידי X". פאנל super_admin (`superadmin/Reports.tsx`): דיווחים פתוחים, צפייה בהדמיה (`/play/:id`), וכפתורי בטל-שיתוף/סמן-טופל/דחה.
+  - `src/routes/images.ts` — יצירת/חידוש תמונות (SSE).
+  - `src/prompts/questPrompt.ts` — בניית הפרומפט ל-Claude.
+  - `src/lib/hubValidation.ts` — ולידציה מבנית למבנה Hub (מפתחות/מנעולים).
+
+## הרצה
+
+- קליינט: `npm run dev` (פורט 5173). שרת: `npm run dev:server` (פורט 3001, `tsx watch`).
+- ה-Vite מפנה `/api/*` ל-3001.
+- הרצה דרך `.claude/launch.json` (preview tools).
+
+## הזדהות (שתי מערכות נפרדות)
+
+- **תלמיד = PIN דרך השרת**: בחירת תלמיד + PIN → `POST /api/auth/student-login` מנפיק JWT עצמי (jsonwebtoken). אין Supabase Auth לתלמידים.
+- **צוות (מורה/מנהל) = Supabase Auth (אימייל+סיסמה)**:
+  - `POST /api/auth/staff-signup` — `supabaseAdmin.auth.admin.createUser` (service_role) → רשומת `users` עם `auth_id` מקושר, `role` (teacher/admin), `school_id`. MVP: signup פתוח. `GET /api/schools` מזין את בורר בית הספר.
+  - `POST /api/auth/staff-login` — `supabaseAnon.auth.signInWithPassword` (anon key) → מחזיר `{ session, staff }`.
+  - **middleware** ב-`server/src/middleware/staffAuth.ts`: `requireStaff` מאמת את ה-JWT (`supabaseAdmin.auth.getUser(token)`), שולף את רשומת ה-`users` לפי `auth_id`, ומצרף `req.staff` (`userId`, `role`, `schoolId`). `requireAdmin` מוסיף בדיקת `role=admin`. `ensureOwner(req, created_by)` לבדיקת בעלות (מנהל עוקף; הדמיות ישנות ללא `created_by` מותרות).
+  - **routes מוגנים**: יצירה (`POST /generate`), עריכה (`PATCH /:id/scene`, `regenerate-image`, `generate-images`), ומחיקה (`DELETE /:id`) דורשים `requireStaff` + בעלות; היצירה מזריקה `created_by`. `GET /` (ספרייה) מסונן ל-`created_by` של המורה (מנהל רואה הכול). **`GET /:id` נשאר פתוח** — נדרש לתלמידים בעת המשחק.
+- **קליינט**: `src/shared/lib/staffSession.ts` (session ב-localStorage, external store), `src/shared/lib/api.ts` (`apiFetch`/`apiJson` — מצרפים `Authorization: Bearer` אוטומטית, ומנקים session על 401), hook `useStaffAuth` (`{ user, role, schoolId, isStaff, isAdmin, logout }`). `ProtectedRoute` עוטף את `/creator*` (אחרת → `/staff/login`). מסכים: `StaffLogin` (`/staff/login`), `StaffSignup` (`/staff/signup`).
+- **seed** (`npm run seed`, idempotent): מורה `teacher@demo.com` (מקושר ל"המורה רון") ומנהל `admin@demo.com`, סיסמה `demo1234`.
+
+### היררכיית תפקידים והשבתה (super_admin)
+
+- **היררכיה**: `super_admin` > `admin` > `teacher` > `student`. מנהל-על מנהל בתי ספר ומשתמשים בכל המערכת (ללא שיוך לבית ספר). `requireSuperAdmin` ב-`staffAuth.ts`.
+- **זיהוי מנהל-על מבוסס-אימייל**: `isSuperAdminEmail(email)` בודק מול `SUPERADMIN_EMAILS` (מופרד בפסיקים ב-.env). `staff-login` ו-`requireStaff` מזהים מנהל-על לפי האימייל **בלי לדרוש רשומת users / ערך enum / is_active** — כך הוא עובד גם לפני המיגרציה. (אופציה חלופית: רשומת `users` עם `role=super_admin` אחרי המיגרציה.) ה-admin routes עמידים לחוסר עמודת `is_active` (רשימות/יצירה עובדות; השבתה/הפעלה דורשות את העמודה ומחזירות הודעה ברורה עד שתתווסף).
+- **השבתה רכה (`is_active`)**: עמודה `boolean default true` ב-`users` וב-`schools`. משתמש/בית ספר מושבת אינו נמחק — `is_active=false`. **מושבת אינו יכול להתחבר** (staff + student) ולא מופיע במסכי המשתמש (מסכי הניהול מציגים גם מושבתים).
+  - אכיפה מעשית בשרת (service_role עוקף RLS): `isUserActive(userId)` ב-`staffAuth.ts` נקרא ב-`requireStaff`, `staff-login`, ו-`student-login`. הוא **עמיד לפני המיגרציה** — אם עמודת `is_active` עוד לא קיימת, מחזיר "פעיל" (כדי לא לשבור את האפליקציה).
+- **routes מנהל-על** (`server/src/routes/admin.ts`, מ-`/api/admin`, כולם `requireSuperAdmin`): `POST/GET /schools`, `DELETE /schools/:id` (+`/reactivate`) — השבתה מדורגת לבית הספר ולכל משתמשיו; `GET /users?schoolId=`, `POST /users`, `POST /users/:id/deactivate` (+`/reactivate`). יצירת בית ספר אטומית (rollback אם יצירת המנהל נכשלת).
+- **השבתה עובדת ללא מיגרציה**: השבתת מנהל/בית ספר משתמשת ב-**Supabase Auth ban** (`setBan` — `ban_duration`), שחוסם התחברות מיד גם בלי עמודת `is_active`. הסטטוס (פעיל/מושבת) נגזר מ-`bannedAuthIds()` כשהעמודה חסרה, ומ-`is_active` כשהיא קיימת. (תלמידי PIN ללא חשבון Auth — השבתתם תלויה בעמודת `is_active`/המיגרציה.) מנהל-על מנותב אוטומטית ל-`/admin` בהתחברות.
+- **קליינט**: פאנל `src/features/superadmin/` (route `/admin`, `ProtectedRoute superAdminOnly`) — דשבורד בתי ספר (יצירה/השבתה/הפעלה) + ניהול משתמשים לכל בית ספר (badge פעיל/מושבת, מושבתים מעומעמים, מודאל אישור לפני השבתה). `useStaffAuth` חושף `isSuperAdmin`.
+- **מיגרציה (חד-פעמי, ידני)**: `server/schema.sql` — DDL (enum `super_admin`, עמודות `is_active`, RLS, וכן סעיף 4: `classes.grade_label` + טבלת `class_teachers` + הסרת `classes.teacher_id`). **חייב להריץ ב-Supabase SQL Editor** (DDL לא ניתן דרך service_role). ואז `npm run create-superadmin` (קורא `SUPERADMIN_EMAIL`/`SUPERADMIN_PASSWORD` מ-`.env`, idempotent).
+
+### ניהול בית הספר (admin / teacher)
+
+**מודל הכיתה**: כיתה היא **גוף קבוע לאורך השנים** — `id`/`slug`/`url_code` יציבים, והשכבה הנוכחית נשמרת ב-`grade_label` (מתעדכנת בתחילת שנה: "ז׳2"→"ח׳2") דרך `POST /classes/:id/promote`. השיוך מורה↔כיתה הוא **רבים-לרבים** דרך טבלת `class_teachers` (`class_id, teacher_id, subject`) — לכיתה כמה מורים (לפי מקצוע) ולמורה כמה כיתות.
+
+routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff` + סינון הרשאות server-side):
+- **מורים (admin בלבד, בבית ספרו)**: `GET/POST /teachers`, `POST /teachers/:id/deactivate`+`/reactivate`.
+- **כיתות**: `GET /classes` (admin = כל בית הספר, teacher = רק שלו; מחזיר `gradeLabel` + `teachers[{teacherId,name,subject}]`), `POST /classes` (`{name, slug, gradeLabel?}` — ללא `teacherId`; url_code אוטומטי `{school-slug}-{class-slug}` ייחודי; יוצר-מורה משויך דרך `class_teachers`), `PATCH /classes/:id` (`name?`/`gradeLabel?`), `POST /classes/:id/promote` (`gradeLabel`), `deactivate`/`reactivate`.
+- **שיוך מורים**: `POST /classes/:id/teachers` (`{teacherId, subject?}` — מאמת שהמורה בבית הספר של הכיתה), `DELETE /classes/:id/teachers/:teacherId`.
+- **תלמידים**: `GET /classes/:id/students` (כולל `gender`), `POST /classes/:id/students` (PIN אקראי 4-ספרות, מוחזר פעם אחת; מקבל `gender` אופציונלי), `POST /students/bulk` (רשימת שמות → טבלת שם+PIN), `POST /students/:id/reset-pin`, `deactivate`/`reactivate`, `PATCH /students/:id` (שם / העברת כיתה / **`gender`**). **מגדר** (`users.gender` 'male'/'female'/null, סעיף 8 ב-`schema.sql`, עמיד דרך `hasUserGender`) קובע את צורת הפנייה הדקדוקית בטקסט ההדמיה; null = לא מוגדר = לשון רבים ניטרלית. נבחר ב-`ClassManage` (בורר בן/בת בהוספה + בכל שורת תלמיד, badge ♂/♀).
+- **סינון הרשאות**: `loadClassForAccess` (מורה→קישור `class_teachers`, מנהל→`school_id`), `teacherClassIds`/`teachersByClass` (dual-path: `class_teachers` או fallback `teacher_id`), `loadSchoolUser`, `assertStudentAccess` (מורה רואה רק תלמידים בכיתותיו). מורה לא רואה כיתות/תלמידים של מורה אחר; מנהל מוגבל לבית ספרו. `is_active`/`class_teachers`/`grade_label` מטופלים דיפנסיבית (`lib/activeColumn.ts` — `hasIsActive`/`hasClassTeachers`/`hasGradeLabel`), כך שהקוד עובד לפני המיגרציה (fallback ל-`teacher_id`/`name`) ואחריה.
+- **דף "תלמידים" (שטוח)**: `GET /api/staff/students` מחזיר את כל התלמידים בכיתות הנגישות (מנהל→בית ספרו, מורה→כיתותיו) עם `class` (gradeLabel), `classCode` (url_code), `secret` (PIN), `gender`, `isActive` ו-`lastActive` (started_at אחרון מ-sessions). קליינט `src/features/management/Students.tsx` (route `/manage/students`, מעוצב לפי `design-reference/students-list.jsx`): shell סטודיו (StudioTopBar + רקע עומק), שורת סינון (חיפוש שם + שכבה + כיתה מדורגת + "נקה סינון" + מונה), וטבלה (אווטאר+שם+מגדר / כיתה / קוד כיתה / קוד סודי / פעילות אחרונה / פעולות: פרטים·הגדרות קושי·סיכום פדגוגי). "סיכום פדגוגי" מנווט ל-`/analytics` עם `state.studentId` (פותח drill-down ב-`StudentDetail`); השאר מודאל placeholder. כניסה מ-`/manage` (כפתור "👥 כל התלמידים").
+- **קליינט**: `src/features/management/` (route `/manage`, `ProtectedRoute`): מנהל → דשבורד (סטטיסטיקות מורים/כיתות/תלמידים, ניהול מורים, כל הכיתות עם השכבה+המורים); מורה → הכיתות שלו. `ClassManage` → רשימת מורי הכיתה (admin: שיוך/הסרה עם מקצוע), כפתור "קדם שכבה", ותלמידים (הוספה בודדת/מרובה, מודאל PIN עם העתק/הדפס, reset-pin, השבתה, עריכת שם, קישור הכיתה `holoacademy.ai/class/{url_code}` עם העתקה).
+
+## תיעוד משחק (sessions & events) — אנליטיקה והתאמת קושי
+
+**מודל מרוכז (לא זמן-אמת)**: אין שום קריאת רשת לתיעוד **במהלך** המשחק. האנליטיקה נצברת מקומית, ובסיום נשלח **complete יחיד מרוכז** עם סיכום מעובד. רק שתי קריאות רשת לכל משחק: `start` (בהתחלה) ו-`complete` (בסיום). טבלאות `sessions`/`events` + הפונקציה `update_difficulty_profile` קיימות ב-Supabase.
+
+- **שרת** (`server/src/routes/sessions.ts`, מ-`/api/sessions`, כולם `requireStudent`): `requireStudent` ב-`middleware/studentAuth.ts` מאמת את ה-JWT-PIN (jsonwebtoken עם `JWT_SECRET`, payload `{userId,role:'student',classId}`) ומצרף `req.student`. תלמיד כותב/קורא **רק את ה-session שלו** (`loadOwnSession`).
+  - `POST /start` (`{questId, assignmentId?}`) — יוצר session (`max_score`=מספר האתגרים) **או resume** (session פתוח קיים לאותו תלמיד+הדמיה). **זו הקריאה היחידה בתחילת המשחק.**
+  - `POST /:id/complete` — **השליחה המרוכזת היחידה בסיום**. גוף תמציתי (לא לוג גולמי): `{totalScore, crystalsFull, summary, challenges[], sceneTimes[]}`. השרת כותב **events מסוכמים** (idempotent — מוחק ואז כותב, כך ש-retry לא מכפיל): רשומת `puzzle_solved`/`puzzle_failed` לכל אתגר (payload: type/difficulty/attempts/solveTimeMs/shards), `scene_enter` לכל סצנה (payload: `dwellMs`), ו-`session_completed` עם ה-summary. אז מסמן `completed_at`+ציון ומריץ `update_difficulty_profile(p_session_id)` **best-effort** (מחזיר `profileUpdated`). הפונקציה צורכת את אחוז ההצלחה וזמני השהייה מטבלת events.
+  - `GET /:id`, `PATCH /:id/progress`, `POST /:id/event` — קיימים אך **אינם בשימוש** בזרימה המרוכזת (resume מקומי, אין תיעוד שוטף). נשמרים לגמישות/כלים עתידיים.
+- **event types** (enum `public.event_type`): `scene_enter`, `scene_exit`, `choice_made`, `puzzle_attempt`, `puzzle_solved`, `puzzle_failed`, `item_collected`, `item_used`, `item_used_wrong`, `session_completed`. במודל המרוכז רק `puzzle_solved`/`puzzle_failed`/`scene_enter`/`session_completed` נכתבים (כרשומות מסוכמות בסיום).
+- **קליינט**:
+  - `useGameEngine.ts` — צובר את כל האנליטיקה ב-`eventsRef` מקומי (עם `clientTs` מדויק לכל event, לחישוב זמני שהייה) **ללא שום רשת**. `getAnalytics()` בונה בסיום סיכום מעובד: `summary` (אחוז הצלחה, זמן ממוצע לסצנה, סצנות, משך), `challenges[]` (רשומה תמציתית לכל אתגר), `sceneTimes[]` (dwell לכל סצנה מ-clientTs של scene_enter עוקבים).
+  - `sessionTracker.ts` — `startSession` + `completeSession` (best-effort; כשל → שמירת הסיכום ב-`sessionStorage` `holo_pending_complete` ו-`retryPendingComplete()` בטעינה הבאה — לא מאבדים אנליטיקה של משחק שהושלם). resume נשמר **מקומית** (`saveResumeLocal`/`loadResumeLocal` ב-`holo_resume_<questId>`), ללא רשת.
+  - `usePlaySession.ts` — מנהל את המחזור: `retryPendingComplete` בטעינה, `start`, `saveResume` (מקומי בלבד בכל מעבר סצנה), ו-`complete` (רקעי בסיום). `GameScreen` מזריק `initialState`/`saveResume`/`onComplete`; בסיום קורא `onComplete(engine.getAnalytics(), totalScore, crystalsFull)` **ברקע** — מסך הסיכום מוצג מיד, השליחה לא חוסמת.
+- **מיגרציה**: סעיף 5 ב-`schema.sql` מוסיף `sessions.crystals` (הקוד עמיד לחוסרו דרך `hasSessionCrystals`).
+- **כיול הקושי עבר ל-JS בשרת**: הפונקציה `update_difficulty_profile` (שהייתה באגית — `42803`) **כבר לא נקראת**. הכיול רץ עכשיו ב-`recalibrateProfile` ב-`sessions.ts` (מודל פר-סוג-אתגר — ראו "מודל כיול והתאמת קושי פר-תלמיד"). best-effort: כשל לא מפיל את הסיום.
+- **progress_snapshots (סדרת-הזמן של ההתקדמות)**: בנתיב `/complete`, **אחרי** הכיול ורק לסשן שנספר (`cal!==null` — מצב מקרן לא יוצר session, אין עמודת `is_replay` בסכמה), נכתב snapshot (`student_id/class_id/session_id/text_level/per_puzzle_level/success_rates/overall_success`) עם הערכים שלאחר העדכון. **idempotent** — מוחק snapshot קודם של אותו session לפני ה-insert (retry לא מכפיל את הסדרה). best-effort ועמיד דרך `hasProgressSnapshots` (לפני המיגרציה — מדלגים). הטבלה + הרשאה A (`progress_snapshots_homeroom_select`) בסעיף 10ד/10ה ב-`schema.sql`.
+
+## דשבורד אנליטיקה למורה — "איך הכיתה הסתדרה"
+
+שכבת תצוגה ותובנות מעל הנתונים המסוכמים. **מסתמך על הנתונים המסוכמים בלבד** (events מסוכמים + sessions), ללא חישוב כבד בכל טעינה. אינדקסים בסעיף 6 של `schema.sql` (`sessions(quest_id,user_id)`, `events(session_id,type)`, `assignments(class_id)`).
+
+- **שרת** (`server/src/routes/analytics.ts`, מ-`/api/analytics`, כולם `requireStaff` + סינון הרשאות). `assertClassAccess(req, classId)`: super_admin → תמיד; admin → `school_id`; מורה → קישור `class_teachers` (dual-path ל-`teacher_id`). **חשוב**: sessions של זרימת המשחק נושאות `quest_id` אך **לא** `assignment_id` (אין הקשר מטלה ב-`/play`), לכן האנליטיקה מצרפת לפי `quest_id` + חברות בכיתה (לא לפי `assignment_id`).
+  - `GET /assignment/:assignmentId` — **המסך הראשי**. מחזיר: `totals` (השלימו/באמצע/לא התחילו, % השלמה, הצלחה ממוצעת, זמן ממוצע, מספר דגלים), `distribution` (low<60 / mid 60-85 / high 85+), `perChallenge` (אחוז הצלחה לכל אתגר מצירוף `puzzle_solved`/`puzzle_failed`, ממוין הקשה-ביותר-קודם), `students` (per-student: סטטוס/הצלחה/קריסטלים/זמן/`flags`), ו-`insights` (תובנות עבריות מנוסחות כפעולה).
+  - `GET /class/:classId/assignments` — רשימת מטלות + סיכום-על (% השלמה, ממוצע כיתתי) לכל אחת. שאילתת sessions אחת לכל ההדמיות, אגרגציה ב-JS.
+  - `GET /assignments` — **כל המטלות בכל הכיתות הנגישות** (לרשימת השיעורים המלאה). `accessibleClasses(req)` (super_admin→הכול, admin→בית ספרו, מורה→`class_teachers`/`teacher_id`); מחזיר לכל מטלה: `classGradeLabel`, `createdAt`, `completionRate`, `avgSuccessRate`, מספרים. אגרגציה ב-JS משאילתת sessions אחת.
+  - `GET /assignments` (עדשת **שיעורים**) מוסיף לכל מטלה `own`/`homeroom`/`teacherName`: **מורה מקצועי** רואה רק את הקצאותיו (`quest.created_by===הוא`); **מחנך** רואה בנוסף הקצאות מורים אחרים שהוקצו לכיתת-החינוך שלו (`homeroomClassIds` — `class_teachers.is_homeroom=true`, עמיד דרך `hasHomeroom`) ומסומנות `homeroom:true`+`teacherName`; admin/super → הכול (`own:true`). הסינון `own||homeroom` הוא ה-enforcement (לא הסתרת UI).
+  - `GET /students` (עדשת **תלמידים**) — רשימת פרופילים פר-תלמיד: `crossSubject`/`textLevel`/`avgSuccessRate`/`sessionsCount`/`lastActive`/`flags`. סקופ: admin/super + **מחנך** → תמונה מלאה חוצת-מקצוע (כל ה-sessions + `difficulty_profiles`); **מורה מקצועי** → רק תלמידי כיתותיו, וביצועים מ-sessions על הדמיות שיצר בלבד. מחזיר `canCompare` (מחנך/מנהל) למקום גרף ההשוואה.
+  - `GET /student/:studentId` — drill-down: פרופיל קושי (`difficulty_profiles`), היסטוריית הדמיות, מגמת הצלחה.
+  - **עמוד "התקדמות"** (`GET /analytics/trends?metric=text_level|overall_success&entities=<ids>&range=year|term`) — סדרת-זמן מ-`progress_snapshots` לגרף קווי רב-סדרתי. `monthBuckets` בונה דליי חודשים (year=ספט→יוני, term=6 אחרונים), `snapshotClasses` קובע סקופ (הרשאה A, JS): super→הכול, admin→בית ספרו, מורה→כיתות-החינוך שלו (`homeroomClassIds`), מורה מקצועי→ריק. entities = מזהי תלמידים ו/או כיתות (כיתה=קו ממוצע). מחזיר `{labels, series:[{id,name,kind,points}]}`, ברירת-מחדל 2 התלמידים הראשונים. עמיד דרך `hasProgressSnapshots` (טבלה חסרה → `{labels,series:[],notReady:true}`). **קליינט** `analytics/ProgressLens.tsx` — סאב-טאב שלישי "📈 התקדמות": בורר מטריקה + טוגל טווח + צ׳יפים (תלמידים+כיתות) + גרף קווי (צבע+דאש+סמן, לא צבע-בלבד) + drill-down `StudentDetail` מתחת. סקופ מורה הוא **dual-path**: אם `class_teachers`/`is_homeroom` קיימים → כיתות-החינוך בלבד; אחרת fallback ל-`classes.teacher_id` (כמו שאר האנליטיקה) כדי שמורה יראה את כיתתו גם לפני מיגרציית class_teachers. **Seed**: `npm run seed:snapshots` (`seedProgressSnapshots.ts`) — מזריק snapshots חודשיים (משה עולה 6→8, מאיה צונחת אפר→מאי; +יואב/נועה/איתי), idempotent (session_id=null). **מיגרציה**: `server/migrations/progress_snapshots.sql` + runner `npm run migrate` (`runSqlFile.ts`, חיבור Postgres ישיר דרך `SUPABASE_DB_HOST`+`SUPABASE_DB_PASSWORD` או `DATABASE_URL` ב-.env — נדרש ל-DDL כי service_role/PostgREST לא מריץ DDL). הטבלה+RLS (admin/super תמיד; הרשאת מחנך A מותנית בקיום class_teachers) הורצו ב-DB החי.
+  - **סיכום פדגוגי — "ד"ר הולו כשכבת פרשנות"** (`POST/GET /analytics/summary`, body/query `{ scope:'student'|'class'|'assignment', id }`): כפתור אחד שמכליל לפי הקשר. `gatherSummary` גוזר נתוני **רמה 1+2 בלבד** (רמות/הצלחה/מגמות — ללא בחירות moralDilemma) **ואוכף RLS** לפני כל קריאת AI: תלמיד — מורה מקצועי רק אם התלמיד בהקצאותיו (סשן על הדמיה שיצר), מחנך/מנהל תמונה מלאה; כיתה — **מחנך הכיתה ומנהל בלבד**; הקצאה — היוצר/מחנך/מנהל. `buildPedagogicalPrompt` מחייב ניסוח **מהוסה (תצפיות, לא אבחנות)** ואוסר שפה קלינית; הקריאה ל-**Sonnet** (`claude-sonnet-4-5`, `callSonnetSummary`). נשמר ב-`pedagogical_summaries` (סעיף 11 ב-`schema.sql`, עמיד דרך `hasPedagogicalSummaries` — לפני המיגרציה הסיכום נוצר ומוחזר חי עם `notPersisted:true`, ללא cache). שורה אחת לכל `(scope,entity_id)`; `regenerate:true` עושה upsert. **עריכת מורה**: `PATCH /analytics/summary` (`{scope,id,edited_content}`, אכיפת גישה זהה) שומר את גרסת המורה ב-`edited_content` (השכבה האחרונה לפני ייצוא; דורש את הטבלה — לפני המיגרציה העריכה נשמרת מקומית לסשן). **קליינט**: `analytics/PedagogicalSummary.tsx` — כפתור "✦ צור סיכום פדגוגי" → פאנל מסומן "🤖 נכתב ע״י ד״ר הולו · AI" (+"נערך ע״י המורה" אם נערך) + timestamp + גודל מדגם + כפתורי "✏️ ערוך" (textarea→שמור), "⬇ ייצא לוורד", "↻ צור מחדש". **ייצוא לוורד** ללא תלות חיצונית — `exportToWord` בונה מסמך HTML עם `dir=rtl` + כותרת (שם הישות) + תאריך + הטקסט, Blob `application/msword` שמורד כ-`.doc`; **המיוצא הוא הפלט אחרי עריכת המורה** (`edited_content` אם קיים). מקבל `title` מההורה (שם תלמיד/כיתה/הדמיה). משובץ ב-`StudentDetail` (student), `AssignmentDashboard` (assignment) ו-`ClassManage` (class).
+  - **דגלים** (ספי מקור-אמת בראש הקובץ): `excelled` ⭐ (≥85%), `struggling` 🔴 (<60%), `skip_suspect` ⚡ (מהיר מאוד <5ש׳/סצנה + הצלחה <85%), `slow` 🐢 (>90ש׳/סצנה). מחושבים רק למשחק שהושלם.
+- **קליינט**: `src/features/analytics/` (route `/analytics`, `ProtectedRoute`; קישור מ-`/manage` ומה-`StudioTopBar`). **אין סאב-טאבים** — מסך **split כמו ספריית ההדמיות** (`index.tsx`: flex `flexWrap` + `flex:'1 1 380px'`, נערם אנכית במסך צר): **שמאל = התקדמות** (`ProgressLens` — גרף רב-ישויות + צ׳יפים + drill-down `StudentDetail`, הרשאה A), **ימין = סיכום שיעורים** (`LessonsPane` — אנליטיקת ההדמיות, רשימה→`AssignmentDashboard`→`StudentDetail`, כולל בידול מחנך הרשאה B). ב-RTL ה-DOM: `LessonsPane` ראשון (ימין), `ProgressLens` שני (שמאל). *(`StudentsLens.tsx` נותר על הדיסק, לא בשימוש.)* drill-down לתלמיד ב-`StudentDetail` עם prop `mode`: **'full'** (ברירת מחדל, בדריל מהאנליטיקה) = גרף+פירוטים+סיכום; **'progress'** = גרף+פירוטים בלבד; **'summary'** = סיכום פדגוגי בלבד. ברוסטר (`management/Students.tsx`) **שני כפתורים נפרדים**: "התקדמות" (mode='progress') ו-"סיכום פדגוגי" (mode='summary'). כרטיס מטלה של מחנך שהוקצתה ע"י מורה אחר מקבל **בידול שאינו צבע-בלבד** — מסגרת מקווקוות + פס ימני + אייקון 🎓 + צ׳יפ "כיתתי · <מקצוע> · <מורה>" (הרשאה B). **תצוגת ההתקדמות הפר-תלמיד עברה לטאב "תלמידים" (הרוסטר)**: ב-`management/Students.tsx` כל שורה כוללת כפתור "התקדמות" שפותח inline את `StudentDetail` (`backLabel="תלמידים"`), הכולל **גרף מגמה** (`ProgressGraph` — רמת-קריאה/הצלחה לאורך זמן + "הוסף להשוואה" overlay של ממוצע-כיתה/תלמיד-אחר; מודל ההשוואה ממוקם פר-תלמיד) + פירוטים/דגלים + `PedagogicalSummary`. הסקופ מהשרת/RLS (הרשאה A: מחנך/מנהל הוליסטי; מורה מקצועי מוגבל). *(`StudentsLens.tsx`/`ProgressLens.tsx` נותרו על הדיסק אך אינם בשימוש — הגרף הוזז ל-`ProgressGraph.tsx`.)* `HoloSelect`/`layerOf` מיוצאים מ-`index.tsx`. זרימת **שיעורים**: **רשימת שיעורים מלאה** (כל הכיתות) עם שורת סינון עליונה — חיפוש, שכבה (נגזרת מ-`gradeLabel` ללא מספר הכיתה), כיתה (מדורגת לפי שכבה), "ממתי" (טווח תאריכים לפי `createdAt`; ה-cutoff מחושב ב-handler לא ב-render כדי להישאר pure), ומיון (חדש ביותר / אחוז הצלחה נמוך→גבוה / גבוה→נמוך / אחוז השלמה) — ומקצוע (מ-`quests.subject`) — לחיצה על שיעור → המסך הראשי (`AssignmentDashboard`) → drill-down תלמיד (`StudentDetail`). סינון המקצוע מופיע רק כשיש מקצועות בנתונים.
+
+**שדה מקצוע (`quests.subject`)**: עמודה ב-quests (סעיף 5 ב-`schema.sql`, עמיד דרך `hasQuestSubject` ב-`activeColumn.ts`). נבחר בטופס היצירה (`CreationForm`, בורר ליד שם ההדמיה; הרשימה ב-`shared/lib/subjects.ts`), נשמר ביצירה (`POST /generate`, דיפנסיבי), ומוחזר ב-`GET /analytics/assignments` לסינון. לפני המיגרציה — נשמר/מסונן בלי שגיאה (פשוט null). **עיצוב Claude Design**: `StudioTopBar` (טאב analytics פעיל) + רקע עומק + glass panels (מ-`creator/studioStyles`). שני **גרפי דונאט** (`charts.tsx` — `DonutChart`) על נתונים אמיתיים: "סטטוס השלמת המשימה" (הושלמו/בתהליך/לא התחילו) ו"התפלגות אחוז ההצלחה" (low/mid/high, יעד 85%). בנוסף: כרטיסי מדדים, "איפה הכיתה נתקעה" (אתגרים מדורגים), תובנות, וטבלת תלמידים עם דגלים צבעוניים ולחיצה ל-drill-down. `StudentDetail` — פרופיל קושי + sparkline מגמה + היסטוריה. `format.ts` — `pct`/`duration`/`FLAG_META`/`STATUS_META`.
+- **סקריפט בדיקה**: `npm run seed:analytics` (`server/src/scripts/seedAnalyticsDemo.ts`) — מזריק מטלה + sessions מגוונים לכיתת ההדגמה (מצטיין/מתקשה/חשד-לדילוג/באמצע/לא-התחיל) לבדיקת הדשבורד. idempotent.
+
+## מבנה הדמיה (GameData)
+
+`{ scenes: GameScene[], entrySceneId, isHistorical?, endingGood?, endingBad? }`. כל סצנה: `id, title, narrative?, imagePrompt?/imageUrl?, drHoloExpression?, drHoloDialog?, puzzle?, collectableItem?, choices?, nextSceneId?`.
+
+- **מבנה הרפתקה**: משימה מרכזית בפתיחה (מעבדת ד"ר הולו) → קשת עלילתית → **סצנת שיא** (ללא `nextSceneId`, בה המשימה נפתרת) → `endingGood`/`endingBad`. ראו `ADVENTURE NARRATIVE STRUCTURE` ב-questPrompt.ts.
+- **תמונות סיום ייעודיות**: לכל סיום `imagePrompt`+`imageUrl`+`drHoloExpression` משלו (**שונה מתמונת הפתיחה**) — מסך הסיכום מציג אותן (`GameScreen` בוחר `ending.imageUrl` לפי `crystalsFull>=3`, fallback לתמונת הפתיחה בהדמיות ישנות). `endingGood` = מסך ניצחון חוגג (הדוקטור שמח/גאה, מואר); `endingBad` = אווירה קודרת (הדוקטור מבולבל/מאוכזב/עייף, עמום). נוצרות יחד עם שאר התמונות ב-`images.ts` (`generate-images` מוסיף משימות `ending_good`/`ending_bad` עם sceneId סינתטי `__endingGood__`/`__endingBad__`; `regenerate-image` תומך בהן). הסכמה: `endingSchema` ב-`quests.ts` + `EndingScene` בקליינט.
+- **מבנה Hub** (כשיש מפתחות `itemUsage`): צומת מרכזי + מסלולי מפתח + סצנת מכשול נעולה שמובילה לסצנת השיא. נאכף ב-hubValidation.ts.
+
+### דמות ד"ר הולו בתמונות — זהות קבועה + הבעה משתנה
+
+הפרדה בין **זהות יציבה** ל**הבעת פנים משתנה**, כדי שההבעה תתאים לטון הסצנה (לא חיוך קבוע):
+- `prompts/constants.ts` — `DR_HOLO_DESCRIPTION` מכיל **רק זהות** (גיל, זקן, שיער, פנים, משקפיים, חלוק) — ללא הבעת פנים. `drHoloWithExpression(expr)` מצרף `", his face showing <expr>"`; `DR_HOLO_DEFAULT_EXPRESSION` = "a calm, attentive expression" כשלא צוינה הבעה.
+- כל סצנה שה-`imagePrompt` שלה מכיל `{DR_HOLO}` כוללת שדה `drHoloExpression` (אנגלית, למשל "a worried, tense expression") שה-AI קובע **לפי טון הנרטיב** של הסצנה. אין `{DR_HOLO}` → אין `drHoloExpression`.
+- `routes/images.ts` — `resolveDrHolo(prompt, expression)` מחליף `{DR_HOLO}` בזהות הקבועה + ההבעה של הסצנה, לפני ה-enhancement של haiku. ה-`REWRITE_INSTRUCTION` (להדמיות היסטוריות) מורה במפורש לשמר מילה-במילה גם את הזהות וגם את ההבעה — כך השכתוב לא דורס אותן.
+- הסכמה: `drHoloExpression?: string` ב-`gameDataSchema`/`patchSceneSchema` (server, `quests.ts`) וב-typings של הקליינט (`useGameEngine.ts`, `creatorStore.ts`).
+
+### סגנונות אמנותיים (6 סופיים)
+
+`digital-painting` (ציור דיגיטלי), `realistic` (ריאליסטי), `comic` (קומיקס), `storybook` (ספר ילדים), `anime` (אנימה / מנגה), `pixar-3d` (תלת-ממד מצויר). ה-mapping ל-fragment בפרומפט: `STYLE_SUFFIX` ב-`server/src/lib/together.ts` (`styledPrompt` מצרף את הסגנון **אחרי** ה-`{DR_HOLO}` המוחלף — הזהות+ההבעה נשמרות בכל סגנון). ה-fragment של הסגנון מצורף בסוף, אז ד"ר הולו עקבי בכל הסגנונות. הרשימה בקליינט: `ART_STYLES` ב-`creatorStore.ts` (key+label+icon), תוויות מרוכזות ב-`shared/lib/labels.ts` (`artStyleLabel`). **`pixel-art` הוסר** — כל סגנון לא-מוכר (כולל הדמיות ישנות עם `pixel-art`) נופל ל-`digital-painting` גם ב-`styledPrompt` (יצירה/חידוש) וגם ב-`artStyleLabel` (תצוגה), ולא נשבר. בורר הסגנון ב-`CreationForm` הוא גריד 3×2 של כרטיסי אייקון+שם.
+
+## קריסטלים (ניקוד)
+
+5 קריסטלים סה"כ (`TOTAL_CRYSTALS`). כל אתגר מקבל **משקל**; ההתקדמות = `earnedWeight/totalWeight × 5`. אתגר רגיל = משקל 1; **מבחן סיכום שוקל קריסטל שלם אחד** (`regularCount/4`). אתגר שנפתר מעניק את רסיסיו; כישלון = אובדן הרסיסים, **ללא retry** באתגר עצמו. הלוגיקה ב-`useGameEngine.ts` (`solvePuzzle`, `challengeWeights`).
+
+## סוגי אתגרים (כולם ממומשים)
+
+כל אתגר הוא `scene.puzzle` עם `type`, ומוצג ב-`PuzzleModal.tsx` (מנתב לקומפוננטה ב-`features/player/challenges/`). אחרי פתרון מוצג פאנל תוצאה/הסבר ואז "המשך".
+
+| type | קומפוננטה | שדות נתונים ב-puzzle | פתרון / כישלון |
+|------|-----------|----------------------|----------------|
+| `multipleChoice` | (inline ב-PuzzleModal) | `choices[{id,text,isCorrect}]`, `explanationCorrect/Incorrect` | תשובה נכונה/שגויה |
+| `trueFalse` | (inline) | כמו רב-ברירה (2 תשובות) | נכונה/שגויה |
+| `tileSwap` | `TileSwapChallenge` | `gridSize?` (2/3/4) — משתמש בתמונת הסצנה | השלמת התמונה / מיצוי `maxBadSwaps` (החשפת התמונה) |
+| `wordSearch` | `WordSearchChallenge` | `words: string[]` (עברית) | מציאת כל המילים (גרירה, RTL) / תום `timeSec` (סימון המילים) |
+| `memory` | `MemoryChallenge` | `pairs: {a,b}[]` | התאמת כל הזוגות / מיצוי `maxMistakes` פסילות |
+| `wordCompletion` | `WordCompletionChallenge` | `sentence` (עם `___` × `blankCount`), `answers[]`/`answer`, `wordBank?` | כל החללים נכונים / מיצוי `maxAttempts` (חשיפת התשובות) |
+| `sequenceOrder` | `SequenceOrderChallenge` | `items[{id,text,imagePrompt?}]`, `correctOrder` (id-ים בסדר הנכון), `orderType` (`chronological`/`logical`/`hierarchical`) | סידור נכון בגרירה / מיצוי `maxAttempts` (חשיפת הסדר) |
+| `hangman` | `HangmanChallenge` | `question` (רמז), `answer` (מושג בעברית, אותיות בלבד), `maxWrong` (טעויות מותר) | ניחוש כל האותיות לפני מיצוי הניסיונות / כישלון במיצוי |
+| `finalQuiz` | `FinalQuizChallenge` | `questions[]` — ראו למטה | ציון חלקי (נכונות/סה"כ) |
+| `moralDilemma` | `MoralDilemmaChallenge` | `situation`, `moralChoices[{text,consequence}]` (2-4, ללא correctIndex) | **אין כישלון** — כל בחירה מתקבלת ומזכה ברסיסים; מציג את ה-consequence ואז המשך |
+
+הערה: `slidingPuzzle` נשמר כ-alias היסטורי ל-`tileSwap`.
+
+### פילוסופיית כישלון (lose conditions) — אחידה לכל הסוגים
+
+**כישלון באתגר = התלמיד לא מקבל את רסיסי הקריסטל של אותו אתגר, אך ממשיך הלאה (לא נתקע) ומקבל את התשובה/ההסבר.** הכישלון נרשם ל-`puzzle_failed` (תיעוד מרוכז) ומזין את מודל הכיול 60/80 פר-סוג. המנגנון כבר אכוף ב-`useGameEngine.solvePuzzle`: `score=0` → אין רסיסים, `puzzle_failed` נכתב; `PuzzleModal` מציג פאנל תוצאה/הסבר ואז "המשך". כל סוג מציג **מד כישלון הולוגרפי עקבי** (`challenges/failUi.tsx` — `FailPips` רסיסי ◆/◇ ל-ניסיונות/פסילות, `Countdown` בר זמן יורד), והפרמטרים מתכווננים לפי הרמה ב-`difficultyScaling.ts`:
+
+| type | תנאי כישלון | פרמטר (1→10) | חשיפת פתרון בכישלון |
+|------|-------------|---------------|----------------------|
+| `multipleChoice`/`trueFalse`/`finalQuiz` | תשובה שגויה (ניסיון יחיד) | — | הבחירה/השאלה הנכונה + הסבר |
+| `moralDilemma` | **אין כישלון** — כל בחירה מתקבלת ומזכה ברסיסים | — (עומק לפי min(גיל,טקסט)) | ה-consequence של הבחירה שנבחרה |
+| `wordCompletion` | מיצוי נסיונות שגויים | `scaleWordCompletion.maxAttempts` (3→1) | `answer` בפאנל התוצאה |
+| `sequenceOrder` | מיצוי נסיונות הגשה | `scaleSequenceOrder.maxAttempts` (3→1) | הסדר הנכון נחשף בתצוגה |
+| `hangman` | מיצוי ניחושים שגויים | `scaleHangman.maxWrong` (8→4) | המילה נחשפת |
+| `memory` | מיצוי פסילות (התאמות שגויות) | `scaleMemory.maxMistakes` (8→2) | — (הזוגות גלויים) |
+| `tileSwap` | מיצוי "החלפות גרועות" (שני האריחים לא במקומם) | `scaleTileSwap.maxBadSwaps` (∝גודל·מקדם) | התמונה הפתורה נחשפת |
+| `wordSearch` | תום הטיימר | `scaleWordSearch.timeSec` (180→70ש׳) | כל מיקומי המילים מסומנים |
+
+הקונבנציה הוויזואלית: `FailPips`/`Countdown` מגיעים ל-0 = כישלון (כך גם hangman). אנימציה/הודעה קצרה ("💥 נגמרו…" / "⏳ נגמר הזמן") ואז `onResult({correct:false})` → המשך ללא רסיסים.
+
+### מבנה finalQuiz (מבחן סיכום)
+
+אתגר אחד מסוג `finalQuiz` ב-`puzzle` של **סצנת השיא** (האחרון, לפני הסיום). המורה מפעיל אותו בטופס היצירה ובוחר 3-10 שאלות.
+
+```jsonc
+"puzzle": {
+  "type": "finalQuiz",
+  "question": "כותרת/הוראה",
+  "questions": [
+    {
+      "question": "שאלה אינטגרטיבית",
+      "options": ["...", "...", "..."],   // 3-4
+      "correctIndex": 0,                    // 0-based
+      "explanationCorrect": "...",
+      "explanationIncorrect": "..."
+    }
+    // ... 3-10 שאלות
+  ]
+}
+```
+
+- שאלות **אינטגרטיביות** הבוחנות הבנה כוללת — לא חזרה על שאלות קודמות.
+- UI: רצף שאלות עם מד התקדמות ("שאלה 3 מתוך 7"), הסבר רספונסיבי לכל שאלה, ובסוף סיכום ("ענית נכון על X מתוך N").
+- ניקוד: שוקל קריסטל שלם אחד מתחלק בין השאלות (ציון חלקי).
+
+### שאלת מוסר (moralDilemma)
+
+דילמה ערכית **ללא תשובה נכונה** — בחירה קשה שכל אפשרות בה מתקבלת. `puzzle`: `situation` (תיאור הדילמה) + `moralChoices: [{text, consequence}]` (2-4, **אין correctIndex**). **התנהגות**: `MoralDilemmaChallenge` (עיצוב "דילמה" סגול/ענבר, שונה מ"מבחן" כחול) מנהל שתי פאזות — בחירה → חלון השלכות (ה-consequence של הבחירה שנבחרה) → "המשך ←". `PuzzleModal` מנתב אותו ישירות (עוקף את פאנל התוצאה הגנרי) ומחבר `onResolve`→`onSolve(true,1)` (רסיסים מלאים, **אין כישלון ואין אובדן רסיסים**) ו-`onContinue`. נספר לקריסטלים ולמסה הקריטית כמו אתגר רגיל (משקל 1).
+- ההשלכות יכולות להיות מורכבות בכוונה — לפעמים הבחירה ה"מוסרית" מובילה לתוצאה גרועה יותר (ללמד שלהחלטות ערכיות יש מחיר ואין בחירה בטוחה).
+- **כיול עומק ייחודי** (לא 60/80 — אין הצלחה/כישלון למדוד): `moralDilemmaDepth(ageLevel, textLevel, override?)` = `min(גיל, text_level)` ממופה ל-1-10 — שני הצירים נדרשים (בשלות רגשית מ-`grade_label` + יכולת קוגניטיבית מ-`text_level`), הנמוך קובע, **ועקיפת מורה גוברת**. `scaleMoralDilemma(level)` נותן את הנחיית העומק + מספר האפשרויות (2→4). בייצור הבסיסי (כיתתי) משתמשים ברמת המורה; ההתאמה ל-min(גיל,טקסט) היא בווריאציה האישית. **מוחרג אוטומטית מהכיול הפר-סוג** (לא ב-`PROFILE_PUZZLE_TYPES`).
+- **מצב כיתתי (מקרן)**: עובד כרגיל בלשון רבים, אך כמו כל מצב כיתתי — לא נרשם session ואין אנליטיקה/כיול.
+
+## כיול קושי (1-10) — מנעד ענק
+
+`src/shared/lib/difficultyScaling.ts` — **מקור אמת יחיד** לתרגום רמת הקושי (`puzzleDifficulty` 1-10) לפרמטרים קונקרטיים לכל סוג אתגר. **עקרון המנעד הענק**: רמה 1 = טריוויאלית בכוונה (תלמיד חלש יצליח כמעט תמיד); רמה 10 = תקרה מוחלטת (גם תלמיד חזק מאוד לא עובר בקלות); 8 רמות הביניים מחולקות אחיד, **וההפרש בין הקצוות עצום ומורגש**. **כל הפרמטרים נעים יחד** — אין פרמטר קבוע.
+
+**אבחנה מרכזית: עומק מושגי (העיקר) מול רמת שפה (נגזרת).** לתוכן (multipleChoice/trueFalse/finalQuiz/השלמת מילים/נרטיב) המנעד הוא ב**עומק הרעיון הנלמד** — יותר שכבות, הפשטה, ניואנס וחשיבה ביקורתית — **לא** ניסוח מסובך של רעיון פשוט. השפה ואוצר המילים עולים כנגזרת טבעית מעומק הרעיון, לא כקישוט. הכלל מנוסח ל-AI ב-`difficultyHeader` (כולל דוגמת "דמוקרטיה": נמוך="כולם מצביעים יחד", גבוה=המתח בין שלטון הרוב להגנת המיעוט ומנגנוני האיזון) + סקלת מסיחים (נמוך=שגויים בעליל, גבוה=מתעתעים כמעט-נכונים).
+
+הקובץ pure (ללא DOM/Node) ומשמש את **שני הצדדים**:
+- **`questPrompt.ts`** (שרת) — `puzzleDataSpec(type, level)` מזריק לפרומפט מספרים מדויקים (תשובות/זוגות/מילים/פריטים) + הנחיית מורכבות תוכן, ו-`difficultyHeader(level)` בראש הנחיות האתגרים.
+- **קליינט** — `TileSwapChallenge` ו-`WordSearchChallenge` קוראים `puzzle.difficulty` (מוזרק בשרת בכל אתגר בעת היצירה) ומחשבים פרמטרי תצוגה.
+
+מיפוי המנעד (רמה 1 → רמה 10, כל הפרמטרים נעים): רב-ברירה (3→6 תשובות + עומק מושגי + מסיחים בעליל→מתעתעים), נכון/לא-נכון (עובדה בסיסית→ניואנס דק), פאזל הזזה (2×2→6×6 + `maxBadSwaps` נדיב→קמצן), חיפוש מילים (רשת **6→18**, מילים **3→14**, כיוונים אופקי→כל-ארבעה, `timeSec` **300→45ש׳**, `decoyBias` **0→0.85** אותיות מבלבלות), זיכרון (**2→14** זוגות + `maxMistakes` **12→1** + עומק התוכן), השלמת מילים (`blankCount` **1→3** חללים + בנק **8→ללא** + `maxAttempts` 4→1), חידת סדר (**3→9** פריטים + עדינות + `maxAttempts` 4→1), זיהוי קוד (`maxWrong` **10→2** + נדירות/רמז ישיר→עקיף). הקושי מוזרק לכל `puzzle` כשדה `difficulty`; הקליינט (`TileSwap`/`WordSearch`/`WordCompletion`) צורך אותו. **השלמת מילים רב-חללית**: `answers: string[]` (לפי סדר החללים) + `answer` לתאימות לאחור; ולידציה ב-`quests.ts` מאמתת שמספר התשובות = מספר ה-___. כל פרמטרי תנאי הכישלון מוגדרים ב-`difficultyScaling.ts` — ראו "פילוסופיית כישלון".
+
+### מודל כיול והתאמת קושי פר-תלמיד — `src/shared/lib/difficultyCalibration.ts`
+
+מודל נקי מבוסס **שיעור הצלחה פר-סוג-אתגר** (מחליף את `update_difficulty_profile` הישן והבאגי). הקובץ pure, וקבועי הכיול מרוכזים ב-`CALIBRATION` (ספי 60/80, ספי זמן קריאה 3ש׳/45ש׳, תחומי טקסט 1-16 ואתגרים 1-10). פונקציות: `calibrate(prev, input)`, `defaultProfileForGrade(label)`, `gradeNumberFromLabel(label)`, `perTypeFromChallenges(...)`, `normalizeProfile(...)`.
+
+- **מבנה הפרופיל** (`difficulty_profiles`, סעיף 7 ב-`schema.sql`, עמיד דרך `hasDifficultyProfileV2`): `text_level` (1-16, רמת הנרטיב), `per_puzzle_level` (jsonb — רמה 1-10 לכל סוג: multipleChoice/trueFalse/finalQuiz/wordCompletion/sequenceOrder/hangman/tileSwap/wordSearch/memory), `last_success_rates` (jsonb, היסטוריה לחישוב/תצוגה), `last_avg_scene_ms`, `sessions_count`, `last_updated`. העמודות אדיטיביות (הישנות נשמרות לתאימות).
+- **הכיול רץ בשרת ב-JS** (לא RPC, לא replay) אחרי כל session שהושלם, ב-`sessions.ts` → `recalibrateProfile(...)`: טוען פרופיל קיים (או ברירת מחדל מ-`grade_label` של הכיתה דרך `req.student.classId`), מחיל את הכלל, שומר. ה-RPC הישן כבר לא נקרא.
+- **הכלל**: (1) לכל סוג אתגר — שיעור הצלחה ב-session (פתורים/סך אותו סוג): <60% הורד רמה ב-1 (מינ׳ 1), >80% העלה ב-1 (מקס׳ 10), 60-80% ללא שינוי. (2) `text_level` — בסיס משיעור ההצלחה המשולב ב-multipleChoice+finalQuiz (אותו 60/80), ואז תיקון זמני קריאה: זמן ממוצע לסצנה >45ש׳ → הורד `text_level` ב-1 (קריאה איטית); <3ש׳ → **אל תשנה רמה**, אך הוסף דגל `skipping` ל-session (התלמיד מדלג על הטקסט). (3) **חריג הזיכרון**: כמות הזוגות + `maxMistakes` לפי `per_puzzle_level.memory` (כלל 60/80 רגיל), אך **מורכבות תוכן הזוגות כפופה ל-`text_level`** (מדד התוכן הטהור), לא ל-memory.
+- **ברירת מחדל (שיעור ראשון, אין פרופיל)**: `defaultProfileForGrade(grade_label)` — `text_level` ≈ מספר השכבה (ג׳→3), אתגרים בינוני-נמוך מדורג (`2 + grade*0.5`; ג׳→4, יב׳→8). מיפוי `grade_label`→מספר שכבה (א-יב, כולל יא/יב דו-אותיות).
+- **אנליטיקה**: `GET /analytics/student/:id` מחזיר `profileVersion` + הפרופיל (per-type), ו-`skipping` (מה-session_completed האחרון). `StudentDetail` מציג רמת טקסט, גריד רמות פר-סוג (עם שיעור ההצלחה האחרון), והתראת "דילוג". התיעוד המרוכז בסיום (`session_completed`) כולל `skipping` + `perType` (שיעור הצלחה פר-סוג).
+
+## ולידציה
+
+`server/src/routes/quests.ts` — `gameDataSchema.superRefine` מאמת את שדות הנתונים הנדרשים לכל סוג אתגר (choices/explanations, words≥3, pairs≥2, sentence עם `___`+answer, finalQuiz 3-10 שאלות עם correctIndex תקין). יצירה כושלת מפעילה retry אחד עם הודעת תיקון.
