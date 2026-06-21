@@ -41,13 +41,21 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
       .in('id', questIds)
     if (qErr) throw new AppError(500, qErr.message)
 
-    const quests = (questData ?? []).map((q: { id: string; title: string; game_data: { scenes?: unknown[] }; art_style?: string; created_at: string }) => ({
-      id: q.id,
-      title: q.title,
-      sceneCount: (q.game_data as { scenes?: unknown[] })?.scenes?.length ?? 0,
-      artStyle: q.art_style,
-      createdAt: q.created_at,
-    }))
+    type Scene = { id: string; imageUrl?: string }
+    type GameData = { scenes?: Scene[]; entrySceneId?: string }
+
+    const quests = (questData ?? []).map((q: { id: string; title: string; game_data: GameData; art_style?: string; created_at: string }) => {
+      const gd = q.game_data as GameData
+      const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
+      return {
+        id: q.id,
+        title: q.title,
+        sceneCount: gd?.scenes?.length ?? 0,
+        artStyle: q.art_style,
+        createdAt: q.created_at,
+        entryImageUrl: entryScene?.imageUrl ?? null,
+      }
+    })
 
     res.json({ quests })
   } catch (err) { next(err) }

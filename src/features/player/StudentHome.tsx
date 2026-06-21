@@ -18,84 +18,113 @@ interface AssignedQuest {
   title: string
   sceneCount: number
   artStyle?: string
+  entryImageUrl?: string | null
 }
 
 /* ── כרטיס הדמיה בודד ── */
 function QuestCard({ q, onPlay }: { q: AssignedQuest; onPlay: () => void }) {
   const [hovered, setHovered] = useState(false)
+  const hasImage = !!q.entryImageUrl
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onPlay}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '18px 22px',
-        background: 'linear-gradient(135deg,rgba(10,22,46,.92),rgba(4,9,20,.96))',
-        border: `1px solid ${hovered ? 'rgba(47,243,255,.42)' : 'rgba(47,243,255,.16)'}`,
-        borderRadius: 18,
-        backdropFilter: 'blur(12px)',
+        position: 'relative', overflow: 'hidden', borderRadius: 20, cursor: 'pointer',
+        border: `1px solid ${hovered ? 'rgba(47,243,255,.55)' : 'rgba(47,243,255,.18)'}`,
         boxShadow: hovered
-          ? '0 0 40px rgba(47,243,255,.12), 0 4px 24px rgba(0,0,0,.4)'
-          : '0 2px 16px rgba(0,0,0,.3)',
-        transition: 'border-color .22s, box-shadow .22s',
-        gap: 16,
+          ? '0 0 48px rgba(47,243,255,.18), 0 8px 32px rgba(0,0,0,.55)'
+          : '0 4px 20px rgba(0,0,0,.4)',
+        transition: 'border-color .22s, box-shadow .22s, transform .18s',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        background: '#04060f',
+        aspectRatio: '16/7',
       }}
     >
-      {/* אייקון סגנון */}
-      <div style={{
-        width: 54, height: 54, borderRadius: 15, flexShrink: 0,
-        background: 'linear-gradient(135deg,rgba(47,243,255,.1),rgba(136,85,255,.1))',
-        border: '1px solid rgba(47,243,255,.18)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 26,
-        boxShadow: hovered ? '0 0 18px rgba(47,243,255,.18)' : 'none',
-        transition: 'box-shadow .22s',
-      }}>
-        {ART_ICONS[q.artStyle ?? ''] ?? '🎮'}
-      </div>
-
-      {/* מידע */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* תמונת הסצנה הראשונה — רקע מלא */}
+      {hasImage ? (
+        <img
+          src={q.entryImageUrl!}
+          alt={q.title}
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover',
+            transform: hovered ? 'scale(1.04)' : 'scale(1)',
+            transition: 'transform .4s ease',
+          }}
+        />
+      ) : (
+        /* פלייסהולדר אם אין תמונה */
         <div style={{
-          fontWeight: 700, fontSize: 15, color: 'var(--holo-text-bright)',
-          fontFamily: 'var(--font-display)', marginBottom: 6,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(135deg,rgba(10,22,60,.9),rgba(4,9,24,.95))',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 48, opacity: 0.4,
         }}>
-          {q.title}
+          {ART_ICONS[q.artStyle ?? ''] ?? '🎮'}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{
-            fontSize: 11, padding: '2px 9px', borderRadius: 6,
-            background: 'rgba(47,243,255,.07)', border: '1px solid rgba(47,243,255,.18)',
-            color: 'rgba(47,243,255,.75)', fontWeight: 600,
-          }}>
-            {q.sceneCount} סצנות
-          </span>
-          <span style={{
-            fontSize: 11, padding: '2px 9px', borderRadius: 6,
-            background: 'rgba(136,85,255,.08)', border: '1px solid rgba(136,85,255,.22)',
-            color: 'rgba(180,140,255,.85)', fontWeight: 600,
-          }}>
-            {artStyleLabel(q.artStyle)}
-          </span>
-        </div>
-      </div>
+      )}
 
-      {/* כפתור שחק */}
-      <button
-        onClick={onPlay}
-        style={{
-          background: 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
-          color: '#031018', fontWeight: 800, fontSize: 14,
-          padding: '11px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
-          fontFamily: 'var(--font-display)', letterSpacing: '0.02em', flexShrink: 0,
-          boxShadow: hovered ? '0 0 28px rgba(47,243,255,.55)' : '0 0 14px rgba(47,243,255,.28)',
-          transform: hovered ? 'scale(1.04)' : 'scale(1)',
-          transition: 'box-shadow .2s, transform .15s',
-        }}
-      >
-        שחק ▶
-      </button>
+      {/* גרדיאנט overlay — מאפיל מלמטה לטקסט */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to top, rgba(2,5,15,.96) 0%, rgba(2,5,15,.55) 45%, rgba(2,5,15,.1) 100%)',
+      }} />
+
+      {/* תוכן — תחתית הכרטיס */}
+      <div style={{
+        position: 'absolute', bottom: 0, right: 0, left: 0,
+        padding: '14px 20px 16px',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+      }}>
+        {/* שם + מידע */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontWeight: 800, fontSize: 17, color: '#fff',
+            fontFamily: 'var(--font-display)',
+            textShadow: '0 1px 8px rgba(0,0,0,.8)',
+            marginBottom: 5,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {q.title}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <span style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600,
+              background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.3)',
+              color: 'rgba(47,243,255,.9)',
+              backdropFilter: 'blur(6px)',
+            }}>
+              {q.sceneCount} סצנות
+            </span>
+            <span style={{
+              fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600,
+              background: 'rgba(136,85,255,.12)', border: '1px solid rgba(136,85,255,.3)',
+              color: 'rgba(200,160,255,.9)',
+              backdropFilter: 'blur(6px)',
+            }}>
+              {artStyleLabel(q.artStyle)}
+            </span>
+          </div>
+        </div>
+
+        {/* כפתור שחק */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onPlay() }}
+          style={{
+            background: 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
+            color: '#021018', fontWeight: 800, fontSize: 14,
+            padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+            fontFamily: 'var(--font-display)', flexShrink: 0,
+            boxShadow: hovered ? '0 0 32px rgba(47,243,255,.7)' : '0 0 16px rgba(47,243,255,.4)',
+            transition: 'box-shadow .2s',
+          }}
+        >
+          שחק ▶
+        </button>
+      </div>
     </div>
   )
 }
