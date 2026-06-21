@@ -3,17 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 
-const COLS = 4
-/* מחשב כמה עמודות יתפוס כרטיס בשורה האחרונה כדי שהשורה תמלא את הרוחב המלא */
-function colSpan(idx: number, total: number): number {
-  const rem = total % COLS
-  if (!rem) return 1
-  const firstLast = total - rem
-  if (idx < firstLast) return 1
-  const base = Math.floor(COLS / rem)
-  const extra = COLS % rem
-  return base + (idx - firstLast < extra ? 1 : 0)
-}
 
 const ART_ICONS: Record<string, string> = {
   'digital-painting': '🎨', realistic: '📷', comic: '💥',
