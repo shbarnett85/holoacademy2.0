@@ -1,149 +1,83 @@
 import { supabaseAdmin } from './supabase.js'
 
-/* בדיקה (וב-cache) האם עמודת is_active קיימת בטבלה — כדי שהניהול יעבוד גם לפני המיגרציה.
-   לפני שהעמודה נוספה: הכול נחשב פעיל, ופעולות השבתה/הפעלה מחזירות הודעה ברורה. */
-const cache = new Map<string, boolean>()
+/* בדיקה האם עמודה/טבלה קיימת — cache רק תוצאות חיוביות (true).
+   תוצאה שלילית לא נשמרת, כך שאחרי הרצת מיגרציה השרת מתעדכן אוטומטית
+   בבקשה הבאה, ללא צורך ב-restart. */
+const cache = new Set<string>()
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function check(key: string, query: () => PromiseLike<{ error: any }>): Promise<boolean> {
+  if (cache.has(key)) return true
+  const { error } = await query()
+  if (!error) { cache.add(key); return true }
+  return false
+}
 
 export async function hasIsActive(table: 'users' | 'classes' | 'schools'): Promise<boolean> {
-  const cached = cache.get(table)
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from(table).select('is_active').limit(1)
-  const exists = !error
-  cache.set(table, exists)
-  return exists
+  return check(table, () => supabaseAdmin.from(table).select('is_active').limit(1))
 }
 
 /* האם המודל החדש (טבלת class_teachers) כבר קיים — אחרת fallback ל-classes.teacher_id */
 export async function hasClassTeachers(): Promise<boolean> {
-  const cached = cache.get('__class_teachers')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('class_teachers').select('class_id').limit(1)
-  const exists = !error
-  cache.set('__class_teachers', exists)
-  return exists
+  return check('__class_teachers', () => supabaseAdmin.from('class_teachers').select('class_id').limit(1))
 }
 
-/* האם עמודת class_teachers.is_homeroom קיימת (דגל מחנך כיתה) — אחרת אין מחנכים.
-   עמיד גם לחוסר טבלת class_teachers עצמה (לפני מיגרציית סעיף 4/10). */
+/* האם עמודת class_teachers.is_homeroom קיימת (דגל מחנך כיתה) */
 export async function hasHomeroom(): Promise<boolean> {
-  const cached = cache.get('__class_teachers_homeroom')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('class_teachers').select('is_homeroom').limit(1)
-  const exists = !error
-  cache.set('__class_teachers_homeroom', exists)
-  return exists
+  return check('__class_teachers_homeroom', () => supabaseAdmin.from('class_teachers').select('is_homeroom').limit(1))
 }
 
 /* האם עמודת grade_label קיימת — אחרת משתמשים ב-name כתווית השכבה */
 export async function hasGradeLabel(): Promise<boolean> {
-  const cached = cache.get('__grade_label')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('classes').select('grade_label').limit(1)
-  const exists = !error
-  cache.set('__grade_label', exists)
-  return exists
+  return check('__grade_label', () => supabaseAdmin.from('classes').select('grade_label').limit(1))
 }
 
-/* האם עמודת sessions.crystals קיימת — לשמירת מספר הקריסטלים (resume + ניתוח). אחרת מדלגים. */
+/* האם עמודת sessions.crystals קיימת */
 export async function hasSessionCrystals(): Promise<boolean> {
-  const cached = cache.get('__session_crystals')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('sessions').select('crystals').limit(1)
-  const exists = !error
-  cache.set('__session_crystals', exists)
-  return exists
+  return check('__session_crystals', () => supabaseAdmin.from('sessions').select('crystals').limit(1))
 }
 
-/* האם עמודת quests.is_public קיימת — ספרייה ציבורית. אחרת השיתוף מושבת בעדינות. */
+/* האם עמודת quests.is_public קיימת — ספרייה ציבורית */
 export async function hasPublicQuests(): Promise<boolean> {
-  const cached = cache.get('__quests_public')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('quests').select('is_public').limit(1)
-  const exists = !error
-  cache.set('__quests_public', exists)
-  return exists
+  return check('__quests_public', () => supabaseAdmin.from('quests').select('is_public').limit(1))
 }
 
-/* האם טבלת quest_reports קיימת — דיווחי מודרציה. אחרת הדיווח מושבת בעדינות. */
+/* האם טבלת quest_reports קיימת — דיווחי מודרציה */
 export async function hasQuestReports(): Promise<boolean> {
-  const cached = cache.get('__quest_reports')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('quest_reports').select('id').limit(1)
-  const exists = !error
-  cache.set('__quest_reports', exists)
-  return exists
+  return check('__quest_reports', () => supabaseAdmin.from('quest_reports').select('id').limit(1))
 }
 
-/* האם עמודת users.gender קיימת — מגדר תלמיד להתאמת פנייה. אחרת מתעלמים (לא מוגדר). */
+/* האם עמודת users.gender קיימת — מגדר תלמיד להתאמת פנייה */
 export async function hasUserGender(): Promise<boolean> {
-  const cached = cache.get('__user_gender')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('users').select('gender').limit(1)
-  const exists = !error
-  cache.set('__user_gender', exists)
-  return exists
+  return check('__user_gender', () => supabaseAdmin.from('users').select('gender').limit(1))
 }
 
-/* האם המבנה החדש של difficulty_profiles קיים (per_puzzle_level) — אחרת מדלגים על שמירת הפרופיל. */
+/* האם המבנה החדש של difficulty_profiles קיים (per_puzzle_level) */
 export async function hasDifficultyProfileV2(): Promise<boolean> {
-  const cached = cache.get('__difficulty_v2')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('difficulty_profiles').select('per_puzzle_level').limit(1)
-  const exists = !error
-  cache.set('__difficulty_v2', exists)
-  return exists
+  return check('__difficulty_v2', () => supabaseAdmin.from('difficulty_profiles').select('per_puzzle_level').limit(1))
 }
 
-/* האם טבלת progress_snapshots קיימת — סדרת-הזמן שמזינה את גרף ההתקדמות.
-   אחרת לא כותבים snapshot (הסיום עצמו עובד כרגיל). */
+/* האם טבלת progress_snapshots קיימת — סדרת-הזמן שמזינה את גרף ההתקדמות */
 export async function hasProgressSnapshots(): Promise<boolean> {
-  const cached = cache.get('__progress_snapshots')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('progress_snapshots').select('id').limit(1)
-  const exists = !error
-  cache.set('__progress_snapshots', exists)
-  return exists
+  return check('__progress_snapshots', () => supabaseAdmin.from('progress_snapshots').select('id').limit(1))
 }
 
-/* האם טבלת pedagogical_summaries קיימת — סיכום פדגוגי שמור. אחרת לא שומרים cache
-   (הסיכום עדיין נוצר ומוחזר חי, פשוט לא נשמר/נטען מ-DB עד המיגרציה). */
+/* האם טבלת pedagogical_summaries קיימת — סיכום פדגוגי שמור */
 export async function hasPedagogicalSummaries(): Promise<boolean> {
-  const cached = cache.get('__pedagogical_summaries')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('pedagogical_summaries').select('id').limit(1)
-  const exists = !error
-  cache.set('__pedagogical_summaries', exists)
-  return exists
+  return check('__pedagogical_summaries', () => supabaseAdmin.from('pedagogical_summaries').select('id').limit(1))
 }
 
-/* האם עמודת rolling_tallies קיימת ב-difficulty_profiles — אקומולטור חוצה-סשנים.
-   אחרת: כיול פר-session בלבד (ללא גייטינג מדגם). */
+/* האם עמודת rolling_tallies קיימת ב-difficulty_profiles — אקומולטור חוצה-סשנים */
 export async function hasRollingTallies(): Promise<boolean> {
-  const cached = cache.get('__rolling_tallies')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('difficulty_profiles').select('rolling_tallies').limit(1)
-  const exists = !error
-  cache.set('__rolling_tallies', exists)
-  return exists
+  return check('__rolling_tallies', () => supabaseAdmin.from('difficulty_profiles').select('rolling_tallies').limit(1))
 }
 
-/* האם עמודת teacher_overrides קיימת ב-difficulty_profiles — עקיפות מורה.
-   אחרת: הכיול ידרוס כל ערך (אין הבחנה בין auto ל-teacher-set עד המיגרציה). */
+/* האם עמודת teacher_overrides קיימת ב-difficulty_profiles */
 export async function hasTeacherOverrides(): Promise<boolean> {
-  const cached = cache.get('__teacher_overrides')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('difficulty_profiles').select('teacher_overrides').limit(1)
-  const exists = !error
-  cache.set('__teacher_overrides', exists)
-  return exists
+  return check('__teacher_overrides', () => supabaseAdmin.from('difficulty_profiles').select('teacher_overrides').limit(1))
 }
 
-/* האם עמודת quests.subject קיימת — מקצוע ההדמיה לסינון. אחרת מדלגים. */
+/* האם עמודת quests.subject קיימת — מקצוע ההדמיה לסינון */
 export async function hasQuestSubject(): Promise<boolean> {
-  const cached = cache.get('__quest_subject')
-  if (cached !== undefined) return cached
-  const { error } = await supabaseAdmin.from('quests').select('subject').limit(1)
-  const exists = !error
-  cache.set('__quest_subject', exists)
-  return exists
+  return check('__quest_subject', () => supabaseAdmin.from('quests').select('subject').limit(1))
 }
