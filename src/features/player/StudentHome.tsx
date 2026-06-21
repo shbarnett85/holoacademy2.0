@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 
+const COLS = 4
+/* מחשב כמה עמודות יתפוס כרטיס בשורה האחרונה כדי שהשורה תמלא את הרוחב המלא */
+function colSpan(idx: number, total: number): number {
+  const rem = total % COLS
+  if (!rem) return 1
+  const firstLast = total - rem
+  if (idx < firstLast) return 1
+  const base = Math.floor(COLS / rem)
+  const extra = COLS % rem
+  return base + (idx - firstLast < extra ? 1 : 0)
+}
+
 const ART_ICONS: Record<string, string> = {
   'digital-painting': '🎨', realistic: '📷', comic: '💥',
   storybook: '📖', anime: '🌸', 'pixar-3d': '🧸',
@@ -56,7 +68,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
         boxShadow: hov ? '0 0 36px rgba(47,243,255,.18),0 6px 28px rgba(0,0,0,.55)' : '0 3px 16px rgba(0,0,0,.4)',
         transition: 'border-color .22s,box-shadow .22s,transform .18s',
         transform: hov ? 'translateY(-3px)' : 'translateY(0)',
-        background: '#04060f', aspectRatio: '4/3',
+        background: '#04060f', height: 'clamp(180px,17.5vw,260px)',
       }}
     >
       {q.entryImageUrl ? (
@@ -511,8 +523,10 @@ export default function StudentHome() {
           {/* גריד 3 עמודות */}
           {!loading && displayed.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
-              {displayed.map((q) => (
-                <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
+              {displayed.map((q, i) => (
+                <div key={q.id} style={{ gridColumn: `span ${colSpan(i, displayed.length)}` }}>
+                  <QuestCard q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
+                </div>
               ))}
             </div>
           )}
