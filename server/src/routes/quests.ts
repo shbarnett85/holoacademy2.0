@@ -227,7 +227,7 @@ type GameData = z.infer<typeof gameDataSchema>
 
 const generateRequestSchema = z.object({
   title: z.string().min(1),
-  curriculum: z.string().min(1),
+  curriculum: z.string().default(''),
   questLength: z.number().int().positive(),
   puzzlePreferences: z
     .object({
