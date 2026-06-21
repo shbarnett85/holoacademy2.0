@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
+import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+import { artStyleLabel } from '../../shared/lib/labels'
+
+const ART_ICONS: Record<string, string> = {
+  'digital-painting': '🎨',
+  realistic: '📷',
+  comic: '💥',
+  storybook: '📖',
+  anime: '🌸',
+  'pixar-3d': '🧸',
+}
 
 interface AssignedQuest {
   id: string
@@ -8,6 +19,105 @@ interface AssignedQuest {
   sceneCount: number
   artStyle?: string
 }
+
+/* ── כרטיס הדמיה בודד ── */
+function QuestCard({ q, onPlay }: { q: AssignedQuest; onPlay: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '18px 22px',
+        background: 'linear-gradient(135deg,rgba(10,22,46,.92),rgba(4,9,20,.96))',
+        border: `1px solid ${hovered ? 'rgba(47,243,255,.42)' : 'rgba(47,243,255,.16)'}`,
+        borderRadius: 18,
+        backdropFilter: 'blur(12px)',
+        boxShadow: hovered
+          ? '0 0 40px rgba(47,243,255,.12), 0 4px 24px rgba(0,0,0,.4)'
+          : '0 2px 16px rgba(0,0,0,.3)',
+        transition: 'border-color .22s, box-shadow .22s',
+        gap: 16,
+      }}
+    >
+      {/* אייקון סגנון */}
+      <div style={{
+        width: 54, height: 54, borderRadius: 15, flexShrink: 0,
+        background: 'linear-gradient(135deg,rgba(47,243,255,.1),rgba(136,85,255,.1))',
+        border: '1px solid rgba(47,243,255,.18)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 26,
+        boxShadow: hovered ? '0 0 18px rgba(47,243,255,.18)' : 'none',
+        transition: 'box-shadow .22s',
+      }}>
+        {ART_ICONS[q.artStyle ?? ''] ?? '🎮'}
+      </div>
+
+      {/* מידע */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 700, fontSize: 15, color: 'var(--holo-text-bright)',
+          fontFamily: 'var(--font-display)', marginBottom: 6,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {q.title}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{
+            fontSize: 11, padding: '2px 9px', borderRadius: 6,
+            background: 'rgba(47,243,255,.07)', border: '1px solid rgba(47,243,255,.18)',
+            color: 'rgba(47,243,255,.75)', fontWeight: 600,
+          }}>
+            {q.sceneCount} סצנות
+          </span>
+          <span style={{
+            fontSize: 11, padding: '2px 9px', borderRadius: 6,
+            background: 'rgba(136,85,255,.08)', border: '1px solid rgba(136,85,255,.22)',
+            color: 'rgba(180,140,255,.85)', fontWeight: 600,
+          }}>
+            {artStyleLabel(q.artStyle)}
+          </span>
+        </div>
+      </div>
+
+      {/* כפתור שחק */}
+      <button
+        onClick={onPlay}
+        style={{
+          background: 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
+          color: '#031018', fontWeight: 800, fontSize: 14,
+          padding: '11px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+          fontFamily: 'var(--font-display)', letterSpacing: '0.02em', flexShrink: 0,
+          boxShadow: hovered ? '0 0 28px rgba(47,243,255,.55)' : '0 0 14px rgba(47,243,255,.28)',
+          transform: hovered ? 'scale(1.04)' : 'scale(1)',
+          transition: 'box-shadow .2s, transform .15s',
+        }}
+      >
+        שחק ▶
+      </button>
+    </div>
+  )
+}
+
+/* ── טעינה — שלוש נקודות פועמות ── */
+function LoadingDots() {
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: 'var(--holo-cyan-bright)',
+          animation: 'holo-dot-pulse 1.4s ease-in-out infinite',
+          animationDelay: `${i * 0.22}s`,
+          opacity: 0.7,
+        }} />
+      ))}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════ */
 
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
@@ -33,61 +143,135 @@ export default function StudentHome() {
 
   if (!isLoggedIn) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <p style={{ color: 'var(--holo-text)' }}>לא מחוברים — חזרו לקישור הכיתה</p>
-      </div>
+      <HoloBackdrop>
+        <div style={{
+          background: 'linear-gradient(135deg,rgba(10,22,46,.95),rgba(4,9,20,.98))',
+          border: '1px solid rgba(255,80,120,.35)', borderRadius: 22,
+          padding: '40px 44px', width: 340, textAlign: 'center',
+          boxShadow: '0 0 60px rgba(255,80,120,.1)',
+        }}>
+          <div style={{ fontSize: '2.4rem', marginBottom: 8 }}>🔒</div>
+          <p style={{ color: 'rgba(180,220,255,.75)', fontSize: 15 }}>לא מחוברים — חזרו לקישור הכיתה</p>
+        </div>
+      </HoloBackdrop>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', maxWidth: 700, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ color: 'var(--holo-cyan)', fontFamily: 'var(--font-display)', fontSize: '1.8rem', margin: 0 }}>
-          שלום {name}! 👋
-        </h1>
-        <button
-          onClick={() => { logout(); navigate('/') }}
-          style={{ fontSize: 13, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.15)', color: '#8aa0b8' }}
-        >
-          יציאה
-        </button>
-      </div>
-
-      <h2 style={{ color: 'rgba(180,220,255,.7)', fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>
-        ההדמיות שלך
-      </h2>
-
-      {loading && <p style={{ color: 'rgba(140,170,200,.5)', fontSize: 14 }}>טוען…</p>}
-
-      {dbgError && (
-        <div style={{ padding: '12px 16px', background: 'rgba(255,80,80,.1)', border: '1px solid rgba(255,80,80,.3)', borderRadius: 10, fontSize: 13, color: '#ff8099', marginBottom: 12 }}>
-          ⚠️ {dbgError}
-        </div>
-      )}
-
-      {!loading && quests.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '3rem', background: 'rgba(4,9,18,.5)', borderRadius: 16, border: '1px solid rgba(47,243,255,.1)' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🚀</div>
-          <p style={{ color: 'rgba(140,170,200,.6)', fontSize: 14 }}>עדיין לא הוקצו לך הדמיות — המורה יעדכן בקרוב</p>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {quests.map((q) => (
-          <div key={q.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(4,9,18,.6)', borderRadius: 14, border: '1px solid rgba(47,243,255,.15)' }}>
-            <div>
-              <div style={{ fontWeight: 700, color: '#e8f4ff', fontSize: 15 }}>{q.title}</div>
-              <div style={{ fontSize: 12, color: 'rgba(140,170,200,.6)', marginTop: 3 }}>{q.sceneCount} סצנות</div>
+    <HoloBackdrop>
+      {/* שכבת גלילה מעל הרקע */}
+      <div
+        dir="rtl"
+        className="holo-screen-fade"
+        style={{
+          position: 'absolute', inset: 0, overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          padding: '0 1rem 3rem',
+        }}
+      >
+        {/* ── HEADER ── */}
+        <div style={{
+          width: '100%', maxWidth: 680,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '1.75rem 0 1.5rem',
+          borderBottom: '1px solid rgba(47,243,255,.08)',
+          marginBottom: '1.75rem',
+        }}>
+          {/* לוגו + שם */}
+          <div>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
+              color: 'rgba(47,243,255,.45)', textTransform: 'uppercase', marginBottom: 4,
+            }}>
+              HoloAcademy
             </div>
-            <button
-              onClick={() => navigate(`/play/${q.id}`)}
-              style={{ fontSize: 14, fontWeight: 700, padding: '9px 20px', borderRadius: 10, cursor: 'pointer', background: 'linear-gradient(135deg,#2ff3ff,#00c8e0)', color: '#031018', border: 'none' }}
-            >
-              שחק ▶
-            </button>
+            <h1 style={{
+              margin: 0, fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(1.35rem,4vw,1.75rem)', fontWeight: 800,
+              color: 'var(--holo-text-bright)',
+              textShadow: '0 0 24px rgba(47,243,255,.35)',
+            }}>
+              שלום,{' '}
+              <span style={{ color: 'var(--holo-cyan-bright)' }}>{name}</span>
+              {' '}👋
+            </h1>
           </div>
-        ))}
+
+          {/* כפתור יציאה */}
+          <button
+            onClick={() => { logout(); navigate('/') }}
+            style={{
+              fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 10,
+              cursor: 'pointer', fontFamily: 'var(--font-display)',
+              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+              color: 'rgba(160,200,240,.55)',
+              transition: 'border-color .18s, color .18s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,80,120,.4)'; e.currentTarget.style.color = '#ff8099' }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(160,200,240,.55)' }}
+          >
+            יציאה
+          </button>
+        </div>
+
+        {/* ── CONTENT ── */}
+        <div style={{ width: '100%', maxWidth: 680 }}>
+
+          {/* כותרת מקטע */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.1rem' }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
+              color: 'rgba(47,243,255,.5)', textTransform: 'uppercase',
+              fontFamily: 'var(--font-display)',
+            }}>
+              ההדמיות שלך
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(47,243,255,.18), transparent)' }} />
+          </div>
+
+          {/* שגיאת debug */}
+          {dbgError && (
+            <div style={{
+              padding: '12px 16px', marginBottom: 14,
+              background: 'rgba(255,80,80,.08)', border: '1px solid rgba(255,80,80,.25)',
+              borderRadius: 12, fontSize: 13, color: '#ff8099',
+            }}>
+              ⚠️ {dbgError}
+            </div>
+          )}
+
+          {/* טעינה */}
+          {loading && <LoadingDots />}
+
+          {/* ריק */}
+          {!loading && !dbgError && quests.length === 0 && (
+            <div style={{
+              textAlign: 'center', padding: '3.5rem 2rem',
+              background: 'linear-gradient(135deg,rgba(10,22,46,.7),rgba(4,9,20,.8))',
+              border: '1px solid rgba(47,243,255,.1)', borderRadius: 22,
+              backdropFilter: 'blur(10px)',
+            }}>
+              <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem', filter: 'drop-shadow(0 0 12px rgba(47,243,255,.3))' }}>🚀</div>
+              <p style={{
+                color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0,
+                fontFamily: 'var(--font-display)',
+              }}>
+                עדיין לא הוקצו לך הדמיות
+              </p>
+              <p style={{ color: 'rgba(120,160,200,.35)', fontSize: 12, marginTop: 4 }}>
+                המורה יעדכן בקרוב ✨
+              </p>
+            </div>
+          )}
+
+          {/* כרטיסי הדמיות */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {quests.map((q) => (
+              <QuestCard key={q.id} q={q} onPlay={() => navigate(`/play/${q.id}`)} />
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </HoloBackdrop>
   )
 }
