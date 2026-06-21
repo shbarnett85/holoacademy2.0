@@ -39,11 +39,8 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     /* מיפוי quest_id → assignedAt */
     const assignedAtMap = new Map(asgRows.map((r: { quest_id: string; created_at: string }) => [r.quest_id, r.created_at]))
 
-    const subjectExists = await hasQuestSubject()
-    const questSelect = `id, title, game_data, art_style, created_by${subjectExists ? ', subject' : ''}`
-
     const [questResult, sessionResult] = await Promise.all([
-      supabaseAdmin.from('quests').select(questSelect).in('id', questIds),
+      supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by').in('id', questIds),
       supabaseAdmin.from('sessions')
         .select('quest_id, completed_at, crystals, total_score, max_score')
         .eq('user_id', req.student!.userId)
@@ -54,7 +51,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     type Scene = { id: string; imageUrl?: string }
     type GameData = { scenes?: Scene[]; entrySceneId?: string }
-    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; subject?: string | null; created_by?: string | null; [k: string]: unknown }
+    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; created_by?: string | null }
 
     /* שמות מורים לפי created_by */
     const teacherIds = [...new Set((questResult.data ?? []).map((q: QuestRow) => q.created_by).filter(Boolean))] as string[]
@@ -62,6 +59,15 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     if (teacherIds.length > 0) {
       const { data: teachers } = await supabaseAdmin.from('users').select('id, name').in('id', teacherIds)
       for (const t of (teachers ?? []) as { id: string; name: string }[]) teacherMap.set(t.id, t.name)
+    }
+
+    /* subject — שאילתה נפרדת, דיפנסיבית */
+    const subjectMap = new Map<string, string>()
+    if (await hasQuestSubject()) {
+      const { data: subjectRows } = await supabaseAdmin.from('quests').select('id, subject').in('id', questIds)
+      for (const r of (subjectRows ?? []) as { id: string; subject?: string | null }[]) {
+        if (r.subject) subjectMap.set(r.id, r.subject)
+      }
     }
 
     /* מיפוי quest_id → מצב session הטוב ביותר */
@@ -90,7 +96,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         title: q.title,
         sceneCount: gd?.scenes?.length ?? 0,
         artStyle: q.art_style,
-        subject: q.subject ?? null,
+        subject: subjectMap.get(q.id) ?? null,
         teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
         assignedAt: assignedAtMap.get(q.id) ?? null,
         entryImageUrl: entryScene?.imageUrl ?? null,
