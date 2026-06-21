@@ -40,7 +40,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     const assignedAtMap = new Map(asgRows.map((r: { quest_id: string; created_at: string }) => [r.quest_id, r.created_at]))
 
     const [questResult, sessionResult] = await Promise.all([
-      supabaseAdmin.from('quests').select('id, title, game_data, art_style').in('id', questIds),
+      supabaseAdmin.from('quests').select('id, title, game_data, art_style, subject, created_by').in('id', questIds),
       supabaseAdmin.from('sessions')
         .select('quest_id, completed_at, crystals, total_score, max_score')
         .eq('user_id', req.student!.userId)
@@ -51,6 +51,15 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     type Scene = { id: string; imageUrl?: string }
     type GameData = { scenes?: Scene[]; entrySceneId?: string }
+    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; subject?: string | null; created_by?: string | null }
+
+    /* שמות מורים לפי created_by */
+    const teacherIds = [...new Set((questResult.data ?? []).map((q: QuestRow) => q.created_by).filter(Boolean))] as string[]
+    const teacherMap = new Map<string, string>()
+    if (teacherIds.length > 0) {
+      const { data: teachers } = await supabaseAdmin.from('users').select('id, name').in('id', teacherIds)
+      for (const t of (teachers ?? []) as { id: string; name: string }[]) teacherMap.set(t.id, t.name)
+    }
 
     /* מיפוי quest_id → מצב session הטוב ביותר */
     type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null }
@@ -61,7 +70,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
       sessionsByQuest.set(s.quest_id, arr)
     }
 
-    const quests = (questResult.data ?? []).map((q: { id: string; title: string; game_data: GameData; art_style?: string }) => {
+    const quests = (questResult.data ?? []).map((q: QuestRow) => {
       const gd = q.game_data as GameData
       const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
 
@@ -78,6 +87,8 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         title: q.title,
         sceneCount: gd?.scenes?.length ?? 0,
         artStyle: q.art_style,
+        subject: q.subject ?? null,
+        teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
         assignedAt: assignedAtMap.get(q.id) ?? null,
         entryImageUrl: entryScene?.imageUrl ?? null,
         sessionStatus,
