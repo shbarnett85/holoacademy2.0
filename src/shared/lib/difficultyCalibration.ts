@@ -54,10 +54,32 @@ export interface CalibrationInput {
   avgSceneMs: number
 }
 
+/* ── עקיפת מורה וניהול יומן כיול ── */
+
+export interface TeacherOverride {
+  setBy: string   // שם המורה
+  setAt: string   // ISO timestamp
+  value: number   // הערך שהמורה קבע
+}
+/** מפתחות: כל סוגי האתגרים + 'textLevel' + 'moralDilemma' (נגזר, לא מכוייל) */
+export type TeacherOverridesKey = ProfilePuzzleType | 'textLevel' | 'moralDilemma'
+export type TeacherOverrides = Partial<Record<TeacherOverridesKey, TeacherOverride>>
+
+export interface CalibrationEntry {
+  oldVal: number
+  newVal: number
+  rate?: number      // שיעור הצלחה (0-1) — עבור trigger='success_rate'
+  n?: number         // גודל מדגם
+  trigger: 'success_rate' | 'slow_reading' | 'skip_flag'
+  timestamp: string
+}
+export type CalibrationLog = Partial<Record<ProfilePuzzleType | 'textLevel', CalibrationEntry>>
+
 export interface CalibrationResult {
   profile: DifficultyProfile
   skipping: boolean
   readingAdjust: 'slow' | 'skip' | 'none'
+  log: CalibrationLog   // מה השתנה ולמה בסשן זה
 }
 
 /* ── עזרים ── */
@@ -139,41 +161,65 @@ export function normalizeProfile(
   return { textLevel, perPuzzleLevel }
 }
 
-/* הכיול עצמו */
-export function calibrate(prev: DifficultyProfile, input: CalibrationInput): CalibrationResult {
+/* הכיול עצמו.
+   overrides: מימדים שנעקפו ידנית ע"י מורה — מדולגים מהכיול האוטומטי. */
+export function calibrate(
+  prev: DifficultyProfile,
+  input: CalibrationInput,
+  overrides?: TeacherOverrides,
+): CalibrationResult {
+  const log: CalibrationLog = {}
   const perPuzzleLevel = { ...prev.perPuzzleLevel }
 
   /* 1) כלל עם גייטינג ביטחון — לכל סוג אתגר לפי הצובר המצטבר */
   for (const type of PROFILE_PUZZLE_TYPES) {
+    if (overrides?.[type]) continue  /* מורה קבע — מדלגים */
     const tally = input.rollingTallies[type]
     if (!tally || tally.total === 0) continue
-    perPuzzleLevel[type] = clampPuzzle(
-      confidenceStep(perPuzzleLevel[type], tally.solved / tally.total, tally.total),
-    )
+    const rate = tally.solved / tally.total
+    const newLevel = clampPuzzle(confidenceStep(perPuzzleLevel[type], rate, tally.total))
+    if (newLevel !== perPuzzleLevel[type]) {
+      log[type] = { oldVal: perPuzzleLevel[type], newVal: newLevel, rate, n: tally.total, trigger: 'success_rate', timestamp: new Date().toISOString() }
+      perPuzzleLevel[type] = newLevel
+    }
   }
 
   /* 2) text_level — שיעור הצלחה ב-MC + finalQuiz של ה-session הנוכחי */
   let textLevel = prev.textLevel
-  const mc = input.perType.multipleChoice
-  const fq = input.perType.finalQuiz
-  const contentSolved = (mc?.solved ?? 0) + (fq?.solved ?? 0)
-  const contentTotal = (mc?.total ?? 0) + (fq?.total ?? 0)
-  if (contentTotal > 0) textLevel = step(textLevel, contentSolved / contentTotal)
-
-  /* תיקון זמני קריאה */
+  const origTextLevel = prev.textLevel
   let skipping = false
   let readingAdjust: CalibrationResult['readingAdjust'] = 'none'
-  if (input.avgSceneMs > 0) {
-    if (input.avgSceneMs > CALIBRATION.SLOW_MS_PER_SCENE) {
-      textLevel -= 1
-      readingAdjust = 'slow'
-    } else if (input.avgSceneMs < CALIBRATION.SKIP_MS_PER_SCENE) {
-      skipping = true
-      readingAdjust = 'skip'
+
+  if (!overrides?.textLevel) {
+    const mc = input.perType.multipleChoice
+    const fq = input.perType.finalQuiz
+    const contentSolved = (mc?.solved ?? 0) + (fq?.solved ?? 0)
+    const contentTotal = (mc?.total ?? 0) + (fq?.total ?? 0)
+    if (contentTotal > 0) {
+      const rate = contentSolved / contentTotal
+      textLevel = step(textLevel, rate)
+      if (textLevel !== origTextLevel) {
+        log.textLevel = { oldVal: origTextLevel, newVal: textLevel, rate, n: contentTotal, trigger: 'success_rate', timestamp: new Date().toISOString() }
+      }
+    }
+
+    /* תיקון זמני קריאה */
+    if (input.avgSceneMs > 0) {
+      if (input.avgSceneMs > CALIBRATION.SLOW_MS_PER_SCENE) {
+        const before = textLevel
+        textLevel -= 1
+        readingAdjust = 'slow'
+        /* מחליף רשומת log.textLevel (slow_reading גוברת) */
+        log.textLevel = { oldVal: origTextLevel, newVal: textLevel, trigger: 'slow_reading', timestamp: new Date().toISOString() }
+        void before
+      } else if (input.avgSceneMs < CALIBRATION.SKIP_MS_PER_SCENE) {
+        skipping = true
+        readingAdjust = 'skip'
+      }
     }
   }
 
-  return { profile: { textLevel: clampText(textLevel), perPuzzleLevel }, skipping, readingAdjust }
+  return { profile: { textLevel: clampText(textLevel), perPuzzleLevel }, skipping, readingAdjust, log }
 }
 
 /* ── ברירת מחדל לתלמיד בלי פרופיל ── */

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies, hasTeacherOverrides } from '../lib/activeColumn.js'
 import {
   CALIBRATION,
   calibrate,
@@ -16,6 +16,8 @@ import {
   type PuzzleStat,
   type DifficultyProfile,
   type RollingTallies,
+  type TeacherOverrides,
+  type CalibrationLog,
 } from '../../../src/shared/lib/difficultyCalibration.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
@@ -159,11 +161,14 @@ async function recalibrateProfile(
   }
   const fallback = defaultProfileForGrade(gradeLabel)
 
-  /* פרופיל קודם (אם קיים) — כולל rolling_tallies אם העמודה קיימת */
+  /* פרופיל קודם (אם קיים) — כולל rolling_tallies ו-teacher_overrides אם העמודות קיימות */
   const withRolling = await hasRollingTallies()
-  const profileSelect = withRolling
-    ? 'id, text_level, per_puzzle_level, sessions_count, rolling_tallies'
-    : 'id, text_level, per_puzzle_level, sessions_count'
+  const withOverrides = await hasTeacherOverrides()
+  const profileSelect = [
+    'id', 'text_level', 'per_puzzle_level', 'sessions_count',
+    ...(withRolling ? ['rolling_tallies'] : []),
+    ...(withOverrides ? ['teacher_overrides', 'calibration_log'] : []),
+  ].join(', ')
   const { data: row } = await supabaseAdmin
     .from('difficulty_profiles')
     .select(profileSelect)
@@ -175,6 +180,8 @@ async function recalibrateProfile(
     per_puzzle_level?: Record<string, number> | null
     sessions_count?: number | null
     rolling_tallies?: RollingTallies | null
+    teacher_overrides?: TeacherOverrides | null
+    calibration_log?: CalibrationLog | null
   } | null
   const prev = normalizeProfile(
     r ? { textLevel: r.text_level ?? undefined, perPuzzleLevel: (r.per_puzzle_level as Record<ProfilePuzzleType, number>) ?? undefined } : null,
@@ -185,7 +192,12 @@ async function recalibrateProfile(
   const prevTallies: RollingTallies = (r?.rolling_tallies as RollingTallies) ?? {}
   const mergedTallies = mergeRolling(prevTallies, perType)
 
-  const result = calibrate(prev, { perType, rollingTallies: mergedTallies, avgSceneMs })
+  const teacherOverrides: TeacherOverrides = (r?.teacher_overrides as TeacherOverrides) ?? {}
+  const result = calibrate(prev, { perType, rollingTallies: mergedTallies, avgSceneMs }, teacherOverrides)
+
+  /* מיזוג יומן כיול: שמור רשומות קיימות, החלף רק מימדים שהשתנו בסשן זה */
+  const prevLog: CalibrationLog = (r?.calibration_log as CalibrationLog) ?? {}
+  const mergedLog: CalibrationLog = { ...prevLog, ...result.log }
 
   /* היסטוריית שיעורי הצלחה אחרונים פר סוג */
   const lastRates: Record<string, number> = {}
@@ -201,6 +213,7 @@ async function recalibrateProfile(
     sessions_count: (r?.sessions_count ?? 0) + 1,
     last_updated: new Date().toISOString(),
     ...(withRolling ? { rolling_tallies: mergedTallies } : {}),
+    ...(withOverrides ? { calibration_log: mergedLog } : {}),
   }
   if (r?.id) {
     await supabaseAdmin.from('difficulty_profiles').update(profilePatch).eq('id', r.id)

@@ -127,6 +127,17 @@ export async function hasRollingTallies(): Promise<boolean> {
   return exists
 }
 
+/* האם עמודת teacher_overrides קיימת ב-difficulty_profiles — עקיפות מורה.
+   אחרת: הכיול ידרוס כל ערך (אין הבחנה בין auto ל-teacher-set עד המיגרציה). */
+export async function hasTeacherOverrides(): Promise<boolean> {
+  const cached = cache.get('__teacher_overrides')
+  if (cached !== undefined) return cached
+  const { error } = await supabaseAdmin.from('difficulty_profiles').select('teacher_overrides').limit(1)
+  const exists = !error
+  cache.set('__teacher_overrides', exists)
+  return exists
+}
+
 /* האם עמודת quests.subject קיימת — מקצוע ההדמיה לסינון. אחרת מדלגים. */
 export async function hasQuestSubject(): Promise<boolean> {
   const cached = cache.get('__quest_subject')

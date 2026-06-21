@@ -106,6 +106,8 @@ ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS text_level        integ
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS per_puzzle_level  jsonb;       -- רמה 1-10 לכל סוג אתגר
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS last_success_rates jsonb;      -- שיעור ההצלחה האחרון פר סוג (היסטוריה לחישוב)
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS rolling_tallies    jsonb;      -- אקומולטור מתגלגל {type:{solved,total}} חוצה-סשנים (K=10)
+ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS teacher_overrides  jsonb;      -- עקיפות מורה {dim:{setBy,setAt,value}} — מימדים שמורה קבע ידנית
+ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS calibration_log    jsonb;      -- יומן כיול {dim:{oldVal,newVal,rate?,n?,trigger,timestamp}} — מה השתנה ולמה
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS last_avg_scene_ms integer;     -- זמן ממוצע אחרון לסצנה (ms)
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS sessions_count    integer NOT NULL DEFAULT 0;
 ALTER TABLE difficulty_profiles ADD COLUMN IF NOT EXISTS last_updated      timestamptz;
