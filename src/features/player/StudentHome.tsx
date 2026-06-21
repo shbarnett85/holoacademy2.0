@@ -314,13 +314,13 @@ export default function StudentHome() {
         className="holo-screen-fade"
         style={{
           position: 'absolute', inset: 0, overflowY: 'auto',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '0 1.25rem 3rem',
+          display: 'flex', flexDirection: 'column',
+          padding: '0 clamp(1rem, 3vw, 2.5rem) 3rem',
         }}
       >
         {/* ── HEADER ── */}
         <div style={{
-          width: '100%', maxWidth: 960,
+          width: '100%',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '1.6rem 0 1.4rem',
           borderBottom: '1px solid rgba(47,243,255,.08)',
@@ -355,7 +355,7 @@ export default function StudentHome() {
         {/* ── SEARCH & FILTER BAR ── */}
         {!loading && quests.length > 0 && (
           <div style={{
-            width: '100%', maxWidth: 960, marginBottom: '1.25rem',
+            width: '100%', marginBottom: '1.25rem',
             background: 'linear-gradient(135deg,rgba(10,18,40,.85),rgba(4,8,18,.9))',
             border: '1px solid rgba(47,243,255,.12)', borderRadius: 16,
             padding: '14px 16px', backdropFilter: 'blur(14px)',
