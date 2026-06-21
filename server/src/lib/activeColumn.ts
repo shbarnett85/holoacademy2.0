@@ -116,6 +116,17 @@ export async function hasPedagogicalSummaries(): Promise<boolean> {
   return exists
 }
 
+/* האם עמודת rolling_tallies קיימת ב-difficulty_profiles — אקומולטור חוצה-סשנים.
+   אחרת: כיול פר-session בלבד (ללא גייטינג מדגם). */
+export async function hasRollingTallies(): Promise<boolean> {
+  const cached = cache.get('__rolling_tallies')
+  if (cached !== undefined) return cached
+  const { error } = await supabaseAdmin.from('difficulty_profiles').select('rolling_tallies').limit(1)
+  const exists = !error
+  cache.set('__rolling_tallies', exists)
+  return exists
+}
+
 /* האם עמודת quests.subject קיימת — מקצוע ההדמיה לסינון. אחרת מדלגים. */
 export async function hasQuestSubject(): Promise<boolean> {
   const cached = cache.get('__quest_subject')

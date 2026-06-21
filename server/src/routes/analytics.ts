@@ -3,7 +3,7 @@ import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
-import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots } from '../lib/activeColumn.js'
+import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
@@ -507,8 +507,9 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
 
     /* פרופיל הקושי — המבנה החדש (per-type) אם המיגרציה רצה, אחרת המבנה הישן */
     const v2 = await hasDifficultyProfileV2()
+    const withRolling = v2 && (await hasRollingTallies())
     const profileCols = v2
-      ? 'text_level, per_puzzle_level, last_success_rates, last_avg_scene_ms, sessions_count, last_updated'
+      ? `text_level, per_puzzle_level, last_success_rates, last_avg_scene_ms, sessions_count, last_updated${withRolling ? ', rolling_tallies' : ''}`
       : 'writing_level, puzzle_difficulty, avg_success_rate, avg_time_per_scene, sessions_count, last_updated'
     const { data: profile } = await supabaseAdmin
       .from('difficulty_profiles')
@@ -556,6 +557,46 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       history,
       trend,
     })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── PATCH /api/analytics/student/:studentId/profile — עקיפת מורה לפרופיל קושי ── */
+analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
+  try {
+    const { studentId } = req.params
+    /* אותה בדיקת גישה כמו GET /student/:studentId */
+    const { data: memberships } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId)
+    const classIds = (memberships ?? []).map((m: { class_id: string }) => m.class_id)
+    let allowed = req.staff!.role === 'super_admin'
+    if (!allowed) {
+      for (const cid of classIds) {
+        try { await assertClassAccess(req, cid); allowed = true; break } catch { /* נסה את הבא */ }
+      }
+    }
+    if (!allowed) throw new AppError(403, 'אין לך גישה לתלמיד זה')
+
+    if (!(await hasDifficultyProfileV2())) {
+      return res.status(503).json({ error: 'פרופיל הקושי עדיין לא מופעל' })
+    }
+
+    /* גוף: { perPuzzleLevel?: Record<string,number>, textLevel?: number } */
+    const body = req.body as { perPuzzleLevel?: Record<string, number>; textLevel?: number }
+
+    const { data: existing } = await supabaseAdmin
+      .from('difficulty_profiles').select('id').eq('user_id', studentId).maybeSingle()
+
+    const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
+    if (body.perPuzzleLevel) patch.per_puzzle_level = body.perPuzzleLevel
+    if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(16, Math.round(body.textLevel)))
+
+    if (existing?.id) {
+      await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existing.id)
+    } else {
+      await supabaseAdmin.from('difficulty_profiles').insert({ user_id: studentId, ...patch })
+    }
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }

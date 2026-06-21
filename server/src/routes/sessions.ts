@@ -4,16 +4,18 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies } from '../lib/activeColumn.js'
 import {
   CALIBRATION,
   calibrate,
+  mergeRolling,
   normalizeProfile,
   defaultProfileForGrade,
   perTypeFromChallenges,
   type ProfilePuzzleType,
   type PuzzleStat,
   type DifficultyProfile,
+  type RollingTallies,
 } from '../../../src/shared/lib/difficultyCalibration.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
@@ -157,33 +159,48 @@ async function recalibrateProfile(
   }
   const fallback = defaultProfileForGrade(gradeLabel)
 
-  /* פרופיל קודם (אם קיים) */
+  /* פרופיל קודם (אם קיים) — כולל rolling_tallies אם העמודה קיימת */
+  const withRolling = await hasRollingTallies()
+  const profileSelect = withRolling
+    ? 'id, text_level, per_puzzle_level, sessions_count, rolling_tallies'
+    : 'id, text_level, per_puzzle_level, sessions_count'
   const { data: row } = await supabaseAdmin
     .from('difficulty_profiles')
-    .select('id, text_level, per_puzzle_level, sessions_count')
+    .select(profileSelect)
     .eq('user_id', userId)
     .maybeSingle()
-  const r = row as { id?: string; text_level?: number | null; per_puzzle_level?: Record<string, number> | null; sessions_count?: number | null } | null
+  const r = row as {
+    id?: string
+    text_level?: number | null
+    per_puzzle_level?: Record<string, number> | null
+    sessions_count?: number | null
+    rolling_tallies?: RollingTallies | null
+  } | null
   const prev = normalizeProfile(
     r ? { textLevel: r.text_level ?? undefined, perPuzzleLevel: (r.per_puzzle_level as Record<ProfilePuzzleType, number>) ?? undefined } : null,
     fallback,
   )
 
-  const result = calibrate(prev, { perType, avgSceneMs })
+  /* מיזוג session הנוכחי לתוך הצוברים המתגלגלים */
+  const prevTallies: RollingTallies = (r?.rolling_tallies as RollingTallies) ?? {}
+  const mergedTallies = mergeRolling(prevTallies, perType)
 
-  /* היסטוריית שיעורי הצלחה אחרונים פר סוג (נחוצה לחישוב/תצוגה) */
+  const result = calibrate(prev, { perType, rollingTallies: mergedTallies, avgSceneMs })
+
+  /* היסטוריית שיעורי הצלחה אחרונים פר סוג */
   const lastRates: Record<string, number> = {}
   for (const [t, s] of Object.entries(perType)) {
     if (s && s.total > 0) lastRates[t] = Math.round((s.solved / s.total) * 100) / 100
   }
 
-  const profilePatch = {
+  const profilePatch: Record<string, unknown> = {
     text_level: result.profile.textLevel,
     per_puzzle_level: result.profile.perPuzzleLevel,
     last_success_rates: lastRates,
     last_avg_scene_ms: Math.round(avgSceneMs),
     sessions_count: (r?.sessions_count ?? 0) + 1,
     last_updated: new Date().toISOString(),
+    ...(withRolling ? { rolling_tallies: mergedTallies } : {}),
   }
   if (r?.id) {
     await supabaseAdmin.from('difficulty_profiles').update(profilePatch).eq('id', r.id)
