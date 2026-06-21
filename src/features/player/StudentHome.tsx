@@ -510,7 +510,7 @@ export default function StudentHome() {
 
           {/* גריד 3 עמודות */}
           {!loading && displayed.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
               {displayed.map((q) => (
                 <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
               ))}
