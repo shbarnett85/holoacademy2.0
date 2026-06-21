@@ -580,22 +580,19 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
     }
     if (!allowed) throw new AppError(403, 'אין לך גישה לתלמיד זה')
 
-    if (!(await hasDifficultyProfileV2())) {
-      return res.status(503).json({ error: 'פרופיל הקושי עדיין לא מופעל' })
-    }
-
     const body = req.body as {
       perPuzzleLevel?: Record<string, number>
       textLevel?: number
     }
 
+    const v2 = await hasDifficultyProfileV2()
     const { data: existing } = await supabaseAdmin
       .from('difficulty_profiles').select('id').eq('user_id', studentId).maybeSingle()
     const existingRow = existing as { id?: string } | null
 
     const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
-    if (body.perPuzzleLevel) patch.per_puzzle_level = body.perPuzzleLevel
     if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(16, Math.round(body.textLevel)))
+    if (body.perPuzzleLevel && v2) patch.per_puzzle_level = body.perPuzzleLevel
 
     if (existingRow?.id) {
       await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existingRow.id)

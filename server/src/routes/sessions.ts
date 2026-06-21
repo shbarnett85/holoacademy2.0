@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies } from '../lib/activeColumn.js'
 import {
   CALIBRATION,
   calibrate,
@@ -147,8 +147,6 @@ async function recalibrateProfile(
   perType: Partial<Record<ProfilePuzzleType, PuzzleStat>>,
   avgSceneMs: number,
 ): Promise<{ skipping: boolean; profile: DifficultyProfile } | null> {
-  if (!(await hasDifficultyProfileV2())) return null
-
   /* ברירת מחדל לפי שכבת הכיתה (grade_label) */
   let gradeLabel: string | null = null
   if (classId) {
