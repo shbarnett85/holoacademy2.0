@@ -586,8 +586,9 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
     }
 
     const v2 = await hasDifficultyProfileV2()
-    const { data: existing } = await supabaseAdmin
+    const { data: existing, error: selErr } = await supabaseAdmin
       .from('difficulty_profiles').select('id').eq('user_id', studentId).maybeSingle()
+    if (selErr) throw new AppError(500, `שגיאת DB בטעינת פרופיל: ${selErr.message}`)
     const existingRow = existing as { id?: string } | null
 
     const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
@@ -595,9 +596,11 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
     if (body.perPuzzleLevel && v2) patch.per_puzzle_level = body.perPuzzleLevel
 
     if (existingRow?.id) {
-      await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existingRow.id)
+      const { error: updErr } = await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existingRow.id)
+      if (updErr) throw new AppError(500, `שגיאת DB בעדכון פרופיל: ${updErr.message}`)
     } else {
-      await supabaseAdmin.from('difficulty_profiles').insert({ user_id: studentId, ...patch })
+      const { error: insErr } = await supabaseAdmin.from('difficulty_profiles').insert({ user_id: studentId, ...patch })
+      if (insErr) throw new AppError(500, `שגיאת DB ביצירת פרופיל: ${insErr.message}`)
     }
     res.json({ ok: true })
   } catch (err) {
