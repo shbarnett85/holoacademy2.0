@@ -3,8 +3,7 @@ import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
-import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasTeacherOverrides } from '../lib/activeColumn.js'
-import type { TeacherOverrides, CalibrationLog, TeacherOverride } from '../../../src/shared/lib/difficultyCalibration.js'
+import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
@@ -509,11 +508,9 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
     /* פרופיל הקושי — המבנה החדש (per-type) אם המיגרציה רצה, אחרת המבנה הישן */
     const v2 = await hasDifficultyProfileV2()
     const withRolling = v2 && (await hasRollingTallies())
-    const withOverrides = v2 && (await hasTeacherOverrides())
     const profileCols = v2
       ? ['text_level', 'per_puzzle_level', 'last_success_rates', 'last_avg_scene_ms', 'sessions_count', 'last_updated',
           ...(withRolling ? ['rolling_tallies'] : []),
-          ...(withOverrides ? ['teacher_overrides', 'calibration_log'] : []),
         ].join(', ')
       : 'writing_level, puzzle_difficulty, avg_success_rate, avg_time_per_scene, sessions_count, last_updated'
     const { data: profile } = await supabaseAdmin
@@ -521,30 +518,6 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       .select(profileCols)
       .eq('user_id', req.params.studentId)
       .maybeSingle()
-
-    /* canEdit: האם המשתמש הנוכחי מורשה לעקוף ידנית את פרופיל הקושי של התלמיד.
-       super_admin/admin → תמיד. מורה → רק אם הוא מחנך כיתתו של התלמיד (is_homeroom=true).
-       fallback: אם is_homeroom לא קיים, admin-only. */
-    let canEdit = req.staff!.role === 'super_admin' || req.staff!.role === 'admin'
-    if (!canEdit && req.staff!.role === 'teacher') {
-      const homeroomOk = await hasHomeroom()
-      if (homeroomOk) {
-        /* קשר מחנך: האם המורה מחנך של אחת מכיתות התלמיד */
-        const { data: memberships } = await supabaseAdmin
-          .from('class_members').select('class_id').eq('user_id', req.params.studentId)
-        const studentClassIds = (memberships ?? []).map((m: { class_id: string }) => m.class_id)
-        if (studentClassIds.length > 0) {
-          const { data: hct } = await supabaseAdmin
-            .from('class_teachers')
-            .select('class_id')
-            .eq('teacher_id', req.staff!.userId)
-            .eq('is_homeroom', true)
-            .in('class_id', studentClassIds)
-          canEdit = (hct ?? []).length > 0
-        }
-      }
-      /* fallback: אם אין is_homeroom, מורה מקצועי לא יכול לעקוף */
-    }
 
     /* דגל "דילוג" — מה-session_completed האחרון */
     const { data: lastCompleted } = await supabaseAdmin
@@ -582,9 +555,6 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
     res.json({
       student: { id: req.params.studentId, name: (stu as { name?: string } | null)?.name ?? '' },
       profile: profileAny ?? null,
-      teacherOverrides: (withOverrides ? (profileAny?.teacher_overrides ?? null) : null) as TeacherOverrides | null,
-      calibrationLog: (withOverrides ? (profileAny?.calibration_log ?? null) : null) as CalibrationLog | null,
-      canEdit,
       profileVersion: v2 ? 2 : 1,
       skipping,
       history,
@@ -614,65 +584,25 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
       return res.status(503).json({ error: 'פרופיל הקושי עדיין לא מופעל' })
     }
 
-    /* canEdit: super_admin/admin → כן. מורה → רק אם מחנך כיתת התלמיד. */
-    let canEdit = req.staff!.role === 'super_admin' || req.staff!.role === 'admin'
-    if (!canEdit && req.staff!.role === 'teacher') {
-      const homeroomOk = await hasHomeroom()
-      if (homeroomOk && classIds.length > 0) {
-        const { data: hct } = await supabaseAdmin
-          .from('class_teachers').select('class_id')
-          .eq('teacher_id', req.staff!.userId).eq('is_homeroom', true).in('class_id', classIds)
-        canEdit = (hct ?? []).length > 0
-      }
-    }
-    if (!canEdit) throw new AppError(403, 'עקיפת פרופיל הקושי מחייבת הרשאת מחנך כיתה או מנהל')
-
     const body = req.body as {
       perPuzzleLevel?: Record<string, number>
       textLevel?: number
-      returnToAuto?: string[]   /* מימדים לאיפוס לאוטומטי (הסרה מ-teacher_overrides) */
     }
 
-    const withOverrides = await hasTeacherOverrides()
     const { data: existing } = await supabaseAdmin
-      .from('difficulty_profiles').select('id, teacher_overrides').eq('user_id', studentId).maybeSingle()
-    const existingRow = existing as { id?: string; teacher_overrides?: TeacherOverrides | null } | null
+      .from('difficulty_profiles').select('id').eq('user_id', studentId).maybeSingle()
+    const existingRow = existing as { id?: string } | null
 
     const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
     if (body.perPuzzleLevel) patch.per_puzzle_level = body.perPuzzleLevel
     if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(16, Math.round(body.textLevel)))
-
-    /* עדכון teacher_overrides */
-    if (withOverrides) {
-      const staffName = req.staff!.userId  /* TODO: שם נקרא מ-users לפי userId אם רוצים שם מלא */
-      const prevOverrides: TeacherOverrides = (existingRow?.teacher_overrides as TeacherOverrides) ?? {}
-      const newOverrides: TeacherOverrides = { ...prevOverrides }
-      const now = new Date().toISOString()
-
-      /* סמן כ-teacher-override כל מימד שנשלח */
-      if (body.perPuzzleLevel) {
-        for (const [dim, val] of Object.entries(body.perPuzzleLevel)) {
-          ;(newOverrides as Record<string, TeacherOverride>)[dim] = { setBy: staffName, setAt: now, value: val }
-        }
-      }
-      if (typeof body.textLevel === 'number') {
-        newOverrides.textLevel = { setBy: staffName, setAt: now, value: body.textLevel }
-      }
-
-      /* הסר מה-overrides מימדים שהמורה ביקש להחזיר לאוטומטי */
-      for (const dim of body.returnToAuto ?? []) {
-        delete (newOverrides as Record<string, unknown>)[dim]
-      }
-
-      patch.teacher_overrides = newOverrides
-    }
 
     if (existingRow?.id) {
       await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existingRow.id)
     } else {
       await supabaseAdmin.from('difficulty_profiles').insert({ user_id: studentId, ...patch })
     }
-    res.json({ ok: true, canEdit: true })
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }

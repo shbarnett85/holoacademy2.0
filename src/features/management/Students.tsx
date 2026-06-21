@@ -4,7 +4,7 @@ import StudioTopBar from '../creator/StudioTopBar'
 import { glass, micro } from '../creator/studioStyles'
 import StudentDetail from '../analytics/StudentDetail'
 import ManagementSidebar from './ManagementSidebar'
-import { PROFILE_PUZZLE_TYPES, CALIBRATION, gradeNumberFromLabel, type ProfilePuzzleType, type RollingTallies, type TeacherOverrides, type CalibrationLog, type TeacherOverridesKey } from '../../shared/lib/difficultyCalibration'
+import { PROFILE_PUZZLE_TYPES, CALIBRATION, gradeNumberFromLabel, type ProfilePuzzleType, type RollingTallies } from '../../shared/lib/difficultyCalibration'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 
@@ -34,7 +34,6 @@ interface DiffPending {
   origPerPuzzleLevel: Record<string, number>
   textLevel: number
   perPuzzleLevel: Record<string, number>
-  returnToAuto: string[]   /* מימדים שהמורה ביקש להחזיר לכיול האוטומטי */
 }
 
 /* ── Utilities ── */
@@ -192,47 +191,12 @@ interface StudentProfile {
 
 interface ProfileApiResponse {
   profile: StudentProfile | null
-  teacherOverrides: TeacherOverrides | null
-  calibrationLog: CalibrationLog | null
-  canEdit: boolean
 }
 
 function confidenceLabel(n: number): { label: string; color: string } {
   if (n < CALIBRATION.MIN_SAMPLE) return { label: `נ=${n} (טרם מספיק נתונים)`, color: '#ff9a2e' }
   if (n < CALIBRATION.FULL_SAMPLE) return { label: `נ=${n} (ביטחון חלקי)`, color: '#ffe044' }
   return { label: `נ=${n} (ביטחון מלא)`, color: '#44ffaa' }
-}
-
-function logReason(entry: CalibrationLog[keyof CalibrationLog]): string {
-  if (!entry) return ''
-  const pct = entry.rate != null ? `${Math.round(entry.rate * 100)}%` : ''
-  const n = entry.n ? ` (${entry.n} ניסיונות)` : ''
-  if (entry.trigger === 'slow_reading') return `הוריד — קריאה איטית מ-${entry.oldVal}`
-  if (entry.trigger === 'skip_flag') return `דילוג מ-${entry.oldVal}`
-  const dir = entry.newVal > entry.oldVal ? '↑ עלה' : '↓ ירד'
-  return `${dir} ${entry.oldVal}→${entry.newVal} · הצלחה ${pct}${n}`
-}
-
-function OverrideBadge({ override, dim, canEdit, onReturnToAuto }: {
-  override: NonNullable<TeacherOverrides[TeacherOverridesKey]>
-  dim: string; canEdit: boolean
-  onReturnToAuto: () => void
-}) {
-  const date = new Date(override.setAt).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit' })
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-      <span style={{ fontSize: 9.5, color: '#ff9a2e', fontFamily: 'var(--font-mono)', background: 'rgba(255,154,46,.12)', padding: '2px 7px', borderRadius: 5, border: '1px solid rgba(255,154,46,.3)' }}>
-        🔒 נקבע ידנית · {date}
-      </span>
-      {canEdit && (
-        <button onClick={onReturnToAuto}
-          title={`הסר עקיפה של ${dim} — הכיול האוטומטי יחזור לנהל מימד זה`}
-          style={{ fontSize: 9, color: '#44ffaa', background: 'rgba(68,255,170,.1)', border: '1px solid rgba(68,255,170,.25)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}>
-          ↺ חזרה לאוטומטי
-        </button>
-      )}
-    </div>
-  )
 }
 
 function DifficultyModal({
@@ -245,9 +209,6 @@ function DifficultyModal({
 }) {
   const [profile, setProfile] = useState<StudentProfile | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [teacherOverrides, setTeacherOverrides] = useState<TeacherOverrides>({})
-  const [calibrationLog, setCalibrationLog] = useState<CalibrationLog>({})
-  const [canEdit, setCanEdit] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
@@ -256,14 +217,11 @@ function DifficultyModal({
         const p = r.profile
         setProfile(p)
         setLoaded(true)
-        setTeacherOverrides(r.teacherOverrides ?? {})
-        setCalibrationLog(r.calibrationLog ?? {})
-        setCanEdit(r.canEdit ?? false)
         if (!diffPending) {
           const textLevel = p?.text_level ?? 5
           const perPuzzleLevel: Record<string, number> = {}
           for (const t of PROFILE_PUZZLE_TYPES) perPuzzleLevel[t] = p?.per_puzzle_level?.[t] ?? 5
-          onDiffChange({ textLevel, perPuzzleLevel, returnToAuto: [], origTextLevel: textLevel, origPerPuzzleLevel: { ...perPuzzleLevel } })
+          onDiffChange({ textLevel, perPuzzleLevel, origTextLevel: textLevel, origPerPuzzleLevel: { ...perPuzzleLevel } })
         }
       })
       .catch((e: Error) => { setErr(e.message); setLoaded(true) })
@@ -272,30 +230,16 @@ function DifficultyModal({
 
   const textLevel = diffPending?.textLevel ?? 5
   const levels = diffPending?.perPuzzleLevel ?? Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, 5]))
-  const returnToAuto = diffPending?.returnToAuto ?? []
 
   /* moralDilemma derived depth */
   const gradeNum = gradeNumberFromLabel(student.class) ?? undefined
   const moralDepth = moralDilemmaDepth(gradeNum, textLevel)
 
   function setTextLevel(v: number) {
-    onDiffChange({ textLevel: v, perPuzzleLevel: levels, returnToAuto })
+    onDiffChange({ textLevel: v, perPuzzleLevel: levels })
   }
   function setLevel(t: ProfilePuzzleType, v: number) {
-    onDiffChange({ textLevel, perPuzzleLevel: { ...levels, [t]: v }, returnToAuto })
-  }
-  function handleReturnToAuto(dim: string) {
-    /* revert slider to profile value (last auto-computed), mark for server to clear override flag */
-    const profileVal = dim === 'textLevel'
-      ? (profile?.text_level ?? 5)
-      : (profile?.per_puzzle_level?.[dim as ProfilePuzzleType] ?? 5)
-    const newReturnToAuto = [...returnToAuto.filter((d) => d !== dim), dim]
-    if (dim === 'textLevel') {
-      onDiffChange({ textLevel: profileVal, perPuzzleLevel: levels, returnToAuto: newReturnToAuto })
-    } else {
-      onDiffChange({ textLevel, perPuzzleLevel: { ...levels, [dim]: profileVal }, returnToAuto: newReturnToAuto })
-    }
-    setTeacherOverrides((prev) => { const n = { ...prev }; delete n[dim as TeacherOverridesKey]; return n })
+    onDiffChange({ textLevel, perPuzzleLevel: { ...levels, [t]: v } })
   }
 
   return (
@@ -306,11 +250,6 @@ function DifficultyModal({
         <div style={{ fontSize: 12, color: '#5a7aaa', marginBottom: 4 }}>
           כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} הדמיות שכוילו` : ''}
         </div>
-        {!canEdit && profile && (
-          <div style={{ fontSize: 11, color: '#ff9a2e', marginBottom: 12, padding: '5px 10px', background: 'rgba(255,154,46,.08)', borderRadius: 7, border: '1px solid rgba(255,154,46,.2)' }}>
-            👁 צפייה בלבד — עקיפה ידנית מחייבת הרשאת מחנך כיתה או מנהל
-          </div>
-        )}
 
         {!loaded && !err && <p style={{ color: '#5a7aaa', fontSize: 13 }}>טוען…</p>}
         {loaded && !profile && <p style={{ color: '#ff9a2e', fontSize: 12 }}>אין עדיין פרופיל אישי — הסליידרים יציגו ברירת מחדל; הכיול יתחיל אחרי הדמיה ראשונה.</p>}
@@ -321,19 +260,10 @@ function DifficultyModal({
           <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.55)', marginBottom: 8 }}>רמת טקסט (1-16)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <input type="range" min={1} max={16} value={textLevel}
-              disabled={!canEdit}
               onChange={(e) => setTextLevel(+e.target.value)}
-              style={{ flex: 1, accentColor: '#2ff3ff', opacity: canEdit ? 1 : 0.45, cursor: canEdit ? 'pointer' : 'not-allowed' }} />
+              style={{ flex: 1, accentColor: '#2ff3ff' }} />
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 800, color: '#2ff3ff', minWidth: 28, textAlign: 'center' }}>{textLevel}</span>
           </div>
-          {teacherOverrides.textLevel && (
-            <OverrideBadge override={teacherOverrides.textLevel} dim="textLevel" canEdit={canEdit} onReturnToAuto={() => handleReturnToAuto('textLevel')} />
-          )}
-          {!teacherOverrides.textLevel && calibrationLog.textLevel && (
-            <div style={{ fontSize: 9.5, color: '#5a8aaa', marginTop: 3, fontFamily: 'var(--font-mono)' }}>
-              {logReason(calibrationLog.textLevel)}
-            </div>
-          )}
         </div>
 
         {/* ── סוגי אתגרים ── */}
@@ -344,33 +274,22 @@ function DifficultyModal({
             const n = tally?.total ?? 0
             const conf = confidenceLabel(n)
             const lv = levels[t] ?? 5
-            const override = teacherOverrides[t]
-            const logEntry = calibrationLog[t]
             const isChanged = diffPending && lv !== (diffPending.origPerPuzzleLevel[t] ?? lv)
             return (
-              <div key={t} style={{ background: override ? 'rgba(255,154,46,.04)' : 'rgba(4,9,18,.4)', borderRadius: 10, padding: '10px 14px', border: override ? '1px solid rgba(255,154,46,.22)' : '1px solid rgba(120,200,255,.1)' }}>
+              <div key={t} style={{ background: 'rgba(4,9,18,.4)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(120,200,255,.1)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, color: '#cfe1f2', fontWeight: 600 }}>{puzzleTypeLabel(t)}</span>
-                  {isChanged && !override
+                  {isChanged
                     ? <span style={{ fontSize: 9.5, color: '#ffe044', fontFamily: 'var(--font-mono)' }}>⚡ שינוי ידני ממתין</span>
                     : <span style={{ fontSize: 10, color: conf.color, fontFamily: 'var(--font-mono)' }}>{conf.label}</span>
                   }
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <input type="range" min={1} max={10} value={lv}
-                    disabled={!canEdit}
                     onChange={(e) => setLevel(t, +e.target.value)}
-                    style={{ flex: 1, accentColor: '#ff45e6', opacity: canEdit ? 1 : 0.45, cursor: canEdit ? 'pointer' : 'not-allowed' }} />
+                    style={{ flex: 1, accentColor: '#ff45e6' }} />
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#ff45e6', minWidth: 22, textAlign: 'center' }}>{lv}</span>
                 </div>
-                {override && (
-                  <OverrideBadge override={override} dim={t} canEdit={canEdit} onReturnToAuto={() => handleReturnToAuto(t)} />
-                )}
-                {!override && logEntry && (
-                  <div style={{ fontSize: 9.5, color: '#5a8aaa', marginTop: 3, fontFamily: 'var(--font-mono)' }}>
-                    {logReason(logEntry)}
-                  </div>
-                )}
               </div>
             )
           })}
@@ -387,19 +306,15 @@ function DifficultyModal({
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#b88cff', minWidth: 22, textAlign: 'center' }}>{moralDepth}</span>
             </div>
-            {teacherOverrides.moralDilemma ? (
-              <OverrideBadge override={teacherOverrides.moralDilemma} dim="moralDilemma" canEdit={canEdit} onReturnToAuto={() => handleReturnToAuto('moralDilemma')} />
-            ) : (
-              <div style={{ fontSize: 9.5, color: '#6a4a99', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-                = min(גיל כיתה={gradeNum ?? '?'}, רמת טקסט={textLevel}) → {moralDepth} / 10
-              </div>
-            )}
+            <div style={{ fontSize: 9.5, color: '#6a4a99', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
+              = min(גיל כיתה={gradeNum ?? '?'}, רמת טקסט={textLevel}) → {moralDepth} / 10
+            </div>
           </div>
         </div>
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <button onClick={onClose} style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 22px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(120,200,255,.25)', color: '#5a8aaa' }}>
-            סגור {canEdit ? '(שינויים ישמרו עם הבר התחתון)' : ''}
+            סגור (שינויים ישמרו עם הבר התחתון)
           </button>
         </div>
       </div>
@@ -507,13 +422,12 @@ export default function Students() {
 
   function handleDiffChange(
     studentId: string,
-    d: { textLevel: number; perPuzzleLevel: Record<string, number>; returnToAuto?: string[]; origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> },
+    d: { textLevel: number; perPuzzleLevel: Record<string, number>; origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> },
   ) {
     setDiffPending((prev) => ({
       studentId,
       textLevel: d.textLevel,
       perPuzzleLevel: d.perPuzzleLevel,
-      returnToAuto: d.returnToAuto ?? prev?.returnToAuto ?? [],
       origTextLevel: d.origTextLevel ?? prev?.origTextLevel ?? d.textLevel,
       origPerPuzzleLevel: d.origPerPuzzleLevel ?? prev?.origPerPuzzleLevel ?? d.perPuzzleLevel,
     }))
@@ -541,14 +455,9 @@ export default function Students() {
       }
       /* שמירת פרופיל קושי */
       if (diffPending) {
-        const body: Record<string, unknown> = {
-          textLevel: diffPending.textLevel,
-          perPuzzleLevel: diffPending.perPuzzleLevel,
-        }
-        if (diffPending.returnToAuto.length > 0) body.returnToAuto = diffPending.returnToAuto
         await apiJson(`/api/analytics/student/${pendingStudentId}/profile`, {
           method: 'PATCH',
-          body: JSON.stringify(body),
+          body: JSON.stringify({ textLevel: diffPending.textLevel, perPuzzleLevel: diffPending.perPuzzleLevel }),
         })
       }
       /* עדכון רשימה מקומית */
