@@ -56,7 +56,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
         boxShadow: hov ? '0 0 36px rgba(47,243,255,.18),0 6px 28px rgba(0,0,0,.55)' : '0 3px 16px rgba(0,0,0,.4)',
         transition: 'border-color .22s,box-shadow .22s,transform .18s',
         transform: hov ? 'translateY(-3px)' : 'translateY(0)',
-        background: '#04060f', aspectRatio: '16/10',
+        background: '#04060f', aspectRatio: '4/3',
       }}
     >
       {q.entryImageUrl ? (
@@ -315,7 +315,7 @@ export default function StudentHome() {
         style={{
           position: 'absolute', inset: 0, overflowY: 'auto',
           display: 'flex', flexDirection: 'column',
-          padding: '0 clamp(1rem, 3vw, 2.5rem) 3rem',
+          padding: '0 clamp(0.5rem, 1.5vw, 1.25rem) 3rem',
         }}
       >
         {/* ── HEADER ── */}
@@ -510,7 +510,7 @@ export default function StudentHome() {
 
           {/* גריד 3 עמודות */}
           {!loading && displayed.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
               {displayed.map((q) => (
                 <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
               ))}
