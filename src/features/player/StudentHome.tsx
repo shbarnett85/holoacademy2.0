@@ -458,7 +458,7 @@ export default function StudentHome() {
         )}
 
         {/* ── CONTENT ── */}
-        <div style={{ width: '100%', maxWidth: 960 }}>
+        <div style={{ width: '100%' }}>
 
           {/* כותרת מקטע */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>
@@ -523,10 +523,8 @@ export default function StudentHome() {
           {/* גריד 3 עמודות */}
           {!loading && displayed.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
-              {displayed.map((q, i) => (
-                <div key={q.id} style={{ gridColumn: `span ${colSpan(i, displayed.length)}` }}>
-                  <QuestCard q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
-                </div>
+              {displayed.map((q) => (
+                <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
               ))}
             </div>
           )}
