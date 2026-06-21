@@ -200,11 +200,13 @@ function confidenceLabel(n: number): { label: string; color: string } {
 }
 
 function DifficultyModal({
-  student, diffPending, onDiffChange, onClose,
+  student, diffPending, effectiveGender, onDiffChange, onGenderChange, onClose,
 }: {
   student: StudentRow
   diffPending: DiffPending | null
+  effectiveGender: 'male' | 'female' | null
   onDiffChange: (d: Omit<DiffPending, 'studentId' | 'origTextLevel' | 'origPerPuzzleLevel'> & { origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> }) => void
+  onGenderChange: (g: 'male' | 'female' | null) => void
   onClose: () => void
 }) {
   const [profile, setProfile] = useState<StudentProfile | null>(null)
@@ -249,6 +251,22 @@ function DifficultyModal({
         <div style={{ fontSize: 19, fontWeight: 800, color: '#fff', marginBottom: 2 }}>{student.name}</div>
         <div style={{ fontSize: 12, color: '#5a7aaa', marginBottom: 4 }}>
           כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} הדמיות שכוילו` : ''}
+        </div>
+
+        {/* ── מגדר ── */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.55)', marginBottom: 8 }}>פנייה לתלמיד/ה בהדמיות</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([['male', '♂ זכר', '#7ab8ff'], ['female', '♀ נקבה', '#ff9bd6'], [null, '◇ לא מוגדר', '#5a7aaa']] as const).map(([val, label, color]) => {
+              const active = effectiveGender === val
+              return (
+                <button key={String(val)} onClick={() => onGenderChange(val)}
+                  style={{ flex: 1, padding: '7px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? color : 'rgba(180,210,240,.5)', background: active ? `rgba(${val === 'male' ? '122,184,255' : val === 'female' ? '255,155,214' : '90,122,170'},.13)` : 'rgba(4,9,18,.4)', border: `1px solid ${active ? color : 'rgba(120,160,200,.12)'}`, transition: 'all .15s' }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {!loaded && !err && <p style={{ color: '#5a7aaa', fontSize: 13 }}>טוען…</p>}
@@ -586,7 +604,9 @@ export default function Students() {
         <DifficultyModal
           student={diffModalStudent}
           diffPending={diffPending?.studentId === diffModalStudent.id ? diffPending : null}
+          effectiveGender={profilePending?.studentId === diffModalStudent.id ? profilePending.gender : diffModalStudent.gender}
           onDiffChange={(d) => handleDiffChange(diffModalStudent.id, d)}
+          onGenderChange={(g) => handleGenderChange(diffModalStudent, g)}
           onClose={() => setDiffModalStudentId(null)}
         />
       )}
