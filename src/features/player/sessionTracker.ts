@@ -44,6 +44,7 @@ export interface SessionStart {
   inventory: unknown[]
   visitedScenes: unknown[]
   crystals: number
+  variantGameData?: unknown
 }
 
 const API = '/api/sessions'

@@ -13,9 +13,10 @@ import {
   type FormOfAddress,
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
-import { clampLevel } from '../../../src/shared/lib/difficultyScaling.js'
+import { clampLevel, scaleHangman } from '../../../src/shared/lib/difficultyScaling.js'
+import { PROFILE_PUZZLE_TYPES } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
-import { hasQuestSubject, hasUserGender, hasPublicQuests } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
 
 export const questsRouter = Router()
 
@@ -392,7 +393,18 @@ type LooseScene = {
   id: string
   narrative?: string
   drHoloDialog?: string
-  puzzle?: { question?: string; explanationCorrect?: string; explanationIncorrect?: string; sentence?: string; choices?: { id: string; text: string }[]; questions?: { question?: string; explanationCorrect?: string; explanationIncorrect?: string }[] }
+  puzzle?: {
+    type?: string
+    difficulty?: number
+    maxWrong?: number
+    question?: string
+    explanationCorrect?: string
+    explanationIncorrect?: string
+    sentence?: string
+    choices?: { id: string; text: string }[]
+    questions?: { question?: string; explanationCorrect?: string; explanationIncorrect?: string }[]
+    moralChoices?: { text: string; consequence: string }[]
+  }
   choices?: { id: string; text: string }[]
 }
 type LooseEnding = { narrative?: string; drHoloDialog?: string }
@@ -470,6 +482,124 @@ ${JSON.stringify(texts, null, 0)}`
     if (rew && typeof rew === 'object') applyAddressText(variant, rew)
   } catch (err) {
     console.error('[personalize] שכתוב הפנייה נכשל:', err instanceof Error ? err.message : err)
+  }
+  return variant
+}
+
+/* ── וריאציה מותאמת-תלמיד ── */
+
+/* איסוף כל שדות הטקסט כולל אתגרי מוסר — לשכתוב מותאם */
+function collectVariantText(gd: GameData): Record<string, string> {
+  const out: Record<string, string> = {}
+  const put = (k: string, v?: string) => { if (typeof v === 'string' && v.trim()) out[k] = v }
+  for (const sc of gd.scenes as unknown as LooseScene[]) {
+    put(`s:${sc.id}:narrative`, sc.narrative)
+    put(`s:${sc.id}:dlg`, sc.drHoloDialog)
+    const p = sc.puzzle
+    if (p) {
+      put(`s:${sc.id}:q`, p.question)
+      put(`s:${sc.id}:ec`, p.explanationCorrect)
+      put(`s:${sc.id}:ei`, p.explanationIncorrect)
+      put(`s:${sc.id}:sentence`, p.sentence)
+      ;(p.questions ?? []).forEach((q, i) => {
+        put(`s:${sc.id}:fq${i}:q`, q.question)
+        put(`s:${sc.id}:fq${i}:ec`, q.explanationCorrect)
+        put(`s:${sc.id}:fq${i}:ei`, q.explanationIncorrect)
+      })
+      ;(p.moralChoices ?? []).forEach((c, i) => {
+        put(`s:${sc.id}:mc${i}:text`, c.text)
+        put(`s:${sc.id}:mc${i}:con`, c.consequence)
+      })
+    }
+    ;(sc.choices ?? []).forEach((c) => put(`s:${sc.id}:ch:${c.id}`, c.text))
+  }
+  const eg = (gd as unknown as { endingGood?: LooseEnding }).endingGood
+  const eb = (gd as unknown as { endingBad?: LooseEnding }).endingBad
+  put('end:good:narrative', eg?.narrative); put('end:good:dlg', eg?.drHoloDialog)
+  put('end:bad:narrative', eb?.narrative); put('end:bad:dlg', eb?.drHoloDialog)
+  return out
+}
+
+function applyVariantText(gd: GameData, rew: Record<string, string>): void {
+  const str = (k: string) => (typeof rew[k] === 'string' && rew[k].trim() ? rew[k].trim() : null)
+  for (const sc of gd.scenes as unknown as LooseScene[]) {
+    const n = str(`s:${sc.id}:narrative`); if (n) sc.narrative = n
+    const d = str(`s:${sc.id}:dlg`); if (d) sc.drHoloDialog = d
+    const p = sc.puzzle
+    if (p) {
+      const q = str(`s:${sc.id}:q`); if (q) p.question = q
+      const ec = str(`s:${sc.id}:ec`); if (ec) p.explanationCorrect = ec
+      const ei = str(`s:${sc.id}:ei`); if (ei) p.explanationIncorrect = ei
+      const se = str(`s:${sc.id}:sentence`); if (se) p.sentence = se
+      ;(p.questions ?? []).forEach((qq, i) => {
+        const fq = str(`s:${sc.id}:fq${i}:q`); if (fq) qq.question = fq
+        const fec = str(`s:${sc.id}:fq${i}:ec`); if (fec) qq.explanationCorrect = fec
+        const fei = str(`s:${sc.id}:fq${i}:ei`); if (fei) qq.explanationIncorrect = fei
+      })
+      ;(p.moralChoices ?? []).forEach((c, i) => {
+        const t = str(`s:${sc.id}:mc${i}:text`); if (t) c.text = t
+        const co = str(`s:${sc.id}:mc${i}:con`); if (co) c.consequence = co
+      })
+    }
+    ;(sc.choices ?? []).forEach((c) => { const t = str(`s:${sc.id}:ch:${c.id}`); if (t) c.text = t })
+  }
+  const eg = (gd as unknown as { endingGood?: LooseEnding }).endingGood
+  const eb = (gd as unknown as { endingBad?: LooseEnding }).endingBad
+  if (eg) { const n = str('end:good:narrative'); if (n) eg.narrative = n; const d = str('end:good:dlg'); if (d) eg.drHoloDialog = d }
+  if (eb) { const n = str('end:bad:narrative'); if (n) eb.narrative = n; const d = str('end:bad:dlg'); if (d) eb.drHoloDialog = d }
+}
+
+/* כוונון קושי חידות לפי פרופיל — משנה puzzle.difficulty + hangman.maxWrong. ללא AI. */
+function applyDifficultyOverrides(gd: GameData, perPuzzleLevel: Record<string, number>): void {
+  for (const sc of gd.scenes as unknown as LooseScene[]) {
+    const p = sc.puzzle
+    if (!p) continue
+    const type = p.type === 'slidingPuzzle' ? 'tileSwap' : (p.type ?? '')
+    const level = perPuzzleLevel[type]
+    if (typeof level === 'number') {
+      p.difficulty = level
+      if (type === 'hangman') p.maxWrong = scaleHangman(level).maxWrong
+    }
+  }
+}
+
+/* יצירת game_data מותאמת-תלמיד: כוונון קושי (ללא AI) + שכתוב טקסט (haiku). תמונות לא מחודשות. */
+async function buildStudentVariant(
+  base: GameData,
+  textLevel: number,
+  form: FormOfAddress,
+  perPuzzleLevel: Record<string, number>,
+): Promise<GameData> {
+  const variant = JSON.parse(JSON.stringify(base)) as GameData
+
+  applyDifficultyOverrides(variant, perPuzzleLevel)
+
+  const texts = collectVariantText(variant)
+  if (Object.keys(texts).length > 0) {
+    const genderLine = form !== 'plural'
+      ? `\n${formOfAddressRule(form)}`
+      : '\nפנייה בלשון רבים ניטרלית (אתם/כם).'
+    const instruction = `אתה מתאים הדמיה חינוכית בעברית לתלמיד ספציפי.
+
+רמת הקריאה: ${textLevel}/16 (1=כיתה א׳, 16=מבוגר מתקדם).${genderLine}
+
+לפניך JSON של מקטעי טקסט (key→טקסט). שכתב כל ערך לפי הכללים:
+• שמור על אותן עובדות, שמות ומשמעות — אל תוסיף, אל תשמיט.
+• מורכבות שפה לפי הרמה: 1-4=משפטים קצרים ומילים יסודיות; 5-8=מורכבות בינונית עם הסברי מונחים; 9-12=שפה סטנדרטית; 13-16=שפה עשירה וניואנסים.
+• שנה רק רמת הניסוח וצורת הפנייה הדקדוקית — לא תוכן, לא שמות, לא עובדות.
+• לשאלות: שמור על אותה כמות תשובות ועל אותה תשובה נכונה — רק ניסוח מותאם.
+• לדילמות מוסר: עמק/פשט את המורכבות הערכית לפי הרמה, שמור על עמדות הניגוד.
+
+החזר JSON תקין עם אותם keys בדיוק. ללא טקסט נוסף.
+
+${JSON.stringify(texts, null, 0)}`
+    try {
+      const out = await callHaiku([{ role: 'user', content: instruction }], 12000)
+      const rew = extractJson(out) as Record<string, string>
+      if (rew && typeof rew === 'object') applyVariantText(variant, rew)
+    } catch (err) {
+      console.error('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
+    }
   }
   return variant
 }
@@ -599,6 +729,56 @@ questsRouter.post('/:id/personalize', requireStaff, async (req, res, next) => {
 
     const variant = await rephraseForAddress(quest.game_data as GameData, form)
     res.json({ quest: { id: quest.id, title: quest.title, game_data: variant }, formOfAddress: form })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* POST /api/quests/:id/variant — יצירת/עדכון וריאציה מותאמת-תלמיד.
+   דורש בעלות על ההדמיה. טוען פרופיל+מגדר התלמיד, מתאים ושומר ב-quest_variants.
+   עמיד לחוסר הטבלה (hasQuestVariants). */
+const variantSchema = z.object({ studentId: z.string().uuid() })
+
+questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
+  try {
+    const parsed = variantSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'studentId נדרש')
+    const { studentId } = parsed.data
+    const questId = req.params.id
+
+    const { data: quest } = await supabaseAdmin.from('quests').select('game_data, created_by').eq('id', questId).single()
+    if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
+
+    const v2 = await hasDifficultyProfileV2()
+    const profileCols = v2 ? 'text_level, per_puzzle_level' : 'id'
+    const { data: profileRow } = await supabaseAdmin
+      .from('difficulty_profiles').select(profileCols).eq('user_id', studentId).maybeSingle()
+    const pr = profileRow as Record<string, unknown> | null
+    const textLevel = typeof pr?.text_level === 'number' ? pr.text_level : 5
+    const perPuzzleLevel: Record<string, number> = v2 && pr?.per_puzzle_level && typeof pr.per_puzzle_level === 'object'
+      ? pr.per_puzzle_level as Record<string, number>
+      : Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, 5]))
+
+    const genderCols = (await hasUserGender()) ? 'gender' : 'id'
+    const { data: userRow } = await supabaseAdmin.from('users').select(genderCols).eq('id', studentId).maybeSingle()
+    const ur = userRow as Record<string, unknown> | null
+    const gender = (ur?.gender === 'male' || ur?.gender === 'female') ? ur.gender as 'male' | 'female' : null
+    const form: FormOfAddress = gender ?? 'plural'
+
+    const variantData = await buildStudentVariant(quest.game_data as GameData, textLevel, form, perPuzzleLevel)
+    const snapshot = { textLevel, perPuzzleLevel, gender }
+
+    const hasTable = await hasQuestVariants()
+    if (hasTable) {
+      const { error } = await supabaseAdmin.from('quest_variants').upsert(
+        { quest_id: questId, student_id: studentId, game_data: variantData, profile_snapshot: snapshot, created_at: new Date().toISOString() },
+        { onConflict: 'quest_id,student_id' },
+      )
+      if (error) console.error('[variant] שמירה נכשלה:', error.message)
+    }
+
+    res.json({ ok: true, variantGameData: variantData, profileSnapshot: snapshot, persisted: hasTable })
   } catch (err) {
     next(err)
   }

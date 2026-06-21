@@ -298,3 +298,20 @@ CREATE TABLE IF NOT EXISTS pedagogical_summaries (
   UNIQUE (scope, entity_id)
 );
 CREATE INDEX IF NOT EXISTS idx_pedagogical_summaries_entity ON pedagogical_summaries(scope, entity_id);
+
+-- ============================================================================
+-- 12) וריאציות הדמיה פר-תלמיד — game_data מותאמת לפרופיל האישי
+-- ----------------------------------------------------------------------------
+-- וריאציה = שכתוב טקסט לרמת-הקריאה + מגדר + כוונון קושי חידות.
+-- תמונות לא מחודשות — game_data.scenes[*].imageUrl מהבסיס נשמר ישירות.
+-- עמיד לפני המיגרציה דרך hasQuestVariants.
+CREATE TABLE IF NOT EXISTS quest_variants (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  quest_id         uuid NOT NULL REFERENCES quests(id) ON DELETE CASCADE,
+  student_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  game_data        jsonb NOT NULL,
+  profile_snapshot jsonb NOT NULL,   -- {textLevel, perPuzzleLevel, gender} בעת הייצור
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(quest_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_quest_variants_lookup ON quest_variants(quest_id, student_id);

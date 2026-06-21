@@ -81,3 +81,8 @@ export async function hasTeacherOverrides(): Promise<boolean> {
 export async function hasQuestSubject(): Promise<boolean> {
   return check('__quest_subject', () => supabaseAdmin.from('quests').select('subject').limit(1))
 }
+
+/* האם טבלת quest_variants קיימת — וריאציות הדמיה פר-תלמיד */
+export async function hasQuestVariants(): Promise<boolean> {
+  return check('__quest_variants', () => supabaseAdmin.from('quest_variants').select('id').limit(1))
+}

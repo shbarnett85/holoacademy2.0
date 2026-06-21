@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies, hasQuestVariants } from '../lib/activeColumn.js'
 import {
   CALIBRATION,
   calibrate,
@@ -138,6 +138,14 @@ function countChallenges(gameData: unknown): number {
   return scenes.filter((s) => s.puzzle).length
 }
 
+/* טעינת וריאציה מותאמת-תלמיד (אם קיימת וטבלת quest_variants קיימת) */
+async function loadVariantGameData(questId: string, userId: string): Promise<unknown> {
+  if (!(await hasQuestVariants())) return null
+  const { data } = await supabaseAdmin
+    .from('quest_variants').select('game_data').eq('quest_id', questId).eq('student_id', userId).maybeSingle()
+  return (data as { game_data?: unknown } | null)?.game_data ?? null
+}
+
 /* ── כיול הקושי בשרת (JS) — רץ אחרי כל session שהושלם, מחליף את ה-RPC הישן ──
    טוען את הפרופיל הקיים (או ברירת מחדל לפי שכבת הכיתה), מחיל את כלל 60/80
    פר-סוג + text_level + תיקון זמני קריאה, ושומר את הפרופיל החדש. */
@@ -234,12 +242,14 @@ sessionsRouter.post('/start', async (req, res, next) => {
 
     if (open) {
       const o = open as unknown as Record<string, unknown>
+      const variantGameData = await loadVariantGameData(questId, userId)
       res.json({
         sessionId: o.id, resumed: true,
         currentSceneId: o.current_scene_id ?? null,
         inventory: o.inventory ?? [],
         visitedScenes: o.visited_scenes ?? [],
         crystals: withCrystals ? (o.crystals ?? 0) : 0,
+        variantGameData,
       })
       return
     }
@@ -257,7 +267,8 @@ sessionsRouter.post('/start', async (req, res, next) => {
 
     const { data: created, error } = await supabaseAdmin.from('sessions').insert(payload).select('id').single()
     if (error || !created) throw new AppError(500, 'יצירת session נכשלה: ' + (error?.message ?? ''))
-    res.status(201).json({ sessionId: created.id, resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0 })
+    const variantGameData = await loadVariantGameData(questId, userId)
+    res.status(201).json({ sessionId: created.id, resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0, variantGameData })
   } catch (err) {
     next(err)
   }

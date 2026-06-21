@@ -16,7 +16,7 @@ export default function Player() {
   const [quest, setQuest] = useState<QuestPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
-  const { initialState, settled, saveResume, complete } = usePlaySession(questId)
+  const { initialState, settled, saveResume, complete, variantGameData } = usePlaySession(questId)
 
   useEffect(() => {
     if (!questId) return
@@ -61,9 +61,11 @@ export default function Player() {
     )
   }
 
+  const effectiveGameData = (variantGameData as GameData | null) ?? quest.game_data
+
   return (
     <GameScreen
-      gameData={quest.game_data}
+      gameData={effectiveGameData}
       questTitle={quest.title}
       initialState={initialState}
       saveResume={saveResume}

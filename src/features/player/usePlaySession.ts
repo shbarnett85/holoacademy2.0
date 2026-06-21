@@ -24,6 +24,8 @@ interface PlaySession {
   initialState?: InitialState
   /* settled=true ברגע שניסיון יצירת/שחזור ה-session הסתיים (בהצלחה או בכישלון) */
   settled: boolean
+  /* וריאציה מותאמת-תלמיד (game_data שכתוב לרמת הקריאה+מגדר+קושי) — null אם אין */
+  variantGameData?: unknown
   /* שמירת מצב ביניים ל-resume — מקומי בלבד (sessionStorage), ללא קריאת רשת */
   saveResume: (s: ResumeState) => void
   /* שליחה מרוכזת אחת בסיום — רקעית, לא חוסמת את מסך הסיכום */
@@ -35,7 +37,7 @@ interface PlaySession {
    - resume נשמר מקומית ב-sessionStorage; השרת אינו מתעדכן תוך כדי משחק.
    - בסיום: complete יחיד עם סיכום האנליטיקה (רקעי, best-effort, retry בטעינה הבאה). */
 export function usePlaySession(questId: string | undefined): PlaySession {
-  const [state, setState] = useState<{ sessionId: string | null; initialState?: InitialState; settled: boolean }>({
+  const [state, setState] = useState<{ sessionId: string | null; initialState?: InitialState; settled: boolean; variantGameData?: unknown }>({
     sessionId: null,
     settled: false,
   })
@@ -67,7 +69,7 @@ export function usePlaySession(questId: string | undefined): PlaySession {
             visitedScenes: (snap.visitedScenes as string[]) ?? [],
           }
         : undefined
-      setState({ sessionId: s.sessionId, initialState, settled: true })
+      setState({ sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined })
     })
 
     return () => { cancelled = true }
