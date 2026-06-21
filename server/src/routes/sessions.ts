@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasDifficultyProfileV2, hasGradeLabel, hasProgressSnapshots, hasQuestSubject } from '../lib/activeColumn.js'
 import {
   CALIBRATION,
   calibrate,
@@ -39,8 +39,11 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     /* מיפוי quest_id → assignedAt */
     const assignedAtMap = new Map(asgRows.map((r: { quest_id: string; created_at: string }) => [r.quest_id, r.created_at]))
 
+    const subjectExists = await hasQuestSubject()
+    const questSelect = `id, title, game_data, art_style, created_by${subjectExists ? ', subject' : ''}`
+
     const [questResult, sessionResult] = await Promise.all([
-      supabaseAdmin.from('quests').select('id, title, game_data, art_style, subject, created_by').in('id', questIds),
+      supabaseAdmin.from('quests').select(questSelect).in('id', questIds),
       supabaseAdmin.from('sessions')
         .select('quest_id, completed_at, crystals, total_score, max_score')
         .eq('user_id', req.student!.userId)
@@ -51,7 +54,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     type Scene = { id: string; imageUrl?: string }
     type GameData = { scenes?: Scene[]; entrySceneId?: string }
-    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; subject?: string | null; created_by?: string | null }
+    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; subject?: string | null; created_by?: string | null; [k: string]: unknown }
 
     /* שמות מורים לפי created_by */
     const teacherIds = [...new Set((questResult.data ?? []).map((q: QuestRow) => q.created_by).filter(Boolean))] as string[]
