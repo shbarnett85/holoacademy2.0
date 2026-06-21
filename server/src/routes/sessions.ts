@@ -28,32 +28,61 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     const { data: asgData, error: asgErr } = await supabaseAdmin
       .from('assignments')
-      .select('quest_id')
+      .select('quest_id, created_at')
       .eq('class_id', classId)
     if (asgErr) throw new AppError(500, asgErr.message)
 
-    const questIds = (asgData ?? []).map((r: { quest_id: string }) => r.quest_id)
+    const asgRows = asgData ?? [] as { quest_id: string; created_at: string }[]
+    const questIds = asgRows.map((r: { quest_id: string }) => r.quest_id)
     if (questIds.length === 0) { res.json({ quests: [] }); return }
 
-    const { data: questData, error: qErr } = await supabaseAdmin
-      .from('quests')
-      .select('id, title, game_data, art_style, created_at')
-      .in('id', questIds)
-    if (qErr) throw new AppError(500, qErr.message)
+    /* מיפוי quest_id → assignedAt */
+    const assignedAtMap = new Map(asgRows.map((r: { quest_id: string; created_at: string }) => [r.quest_id, r.created_at]))
+
+    const [questResult, sessionResult] = await Promise.all([
+      supabaseAdmin.from('quests').select('id, title, game_data, art_style').in('id', questIds),
+      supabaseAdmin.from('sessions')
+        .select('quest_id, completed_at, crystals, total_score, max_score')
+        .eq('user_id', req.student!.userId)
+        .in('quest_id', questIds),
+    ])
+
+    if (questResult.error) throw new AppError(500, questResult.error.message)
 
     type Scene = { id: string; imageUrl?: string }
     type GameData = { scenes?: Scene[]; entrySceneId?: string }
 
-    const quests = (questData ?? []).map((q: { id: string; title: string; game_data: GameData; art_style?: string; created_at: string }) => {
+    /* מיפוי quest_id → מצב session הטוב ביותר */
+    type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null }
+    const sessionsByQuest = new Map<string, SessionRow[]>()
+    for (const s of (sessionResult.data ?? []) as SessionRow[]) {
+      const arr = sessionsByQuest.get(s.quest_id) ?? []
+      arr.push(s)
+      sessionsByQuest.set(s.quest_id, arr)
+    }
+
+    const quests = (questResult.data ?? []).map((q: { id: string; title: string; game_data: GameData; art_style?: string }) => {
       const gd = q.game_data as GameData
       const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
+
+      const sessions = sessionsByQuest.get(q.id) ?? []
+      const completedSession = sessions
+        .filter((s) => s.completed_at)
+        .sort((a, b) => (b.crystals ?? 0) - (a.crystals ?? 0))[0] ?? null
+      const sessionStatus = completedSession ? 'completed'
+        : sessions.length > 0 ? 'in_progress'
+        : null
+
       return {
         id: q.id,
         title: q.title,
         sceneCount: gd?.scenes?.length ?? 0,
         artStyle: q.art_style,
-        createdAt: q.created_at,
+        assignedAt: assignedAtMap.get(q.id) ?? null,
         entryImageUrl: entryScene?.imageUrl ?? null,
+        sessionStatus,
+        crystals: completedSession?.crystals ?? null,
+        maxScore: completedSession?.max_score ?? null,
       }
     })
 

@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
-import { artStyleLabel } from '../../shared/lib/labels'
 
 const ART_ICONS: Record<string, string> = {
-  'digital-painting': '🎨',
-  realistic: '📷',
-  comic: '💥',
-  storybook: '📖',
-  anime: '🌸',
-  'pixar-3d': '🧸',
+  'digital-painting': '🎨', realistic: '📷', comic: '💥',
+  storybook: '📖', anime: '🌸', 'pixar-3d': '🧸',
 }
 
 interface AssignedQuest {
@@ -19,12 +14,35 @@ interface AssignedQuest {
   sceneCount: number
   artStyle?: string
   entryImageUrl?: string | null
+  assignedAt?: string | null
+  sessionStatus: 'completed' | 'in_progress' | null
+  crystals: number | null
+  maxScore: number | null
+}
+
+/* ── crystal dots (max 5) ── */
+function CrystalRow({ crystals, max = 5 }: { crystals: number; max?: number }) {
+  const full = Math.min(crystals, max)
+  return (
+    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+      {Array.from({ length: max }).map((_, i) => (
+        <div key={i} style={{
+          width: 7, height: 7, borderRadius: 2,
+          background: i < full ? '#2ff3ff' : 'rgba(47,243,255,.18)',
+          boxShadow: i < full ? '0 0 6px rgba(47,243,255,.8)' : 'none',
+          transform: 'rotate(45deg)',
+          flexShrink: 0,
+        }} />
+      ))}
+    </div>
+  )
 }
 
 /* ── כרטיס הדמיה בודד ── */
-function QuestCard({ q, onPlay }: { q: AssignedQuest; onPlay: () => void }) {
+function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onPlay: () => void }) {
   const [hovered, setHovered] = useState(false)
-  const hasImage = !!q.entryImageUrl
+  const status = q.sessionStatus
+  const crystals = q.crystals ?? 0
 
   return (
     <div
@@ -32,121 +50,171 @@ function QuestCard({ q, onPlay }: { q: AssignedQuest; onPlay: () => void }) {
       onMouseLeave={() => setHovered(false)}
       onClick={onPlay}
       style={{
-        position: 'relative', overflow: 'hidden', borderRadius: 20, cursor: 'pointer',
-        border: `1px solid ${hovered ? 'rgba(47,243,255,.55)' : 'rgba(47,243,255,.18)'}`,
+        position: 'relative', overflow: 'hidden', borderRadius: 16, cursor: 'pointer',
+        border: `1px solid ${hovered ? 'rgba(47,243,255,.55)' : 'rgba(47,243,255,.16)'}`,
         boxShadow: hovered
-          ? '0 0 48px rgba(47,243,255,.18), 0 8px 32px rgba(0,0,0,.55)'
-          : '0 4px 20px rgba(0,0,0,.4)',
+          ? '0 0 36px rgba(47,243,255,.18), 0 6px 28px rgba(0,0,0,.55)'
+          : '0 3px 16px rgba(0,0,0,.4)',
         transition: 'border-color .22s, box-shadow .22s, transform .18s',
-        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        transform: hovered ? 'translateY(-3px)' : 'translateY(0)',
         background: '#04060f',
-        aspectRatio: '16/7',
+        aspectRatio: '16/10',
       }}
     >
-      {/* תמונת הסצנה הראשונה — רקע מלא */}
-      {hasImage ? (
-        <img
-          src={q.entryImageUrl!}
-          alt={q.title}
-          style={{
-            position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'cover',
-            transform: hovered ? 'scale(1.04)' : 'scale(1)',
-            transition: 'transform .4s ease',
-          }}
-        />
+      {/* תמונת רקע */}
+      {q.entryImageUrl ? (
+        <img src={q.entryImageUrl} alt={q.title} style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%',
+          objectFit: 'cover',
+          transform: hovered ? 'scale(1.05)' : 'scale(1)',
+          transition: 'transform .4s ease',
+        }} />
       ) : (
-        /* פלייסהולדר אם אין תמונה */
         <div style={{
           position: 'absolute', inset: 0,
           background: 'linear-gradient(135deg,rgba(10,22,60,.9),rgba(4,9,24,.95))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 48, opacity: 0.4,
+          fontSize: 36, opacity: 0.35,
         }}>
           {ART_ICONS[q.artStyle ?? ''] ?? '🎮'}
         </div>
       )}
 
-      {/* גרדיאנט overlay — מאפיל מלמטה לטקסט */}
+      {/* עמעום תחתון לטקסט */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: 'linear-gradient(to top, rgba(2,5,15,.96) 0%, rgba(2,5,15,.55) 45%, rgba(2,5,15,.1) 100%)',
+        background: 'linear-gradient(to top, rgba(2,5,15,.97) 0%, rgba(2,5,15,.5) 50%, rgba(2,5,15,.08) 100%)',
       }} />
 
-      {/* תוכן — תחתית הכרטיס */}
+      {/* ── BADGES פינה עליונה ── */}
+
+      {/* badge: חדש (cyan) — פינה שמאלית עליונה ב-RTL */}
+      {isNew && (
+        <div style={{
+          position: 'absolute', top: 10, right: 10,
+          background: 'linear-gradient(135deg,rgba(47,243,255,.22),rgba(0,184,212,.18))',
+          border: '1px solid rgba(47,243,255,.7)',
+          borderRadius: 7, padding: '3px 8px',
+          fontSize: 10, fontWeight: 800, color: '#2ff3ff',
+          fontFamily: 'var(--font-display)', letterSpacing: '0.1em',
+          boxShadow: '0 0 12px rgba(47,243,255,.5)',
+          backdropFilter: 'blur(6px)',
+          textTransform: 'uppercase',
+          animation: 'holo-status-pulse 2s ease-in-out infinite',
+        }}>
+          ✦ חדש
+        </div>
+      )}
+
+      {/* badge: הושלם (ירוק) */}
+      {status === 'completed' && (
+        <div style={{
+          position: 'absolute', top: 10, left: 10,
+          background: 'rgba(16,185,80,.18)',
+          border: '1px solid rgba(16,185,80,.55)',
+          borderRadius: 7, padding: '3px 8px',
+          fontSize: 11, fontWeight: 800, color: '#22d46a',
+          fontFamily: 'var(--font-display)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          ✓ הושלם
+        </div>
+      )}
+
+      {/* badge: בתהליך (צהוב) */}
+      {status === 'in_progress' && (
+        <div style={{
+          position: 'absolute', top: 10, left: 10,
+          background: 'rgba(255,180,0,.14)',
+          border: '1px solid rgba(255,180,0,.5)',
+          borderRadius: 7, padding: '3px 8px',
+          fontSize: 11, fontWeight: 800, color: '#fbbf24',
+          fontFamily: 'var(--font-display)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          ↻ בתהליך
+        </div>
+      )}
+
+      {/* ── תוכן תחתון ── */}
       <div style={{
         position: 'absolute', bottom: 0, right: 0, left: 0,
-        padding: '14px 20px 16px',
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12,
+        padding: '10px 12px 11px',
       }}>
-        {/* שם + מידע */}
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontWeight: 800, fontSize: 17, color: '#fff',
-            fontFamily: 'var(--font-display)',
-            textShadow: '0 1px 8px rgba(0,0,0,.8)',
-            marginBottom: 5,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {q.title}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <span style={{
-              fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600,
-              background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.3)',
-              color: 'rgba(47,243,255,.9)',
-              backdropFilter: 'blur(6px)',
-            }}>
-              {q.sceneCount} סצנות
-            </span>
-            <span style={{
-              fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600,
-              background: 'rgba(136,85,255,.12)', border: '1px solid rgba(136,85,255,.3)',
-              color: 'rgba(200,160,255,.9)',
-              backdropFilter: 'blur(6px)',
-            }}>
-              {artStyleLabel(q.artStyle)}
-            </span>
-          </div>
+        {/* שם */}
+        <div style={{
+          fontWeight: 800, fontSize: 13, color: '#fff',
+          fontFamily: 'var(--font-display)',
+          textShadow: '0 1px 6px rgba(0,0,0,.9)',
+          marginBottom: status === 'completed' ? 5 : 4,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {q.title}
         </div>
 
-        {/* כפתור שחק */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onPlay() }}
-          style={{
-            background: 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
-            color: '#021018', fontWeight: 800, fontSize: 14,
-            padding: '10px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
-            fontFamily: 'var(--font-display)', flexShrink: 0,
-            boxShadow: hovered ? '0 0 32px rgba(47,243,255,.7)' : '0 0 16px rgba(47,243,255,.4)',
-            transition: 'box-shadow .2s',
-          }}
-        >
-          שחק ▶
-        </button>
+        {/* שורת מידע תחתונה */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+            {status === 'completed' ? (
+              /* קריסטלים שהושגו */
+              <CrystalRow crystals={crystals} />
+            ) : (
+              /* סצנות */
+              <span style={{
+                fontSize: 10, padding: '1px 7px', borderRadius: 5, fontWeight: 600,
+                background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.25)',
+                color: 'rgba(47,243,255,.85)', backdropFilter: 'blur(4px)',
+              }}>
+                {q.sceneCount} סצנות
+              </span>
+            )}
+          </div>
+
+          {/* כפתור שחק */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onPlay() }}
+            style={{
+              background: status === 'completed'
+                ? 'linear-gradient(135deg,rgba(34,212,106,.9),rgba(16,160,70,.9))'
+                : 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
+              color: '#021018', fontWeight: 800, fontSize: 11,
+              padding: '6px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+              fontFamily: 'var(--font-display)', flexShrink: 0,
+              boxShadow: hovered
+                ? status === 'completed'
+                  ? '0 0 20px rgba(34,212,106,.6)'
+                  : '0 0 20px rgba(47,243,255,.6)'
+                : 'none',
+              transition: 'box-shadow .2s',
+            }}
+          >
+            {status === 'completed' ? '▶ שחק שוב' : status === 'in_progress' ? '▶ המשך' : '▶ שחק'}
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-/* ── טעינה — שלוש נקודות פועמות ── */
+/* ── טעינה ── */
 function LoadingDots() {
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '4rem 0' }}>
       {[0, 1, 2].map((i) => (
         <div key={i} style={{
           width: 8, height: 8, borderRadius: '50%',
           background: 'var(--holo-cyan-bright)',
           animation: 'holo-dot-pulse 1.4s ease-in-out infinite',
-          animationDelay: `${i * 0.22}s`,
-          opacity: 0.7,
+          animationDelay: `${i * 0.22}s`, opacity: 0.7,
         }} />
       ))}
     </div>
   )
 }
 
-/* ═══════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════ */
 
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
@@ -155,6 +223,15 @@ export default function StudentHome() {
   const [quests, setQuests] = useState<AssignedQuest[]>([])
   const [loading, setLoading] = useState(true)
   const [dbgError, setDbgError] = useState<string | null>(null)
+  const [lastLogin, setLastLogin] = useState<string | null>(null)
+
+  useEffect(() => {
+    /* שמירת "כניסה קודמת" — מה שנשמר מהביקור הקודם */
+    const prev = localStorage.getItem('holo_last_login')
+    setLastLogin(prev)
+    /* עדכון לכניסה הנוכחית */
+    localStorage.setItem('holo_last_login', new Date().toISOString())
+  }, [])
 
   useEffect(() => {
     if (!isLoggedIn) return
@@ -169,6 +246,12 @@ export default function StudentHome() {
       .catch((e) => setDbgError(String(e)))
       .finally(() => setLoading(false))
   }, [isLoggedIn])
+
+  /* הדמיה חדשה = הוקצתה אחרי הכניסה הקודמת */
+  function isNew(q: AssignedQuest) {
+    if (!lastLogin || !q.assignedAt) return false
+    return q.assignedAt > lastLogin
+  }
 
   if (!isLoggedIn) {
     return (
@@ -188,53 +271,46 @@ export default function StudentHome() {
 
   return (
     <HoloBackdrop>
-      {/* שכבת גלילה מעל הרקע */}
       <div
         dir="rtl"
         className="holo-screen-fade"
         style={{
           position: 'absolute', inset: 0, overflowY: 'auto',
           display: 'flex', flexDirection: 'column', alignItems: 'center',
-          padding: '0 1rem 3rem',
+          padding: '0 1.25rem 3rem',
         }}
       >
         {/* ── HEADER ── */}
         <div style={{
-          width: '100%', maxWidth: 680,
+          width: '100%', maxWidth: 960,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '1.75rem 0 1.5rem',
+          padding: '1.6rem 0 1.4rem',
           borderBottom: '1px solid rgba(47,243,255,.08)',
-          marginBottom: '1.75rem',
+          marginBottom: '1.5rem',
         }}>
-          {/* לוגו + שם */}
           <div>
             <div style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
-              color: 'rgba(47,243,255,.45)', textTransform: 'uppercase', marginBottom: 4,
-            }}>
-              HoloAcademy
-            </div>
+              color: 'rgba(47,243,255,.45)', textTransform: 'uppercase', marginBottom: 3,
+            }}>HoloAcademy</div>
             <h1 style={{
               margin: 0, fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(1.35rem,4vw,1.75rem)', fontWeight: 800,
+              fontSize: 'clamp(1.25rem,3.5vw,1.65rem)', fontWeight: 800,
               color: 'var(--holo-text-bright)',
-              textShadow: '0 0 24px rgba(47,243,255,.35)',
+              textShadow: '0 0 22px rgba(47,243,255,.3)',
             }}>
               שלום,{' '}
               <span style={{ color: 'var(--holo-cyan-bright)' }}>{name}</span>
               {' '}👋
             </h1>
           </div>
-
-          {/* כפתור יציאה */}
           <button
             onClick={() => { logout(); navigate('/') }}
             style={{
               fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 10,
               cursor: 'pointer', fontFamily: 'var(--font-display)',
               background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-              color: 'rgba(160,200,240,.55)',
-              transition: 'border-color .18s, color .18s',
+              color: 'rgba(160,200,240,.55)', transition: 'border-color .18s, color .18s',
             }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,80,120,.4)'; e.currentTarget.style.color = '#ff8099' }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(160,200,240,.55)' }}
@@ -244,7 +320,7 @@ export default function StudentHome() {
         </div>
 
         {/* ── CONTENT ── */}
-        <div style={{ width: '100%', maxWidth: 680 }}>
+        <div style={{ width: '100%', maxWidth: 960 }}>
 
           {/* כותרת מקטע */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1.1rem' }}>
@@ -252,10 +328,13 @@ export default function StudentHome() {
               fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
               color: 'rgba(47,243,255,.5)', textTransform: 'uppercase',
               fontFamily: 'var(--font-display)',
-            }}>
-              ההדמיות שלך
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, rgba(47,243,255,.18), transparent)' }} />
+            }}>ההדמיות שלך</span>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left,rgba(47,243,255,.18),transparent)' }} />
+            {!loading && quests.length > 0 && (
+              <span style={{ fontSize: 11, color: 'rgba(120,160,200,.4)', fontFamily: 'var(--font-display)' }}>
+                {quests.length} הדמיות
+              </span>
+            )}
           </div>
 
           {/* שגיאת debug */}
@@ -264,12 +343,9 @@ export default function StudentHome() {
               padding: '12px 16px', marginBottom: 14,
               background: 'rgba(255,80,80,.08)', border: '1px solid rgba(255,80,80,.25)',
               borderRadius: 12, fontSize: 13, color: '#ff8099',
-            }}>
-              ⚠️ {dbgError}
-            </div>
+            }}>⚠️ {dbgError}</div>
           )}
 
-          {/* טעינה */}
           {loading && <LoadingDots />}
 
           {/* ריק */}
@@ -281,10 +357,7 @@ export default function StudentHome() {
               backdropFilter: 'blur(10px)',
             }}>
               <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem', filter: 'drop-shadow(0 0 12px rgba(47,243,255,.3))' }}>🚀</div>
-              <p style={{
-                color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0,
-                fontFamily: 'var(--font-display)',
-              }}>
+              <p style={{ color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
                 עדיין לא הוקצו לך הדמיות
               </p>
               <p style={{ color: 'rgba(120,160,200,.35)', fontSize: 12, marginTop: 4 }}>
@@ -293,12 +366,23 @@ export default function StudentHome() {
             </div>
           )}
 
-          {/* כרטיסי הדמיות */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {quests.map((q) => (
-              <QuestCard key={q.id} q={q} onPlay={() => navigate(`/play/${q.id}`)} />
-            ))}
-          </div>
+          {/* גריד 3 עמודות */}
+          {!loading && quests.length > 0 && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 14,
+            }}>
+              {quests.map((q) => (
+                <QuestCard
+                  key={q.id}
+                  q={q}
+                  isNew={isNew(q)}
+                  onPlay={() => navigate(`/play/${q.id}`)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </HoloBackdrop>
