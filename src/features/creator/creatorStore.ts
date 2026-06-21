@@ -3,15 +3,15 @@ import { apiFetch } from '../../shared/lib/api'
 
 /* סוגי החידות הזמינים */
 export const PUZZLE_TYPES = [
-  { key: 'multipleChoice', label: 'שאלות רב-ברירה' },
+  { key: 'multipleChoice', label: 'שאלות בחירה מרובה' },
   { key: 'trueFalse', label: 'נכון / לא נכון' },
   { key: 'itemUsage', label: 'שימוש במפתח' },
-  { key: 'tileSwap', label: 'פאזל הזזה' },
-  { key: 'wordSearch', label: 'חיפוש מילים' },
-  { key: 'memory', label: 'זיכרון' },
-  { key: 'wordCompletion', label: 'השלמת מילים' },
+  { key: 'tileSwap', label: 'פאזל החלפת חלקים' },
+  { key: 'wordSearch', label: 'תפזורת' },
+  { key: 'memory', label: 'משחק הזיכרון' },
+  { key: 'wordCompletion', label: 'השלם את החסר' },
   { key: 'sequenceOrder', label: 'חידת סדר' },
-  { key: 'hangman', label: 'זיהוי קוד' },
+  { key: 'hangman', label: 'פיצוח קוד' },
   { key: 'moralDilemma', label: 'שאלת מוסר' },
 ] as const
 

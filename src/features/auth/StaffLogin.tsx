@@ -37,7 +37,7 @@ export default function StaffLogin() {
     try {
       const { session, staff } = await apiJson<LoginResponse>('/api/auth/guest-login', { method: 'POST' })
       setSession({ ...session, staff })
-      setWelcome({ name: staff.name, role: staff.role, to: '/creator/library' })
+      setWelcome({ name: staff.name, role: staff.role, to: '/creator' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'כניסת אורח נכשלה')
       setShake(true)
@@ -60,7 +60,7 @@ export default function StaffLogin() {
         body: JSON.stringify({ email: email.trim(), password }),
       })
       setSession({ ...session, staff })
-      setWelcome({ name: staff.name, role: staff.role, to: staff.role === 'super_admin' ? '/admin' : '/creator/library' })
+      setWelcome({ name: staff.name, role: staff.role, to: staff.role === 'super_admin' ? '/admin' : '/creator' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההתחברות נכשלה')
       setShake(true)

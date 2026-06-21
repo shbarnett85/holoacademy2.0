@@ -1,15 +1,15 @@
 /* תוויות עבריות לסוגי חידות — mapping אחד לכל המערכת */
 export const PUZZLE_TYPE_LABELS: Record<string, string> = {
-  multipleChoice: 'רב-ברירה',
+  multipleChoice: 'שאלות בחירה מרובה',
   trueFalse: 'נכון/לא נכון',
   itemUsage: 'שימוש במפתח',
-  tileSwap: 'פאזל הזזה',
-  slidingPuzzle: 'פאזל הזזה',
-  wordSearch: 'חיפוש מילים',
-  memory: 'זיכרון',
-  wordCompletion: 'השלמת מילים',
+  tileSwap: 'פאזל החלפת חלקים',
+  slidingPuzzle: 'פאזל החלפת חלקים',
+  wordSearch: 'תפזורת',
+  memory: 'משחק הזיכרון',
+  wordCompletion: 'השלם את החסר',
   sequenceOrder: 'חידת סדר',
-  hangman: 'זיהוי קוד',
+  hangman: 'פיצוח קוד',
   finalQuiz: 'מבחן סיכום',
   moralDilemma: 'שאלת מוסר',
 }

@@ -56,7 +56,7 @@ export default function StaffSignup() {
         body: JSON.stringify({ email: email.trim(), password }),
       })
       setSession({ ...session, staff })
-      navigate(staff.role === 'super_admin' ? '/admin' : '/creator/library')
+      navigate(staff.role === 'super_admin' ? '/admin' : '/creator')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההרשמה נכשלה')
     } finally {

@@ -49,21 +49,6 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   )
 }
 
-/* אמבלמה הולוגרפית — טבעות מסתובבות לפי השלב */
-function HoloEmblem({ size = 150 }: { size?: number }) {
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flex: '0 0 auto' }}>
-      <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'radial-gradient(circle at 40% 35%, rgba(47,243,255,.22), rgba(155,140,255,.06) 60%, transparent)', boxShadow: '0 0 26px rgba(47,243,255,.3)' }} />
-      {[0, 1, 2].map((r) => (
-        <div key={r} style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: (60 + r * 24) * (size / 116), height: (60 + r * 24) * 0.38 * (size / 116), borderRadius: '50%', border: `1px solid rgba(${r === 1 ? '255,69,230' : '47,243,255'},${0.5 - r * 0.1})`, animation: `${r % 2 ? 'holo-spin-rev' : 'holo-spin'} ${13 + r * 4}s linear infinite` }} />
-      ))}
-      <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 52 * (size / 116), height: 52 * (size / 116), animation: 'holo-float-sm 5s ease-in-out infinite' }}>
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(47,243,255,.55)', background: 'radial-gradient(circle at 38% 32%, rgba(47,243,255,.3), rgba(155,140,255,.1) 60%, transparent)', boxShadow: 'inset 0 0 18px rgba(155,140,255,.3)' }} />
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', height: 1, background: 'rgba(120,220,255,.35)' }} />
-      </div>
-    </div>
-  )
-}
 
 const ICON = {
   sliders: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></svg>,
@@ -104,7 +89,7 @@ function Studio() {
     }
   }
 
-  const canSubmit = s.title.trim().length > 0 && s.curriculum.trim().length > 0
+  const canSubmit = s.title.trim().length > 0
   const activePuzzles = PUZZLE_TYPES.filter((p) => s.puzzleTypes[p.key]).length + (s.puzzleTypes.finalQuiz ? 1 : 0)
   const artLabel = ART_STYLES.find((a) => a.key === s.artStyle)?.label
   const simLabel = SIM_TYPES.find((t) => t.key === s.questType)?.label
@@ -233,7 +218,7 @@ function Studio() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד</label>
+              <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד <span style={{ fontWeight: 400, color: 'rgba(160,200,240,.5)', fontSize: 11 }}>(אופציונלי)</span></label>
               <button type="button" onClick={enhanceContent} disabled={enhancing} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#e7d6ff', background: 'linear-gradient(135deg, rgba(155,140,255,.25), rgba(47,243,255,.18))', border: '1px solid rgba(155,140,255,.5)', boxShadow: '0 0 12px rgba(155,140,255,.25)', opacity: enhancing ? 0.6 : 1 }}>
                 {enhancing ? <><span style={{ display: 'inline-block', animation: 'cf-spin .8s linear infinite' }}>⟳</span> משפר…</> : <>שפר עם AI ✨</>}
               </button>
@@ -330,9 +315,6 @@ function Studio() {
               })}
             </div>
 
-            <div style={{ marginTop: 'auto', paddingTop: 26, display: 'flex', justifyContent: 'center' }}>
-              <HoloEmblem size={150} />
-            </div>
           </div>
         </div>
       </div>
