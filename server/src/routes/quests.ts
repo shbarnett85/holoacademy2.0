@@ -9,13 +9,16 @@ import {
   buildStructureRetryMessage,
   requiredKeyCount,
   formOfAddressRule,
+  puzzleDataSpec,
+  difficultyHeader,
   type QuestGenerationParams,
   type FormOfAddress,
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
-import { clampLevel, scaleHangman } from '../../../src/shared/lib/difficultyScaling.js'
-import { PROFILE_PUZZLE_TYPES } from '../../../src/shared/lib/difficultyCalibration.js'
+import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
+import { PROFILE_PUZZLE_TYPES, defaultProfileForGrade, gradeNumberFromLabel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
+import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
 
 export const questsRouter = Router()
@@ -46,6 +49,51 @@ const navChoiceSchema = z.object({
   unlockText: z.string().optional(),
 })
 
+const puzzleObjectSchema = z.object({
+  type: z.string().optional(),
+  question: z.string(),
+  choices: z.array(choiceSchema).optional(),
+  explanationCorrect: z.string().optional(),
+  explanationIncorrect: z.string().optional(),
+  /* tileSwap — גודל הרשת */
+  gridSize: z.number().int().min(2).max(4).optional(),
+  /* wordSearch — מילים בעברית */
+  words: z.array(z.string().min(2)).optional(),
+  /* memory — זוגות מושג↔הגדרה */
+  pairs: z.array(z.object({ a: z.string().min(1), b: z.string().min(1) })).optional(),
+  /* wordCompletion — משפט עם ___ , תשובה, ובנק מילים אופציונלי.
+     answers = רשימת התשובות לפי סדר החללים (רמות גבוהות: כמה חללים). answer לתאימות לאחור. */
+  sentence: z.string().optional(),
+  answer: z.string().optional(),
+  answers: z.array(z.string().min(1)).optional(),
+  wordBank: z.array(z.string().min(1)).optional(),
+  /* sequenceOrder — סידור פריטים ברצף הנכון */
+  items: z.array(z.object({ id: z.string().min(1), text: z.string().min(1), imagePrompt: z.string().optional() })).optional(),
+  correctOrder: z.array(z.string().min(1)).optional(),
+  orderType: z.enum(['chronological', 'logical', 'hierarchical']).optional(),
+  /* hangman — מספר טעויות מותר */
+  maxWrong: z.number().int().min(3).max(10).optional(),
+  /* רמת הקושי שהוזרקה בעת היצירה */
+  difficulty: z.number().int().min(1).max(10).optional(),
+  /* finalQuiz — רצף שאלות סיכום */
+  questions: z
+    .array(
+      z.object({
+        question: z.string().min(1),
+        options: z.array(z.string().min(1)).min(2),
+        correctIndex: z.number().int().min(0),
+        explanationCorrect: z.string().optional(),
+        explanationIncorrect: z.string().optional(),
+      }),
+    )
+    .optional(),
+  /* moralDilemma — דילמה ערכית ללא תשובה נכונה; כל בחירה עם ההשלכה שלה */
+  situation: z.string().optional(),
+  moralChoices: z
+    .array(z.object({ text: z.string().min(1), consequence: z.string().min(1) }))
+    .optional(),
+})
+
 const sceneSchema = z.object({
   id: z.string(),
   title: z.string().min(1),
@@ -54,52 +102,7 @@ const sceneSchema = z.object({
   imageUrl: z.string().optional(),
   /* הבעת הפנים של ד"ר הולו בסצנה זו — תואמת לטון הנרטיב (רק כשהוא מופיע ויזואלית) */
   drHoloExpression: z.string().optional(),
-  puzzle: z
-    .object({
-      type: z.string().optional(),
-      question: z.string(),
-      choices: z.array(choiceSchema).optional(),
-      explanationCorrect: z.string().optional(),
-      explanationIncorrect: z.string().optional(),
-      /* tileSwap — גודל הרשת */
-      gridSize: z.number().int().min(2).max(4).optional(),
-      /* wordSearch — מילים בעברית */
-      words: z.array(z.string().min(2)).optional(),
-      /* memory — זוגות מושג↔הגדרה */
-      pairs: z.array(z.object({ a: z.string().min(1), b: z.string().min(1) })).optional(),
-      /* wordCompletion — משפט עם ___ , תשובה, ובנק מילים אופציונלי.
-         answers = רשימת התשובות לפי סדר החללים (רמות גבוהות: כמה חללים). answer לתאימות לאחור. */
-      sentence: z.string().optional(),
-      answer: z.string().optional(),
-      answers: z.array(z.string().min(1)).optional(),
-      wordBank: z.array(z.string().min(1)).optional(),
-      /* sequenceOrder — סידור פריטים ברצף הנכון */
-      items: z.array(z.object({ id: z.string().min(1), text: z.string().min(1), imagePrompt: z.string().optional() })).optional(),
-      correctOrder: z.array(z.string().min(1)).optional(),
-      orderType: z.enum(['chronological', 'logical', 'hierarchical']).optional(),
-      /* hangman — מספר טעויות מותר */
-      maxWrong: z.number().int().min(3).max(10).optional(),
-      /* רמת הקושי שהוזרקה בעת היצירה */
-      difficulty: z.number().int().min(1).max(10).optional(),
-      /* finalQuiz — רצף שאלות סיכום */
-      questions: z
-        .array(
-          z.object({
-            question: z.string().min(1),
-            options: z.array(z.string().min(1)).min(2),
-            correctIndex: z.number().int().min(0),
-            explanationCorrect: z.string().optional(),
-            explanationIncorrect: z.string().optional(),
-          }),
-        )
-        .optional(),
-      /* moralDilemma — דילמה ערכית ללא תשובה נכונה; כל בחירה עם ההשלכה שלה */
-      situation: z.string().optional(),
-      moralChoices: z
-        .array(z.object({ text: z.string().min(1), consequence: z.string().min(1) }))
-        .optional(),
-    })
-    .optional(),
+  puzzle: puzzleObjectSchema.optional(),
   collectableItem: collectableItemSchema.optional(),
   choices: z.array(navChoiceSchema).optional(),
   requiresItemId: z.string().nullable().optional(),
@@ -488,15 +491,17 @@ ${JSON.stringify(texts, null, 0)}`
 
 /* ── וריאציה מותאמת-תלמיד ── */
 
-/* איסוף כל שדות הטקסט כולל אתגרי מוסר — לשכתוב מותאם */
-function collectVariantText(gd: GameData): Record<string, string> {
+/* איסוף שדות הטקסט לשכתוב מותאם.
+   opts.puzzles=false → דלג על טקסט האתגרים (כשהם נוצרים מחדש ב-Sonnet ולא צריך פרפרזה כפולה). */
+function collectVariantText(gd: GameData, opts: { puzzles?: boolean } = {}): Record<string, string> {
+  const includePuzzles = opts.puzzles !== false
   const out: Record<string, string> = {}
   const put = (k: string, v?: string) => { if (typeof v === 'string' && v.trim()) out[k] = v }
   for (const sc of gd.scenes as unknown as LooseScene[]) {
     put(`s:${sc.id}:narrative`, sc.narrative)
     put(`s:${sc.id}:dlg`, sc.drHoloDialog)
     const p = sc.puzzle
-    if (p) {
+    if (p && includePuzzles) {
       put(`s:${sc.id}:q`, p.question)
       put(`s:${sc.id}:ec`, p.explanationCorrect)
       put(`s:${sc.id}:ei`, p.explanationIncorrect)
@@ -563,40 +568,208 @@ function applyDifficultyOverrides(gd: GameData, perPuzzleLevel: Record<string, n
   }
 }
 
-/* יצירת game_data מותאמת-תלמיד: כוונון קושי (ללא AI) + שכתוב טקסט (haiku). תמונות לא מחודשות. */
+type PuzzleObj = z.infer<typeof puzzleObjectSchema>
+
+/* תיאור מעוגן-שכבה לרמת הקריאה (1-16) — מדויק יותר מבנדים גסים, כדי שרמה 1 באמת תהיה רמה 1 */
+function readingLevelDescriptor(textLevel: number): string {
+  const t = Math.max(1, Math.min(16, Math.round(textLevel)))
+  if (t <= 2) return 'כיתה א׳-ב׳ (גיל 6-7): עברית פשוטה אך **תקנית, זורמת וטבעית כמו ספר ילדים איכותי** — משפטים קצרים ושלמים, מילים יומיומיות, ללא מונחים מופשטים. כל מושג מוסבר במילים פשוטות ובדוגמה מוחשית. **אסור** טקסט קטוע/טלגרפי או דקדוק משובש.'
+  if (t <= 4) return 'כיתה ג׳-ד׳ (גיל 8-9): עברית תקנית וזורמת, משפטים קצרים-בינוניים שלמים ואוצר מילים יסודי. כל מונח חדש מוסבר מיד בדוגמה מוחשית. **אסור** ניסוח קטוע או משובש.'
+  if (t <= 6) return 'כיתה ה׳-ו׳ (גיל 10-11): מורכבות בינונית, מותר מונח עם הסבר קצר לצידו.'
+  if (t <= 9) return 'חטיבת ביניים (גיל 12-14): שפה סטנדרטית, מונחים מקצועיים מותרים בלי הסבר יתר.'
+  if (t <= 12) return 'תיכון (גיל 15-17): שפה עשירה, ניואנסים ומבנים מורכבים.'
+  return 'רמה אקדמית: שפה מתוחכמת ומדויקת, ניואנסים דקים.'
+}
+
+/* מפרט קושי לסוג אתגר יחיד (puzzleDataSpec + finalQuiz שמטופל בנפרד בפרומפט הראשי) */
+function specForPuzzle(type: string, level: number, finalQuizCount: number): string {
+  if (type === 'finalQuiz') {
+    const { optionCount, guidance } = scaleFinalQuiz(level)
+    return `"type":"finalQuiz" — "question" (כותרת קצרה) + "questions": מערך של **בדיוק ${finalQuizCount}** שאלות אינטגרטיביות, כל אחת { "question", "options":[**בדיוק ${optionCount} מחרוזות**], "correctIndex" (0-based), "explanationCorrect", "explanationIncorrect" }. **קושי: ${guidance}**`
+  }
+  return puzzleDataSpec(type, level)
+}
+
+/* ולידציה ממוקדת פר-סוג — האם האתגר המחודש שמיש (כדי לא לשבור את המשחק) */
+function puzzleValidForType(p: PuzzleObj): boolean {
+  const t = p.type === 'slidingPuzzle' ? 'tileSwap' : p.type
+  switch (t) {
+    case 'multipleChoice':
+      return !!p.choices && p.choices.length >= 2 && p.choices.filter((c) => c.isCorrect).length === 1
+    case 'trueFalse':
+      return !!p.choices && p.choices.length === 2 && p.choices.filter((c) => c.isCorrect).length === 1
+    case 'finalQuiz':
+      return !!p.questions && p.questions.length >= 1 && p.questions.every((q) => q.options.length >= 2 && q.correctIndex >= 0 && q.correctIndex < q.options.length)
+    case 'wordSearch':
+      return !!p.words && p.words.length >= 3
+    case 'memory':
+      return !!p.pairs && p.pairs.length >= 2
+    case 'wordCompletion':
+      return !!p.sentence && p.sentence.includes('___') && ((!!p.answers && p.answers.length > 0) || !!p.answer)
+    case 'sequenceOrder':
+      return !!p.items && p.items.length >= 2 && !!p.correctOrder && p.correctOrder.length === p.items.length && p.correctOrder.every((id) => p.items!.some((it) => it.id === id))
+    case 'hangman':
+      return !!p.answer && p.answer.trim().length > 0
+    case 'moralDilemma':
+      return !!p.moralChoices && p.moralChoices.length >= 2 && p.moralChoices.every((c) => c.text && c.consequence)
+    default:
+      return false
+  }
+}
+
+/* ייצור מחדש של תוכן האתגרים לרמת היעד (Sonnet, קריאה אחת לכל האתגרים).
+   שומר על אותו נושא/מושג ותשובה נכונה, אך מתאים מספר מסיחים/זוגות/פריטים/חללים, עומק
+   מושגי ורמת תעתוע לפי הרמה. tileSwap מדולג (אין תוכן — רק תמונת הסצנה). best-effort:
+   אתגר שלא עבר ולידציה נשאר במקור. */
+async function regeneratePuzzles(
+  gd: GameData,
+  perPuzzleLevel: Record<string, number>,
+  textLevel: number,
+  form: FormOfAddress,
+  moralLevel: number,
+): Promise<void> {
+  const scenes = gd.scenes as unknown as LooseScene[]
+  const jobs: { idx: number; type: string; level: number; fqCount: number }[] = []
+  scenes.forEach((sc, idx) => {
+    const p = sc.puzzle
+    if (!p?.type) return
+    const type = p.type === 'slidingPuzzle' ? 'tileSwap' : p.type
+    if (type === 'tileSwap') return /* אין תוכן לחדש — הרשת נגזרת מהקושי בצד הקליינט */
+    const level = type === 'moralDilemma' ? moralLevel : (perPuzzleLevel[type] ?? Math.round((textLevel / 16) * 10))
+    const fqCount = type === 'finalQuiz' ? (p.questions?.length ?? 5) : 0
+    jobs.push({ idx, type, level: clampLevel(level), fqCount })
+  })
+  if (jobs.length === 0) return
+
+  const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם), ללא לוכסנים.'
+  const avgLevel = Math.round(jobs.reduce((a, j) => a + j.level, 0) / jobs.length)
+  const itemsTxt = jobs
+    .map((j, n) => {
+      const orig = JSON.stringify(scenes[j.idx].puzzle, null, 0)
+      return `### אתגר ${n} (type="${j.type}", רמת קושי יעד=${j.level}/10)
+מפרט הרמה: ${specForPuzzle(j.type, j.level, j.fqCount)}
+האתגר המקורי (שמור על אותו נושא/מושג נלמד ועל אותה תשובה נכונה תוכנית):
+${orig}`
+    })
+    .join('\n\n')
+
+  const lowAnchor = avgLevel <= 3
+    ? `\n• **רמת היעד נמוכה (≤3) — קריטי**: שאל על **הרעיון הכי בסיסי בתוך הנושא**, לא על אותו רעיון מתוחכם עם מסיחים מטופשים. רמה 1 = עובדה/הגדרה יסודית יחידה שתלמיד מתקשה עונה עליה כמעט תמיד; **אפס הפשטה, אפס ניואנס, אפס קישור בין מושגים**. אל "תייפה" כלפי מעלה — מוטב פשוט מדי מאשר קשה מדי.`
+    : ''
+  const instruction = `אתה מתאים אתגרים בהדמיה חינוכית בעברית לרמת הקושי של תלמיד ספציפי.
+${difficultyHeader(avgLevel)}
+
+## כללי הזהב
+• **שמור על אותו נושא/תחום לימוד** (למשל: השקעות, מלחמת סיני, מחזור המים) — אך **שנה את עומק השאלה עצמה לפי הרמה**, לא רק את המסיחים. אל תמציא נושא חדש, אבל כן שנה איזו שאלה בתוך הנושא נשאלת.
+• **הורדת רמה = שאלה על רעיון בסיסי יותר בתוך הנושא** — לא אותו רעיון מתוחכם עם תשובות מטופשות. **דוגמה (השקעות)**: רמה גבוהה = "כשהריבית במשק יורדת, אילו נכסים מרוויחים?"; רמה נמוכה ≠ אותה שאלה עם מסיחים אבסורדיים, אלא שאלה יסודית כמו "מניות קונים בעזרת: אבנים / בובות / כסף". הרעיון הנבחן עצמו פשוט יותר.
+• **התאם את הקושי לרמת היעד** לפי המפרט: מספר התשובות/המסיחים/הזוגות/הפריטים/החללים, **עומק הרעיון הנבחן**, ורמת התעתוע של המסיחים (נמוך=שגויים בעליל; גבוה=כמעט-נכונים מתעתעים) — שני אלה נעים יחד עם עומק השאלה, לא במקומו.
+• **רמת קריאה: ${readingLevelDescriptor(textLevel)}** ${genderLine}
+• **אסור** לשנות את שדה "type". שמור על המבנה המדויק שהמפרט דורש.
+• לאתגרים עם תשובה נכונה — ודא שיש בדיוק תשובה נכונה אחת והיא נכונה עובדתית.
+• **השפה תקנית וזורמת תמיד** — פשוטה כמו ספר ילדים איכותי, אך לעולם לא קטועה/טלגרפית ולא דקדוק משובש.
+• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי) חייב להישאר מדויק. אל תפשט מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לא "נייר לנשום ארוך"). אם מורכב מדי — השאר את המונח הנכון עם הסבר קצר, או החלף במונח פשוט **ונכון**. לעולם לא ביטוי חסר-משמעות.${lowAnchor}
+
+לפניך ${jobs.length} אתגרים. החזר **מערך JSON בלבד** באורך ${jobs.length} בדיוק (באותו סדר), כל איבר הוא אובייקט ה-puzzle המלא והמחודש (כולל "type"). ללא טקסט נוסף וללא עטיפת markdown.
+
+${itemsTxt}`
+
+  try {
+    const t0 = Date.now()
+    console.log('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
+    const out = await callClaude([{ role: 'user', content: instruction }])
+    const parsed = extractJson(out)
+    if (!Array.isArray(parsed)) { console.error('[variant:puzzles] התגובה אינה מערך'); return }
+    let applied = 0
+    jobs.forEach((j, n) => {
+      const cand = parsed[n]
+      if (!cand || typeof cand !== 'object') return
+      const res = puzzleObjectSchema.safeParse({ ...(cand as object), type: j.type })
+      if (!res.success || !puzzleValidForType(res.data)) return
+      const merged: Record<string, unknown> = { ...res.data, type: j.type, difficulty: j.level }
+      if (j.type === 'hangman') merged.maxWrong = scaleHangman(j.level).maxWrong
+      ;(scenes[j.idx] as { puzzle?: unknown }).puzzle = merged
+      applied++
+    })
+    console.log('[variant:puzzles] done', Date.now() - t0, 'ms, applied:', applied, '/', jobs.length)
+  } catch (err) {
+    console.error('[variant:puzzles] נכשל:', err instanceof Error ? err.message : err)
+  }
+}
+
+/* יצירת game_data מותאמת-תלמיד: כוונון קושי + ייצור מחדש של אתגרים (Sonnet) + שכתוב נרטיב (haiku). תמונות לא מחודשות. */
 async function buildStudentVariant(
   base: GameData,
   textLevel: number,
   form: FormOfAddress,
   perPuzzleLevel: Record<string, number>,
+  moralLevel: number,
 ): Promise<GameData> {
   const variant = JSON.parse(JSON.stringify(base)) as GameData
 
   applyDifficultyOverrides(variant, perPuzzleLevel)
 
-  const texts = collectVariantText(variant)
+  /* ייצור מחדש של תוכן האתגרים לרמת היעד (Sonnet) — לפני שכתוב הנרטיב */
+  await regeneratePuzzles(variant, perPuzzleLevel, textLevel, form, moralLevel)
+
+  /* שכתוב נרטיב/דיאלוג/בחירות/סיומים בלבד — תוכן האתגרים כבר נוצר מחדש ב-Sonnet */
+  const texts = collectVariantText(variant, { puzzles: false })
+  /* ── DIAG ── */
+  console.log('[variant:build]', { textLevel, form, textCount: Object.keys(texts).length, willCallHaiku: Object.keys(texts).length > 0 })
+  /* ── /DIAG ── */
   if (Object.keys(texts).length > 0) {
     const genderLine = form !== 'plural'
       ? `\n${formOfAddressRule(form)}`
       : '\nפנייה בלשון רבים ניטרלית (אתם/כם).'
-    const instruction = `אתה מתאים הדמיה חינוכית בעברית לתלמיד ספציפי.
+    const header = `אתה מתאים את הנרטיב של הדמיה חינוכית בעברית לתלמיד ספציפי.
 
-רמת הקריאה: ${textLevel}/16 (1=כיתה א׳, 16=מבוגר מתקדם).${genderLine}
+**רמת הקריאה: ${readingLevelDescriptor(textLevel)}**${genderLine}
 
-לפניך JSON של מקטעי טקסט (key→טקסט). שכתב כל ערך לפי הכללים:
+לפניך JSON של מקטעי טקסט עלילתי (key→טקסט). שכתב **כל** ערך לפי הכללים:
 • שמור על אותן עובדות, שמות ומשמעות — אל תוסיף, אל תשמיט.
-• מורכבות שפה לפי הרמה: 1-4=משפטים קצרים ומילים יסודיות; 5-8=מורכבות בינונית עם הסברי מונחים; 9-12=שפה סטנדרטית; 13-16=שפה עשירה וניואנסים.
-• שנה רק רמת הניסוח וצורת הפנייה הדקדוקית — לא תוכן, לא שמות, לא עובדות.
-• לשאלות: שמור על אותה כמות תשובות ועל אותה תשובה נכונה — רק ניסוח מותאם.
-• לדילמות מוסר: עמק/פשט את המורכבות הערכית לפי הרמה, שמור על עמדות הניגוד.
+• התאם את מורכבות השפה **בפועל** לרמת הקריאה שלמעלה — ברמה נמוכה מילים יסודיות ומשפטים קצרים, לא רק "ניסוח קל" של טקסט מורכב.
+• **קריטי**: השפה חייבת להישאר עברית **תקנית, זורמת וטבעית** — פשוטה כמו ספר ילדים איכותי, **לא** קטועה, לא "טלגרפית", בלי דקדוק משובש או ניסוח עילג. עדיף משפט שלם ופשוט על פני כמה מילים מקוטעות.
+• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי וכו') חייב להישאר מדויק. אל "תפשט" מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לעולם לא "נייר לנשום ארוך"). אם מונח מורכב מדי — השאר את המונח הנכון והוסף הסבר קצר ופשוט לידו, או החלף במונח פשוט **ונכון** במשמעותו. בשום אופן לא ביטוי חסר-משמעות.
+• שנה רק רמת הניסוח וצורת הפנייה הדקדוקית — לא תוכן, לא שמות, לא עובדות.`
 
-החזר JSON תקין עם אותם keys בדיוק. ללא טקסט נוסף.
+    /* שכתוב מפה של key→טקסט. מחזיר את המפה המשוכתבת (best-effort). */
+    const rewriteBatch = async (batch: Record<string, string>): Promise<Record<string, string>> => {
+      const instruction = `${header}
 
-${JSON.stringify(texts, null, 0)}`
-    try {
+החזר JSON תקין עם **כל ${Object.keys(batch).length} ה-keys בדיוק** (אל תשמיט אף אחד). ללא טקסט נוסף.
+
+${JSON.stringify(batch, null, 0)}`
       const out = await callHaiku([{ role: 'user', content: instruction }], 12000)
-      const rew = extractJson(out) as Record<string, string>
-      if (rew && typeof rew === 'object') applyVariantText(variant, rew)
+      const rew = extractJson(out)
+      return rew && typeof rew === 'object' ? (rew as Record<string, string>) : {}
+    }
+
+    try {
+      const t0 = Date.now()
+      console.log('[variant:haiku] calling haiku, promptLen:', JSON.stringify(texts).length)
+      const rew = await rewriteBatch(texts)
+      if (Object.keys(rew).length > 0) applyVariantText(variant, rew)
+
+      /* מעבר שני ממוקד: מפתחות שהושמטו או נשארו זהים (haiku נוטה "להתעצל" בסוף הרשימה) */
+      const srcKeys = Object.keys(texts)
+      const leftover: Record<string, string> = {}
+      for (const k of srcKeys) {
+        const r = rew[k]
+        if (typeof r !== 'string' || !r.trim() || r.trim() === texts[k]) leftover[k] = texts[k]
+      }
+      const firstChanged = srcKeys.length - Object.keys(leftover).length
+      if (Object.keys(leftover).length > 0) {
+        console.log('[variant:haiku] retry leftover:', Object.keys(leftover).length, '/', srcKeys.length)
+        const rew2 = await rewriteBatch(leftover)
+        if (Object.keys(rew2).length > 0) applyVariantText(variant, rew2)
+        const stillSame = Object.keys(leftover).filter((k) => {
+          const r = rew2[k]
+          return typeof r !== 'string' || !r.trim() || r.trim() === texts[k]
+        }).length
+        console.log('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: Object.keys(leftover).length, stillSame })
+      } else {
+        console.log('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: 0, stillSame: 0 })
+      }
+      console.log('[variant:haiku] done', Date.now() - t0, 'ms')
     } catch (err) {
       console.error('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
     }
@@ -694,7 +867,28 @@ questsRouter.get('/:id', async (req, res, next) => {
       .single()
 
     if (error || !data) throw new AppError(404, 'הדמיה לא נמצאה')
-    res.json({ quest: data })
+
+    /* אם התלמיד מחובר ויש וריאנט אישי — החזר אותו במקום ה-game_data המקורי */
+    let gameData = data.game_data
+    try {
+      const token = req.headers.authorization?.startsWith('Bearer ')
+        ? req.headers.authorization.slice(7) : null
+      const secret = process.env.JWT_SECRET
+      if (token && secret) {
+        const payload = jwt.verify(token, secret) as { userId?: string; role?: string }
+        if (payload.role === 'student' && payload.userId && (await hasQuestVariants())) {
+          const { data: vRow } = await supabaseAdmin
+            .from('quest_variants')
+            .select('game_data')
+            .eq('quest_id', req.params.id)
+            .eq('student_id', payload.userId)
+            .maybeSingle()
+          if (vRow?.game_data) gameData = vRow.game_data
+        }
+      }
+    } catch { /* JWT שגוי / טבלה חסרה — נפול ל-game_data רגיל */ }
+
+    res.json({ quest: { ...data, game_data: gameData } })
   } catch (err) {
     next(err)
   }
@@ -750,26 +944,55 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
     if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
 
-    const v2 = await hasDifficultyProfileV2()
+    /* ── שלוף פרופיל + מגדר + שכבת כיתה במקביל ── */
+    const [v2, hasGender] = await Promise.all([hasDifficultyProfileV2(), hasUserGender()])
     const profileCols = v2 ? 'text_level, per_puzzle_level' : 'id'
-    const { data: profileRow } = await supabaseAdmin
-      .from('difficulty_profiles').select(profileCols).eq('user_id', studentId).maybeSingle()
+    const userCols = hasGender ? 'gender' : 'id'
+
+    /* התלמיד משויך לכיתה דרך class_members (לא users.class_id) */
+    const [{ data: profileRow }, { data: userRow }, { data: memberRow }] = await Promise.all([
+      supabaseAdmin.from('difficulty_profiles').select(profileCols).eq('user_id', studentId).maybeSingle(),
+      supabaseAdmin.from('users').select(userCols).eq('id', studentId).maybeSingle(),
+      supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId).maybeSingle(),
+    ])
+
+    /* grade_label לברירת מחדל מבוססת-שכבה */
+    const ur = userRow as Record<string, unknown> | null
+    const classId = (memberRow as { class_id?: string } | null)?.class_id ?? null
+    let gradeLabel: string | null = null
+    if (classId) {
+      const { data: classRow } = await supabaseAdmin.from('classes').select('grade_label').eq('id', classId).maybeSingle()
+      gradeLabel = (classRow as Record<string, unknown> | null)?.grade_label as string | null ?? null
+    }
+
     const pr = profileRow as Record<string, unknown> | null
-    const textLevel = typeof pr?.text_level === 'number' ? pr.text_level : 5
+    const fallback = defaultProfileForGrade(gradeLabel)
+    const textLevel = typeof pr?.text_level === 'number' ? pr.text_level : fallback.textLevel
     const perPuzzleLevel: Record<string, number> = v2 && pr?.per_puzzle_level && typeof pr.per_puzzle_level === 'object'
       ? pr.per_puzzle_level as Record<string, number>
-      : Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, 5]))
+      : { ...fallback.perPuzzleLevel }
 
-    const genderCols = (await hasUserGender()) ? 'gender' : 'id'
-    const { data: userRow } = await supabaseAdmin.from('users').select(genderCols).eq('id', studentId).maybeSingle()
-    const ur = userRow as Record<string, unknown> | null
     const gender = (ur?.gender === 'male' || ur?.gender === 'female') ? ur.gender as 'male' | 'female' : null
     const form: FormOfAddress = gender ?? 'plural'
 
-    const variantData = await buildStudentVariant(quest.game_data as GameData, textLevel, form, perPuzzleLevel)
+    /* עומק דילמת מוסר = min(שכבה, רמת טקסט) ממופה ל-1-10 (לא 60/80) */
+    const moralLevel = moralDilemmaDepth(gradeNumberFromLabel(gradeLabel) ?? undefined, textLevel)
+
+    /* ── DIAG ── */
+    console.log('[variant:profile]', {
+      studentId, v2,
+      hasProfileRow: pr !== null,
+      gradeLabel, textLevel, moralLevel,
+      perPuzzleLevel_sample: Object.fromEntries(Object.entries(perPuzzleLevel).slice(0, 3)),
+      gender, form,
+    })
+    /* ── /DIAG ── */
+
+    const variantData = await buildStudentVariant(quest.game_data as GameData, textLevel, form, perPuzzleLevel, moralLevel)
     const snapshot = { textLevel, perPuzzleLevel, gender }
 
     const hasTable = await hasQuestVariants()
+    console.log('[variant:save]', { hasTable, studentId })
     if (hasTable) {
       const { error } = await supabaseAdmin.from('quest_variants').upsert(
         { quest_id: questId, student_id: studentId, game_data: variantData, profile_snapshot: snapshot, created_at: new Date().toISOString() },

@@ -4,7 +4,8 @@ import StudioTopBar from '../creator/StudioTopBar'
 import { glass, micro } from '../creator/studioStyles'
 import StudentDetail from '../analytics/StudentDetail'
 import ManagementSidebar from './ManagementSidebar'
-import { PROFILE_PUZZLE_TYPES, CALIBRATION, gradeNumberFromLabel, type ProfilePuzzleType, type RollingTallies } from '../../shared/lib/difficultyCalibration'
+import { PROFILE_PUZZLE_TYPES, gradeNumberFromLabel, type ProfilePuzzleType } from '../../shared/lib/difficultyCalibration'
+import { setNavGuard } from '../../shared/lib/navGuard'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 
@@ -185,7 +186,6 @@ function Row({
 interface StudentProfile {
   text_level?: number | null
   per_puzzle_level?: Record<string, number> | null
-  rolling_tallies?: RollingTallies | null
   sessions_count?: number | null
 }
 
@@ -193,11 +193,6 @@ interface ProfileApiResponse {
   profile: StudentProfile | null
 }
 
-function confidenceLabel(n: number): { label: string; color: string } {
-  if (n < CALIBRATION.MIN_SAMPLE) return { label: `נ=${n} (טרם מספיק נתונים)`, color: '#ff9a2e' }
-  if (n < CALIBRATION.FULL_SAMPLE) return { label: `נ=${n} (ביטחון חלקי)`, color: '#ffe044' }
-  return { label: `נ=${n} (ביטחון מלא)`, color: '#44ffaa' }
-}
 
 function DifficultyModal({
   student, diffPending, effectiveGender, onDiffChange, onGenderChange, onClose,
@@ -288,19 +283,13 @@ function DifficultyModal({
         <div style={{ ...micro, fontSize: 9, color: 'rgba(255,69,230,.55)', marginBottom: 10 }}>◇ רמת קושי לכל סוג אתגר (1-10)</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PROFILE_PUZZLE_TYPES.map((t: ProfilePuzzleType) => {
-            const tally = profile?.rolling_tallies?.[t]
-            const n = tally?.total ?? 0
-            const conf = confidenceLabel(n)
             const lv = levels[t] ?? 5
             const isChanged = diffPending && lv !== (diffPending.origPerPuzzleLevel[t] ?? lv)
             return (
               <div key={t} style={{ background: 'rgba(4,9,18,.4)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(120,200,255,.1)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, color: '#cfe1f2', fontWeight: 600 }}>{puzzleTypeLabel(t)}</span>
-                  {isChanged
-                    ? <span style={{ fontSize: 9.5, color: '#ffe044', fontFamily: 'var(--font-mono)' }}>⚡ שינוי ידני ממתין</span>
-                    : <span style={{ fontSize: 10, color: conf.color, fontFamily: 'var(--font-mono)' }}>{conf.label}</span>
-                  }
+                  {isChanged && <span style={{ fontSize: 9.5, color: '#ffe044', fontFamily: 'var(--font-mono)' }}>⚡ שינוי ידני ממתין</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <input type="range" min={1} max={10} value={lv}
@@ -397,6 +386,13 @@ export default function Students() {
   }
   useEffect(loadStudents, [])
 
+  /* ── cancelAll מוקדם — נדרש לפני ה-useEffect שמשתמש בו בתלויות ── */
+  const cancelAll = useCallback(() => {
+    setProfilePending(null)
+    setDiffPending(null)
+    setDiffModalStudentId(null)
+  }, [])
+
   /* ── Warn on browser close/refresh when dirty ── */
   useEffect(() => {
     if (!isDirty) return
@@ -404,6 +400,20 @@ export default function Students() {
     window.addEventListener('beforeunload', h)
     return () => window.removeEventListener('beforeunload', h)
   }, [isDirty])
+
+  /* ── חסום ניווט טאב-פנימי כשיש שינויים לא שמורים ── */
+  useEffect(() => {
+    if (isDirty) {
+      setNavGuard(() => {
+        if (!window.confirm(`יש שינויים לא שמורים עבור ${pendingStudentName}.\nלבטל את השינויים ולעזוב?`)) return false
+        cancelAll()
+        return true
+      })
+    } else {
+      setNavGuard(null)
+    }
+    return () => setNavGuard(null)
+  }, [isDirty, pendingStudentName, cancelAll])
 
   /* ── Pending profile helpers ── */
   function ensureProfilePending(student: StudentRow) {
@@ -451,13 +461,7 @@ export default function Students() {
     }))
   }
 
-  /* ── Save / Cancel ── */
-  const cancelAll = useCallback(() => {
-    setProfilePending(null)
-    setDiffPending(null)
-    setDiffModalStudentId(null)
-  }, [])
-
+  /* ── Save ── */
   async function saveAll() {
     if (!pendingStudentId || saving) return
     setSaving(true)

@@ -4,18 +4,15 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
-import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasRollingTallies, hasQuestVariants } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasQuestVariants } from '../lib/activeColumn.js'
 import {
-  CALIBRATION,
   calibrate,
-  mergeRolling,
   normalizeProfile,
   defaultProfileForGrade,
   perTypeFromChallenges,
   type ProfilePuzzleType,
   type PuzzleStat,
   type DifficultyProfile,
-  type RollingTallies,
 } from '../../../src/shared/lib/difficultyCalibration.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
@@ -140,10 +137,16 @@ function countChallenges(gameData: unknown): number {
 
 /* טעינת וריאציה מותאמת-תלמיד (אם קיימת וטבלת quest_variants קיימת) */
 async function loadVariantGameData(questId: string, userId: string): Promise<unknown> {
-  if (!(await hasQuestVariants())) return null
-  const { data } = await supabaseAdmin
+  if (!(await hasQuestVariants())) { console.log('[serve:variant] no table'); return null }
+  const { data, error } = await supabaseAdmin
     .from('quest_variants').select('game_data').eq('quest_id', questId).eq('student_id', userId).maybeSingle()
-  return (data as { game_data?: unknown } | null)?.game_data ?? null
+  const gd = (data as { game_data?: { scenes?: { narrative?: string }[] } } | null)?.game_data
+  /* ── DIAG: השווה את הנרטיב המוגש מול הבסיס ── */
+  const { data: baseQuest } = await supabaseAdmin.from('quests').select('game_data').eq('id', questId).single()
+  const baseNarr = (baseQuest?.game_data as { scenes?: { narrative?: string }[] } | undefined)?.scenes?.[0]?.narrative
+  const varNarr = gd?.scenes?.[0]?.narrative
+  console.log('[serve:variant]', { found: !!data, error: error?.message, identical: baseNarr === varNarr, base: baseNarr?.slice(0, 45), variant: varNarr?.slice(0, 45) })
+  return gd ?? null
 }
 
 /* ── כיול הקושי בשרת (JS) — רץ אחרי כל session שהושלם, מחליף את ה-RPC הישן ──
@@ -165,15 +168,10 @@ async function recalibrateProfile(
   }
   const fallback = defaultProfileForGrade(gradeLabel)
 
-  /* פרופיל קודם (אם קיים) — כולל rolling_tallies אם העמודה קיימת */
-  const withRolling = await hasRollingTallies()
-  const profileSelect = [
-    'id', 'text_level', 'per_puzzle_level', 'sessions_count',
-    ...(withRolling ? ['rolling_tallies'] : []),
-  ].join(', ')
+  /* פרופיל קודם (אם קיים) */
   const { data: row } = await supabaseAdmin
     .from('difficulty_profiles')
-    .select(profileSelect)
+    .select('id, text_level, per_puzzle_level, sessions_count')
     .eq('user_id', userId)
     .maybeSingle()
   const r = row as {
@@ -181,18 +179,13 @@ async function recalibrateProfile(
     text_level?: number | null
     per_puzzle_level?: Record<string, number> | null
     sessions_count?: number | null
-    rolling_tallies?: RollingTallies | null
   } | null
   const prev = normalizeProfile(
     r ? { textLevel: r.text_level ?? undefined, perPuzzleLevel: (r.per_puzzle_level as Record<ProfilePuzzleType, number>) ?? undefined } : null,
     fallback,
   )
 
-  /* מיזוג session הנוכחי לתוך הצוברים המתגלגלים */
-  const prevTallies: RollingTallies = (r?.rolling_tallies as RollingTallies) ?? {}
-  const mergedTallies = mergeRolling(prevTallies, perType)
-
-  const result = calibrate(prev, { perType, rollingTallies: mergedTallies, avgSceneMs })
+  const result = calibrate(prev, { perType, avgSceneMs })
 
   /* היסטוריית שיעורי הצלחה אחרונים פר סוג */
   const lastRates: Record<string, number> = {}
@@ -207,7 +200,6 @@ async function recalibrateProfile(
     last_avg_scene_ms: Math.round(avgSceneMs),
     sessions_count: (r?.sessions_count ?? 0) + 1,
     last_updated: new Date().toISOString(),
-    ...(withRolling ? { rolling_tallies: mergedTallies } : {}),
   }
   if (r?.id) {
     await supabaseAdmin.from('difficulty_profiles').update(profilePatch).eq('id', r.id)
@@ -407,7 +399,7 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     const avgSceneMs = summary?.avgSceneMs ?? (sceneTimes && sceneTimes.length
       ? Math.round(sceneTimes.reduce((a, s) => a + s.dwellMs, 0) / sceneTimes.length)
       : 0)
-    const skipping = avgSceneMs > 0 && avgSceneMs < CALIBRATION.SKIP_MS_PER_SCENE
+    const skipping = avgSceneMs > 0 && avgSceneMs < 3000
     const perTypeSuccess: Record<string, number> = {}
     for (const [t, s] of Object.entries(perType)) {
       if (s && s.total > 0) perTypeSuccess[t] = Math.round((s.solved / s.total) * 100) / 100

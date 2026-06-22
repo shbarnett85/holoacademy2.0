@@ -75,7 +75,7 @@ const PUZZLE_TYPE_NAMES: Record<string, string> = {
 }
 
 /* מפרט שדות ה-JSON לכל סוג אתגר — מותאם לרמת הקושי (מספרים מדויקים + הנחיית מורכבות) */
-function puzzleDataSpec(type: string, level: number): string {
+export function puzzleDataSpec(type: string, level: number): string {
   switch (type) {
     case 'multipleChoice': {
       const { optionCount, guidance } = scaleMultipleChoice(level)
@@ -125,7 +125,7 @@ function puzzleDataSpec(type: string, level: number): string {
 }
 
 /* כותרת רמת הקושי הכללית בראש הנחיות האתגרים — עקרון המנעד הענק + עומק מושגי */
-function difficultyHeader(level: number): string {
+export function difficultyHeader(level: number): string {
   return `
 ## רמת קושי: ${difficultyLabel(level)} (קריטי!) — מנעד ענק
 כל האתגרים, השאלות **והנרטיב** חייבים להתאים לרמה זו. עקרון המנעד:

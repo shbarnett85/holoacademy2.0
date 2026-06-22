@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { glass, micro } from './studioStyles'
+import { checkNavGuard } from '../../shared/lib/navGuard'
 
 type TabId = 'create' | 'library' | 'analytics' | 'students'
 
@@ -18,6 +19,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
 
   /* מעבר טאב: מנגן יציאה (holo-tab-out) על תוכן העמוד ואז מנווט; היעד נכנס עם holo-tab-in */
   function navTab(to: string) {
+    if (!checkNavGuard()) return
     const el = document.querySelector('[data-studio-content]')
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (el && !reduce) {

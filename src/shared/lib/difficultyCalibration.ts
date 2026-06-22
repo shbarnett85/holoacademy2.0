@@ -1,13 +1,13 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   מודל כיול והתאמת הקושי של HoloAcademy — עמיד למדגם קטן.
+   מודל כיול הקושי של HoloAcademy — ערך אחד פשוט.
 
-   פר-סוג-אתגר: אקומולטור מתגלגל (rolling window K) חוצה-סשנים.
-   - מתחת ל-MIN_SAMPLE אינסטנסים → אין שינוי (גייטינג).
-   - [MIN_SAMPLE, FULL_SAMPLE) → סף הפעלה מחמיר (0.5/0.9) — נדרשת עדות חזקה.
-   - ≥ FULL_SAMPLE → סף רגיל (60/80).
-   - החלון המתגלגל מבטיח שהמודל עוקב אחרי ביצועים *אחרונים*, לא לכל החיים.
+   פר-סוג-אתגר: כלל 60/80 על נתוני הסשן שהסתיים.
+   - הצלחה <60% → הורד רמה ב-1.
+   - הצלחה >80% → העלה רמה ב-1.
+   - 60-80% → ללא שינוי.
+   - אין נתונים לסוג → ללא שינוי.
 
-   text_level: עדיין נשען על MC+finalQuiz פר-session (תדירות גבוהה, יציב).
+   המורה והאוטומט כותבים לאותו ערך. אין דגלים, אין גייטינג, אין חלון מתגלגל.
    ────────────────────────────────────────────────────────────────────────── */
 
 export const PROFILE_PUZZLE_TYPES = [
@@ -17,24 +17,12 @@ export const PROFILE_PUZZLE_TYPES = [
 export type ProfilePuzzleType = (typeof PROFILE_PUZZLE_TYPES)[number]
 
 export const CALIBRATION = {
-  /* ספי שיעור הצלחה — ריבוי נתונים */
   LOW: 0.6,
   HIGH: 0.8,
-  /* ספי שיעור הצלחה — ביטחון נמוך (מדגם קטן): נדרשת עדות קיצונית */
-  TIGHT_LOW: 0.5,
-  TIGHT_HIGH: 0.9,
-  /* תחומי הרמות */
   TEXT_MIN: 1, TEXT_MAX: 16,
   PUZZLE_MIN: 1, PUZZLE_MAX: 10,
-  /* ספי זמן קריאה לסצנה */
   SKIP_MS_PER_SCENE: 3000,
   SLOW_MS_PER_SCENE: 45000,
-  /* חלון מתגלגל: K = קיבולת מקסימלית פר סוג */
-  ROLLING_K: 10,
-  /* שער מינימום — מתחתיו לא מזיזים רמה */
-  MIN_SAMPLE: 4,
-  /* מדגם מלא — מעליו הסף הרגיל (60/80) */
-  FULL_SAMPLE: 8,
 } as const
 
 export interface DifficultyProfile {
@@ -42,18 +30,12 @@ export interface DifficultyProfile {
   perPuzzleLevel: Record<ProfilePuzzleType, number>
 }
 
-/* אקומולטור מתגלגל פר-סוג, נשמר ב-DB ומתמזג חוצה-סשנים */
-export type RollingTallies = Partial<Record<ProfilePuzzleType, { solved: number; total: number }>>
-
 export interface PuzzleStat { solved: number; total: number }
+
 export interface CalibrationInput {
-  /* נתוני ה-session הנוכחי (לטקסט ולמיזוג לתוך הצוברים) */
   perType: Partial<Record<ProfilePuzzleType, PuzzleStat>>
-  /* צוברים מוזגים (prev rolling + session הנוכחי) */
-  rollingTallies: RollingTallies
   avgSceneMs: number
 }
-
 
 export interface CalibrationResult {
   profile: DifficultyProfile
@@ -70,56 +52,18 @@ function clampText(n: number): number {
   return Math.max(CALIBRATION.TEXT_MIN, Math.min(CALIBRATION.TEXT_MAX, Math.round(n)))
 }
 
-/* כלל 60/80 פשוט — לטקסט (תכיף, יציב) */
 function step(level: number, rate: number): number {
   if (rate < CALIBRATION.LOW) return level - 1
   if (rate > CALIBRATION.HIGH) return level + 1
   return level
 }
 
-/* צעד לפי ביטחון — לחידות (ממדגם מצטבר).
-   n < MIN_SAMPLE: ללא שינוי.
-   MIN_SAMPLE..FULL_SAMPLE: ספי הפעלה מחמירים (אינטרפולציה לינארית → 0.5/0.9).
-   ≥ FULL_SAMPLE: ספים רגילים 60/80. */
-function confidenceStep(level: number, rate: number, n: number): number {
-  if (n < CALIBRATION.MIN_SAMPLE) return level
-  const conf = Math.min(1, (n - CALIBRATION.MIN_SAMPLE) / (CALIBRATION.FULL_SAMPLE - CALIBRATION.MIN_SAMPLE))
-  const low = CALIBRATION.TIGHT_LOW + conf * (CALIBRATION.LOW - CALIBRATION.TIGHT_LOW)
-  const high = CALIBRATION.TIGHT_HIGH + conf * (CALIBRATION.HIGH - CALIBRATION.TIGHT_HIGH)
-  if (rate < low) return level - 1
-  if (rate > high) return level + 1
-  return level
-}
-
-/* alias היסטורי */
 function normalizeType(type: string): ProfilePuzzleType | null {
   const t = type === 'slidingPuzzle' ? 'tileSwap' : type
   return (PROFILE_PUZZLE_TYPES as readonly string[]).includes(t) ? (t as ProfilePuzzleType) : null
 }
 
 /* ── API ציבורי ── */
-
-/* מיזוג session נוכחי לתוך הצוברים המתגלגלים (cap ב-K) */
-export function mergeRolling(
-  prev: RollingTallies,
-  session: Partial<Record<ProfilePuzzleType, PuzzleStat>>,
-): RollingTallies {
-  const out: RollingTallies = { ...prev }
-  for (const type of PROFILE_PUZZLE_TYPES) {
-    const s = session[type]
-    if (!s || s.total === 0) continue
-    const p = out[type] ?? { solved: 0, total: 0 }
-    let solved = p.solved + s.solved
-    let total = p.total + s.total
-    if (total > CALIBRATION.ROLLING_K) {
-      const scale = CALIBRATION.ROLLING_K / total
-      solved = Math.round(solved * scale)
-      total = CALIBRATION.ROLLING_K
-    }
-    out[type] = { solved, total }
-  }
-  return out
-}
 
 /* מיזוג פרופיל קודם חלקי עם ברירת מחדל */
 export function normalizeProfile(
@@ -140,22 +84,21 @@ export function normalizeProfile(
   return { textLevel, perPuzzleLevel }
 }
 
-/* הכיול עצמו */
+/* הכיול — כלל 60/80 על נתוני הסשן הנוכחי בלבד */
 export function calibrate(
   prev: DifficultyProfile,
   input: CalibrationInput,
 ): CalibrationResult {
   const perPuzzleLevel = { ...prev.perPuzzleLevel }
 
-  /* 1) כלל עם גייטינג ביטחון — לכל סוג אתגר לפי הצובר המצטבר */
+  /* כלל 60/80 פר-סוג לפי הסשן הנוכחי */
   for (const type of PROFILE_PUZZLE_TYPES) {
-    const tally = input.rollingTallies[type]
-    if (!tally || tally.total === 0) continue
-    const rate = tally.solved / tally.total
-    perPuzzleLevel[type] = clampPuzzle(confidenceStep(perPuzzleLevel[type], rate, tally.total))
+    const s = input.perType[type]
+    if (!s || s.total === 0) continue
+    perPuzzleLevel[type] = clampPuzzle(step(perPuzzleLevel[type], s.solved / s.total))
   }
 
-  /* 2) text_level — שיעור הצלחה ב-MC + finalQuiz של ה-session הנוכחי */
+  /* text_level — MC + finalQuiz של הסשן */
   let textLevel = prev.textLevel
   let skipping = false
   let readingAdjust: CalibrationResult['readingAdjust'] = 'none'

@@ -40,6 +40,7 @@ const GRADES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 
 const SUBJECTS = ['עברית', 'מתמטיקה', 'אנגלית', 'מדעים', 'תנ״ך', 'היסטוריה', 'גאוגרפיה', 'אזרחות', 'ספרות']
 const CYAN = '47,243,255'
 const MAGENTA = '255,69,230'
+const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
 
 /* שכבה = gradeLabel ללא ספרת הכיתה */
 const layerOf = (g: string) => g.replace(/\s*\d+$/, '').trim() || g
@@ -129,8 +130,10 @@ function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boole
   )
 }
 
-/* ── מודאל השיתוף ── */
-type ShareStep = 'pick' | 'students' | 'community'
+/* ── מודאל השיתוף + ייצוא גרסאות אישיות ── */
+type ShareStep = 'pick' | 'students' | 'community' | 'generating' | 'generated'
+type GenStatus = 'pending' | 'working' | 'done' | 'error'
+interface GenSnapshot { textLevel: number; gender: string | null }
 
 function ShareModal({ quest, onClose, onDone }: {
   quest: QuestSummary
@@ -145,6 +148,21 @@ function ShareModal({ quest, onClose, onDone }: {
   const [classFilter, setClassFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  /* ── ייצוא גרסאות ── */
+  const [genStudents, setGenStudents] = useState<StudentRow[]>([])
+  const [genStatuses, setGenStatuses] = useState<Record<string, GenStatus>>({})
+  const [genSnapshots, setGenSnapshots] = useState<Record<string, GenSnapshot>>({})
+  const [genIdx, setGenIdx] = useState(-1)
+  const [workMsgIdx, setWorkMsgIdx] = useState(0)
+  const runningRef = useRef(false)
+  const cancelledRef = useRef(false)
+
+  useEffect(() => {
+    if (step !== 'generating') return
+    const id = setInterval(() => setWorkMsgIdx(i => (i + 1) % WORK_MSGS.length), 900)
+    return () => clearInterval(id)
+  }, [step])
 
   /* טעינת תלמידים בכניסה לשלב תלמידים */
   useEffect(() => {
@@ -191,14 +209,52 @@ function ShareModal({ quest, onClose, onDone }: {
   }
 
   async function sendToStudents() {
-    const classIds = [...new Set((students ?? []).filter((s) => selected.has(s.id)).map((s) => s.classId))]
+    const selectedList = (students ?? []).filter(s => selected.has(s.id))
+    const classIds = [...new Set(selectedList.map(s => s.classId))]
     if (!classIds.length) return
-    setBusy(true); setError(null)
-    try {
-      await apiJson(`/api/quests/${quest.id}/assign`, { method: 'POST', body: JSON.stringify({ classIds }) })
-      onDone(`✅ ההדמיה הוקצתה ל-${selected.size} תלמידים`)
-      onClose()
-    } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
+
+    /* assign — best-effort, לא חוסם את הייצוא */
+    apiJson(`/api/quests/${quest.id}/assign`, { method: 'POST', body: JSON.stringify({ classIds }) })
+      .catch(() => {})
+
+    setGenStudents(selectedList)
+    setGenStatuses(Object.fromEntries(selectedList.map(s => [s.id, 'pending' as GenStatus])))
+    setGenSnapshots({})
+    setGenIdx(-1)
+    setStep('generating')
+    runGeneration(selectedList)
+  }
+
+  async function runGeneration(list: StudentRow[]) {
+    runningRef.current = true
+    cancelledRef.current = false
+    for (let i = 0; i < list.length; i++) {
+      if (cancelledRef.current) break
+      const student = list[i]
+      setGenIdx(i)
+      setWorkMsgIdx(0)
+      setGenStatuses(prev => ({ ...prev, [student.id]: 'working' }))
+      try {
+        const res = await apiJson<{ ok: boolean; profileSnapshot?: GenSnapshot }>(
+          `/api/quests/${quest.id}/variant`,
+          { method: 'POST', body: JSON.stringify({ studentId: student.id }) },
+        )
+        setGenStatuses(prev => ({ ...prev, [student.id]: 'done' }))
+        if (res.profileSnapshot) setGenSnapshots(prev => ({ ...prev, [student.id]: res.profileSnapshot! }))
+      } catch {
+        setGenStatuses(prev => ({ ...prev, [student.id]: 'error' }))
+      }
+    }
+    setGenIdx(-1)
+    runningRef.current = false
+    setStep('generated')
+  }
+
+  function retryFailed() {
+    const failed = genStudents.filter(s => genStatuses[s.id] === 'error')
+    setGenStatuses(prev => ({ ...prev, ...Object.fromEntries(failed.map(s => [s.id, 'pending' as GenStatus])) }))
+    runGeneration(failed)
+    setStep('generating')
   }
 
   async function shareCommunity() {
@@ -220,20 +276,30 @@ function ShareModal({ quest, onClose, onDone }: {
     transition: 'all .15s',
   })
 
+  const genDone = Object.values(genStatuses).filter(s => s === 'done').length
+  const genError = Object.values(genStatuses).filter(s => s === 'error').length
+  const genTotal = genStudents.length
+  const genPct = genTotal > 0 ? Math.round((genDone + genError) / genTotal * 100) : 0
+  const isGenerating = step === 'generating' || step === 'generated'
+
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,14,.78)', backdropFilter: 'blur(6px)' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ ...glass, width: '92%', maxWidth: step === 'students' ? 560 : 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div onClick={() => { if (step !== 'generating') onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,14,.78)', backdropFilter: 'blur(6px)' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...glass, width: '92%', maxWidth: (step === 'students' || isGenerating) ? 560 : 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* כותרת */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 24px 0', flexShrink: 0 }}>
-          {step !== 'pick' && (
+          {(step === 'pick' || step === 'students' || step === 'community') && step !== 'pick' && (
             <button onClick={() => { setStep('pick'); setError(null) }} style={{ background: 'none', border: 'none', color: 'var(--holo-cyan-bright)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← חזרה</button>
           )}
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: '#fff' }}>
             {step === 'pick' && 'שתף הדמיה'}
             {step === 'students' && 'שלח לתלמידים'}
             {step === 'community' && 'שתף לספרייה הציבורית'}
+            {step === 'generating' && 'מכין גרסאות אישיות…'}
+            {step === 'generated' && (genError > 0 ? `הסתיים — ${genError} נכשל${genError > 1 ? 'ו' : ''}` : '✓ כל הגרסאות מוכנות')}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7a9ab8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          {step !== 'generating' && (
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7a9ab8', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          )}
         </div>
         <div style={{ fontSize: 12, color: '#7a9ab8', padding: '4px 24px 14px', flexShrink: 0 }}>{quest.title}</div>
 
@@ -308,6 +374,77 @@ function ShareModal({ quest, onClose, onDone }: {
                 style={{ ...cardBtn, padding: '9px 22px', color: '#04101c', background: selected.size > 0 ? 'linear-gradient(120deg,#2ff3ff,#9b8cff)' : 'rgba(120,180,220,.15)', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
                 {busy ? 'שולח…' : 'שלח לתלמידים ✓'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* שלב ייצוא גרסאות */}
+        {isGenerating && (
+          <div style={{ display: 'flex', flexDirection: 'column', padding: '0 20px 20px', gap: 12 }}>
+            {/* progress bar */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12.5, color: step === 'generated' ? (genError > 0 ? '#ffb37a' : '#7ef6ff') : 'rgba(47,243,255,.8)' }}>
+                  {step === 'generating' ? `מכין תלמיד ${genIdx + 1} מתוך ${genTotal}` : `${genDone} מוכנים${genError > 0 ? ` · ${genError} נכשלו` : ''}`}
+                </span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.38)' }}>{genPct}%</span>
+              </div>
+              <div style={{ height: 4, borderRadius: 4, background: 'rgba(47,243,255,.09)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 4, transition: 'width .4s ease', width: `${genPct}%`, background: genError > 0 && step === 'generated' ? 'linear-gradient(90deg,#2ff3ff,#ffb37a)' : 'linear-gradient(90deg,#2ff3ff,#9b8cff)' }} />
+              </div>
+            </div>
+
+            {/* תלמיד נוכחי */}
+            {step === 'generating' && genIdx >= 0 && (() => { const s = genStudents[genIdx]; return s ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, background: 'rgba(255,228,132,.05)', border: '1px solid rgba(255,228,132,.25)' }}>
+                <span style={{ fontSize: 18, animation: 'holo-dot-pulse 1s infinite' }}>⚙</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#ffe484' }}>מכין ל{s.name}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,228,132,.55)', marginTop: 2 }}>{WORK_MSGS[workMsgIdx]}</div>
+                </div>
+              </div>
+            ) : null })()}
+
+            {/* רשימה */}
+            <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {genStudents.map((s, i) => {
+                const st = genStatuses[s.id] ?? 'pending'
+                const snap = genSnapshots[s.id]
+                const isCur = step === 'generating' && i === genIdx
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 12px', borderRadius: 8,
+                    background: isCur ? 'rgba(255,228,132,.04)' : st === 'done' ? 'rgba(47,243,255,.03)' : st === 'error' ? 'rgba(255,112,153,.04)' : 'rgba(4,9,18,.35)',
+                    border: `1px solid ${isCur ? 'rgba(255,228,132,.25)' : st === 'done' ? 'rgba(47,243,255,.14)' : st === 'error' ? 'rgba(255,112,153,.22)' : 'rgba(255,255,255,.05)'}` }}>
+                    <span style={{ fontSize: 14, minWidth: 16, textAlign: 'center', color: st === 'done' ? '#7ef6ff' : st === 'error' ? '#ff7099' : st === 'working' ? '#ffe484' : 'rgba(255,255,255,.2)' }}>
+                      {st === 'done' ? '✓' : st === 'error' ? '✗' : st === 'working' ? '⚙' : '○'}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13, color: isCur ? '#ffe484' : st === 'pending' ? 'rgba(255,255,255,.32)' : 'var(--holo-text-bright)' }}>{s.name}</span>
+                    <span style={{ fontSize: 10.5, color: 'rgba(47,243,255,.4)' }}>
+                      {st === 'done' && snap ? `רמה ${snap.textLevel}` : st === 'error' ? 'שגיאה' : ''}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* כפתורי פעולה */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              {step === 'generating' && (
+                <button onClick={() => { cancelledRef.current = true }}
+                  style={{ ...cardBtn, padding: '8px 16px' }}>עצור</button>
+              )}
+              {step === 'generated' && genError > 0 && (
+                <button onClick={retryFailed}
+                  style={{ ...cardBtn, padding: '8px 16px', color: '#ff9bb3', borderColor: 'rgba(255,120,153,.4)' }}>
+                  ↻ נסה שוב ({genError})
+                </button>
+              )}
+              {step === 'generated' && (
+                <button onClick={() => { onDone(`✅ ההדמיה הוקצתה ל-${genStudents.length} תלמידים`); onClose() }}
+                  style={{ ...cardBtn, padding: '8px 22px', color: '#04101c', background: 'linear-gradient(120deg,#2ff3ff,#9b8cff)', border: 'none', fontWeight: 700 }}>
+                  סגור
+                </button>
+              )}
             </div>
           </div>
         )}
