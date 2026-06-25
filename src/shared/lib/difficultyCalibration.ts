@@ -50,7 +50,7 @@ export const GRADE_LEVELS: readonly GradeLevel[] = [
   { label: 'י׳', level: 14 },
   { label: 'י״א', level: 15 },
   { label: 'י״ב', level: 16 },
-  { label: 'י״ג', level: 17 },
+  { label: 'תואר ראשון', level: 17 },
 ] as const
 
 export const GRADE_LEVEL_MIN = 4 /* גן */
@@ -202,6 +202,7 @@ export function gradeNumberFromLabel(label?: string | null): number | null {
   if (!label) return null
   const cleaned = label.replace(/['"`׳״]/g, '').replace(/כיתה/g, '').trim()
   if (cleaned.includes('גן') || /gan|kinder/i.test(cleaned)) return 0
+  if (cleaned.includes('תואר') || /degree|undergrad|בוגר/i.test(cleaned)) return 13 /* תואר ראשון = רמה 17 */
   const m = cleaned.match(/[א-ת]{1,2}/)
   if (!m) return null
   const tok = m[0]

@@ -13,10 +13,10 @@ import { GRADE_LEVEL_MIN, GRADE_LEVEL_MAX, levelToGradeLabel } from '../../share
 function gradeLabel(level: number): string {
   return levelToGradeLabel(level)
 }
-/* תצוגה: "גן" או "כיתה X" */
+/* תצוגה: "גן"/"תואר ראשון" כמות-שהם, אחרת "כיתה X" */
 function gradeText(level: number): string {
   const g = levelToGradeLabel(level)
-  return g === 'גן' ? 'גן' : `כיתה ${g}`
+  return g === 'גן' || g.includes('תואר') ? g : `כיתה ${g}`
 }
 
 const SIM_TYPES = [
