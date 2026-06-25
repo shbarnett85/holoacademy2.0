@@ -256,7 +256,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
 
     const folder = `holoacademy/${quest.id}`
 
-    /* יצירה במקביל (4 בו-זמנית) — כשל בתמונה בודדת לא מפיל את השאר */
+    /* יצירה במקביל (2 בו-זמנית) — מעבר לכך Together מחזיר 429. כשל בתמונה בודדת לא מפיל את השאר */
     await runPool(
       tasks.map((task) => async () => {
         try {
@@ -289,7 +289,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           send({ sceneId: task.sceneId, kind: task.kind, failed: true, completed, total })
         }
       }),
-      4,
+      2,
     )
 
     /* שמירת ה-game_data המעודכן ב-DB */
