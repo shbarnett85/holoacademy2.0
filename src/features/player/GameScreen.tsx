@@ -255,7 +255,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
               onClick={handleExit}
             >
-              חזרה לספרייה
+              חזרה למעבדה
             </button>
           </div>
         </div>

@@ -57,8 +57,8 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2ff3ff', boxShadow: '0 0 8px #2ff3ff', animation: 'holo-status-pulse 2s infinite' }} />
           <span style={{ fontSize: 12.5, color: '#bfe9ff', fontWeight: 500 }}>{user?.name ?? 'מורה'} מחובר</span>
         </div>
-        <button onClick={() => { logout(); navigate('/staff/login') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'rgba(255,69,230,.07)', border: '1px solid rgba(255,69,230,.25)', color: 'rgba(255,150,230,.7)' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+        <button onClick={() => { logout(); navigate('/') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'rgba(255,69,230,.07)', border: '1px solid rgba(255,69,230,.25)', color: 'rgba(255,150,230,.7)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
         </button>
       </div>
     </div>
