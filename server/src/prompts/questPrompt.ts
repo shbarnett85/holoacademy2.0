@@ -13,6 +13,7 @@ import {
   scaleSequenceOrder,
   scaleHangman,
   scaleMoralDilemma,
+  narrativeStyleSpec,
 } from '../../../src/shared/lib/difficultyScaling.js'
 
 export interface PuzzlePreferences {
@@ -139,6 +140,14 @@ export function difficultyHeader(level: number): string {
 - **השפה נגזרת מהרעיון**: אוצר המילים והתחביר עולים באופן טבעי כי הרעיון עמוק יותר, לא כקישוט. **אסור** לדחוף מילים גבוהות או תחביר מתוחכם כדי "להישמע אינטלקטואלי" אם הרעיון עצמו לא דורש זאת. השפה משרתת את הרעיון.
 - **דוגמה ("דמוקרטיה")**: רמה נמוכה = "כולם מצביעים ומחליטים יחד". רמה גבוהה = המתח בין שלטון הרוב להגנת זכויות המיעוט ומנגנוני האיזון שמונעים עריצות. המילים עשירות יותר ברמה הגבוהה כי **הרעיון** עמוק יותר — לא כדי להישמע מתוחכם.
 - **מסיחים ברב-ברירה**: ברמה נמוכה — שגויים בעליל, כמעט אבסורדיים, נפסלים בלי ידע. ברמה גבוהה — מתעתעים, כמעט-נכונים, דורשים הבחנה דקה ומדויקת בין מושגים קרובים (טעויות תפיסה נפוצות).`
+}
+
+/* בלוק רמת ניסוח הנרטיב — מזריק מחוון ניסוח קונקרטי + הפרדה מוחלטת בין עומק לשפה */
+function narrativeStyleBlock(level: number): string {
+  return `
+## רמת ניסוח הנרטיב (קריטי — חל על כל טקסט המוצג לתלמיד: נרטיב, דיאלוג, שאלות, הסברים, סיומים!)
+${narrativeStyleSpec(level)}
+**הפרדה מוחלטת בין עומק לניסוח**: רמת הניסוח קובעת אך ורק את ה**שפה** (אורך משפט, תחביר, אוצר מילים, צפיפות מידע) — לא את עומק התוכן. שמור על מלוא המורכבות המושגית, ההיסטורית והמוסרית של הסיפור; פשט אך ורק את השפה. **אסור** "להקל" על ידי השמטת תוכן, רעיונות או ניואנס מוסרי — רק על ידי ניסוח פשוט יותר של אותו תוכן בדיוק.`
 }
 
 /* כמה מפתחות/מנעולים נדרשים (0 = מבנה לינארי ללא חפצים) */
@@ -372,6 +381,7 @@ ${narrativeStructureInstructions(params.questType)}
 ${structureInstructions}
 ${params.includeDrHolo ? labStructureInstructions() : ''}
 ${difficultyHeader(level)}
+${narrativeStyleBlock(level)}
 ${puzzleListText(params.puzzlePreferences, level)}
 ${finalQuizInstructions(params.puzzlePreferences, level)}
 

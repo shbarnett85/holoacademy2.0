@@ -15,7 +15,7 @@ import {
   type FormOfAddress,
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
-import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
+import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth, narrativeStyleSpec, textLevelToScale, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
 import { PROFILE_PUZZLE_TYPES, defaultProfileForGrade, gradeNumberFromLabel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
@@ -570,15 +570,18 @@ function applyDifficultyOverrides(gd: GameData, perPuzzleLevel: Record<string, n
 
 type PuzzleObj = z.infer<typeof puzzleObjectSchema>
 
-/* תיאור מעוגן-שכבה לרמת הקריאה (1-16) — מדויק יותר מבנדים גסים, כדי שרמה 1 באמת תהיה רמה 1 */
+/* תיאור מעוגן-שכבה לרמת הקריאה (1-16) — עוגן שכבה/גיל + מחוון הניסוח הקונקרטי המשותף
+   (narrativeStyleSpec), כדי שרמה 1 באמת תהיה רמה 1 גם בניסוח בפועל. */
 function readingLevelDescriptor(textLevel: number): string {
   const t = Math.max(1, Math.min(16, Math.round(textLevel)))
-  if (t <= 2) return 'כיתה א׳-ב׳ (גיל 6-7): עברית פשוטה אך **תקנית, זורמת וטבעית כמו ספר ילדים איכותי** — משפטים קצרים ושלמים, מילים יומיומיות, ללא מונחים מופשטים. כל מושג מוסבר במילים פשוטות ובדוגמה מוחשית. **אסור** טקסט קטוע/טלגרפי או דקדוק משובש.'
-  if (t <= 4) return 'כיתה ג׳-ד׳ (גיל 8-9): עברית תקנית וזורמת, משפטים קצרים-בינוניים שלמים ואוצר מילים יסודי. כל מונח חדש מוסבר מיד בדוגמה מוחשית. **אסור** ניסוח קטוע או משובש.'
-  if (t <= 6) return 'כיתה ה׳-ו׳ (גיל 10-11): מורכבות בינונית, מותר מונח עם הסבר קצר לצידו.'
-  if (t <= 9) return 'חטיבת ביניים (גיל 12-14): שפה סטנדרטית, מונחים מקצועיים מותרים בלי הסבר יתר.'
-  if (t <= 12) return 'תיכון (גיל 15-17): שפה עשירה, ניואנסים ומבנים מורכבים.'
-  return 'רמה אקדמית: שפה מתוחכמת ומדויקת, ניואנסים דקים.'
+  const gradeAnchor =
+    t <= 2 ? 'כיתה א׳-ב׳ (גיל 6-7)'
+    : t <= 4 ? 'כיתה ג׳-ד׳ (גיל 8-9)'
+    : t <= 6 ? 'כיתה ה׳-ו׳ (גיל 10-11)'
+    : t <= 9 ? 'חטיבת ביניים (גיל 12-14)'
+    : t <= 12 ? 'תיכון (גיל 15-17)'
+    : 'רמה אקדמית (מבוגר מתקדם)'
+  return `${gradeAnchor}. ${narrativeStyleSpec(textLevelToScale(t))}`
 }
 
 /* מפרט קושי לסוג אתגר יחיד (puzzleDataSpec + finalQuiz שמטופל בנפרד בפרומפט הראשי) */
@@ -656,6 +659,9 @@ ${orig}`
   const lowAnchor = avgLevel <= 3
     ? `\n• **רמת היעד נמוכה (≤3) — קריטי**: שאל על **הרעיון הכי בסיסי בתוך הנושא**, לא על אותו רעיון מתוחכם עם מסיחים מטופשים. רמה 1 = עובדה/הגדרה יסודית יחידה שתלמיד מתקשה עונה עליה כמעט תמיד; **אפס הפשטה, אפס ניואנס, אפס קישור בין מושגים**. אל "תייפה" כלפי מעלה — מוטב פשוט מדי מאשר קשה מדי.`
     : ''
+  const highAnchor = avgLevel >= 8
+    ? `\n• **רמת היעד גבוהה (≥8) — קריטי**: הקושי בא מ**עומק מושגי**, לא מאוצר מילים או ניסוח מפותל. שאל שאלה שדורשת **הסקה רב-שלבית, הפשטה/עיקרון כללי, ניואנס וקישור בין כמה רעיונות** — לא עובדה ישירה. המסיחים כמעט-נכונים ודורשים הבחנה דקה (טעויות תפיסה נפוצות). **מבחן אנטי-קישוט**: אם אפשר לפשט את ניסוח השאלה ועדיין היא קשה — מצוין. אם פישוט הניסוח הופך אותה לקלה — הקושי היה לשוני מזויף; העמק את הרעיון במקום.`
+    : ''
   const instruction = `אתה מתאים אתגרים בהדמיה חינוכית בעברית לרמת הקושי של תלמיד ספציפי.
 ${difficultyHeader(avgLevel)}
 
@@ -667,7 +673,7 @@ ${difficultyHeader(avgLevel)}
 • **אסור** לשנות את שדה "type". שמור על המבנה המדויק שהמפרט דורש.
 • לאתגרים עם תשובה נכונה — ודא שיש בדיוק תשובה נכונה אחת והיא נכונה עובדתית.
 • **השפה תקנית וזורמת תמיד** — פשוטה כמו ספר ילדים איכותי, אך לעולם לא קטועה/טלגרפית ולא דקדוק משובש.
-• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי) חייב להישאר מדויק. אל תפשט מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לא "נייר לנשום ארוך"). אם מורכב מדי — השאר את המונח הנכון עם הסבר קצר, או החלף במונח פשוט **ונכון**. לעולם לא ביטוי חסר-משמעות.${lowAnchor}
+• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי) חייב להישאר מדויק. אל תפשט מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לא "נייר לנשום ארוך"). אם מורכב מדי — השאר את המונח הנכון עם הסבר קצר, או החלף במונח פשוט **ונכון**. לעולם לא ביטוי חסר-משמעות.${lowAnchor}${highAnchor}
 
 לפניך ${jobs.length} אתגרים. החזר **מערך JSON בלבד** באורך ${jobs.length} בדיוק (באותו סדר), כל איבר הוא אובייקט ה-puzzle המלא והמחודש (כולל "type"). ללא טקסט נוסף וללא עטיפת markdown.
 
@@ -693,6 +699,49 @@ ${itemsTxt}`
     console.log('[variant:puzzles] done', Date.now() - t0, 'ms, applied:', applied, '/', jobs.length)
   } catch (err) {
     console.error('[variant:puzzles] נכשל:', err instanceof Error ? err.message : err)
+  }
+}
+
+/* אורך המשפט הארוך ביותר (במילים) בקטע טקסט — לוולידציית ניסוח */
+function longestSentenceWords(text: string): number {
+  const sentences = text.split(/[.!?\n]+/).map((s) => s.trim()).filter(Boolean)
+  let max = 0
+  for (const s of sentences) {
+    const w = s.split(/\s+/).filter(Boolean).length
+    if (w > max) max = w
+  }
+  return max
+}
+
+/* ולידציית ניסוח: סורק מקטעי טקסט שחורגים מאורך המשפט המותר לרמה, ומריץ מעבר haiku ממוקד
+   שמפשט **ניסוח בלבד** (שומר משמעות/עובדות/עומק). scaleLevel = 1-10. best-effort, מחזיר כמה תוקנו. */
+async function enforceNarrativePhrasing(gd: GameData, scaleLevel: number, form: FormOfAddress): Promise<number> {
+  const limit = maxSentenceWords(scaleLevel)
+  const tolerance = Math.ceil(limit * 1.4) /* רק חריגה ניכרת מפעילה תיקון */
+  const all = collectVariantText(gd, { puzzles: true })
+  const offending: Record<string, string> = {}
+  for (const [k, v] of Object.entries(all)) {
+    if (longestSentenceWords(v) > tolerance) offending[k] = v
+  }
+  const keys = Object.keys(offending)
+  if (keys.length === 0) { console.log('[phrasing:enforce] level', scaleLevel, 'limit', limit, '— הכל תקין'); return 0 }
+  const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם).'
+  const instruction = `המקטעים הבאים (JSON של key→טקסט) מנוסחים מורכב מדי לרמת הקריאה הנדרשת. פשט **רק את הניסוח** (אורך משפט, תחביר, אוצר מילים):
+${narrativeStyleSpec(scaleLevel)}
+${genderLine}
+שמור על אותה משמעות, אותן עובדות ואותו עומק תוכן — אל תשמיט רעיונות, רק פצל ופשט משפטים. עברית תקנית וזורמת (לא קטועה/טלגרפית). אל תעוות מונחים מקצועיים.
+החזר JSON תקין עם אותם keys בדיוק. ללא טקסט נוסף.
+
+${JSON.stringify(offending, null, 0)}`
+  try {
+    const out = await callHaiku([{ role: 'user', content: instruction }], 8000)
+    const rew = extractJson(out)
+    if (rew && typeof rew === 'object') applyVariantText(gd, rew as Record<string, string>)
+    console.log('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
+    return keys.length
+  } catch (err) {
+    console.error('[phrasing:enforce] נכשל:', err instanceof Error ? err.message : err)
+    return 0
   }
 }
 
@@ -774,6 +823,10 @@ ${JSON.stringify(batch, null, 0)}`
       console.error('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
     }
   }
+
+  /* ולידציית ניסוח — מתקן מקטעים שעדיין מורכבים מדי לרמת הקריאה */
+  await enforceNarrativePhrasing(variant, textLevelToScale(textLevel), form)
+
   return variant
 }
 
@@ -792,12 +845,18 @@ interface FactCheckMeta {
 
 /* בדיקת העובדות המלאה (זיהוי → תיקון ממוקד → בדיקה חוזרת) — רצה ברקע ומעדכנת את ה-DB.
    best-effort: כל כשל נבלע, ה-status תמיד מסומן 'done' בסוף כדי שהקליינט יפסיק לחכות. */
-async function factCheckInBackground(questId: string, gameData: GameData, baseWarnings: string[]): Promise<void> {
+async function factCheckInBackground(questId: string, gameData: GameData, baseWarnings: string[], level: number, form: FormOfAddress): Promise<void> {
   const t = Date.now()
   const meta = gameData as unknown as { factCheck?: FactCheckMeta }
   let warnings = [...baseWarnings]
   let correctedSceneIds: string[] = []
   let detected = 0
+  /* ולידציית ניסוח — מפשט מקטעים שיצאו מורכבים מדי לרמה (לא פוגע ב-time-to-teacher; רקעי) */
+  try {
+    await enforceNarrativePhrasing(gameData, level, form)
+  } catch (err) {
+    console.error('[phrasing:enforce] רקע נכשל:', err instanceof Error ? err.message : err)
+  }
   try {
     const fc = await runFactCheck(gameData)
     detected = fc.errors.length
@@ -1362,8 +1421,8 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     console.log(`[gen] ━━ זמן עד שהמורה רואה את ההדמיה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
     res.status(201).json({ quest, warnings, hub: hubInfo ?? null })
 
-    /* שכבה 2: בדיקת עובדות + תיקון ממוקד — ברקע, אחרי שהמורה כבר קיבל את ההדמיה (best-effort, לא חוסם) */
-    void factCheckInBackground(quest.id, gameData, warnings)
+    /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע, אחרי שהמורה כבר קיבל את ההדמיה (best-effort, לא חוסם) */
+    void factCheckInBackground(quest.id, gameData, warnings, level, params.formOfAddress ?? 'plural')
   } catch (err) {
     next(err)
   }
