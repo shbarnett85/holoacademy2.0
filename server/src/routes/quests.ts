@@ -1263,24 +1263,22 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
   }
 })
 
-/* POST /api/quests/generate — יצירת הדמיה חדשה באמצעות Claude */
-questsRouter.post('/generate', requireStaff, async (req, res, next) => {
+/* מטא יצירה שנשמר בתוך game_data בזמן/בסיום היצירה — הקליינט עושה polling וקורא אותו.
+   generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
+interface GenMeta { warnings?: string[]; hub?: HubInfo | null }
+
+/* ── יצירת ההדמיה ברקע ──
+   רצה אחרי שה-route כבר החזיר את ה-id (מנתק את היצירה הארוכה ~130-170ש׳ מ-timeout
+   של ה-proxy בפרודקשן). בסיום מעדכן את game_data בשורה; בכשל כותב genError. */
+async function generateQuestInBackground(questId: string, params: QuestGenerationParams): Promise<void> {
+  const expectedKeys = requiredKeyCount(params)
+  const prompt = buildQuestPrompt(params)
+  const tStart = Date.now()
+  const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
+  let retryCount = 0
+  console.log(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
+
   try {
-    const parsed = generateRequestSchema.safeParse(req.body)
-    if (!parsed.success) {
-      throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
-    }
-
-    const params: QuestGenerationParams = parsed.data
-    const expectedKeys = requiredKeyCount(params)
-    const prompt = buildQuestPrompt(params)
-
-    /* ── אבחון זמנים: מדידת כל שלב בנפרד ── */
-    const tStart = Date.now()
-    const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
-    let retryCount = 0
-    console.log(`[gen] התחלה · אורך פרומפט ${prompt.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
-
     /* קריאה ראשונה */
     const tMain = Date.now()
     const firstText = await callClaude([{ role: 'user', content: prompt }])
@@ -1388,14 +1386,42 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     /* הזרקת רמת הקושי לכל אתגר — לחישוב פרמטרי תצוגה בקליינט (פאזל/חיפוש מילים) */
     const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
     for (const sc of gameData.scenes) if (sc.puzzle) sc.puzzle.difficulty = level
-    /* רמת קריאה (1-10) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
+    /* רמת קריאה (1-20) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
     ;(gameData as unknown as { readingScale?: number }).readingScale = level
 
-    /* בדיקת העובדות תרוץ ברקע — מסמנים pending כדי שהקליינט ידע להציג אינדיקטור */
+    /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending' }
+    ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null }
 
-    /* שמירה ב-DB */
-    const insertPayload: Record<string, unknown> = {
+    /* עדכון השורה (שכבר נוצרה כ-stub) עם ה-game_data המוכן */
+    const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)
+    if (error) throw new AppError(500, 'שגיאה בשמירת ההדמיה: ' + error.message)
+
+    console.log(`[gen] ━━ ההדמיה מוכנה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
+
+    /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע (best-effort, לא חוסם) */
+    void factCheckInBackground(questId, gameData, warnings, level, params.formOfAddress ?? 'plural')
+  } catch (err) {
+    const msg = err instanceof AppError ? err.message : err instanceof Error ? err.message : 'יצירת ההדמיה נכשלה'
+    console.error('[gen] יצירה ברקע נכשלה:', msg)
+    await supabaseAdmin.from('quests')
+      .update({ game_data: { genError: msg } })
+      .eq('id', questId)
+      .then(({ error }) => { if (error) console.error('[gen] שמירת genError נכשלה:', error.message) })
+  }
+}
+
+/* POST /api/quests/generate — רושם הדמיה "בעיצומה של יצירה" ומחזיר מיד; היצירה רצה
+   ברקע (מנתק את היצירה הארוכה מ-timeout של ה-proxy). הקליינט עושה polling ל-GET /:id. */
+questsRouter.post('/generate', requireStaff, async (req, res, next) => {
+  try {
+    const parsed = generateRequestSchema.safeParse(req.body)
+    if (!parsed.success) {
+      throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
+    }
+    const params: QuestGenerationParams = parsed.data
+
+    const stub: Record<string, unknown> = {
       title: params.title,
       curriculum: params.curriculum,
       quest_type: params.questType ?? 'adventure',
@@ -1404,26 +1430,18 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
       include_dr_holo: params.includeDrHolo ?? true,
       puzzle_preferences: params.puzzlePreferences ?? {},
       difficulty_settings: params.difficultySettings ?? {},
-      game_data: gameData,
+      game_data: { generating: true },
       status: 'draft',
       created_by: req.staff!.userId,
     }
-    /* מקצוע — רק אם עמודת quests.subject קיימת (עמיד לפני המיגרציה) */
-    if (parsed.data.subject && (await hasQuestSubject())) insertPayload.subject = parsed.data.subject
+    if (parsed.data.subject && (await hasQuestSubject())) stub.subject = parsed.data.subject
 
-    const { data: quest, error } = await supabaseAdmin
-      .from('quests')
-      .insert(insertPayload)
-      .select()
-      .single()
+    const { data: quest, error } = await supabaseAdmin.from('quests').insert(stub).select().single()
+    if (error || !quest) throw new AppError(500, 'שגיאה ביצירת ההדמיה: ' + (error?.message ?? ''))
 
-    if (error) throw new AppError(500, 'שגיאה בשמירת הקווסט: ' + error.message)
-
-    console.log(`[gen] ━━ זמן עד שהמורה רואה את ההדמיה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
-    res.status(201).json({ quest, warnings, hub: hubInfo ?? null })
-
-    /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע, אחרי שהמורה כבר קיבל את ההדמיה (best-effort, לא חוסם) */
-    void factCheckInBackground(quest.id, gameData, warnings, level, params.formOfAddress ?? 'plural')
+    /* מחזירים מיד — היצירה ממשיכה ברקע */
+    res.status(201).json({ quest, generating: true })
+    void generateQuestInBackground(quest.id, params)
   } catch (err) {
     next(err)
   }

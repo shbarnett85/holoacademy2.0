@@ -191,8 +191,32 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
         throw new Error(body?.error ?? 'יצירת ההדמיה נכשלה')
       }
 
-      const { quest, warnings, hub } = await res.json()
-      set({ status: 'done', result: quest, warnings: warnings ?? [], hub: hub ?? null })
+      /* השרת מחזיר מיד stub עם id; היצירה רצה ברקע. עושים polling ל-GET /:id
+         עד שה-game_data מוכן (scenes) או שנכשל (genError). מנתק מ-timeout של proxy. */
+      const { quest: stub } = await res.json()
+      const questId: string = stub.id
+      const deadline = Date.now() + 600_000
+      let lastErr = ''
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 4000))
+        try {
+          const r = await apiFetch(`/api/quests/${questId}`, { signal: controller.signal })
+          if (!r.ok) continue
+          const body = await r.json()
+          const gd = body.quest?.game_data
+          if (gd?.genError) { lastErr = gd.genError; break }
+          if (gd?.scenes?.length) {
+            const meta = gd.genMeta ?? {}
+            set({ status: 'done', result: body.quest, warnings: meta.warnings ?? [], hub: meta.hub ?? null })
+            return
+          }
+          /* עדיין נוצר (generating) — ממשיכים polling */
+        } catch (e) {
+          if (e instanceof DOMException && e.name === 'AbortError') throw e
+          /* שגיאת רשת חולפת — ננסה שוב בסבב הבא */
+        }
+      }
+      throw new Error(lastErr || 'היצירה נמשכה זמן רב מדי — נסו שוב')
     } catch (err) {
       set({
         status: 'error',
