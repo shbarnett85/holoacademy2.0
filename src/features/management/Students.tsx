@@ -316,7 +316,7 @@ function DifficultyModal({
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#b88cff', minWidth: 22, textAlign: 'center' }}>{moralDepth}</span>
             </div>
             <div style={{ fontSize: 9.5, color: '#6a4a99', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-              = min(גיל כיתה={gradeNum ?? '?'}, רמת טקסט={textLevel}) → {moralDepth} / 10
+              = min(רמת שכבה={gradeDefault}, רמת טקסט={textLevel}) → {moralDepth} / 20
             </div>
           </div>
         </div>
