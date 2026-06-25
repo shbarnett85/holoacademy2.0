@@ -7,11 +7,16 @@ import GeneratingScreen from './GeneratingScreen'
 import QuestPreview from './QuestPreview'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
-import { GRADE_LEVELS, levelToGradeLabel } from '../../shared/lib/difficultyCalibration'
+import { GRADE_LEVEL_MIN, GRADE_LEVEL_MAX, levelToGradeLabel } from '../../shared/lib/difficultyCalibration'
 
 /* שכבת-גיל לפי רמה (סקאלת 1-20) — מקור יחיד מ-difficultyCalibration */
 function gradeLabel(level: number): string {
   return levelToGradeLabel(level)
+}
+/* תצוגה: "גן" או "כיתה X" */
+function gradeText(level: number): string {
+  const g = levelToGradeLabel(level)
+  return g === 'גן' ? 'גן' : `כיתה ${g}`
 }
 
 const SIM_TYPES = [
@@ -269,22 +274,27 @@ function Studio() {
         <div style={{ ...col, flex: '1 1 320px' }}>
           <div style={{ ...glass, padding: 22, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <PanelHead icon={ICON.sliders} title="התאמות" kicker="TUNING" />
+            {/* שכבת גיל (שולט) — סליידר גרירה בשמות שכבה (גן→י"ג, רמות 4-17). מזיז את
+                קושי החידות לאותה שכבה אוטומטית (הצמדה-מחדש בכל הזזה; מוחק עקיפה ידנית). */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
               <label style={{ ...fieldLabel, margin: 0 }}>שכבת גיל</label>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#7ef6ff' }}>כיתה {gradeLabel(s.writingLevel)}</span>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#7ef6ff' }}>{gradeText(s.writingLevel)}</span>
             </div>
-            {/* בורר שכבת-גיל (גן→י"ג) — מניע רמת כתיבה, אופי ההדמיה וקושי החידות יחד.
-                ללא מספרים/קצוות (הקצוות 1-3/18-20 רק בהגדרות הפר-תלמיד). */}
-            <select
-              value={s.writingLevel}
-              onChange={(e) => { const lv = Number(e.target.value); s.set({ writingLevel: lv, puzzleDifficulty: lv }) }}
-              style={{ ...inputBase, marginBottom: 8, cursor: 'pointer' }}
-            >
-              {GRADE_LEVELS.map((g) => (
-                <option key={g.level} value={g.level}>{g.label === 'גן' ? 'גן' : `כיתה ${g.label}`}</option>
-              ))}
-            </select>
-            <p style={{ ...micro, marginBottom: 20 }}>ההדמיה תיווצר ברמת התלמיד הממוצע בשכבה — שפה, אופי ותוכן. ההתאמה הפר-תלמיד מכווננת מכאן.</p>
+            <div style={{ marginBottom: 16 }}>
+              <NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} />
+            </div>
+
+            {/* קושי חידות (עוקב אך עצמאי) — אפשר להזיז לבד; הזזת שכבת הגיל מאפסת אותו חזרה. */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
+              <label style={{ ...fieldLabel, margin: 0 }}>קושי חידות</label>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: '#ff9bd6' }}>{gradeText(s.puzzleDifficulty)}</span>
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ puzzleDifficulty: lv })} />
+            </div>
+            <p style={{ ...micro, marginBottom: 20 }}>שכבת הגיל קובעת שפה, אופי ותוכן. קושי החידות נצמד אליה — ואפשר לכוונן בנפרד.</p>
 
             <label style={fieldLabel}>סוג ההדמיה</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 20 }}>
