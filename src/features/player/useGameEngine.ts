@@ -120,6 +120,8 @@ export interface GameData {
   entrySceneId: string
   endingGood?: EndingScene
   endingBad?: EndingScene
+  /* רמת קריאה (1-10) שמוזרקת בשרת (יצירה=קושי המורה; וריאציה=רמת התלמיד) — קובעת קצב הקלדה */
+  readingScale?: number
 }
 
 export const TOTAL_CRYSTALS = 5

@@ -131,8 +131,10 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
   questLength: 7,
   puzzleTypes: {},
   puzzleCounts: {},
-  writingLevel: 7,
-  puzzleDifficulty: 5,
+  /* רמת היצירה על סקאלת 1-20 (שכבת גיל 4-17). שני השדות זהים — בורר שכבת-גיל
+     יחיד מניע כתיבה+אופי+חידות (ראו CreationForm). דיפולט ו' = רמה 10. */
+  writingLevel: 10,
+  puzzleDifficulty: 10,
   includeDrHolo: true,
   artStyle: 'digital-painting',
   status: 'idle',

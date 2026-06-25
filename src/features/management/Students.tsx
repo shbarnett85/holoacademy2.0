@@ -4,7 +4,7 @@ import StudioTopBar from '../creator/StudioTopBar'
 import { glass, micro } from '../creator/studioStyles'
 import StudentDetail from '../analytics/StudentDetail'
 import ManagementSidebar from './ManagementSidebar'
-import { PROFILE_PUZZLE_TYPES, gradeNumberFromLabel, type ProfilePuzzleType } from '../../shared/lib/difficultyCalibration'
+import { PROFILE_PUZZLE_TYPES, gradeToLevel, type ProfilePuzzleType } from '../../shared/lib/difficultyCalibration'
 import { setNavGuard } from '../../shared/lib/navGuard'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
@@ -208,6 +208,9 @@ function DifficultyModal({
   const [loaded, setLoaded] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  /* דיפולט (אין פרופיל) = רמת שכבת-הגיל על סקאלת 1-20 (כיתה א'→5, ג'→7). */
+  const gradeDefault = gradeToLevel(student.class) ?? 10
+
   useEffect(() => {
     apiJson<ProfileApiResponse>(`/api/analytics/student/${student.id}`)
       .then((r) => {
@@ -215,9 +218,9 @@ function DifficultyModal({
         setProfile(p)
         setLoaded(true)
         if (!diffPending) {
-          const textLevel = p?.text_level ?? 5
+          const textLevel = p?.text_level ?? gradeDefault
           const perPuzzleLevel: Record<string, number> = {}
-          for (const t of PROFILE_PUZZLE_TYPES) perPuzzleLevel[t] = p?.per_puzzle_level?.[t] ?? 5
+          for (const t of PROFILE_PUZZLE_TYPES) perPuzzleLevel[t] = p?.per_puzzle_level?.[t] ?? gradeDefault
           onDiffChange({ textLevel, perPuzzleLevel, origTextLevel: textLevel, origPerPuzzleLevel: { ...perPuzzleLevel } })
         }
       })
@@ -225,12 +228,11 @@ function DifficultyModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id])
 
-  const textLevel = diffPending?.textLevel ?? 5
-  const levels = diffPending?.perPuzzleLevel ?? Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, 5]))
+  const textLevel = diffPending?.textLevel ?? gradeDefault
+  const levels = diffPending?.perPuzzleLevel ?? Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, gradeDefault]))
 
-  /* moralDilemma derived depth */
-  const gradeNum = gradeNumberFromLabel(student.class) ?? undefined
-  const moralDepth = moralDilemmaDepth(gradeNum, textLevel)
+  /* moralDilemma derived depth — על סקאלת 1-20 (min(רמת שכבה, רמת טקסט)) */
+  const moralDepth = moralDilemmaDepth(gradeDefault, textLevel)
 
   function setTextLevel(v: number) {
     onDiffChange({ textLevel: v, perPuzzleLevel: levels })
@@ -270,9 +272,9 @@ function DifficultyModal({
 
         {/* ── רמת טקסט ── */}
         <div style={{ marginBottom: 20 }}>
-          <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.55)', marginBottom: 8 }}>רמת טקסט (1-16)</div>
+          <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.55)', marginBottom: 8 }}>רמת טקסט (1-20)</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <input type="range" min={1} max={16} value={textLevel}
+            <input type="range" min={1} max={20} value={textLevel}
               onChange={(e) => setTextLevel(+e.target.value)}
               style={{ flex: 1, accentColor: '#2ff3ff' }} />
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 800, color: '#2ff3ff', minWidth: 28, textAlign: 'center' }}>{textLevel}</span>
@@ -280,10 +282,10 @@ function DifficultyModal({
         </div>
 
         {/* ── סוגי אתגרים ── */}
-        <div style={{ ...micro, fontSize: 9, color: 'rgba(255,69,230,.55)', marginBottom: 10 }}>◇ רמת קושי לכל סוג אתגר (1-10)</div>
+        <div style={{ ...micro, fontSize: 9, color: 'rgba(255,69,230,.55)', marginBottom: 10 }}>◇ רמת קושי לכל סוג אתגר (1-20)</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {PROFILE_PUZZLE_TYPES.map((t: ProfilePuzzleType) => {
-            const lv = levels[t] ?? 5
+            const lv = levels[t] ?? gradeDefault
             const isChanged = diffPending && lv !== (diffPending.origPerPuzzleLevel[t] ?? lv)
             return (
               <div key={t} style={{ background: 'rgba(4,9,18,.4)', borderRadius: 10, padding: '10px 14px', border: '1px solid rgba(120,200,255,.1)' }}>
@@ -292,7 +294,7 @@ function DifficultyModal({
                   {isChanged && <span style={{ fontSize: 9.5, color: '#ffe044', fontFamily: 'var(--font-mono)' }}>⚡ שינוי ידני ממתין</span>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <input type="range" min={1} max={10} value={lv}
+                  <input type="range" min={1} max={20} value={lv}
                     onChange={(e) => setLevel(t, +e.target.value)}
                     style={{ flex: 1, accentColor: '#ff45e6' }} />
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#ff45e6', minWidth: 22, textAlign: 'center' }}>{lv}</span>
@@ -309,7 +311,7 @@ function DifficultyModal({
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(140,90,255,.15)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${(moralDepth / 10) * 100}%`, background: 'linear-gradient(90deg,rgba(140,90,255,.5),rgba(180,130,255,.8))', borderRadius: 3, transition: 'width .3s' }} />
+                <div style={{ height: '100%', width: `${(moralDepth / 20) * 100}%`, background: 'linear-gradient(90deg,rgba(140,90,255,.5),rgba(180,130,255,.8))', borderRadius: 3, transition: 'width .3s' }} />
               </div>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 800, color: '#b88cff', minWidth: 22, textAlign: 'center' }}>{moralDepth}</span>
             </div>

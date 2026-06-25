@@ -592,7 +592,7 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
     const existingRow = existing as { id?: string } | null
 
     const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
-    if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(16, Math.round(body.textLevel)))
+    if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(20, Math.round(body.textLevel)))
     if (body.perPuzzleLevel && v2) patch.per_puzzle_level = body.perPuzzleLevel
 
     if (existingRow?.id) {

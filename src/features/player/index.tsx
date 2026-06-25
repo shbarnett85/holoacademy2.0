@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
+import { homePathForRole } from '../../shared/lib/homePath'
 import { usePlaySession } from './usePlaySession'
 import type { GameData } from './useGameEngine'
 
@@ -70,7 +71,7 @@ export default function Player() {
       initialState={initialState}
       saveResume={saveResume}
       onComplete={complete}
-      backPath="/student"
+      backPath={homePathForRole()}
     />
   )
 }

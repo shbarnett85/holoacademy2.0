@@ -15,8 +15,8 @@ import {
   type FormOfAddress,
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
-import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth, narrativeStyleSpec, textLevelToScale, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
-import { PROFILE_PUZZLE_TYPES, defaultProfileForGrade, gradeNumberFromLabel } from '../../../src/shared/lib/difficultyCalibration.js'
+import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth, narrativeStyleSpec, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
+import { PROFILE_PUZZLE_TYPES, defaultProfileForGrade, gradeToLevel, levelToGradeLabel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
@@ -74,7 +74,7 @@ const puzzleObjectSchema = z.object({
   /* hangman — מספר טעויות מותר */
   maxWrong: z.number().int().min(3).max(10).optional(),
   /* רמת הקושי שהוזרקה בעת היצירה */
-  difficulty: z.number().int().min(1).max(10).optional(),
+  difficulty: z.number().int().min(1).max(20).optional(),
   /* finalQuiz — רצף שאלות סיכום */
   questions: z
     .array(
@@ -332,7 +332,10 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
 async function runFactCheck(gameData: GameData, sceneIds?: string[]): Promise<{ ok: boolean; errors: FactError[] }> {
   const content = factCheckContent(gameData, sceneIds)
   if (!content.trim()) return { ok: true, errors: [] }
-  const instruction = `אתה בודק עובדות בכלי חינוכי. עבור על התוכן הבא וזהה אך ורק **שגיאות עובדתיות, היסטוריות או אנכרוניזמים** (לא סגנון, לא ניסוח, לא דעות). שים לב במיוחד לדמויות בתקופה הלא נכונה, מבנים שטרם נבנו או כבר נהרסו, וטכנולוגיות שטרם הומצאו.
+  const instruction = `אתה בודק עובדות בכלי חינוכי. עבור על התוכן הבא וזהה שני סוגי בעיות:
+1. **שגיאות עובדתיות/היסטוריות/אנכרוניזמים** — דמות בתקופה הלא נכונה, מבנה שטרם נבנה או כבר נהרס, טכנולוגיה שטרם הומצאה, נתון/תאריך/קשר שגוי.
+2. **ביטויים מדעיים/לוגיים חסרי-משמעות או מטעים** — ניסוח שנשמע "מדעי" אך אין לו פשר אמיתי או שמטעה תפיסתית (למשל "גביש של אוויר", "אנרגיה שלילית של חום"), **גם אם הרעיון הכללי מאחוריו נכון**. דגל את הביטוי והצע ניסוח מדעי תקין.
+אל תדגל סגנון, ניסוח ספרותי או דעות — רק שגיאות עובדתיות וביטויים מדעיים/לוגיים שגויים מובהקים.
 החזר JSON תקין בלבד, ללא טקסט נוסף, במבנה:
 { "hasErrors": boolean, "errors": [{ "sceneId": "מזהה הסצנה", "problem": "תיאור השגיאה בעברית", "correction": "התיקון הנכון בעברית" }] }
 אם אין שגיאות עובדתיות החזר { "hasErrors": false, "errors": [] }.`
@@ -570,18 +573,11 @@ function applyDifficultyOverrides(gd: GameData, perPuzzleLevel: Record<string, n
 
 type PuzzleObj = z.infer<typeof puzzleObjectSchema>
 
-/* תיאור מעוגן-שכבה לרמת הקריאה (1-16) — עוגן שכבה/גיל + מחוון הניסוח הקונקרטי המשותף
-   (narrativeStyleSpec), כדי שרמה 1 באמת תהיה רמה 1 גם בניסוח בפועל. */
-function readingLevelDescriptor(textLevel: number): string {
-  const t = Math.max(1, Math.min(16, Math.round(textLevel)))
-  const gradeAnchor =
-    t <= 2 ? 'כיתה א׳-ב׳ (גיל 6-7)'
-    : t <= 4 ? 'כיתה ג׳-ד׳ (גיל 8-9)'
-    : t <= 6 ? 'כיתה ה׳-ו׳ (גיל 10-11)'
-    : t <= 9 ? 'חטיבת ביניים (גיל 12-14)'
-    : t <= 12 ? 'תיכון (גיל 15-17)'
-    : 'רמה אקדמית (מבוגר מתקדם)'
-  return `${gradeAnchor}. ${narrativeStyleSpec(textLevelToScale(t))}`
+/* תיאור מעוגן-שכבה לרמת הקריאה (סקאלת 1-20) — עוגן שכבת-גיל + מחוון הניסוח
+   הקונקרטי המשותף (narrativeStyleSpec), הכל על אותה סקאלת 20. */
+function readingLevelDescriptor(level: number): string {
+  const l = clampLevel(level) /* 1-20 */
+  return `שכבת ${levelToGradeLabel(l)} (רמה ${l}/20). ${narrativeStyleSpec(l)}`
 }
 
 /* מפרט קושי לסוג אתגר יחיד (puzzleDataSpec + finalQuiz שמטופל בנפרד בפרומפט הראשי) */
@@ -825,7 +821,10 @@ ${JSON.stringify(batch, null, 0)}`
   }
 
   /* ולידציית ניסוח — מתקן מקטעים שעדיין מורכבים מדי לרמת הקריאה */
-  await enforceNarrativePhrasing(variant, textLevelToScale(textLevel), form)
+  await enforceNarrativePhrasing(variant, textLevel, form)
+
+  /* רמת קריאה אישית (1-20) — קצב אפקט ההקלדה בקליינט לפי רמת התלמיד */
+  ;(variant as unknown as { readingScale?: number }).readingScale = textLevel
 
   return variant
 }
@@ -1034,8 +1033,8 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
     const gender = (ur?.gender === 'male' || ur?.gender === 'female') ? ur.gender as 'male' | 'female' : null
     const form: FormOfAddress = gender ?? 'plural'
 
-    /* עומק דילמת מוסר = min(שכבה, רמת טקסט) ממופה ל-1-10 (לא 60/80) */
-    const moralLevel = moralDilemmaDepth(gradeNumberFromLabel(gradeLabel) ?? undefined, textLevel)
+    /* עומק דילמת מוסר = min(רמת השכבה, רמת הטקסט) על סקאלת 1-20 (לא 60/80) */
+    const moralLevel = moralDilemmaDepth(gradeToLevel(gradeLabel) ?? undefined, textLevel)
 
     /* ── DIAG ── */
     console.log('[variant:profile]', {
@@ -1389,6 +1388,8 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     /* הזרקת רמת הקושי לכל אתגר — לחישוב פרמטרי תצוגה בקליינט (פאזל/חיפוש מילים) */
     const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
     for (const sc of gameData.scenes) if (sc.puzzle) sc.puzzle.difficulty = level
+    /* רמת קריאה (1-10) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
+    ;(gameData as unknown as { readingScale?: number }).readingScale = level
 
     /* בדיקת העובדות תרוץ ברקע — מסמנים pending כדי שהקליינט ידע להציג אינדיקטור */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending' }

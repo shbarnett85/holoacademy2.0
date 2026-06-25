@@ -8,27 +8,40 @@ import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
 import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
+import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 
-/* טקסט נרטיב מוקלד אות-אחר-אות — לחיצה מדלגת */
-function Typewriter({ text }: { text: string }) {
-  const [count, setCount] = useState(0)
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
+   (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
+   מפעילה onAdvance (אם סופק — כשהפעולה היחידה היא "המשך"). reduced-motion → טקסט מיידי. */
+function Typewriter({ text, scale, onAdvance }: { text: string; scale: number; onAdvance?: () => void }) {
+  const reduce = prefersReducedMotion()
+  const [count, setCount] = useState(() => (reduce ? text.length : 0))
   const done = count >= text.length
 
   useEffect(() => {
-    setCount(0)
-  }, [text])
+    setCount(reduce ? text.length : 0)
+  }, [text, reduce])
 
   useEffect(() => {
-    if (done) return
-    const timer = setInterval(() => setCount((c) => Math.min(c + 2, text.length)), 25)
+    if (done || reduce) return
+    const delay = typingDelayMs(scale)
+    const timer = setInterval(() => setCount((c) => Math.min(c + 1, text.length)), delay)
     return () => clearInterval(timer)
-  }, [text, done])
+  }, [text, done, reduce, scale])
+
+  function handleClick() {
+    if (!done) setCount(text.length) /* skip — השלמה מיידית */
+    else onAdvance?.() /* לחיצה שנייה — המשך לסצנה הבאה (רק כשזו הפעולה הזמינה) */
+  }
 
   return (
     <p
       className="text-lg leading-relaxed cursor-pointer"
       style={{ color: 'var(--holo-text)', minHeight: '3rem' }}
-      onClick={() => setCount(text.length)}
+      onClick={handleClick}
     >
       {text.slice(0, count)}
     </p>
@@ -115,6 +128,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine.finished])
+
+  /* יציאה מההדמיה (כפתור X באמצע / "חזרה" במסך הסיום) → בית לפי רול (backPath).
+     יציאה באמצע: flush best-effort של האנליטיקה שנאספה עד כה לפני הניווט, פעם אחת.
+     (לצוות/מקרן אין session — onComplete הוא no-op, כקיים.) הניווט גם מנקה את ה-resume
+     המקומי (דרך complete) כך שכניסה חוזרת מתחילה נקי ולא קופצת לאמצע. */
+  /* פונקציה רגילה (לא useCallback) כדי לתפוס את ה-engine העדכני בכל render — לא stale closure */
+  function handleExit() {
+    if (!completedRef.current) {
+      completedRef.current = true
+      const totalScore = engine.challengeResults.filter((r) => r.correct).length
+      onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
+    }
+    navigate(backPath)
+  }
 
   /* היתוך יהלומים — כשהקריסטל השלישי מתמלא לגמרי (מסה קריטית), פעם אחת */
   useEffect(() => {
@@ -226,7 +253,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <button
               className="holo-button"
               style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
-              onClick={() => navigate(backPath)}
+              onClick={handleExit}
             >
               חזרה לספרייה
             </button>
@@ -311,7 +338,17 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
           {scene.narrative && (
             <div className="holo-panel mt-6 text-start">
-              <Typewriter text={scene.narrative} />
+              <Typewriter
+                text={scene.narrative}
+                scale={gameData.readingScale ?? 6}
+                /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
+                   בדיוק של כפתור המשך/סיום, כך שאין שינוי בלוגיקת המשחק (רק טריגר חלופי). */
+                onAdvance={
+                  (!scene.puzzle || engine.puzzleSolved) && !engine.canCollect && !scene.choices?.length && !engine.gateLocked
+                    ? engine.advance
+                    : undefined
+                }
+              />
             </div>
           )}
 
@@ -463,7 +500,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         justCollected={engine.justCollected}
         studentName={studentName}
         onUseItem={engine.useItem}
-        onExit={() => navigate(backPath)}
+        onExit={handleExit}
         hidden={eyeMode}
       />
     </div>

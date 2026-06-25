@@ -123,12 +123,12 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
         {!p ? <p style={{ fontSize: 13, color: '#8aa0b8' }}>עדיין אין מספיק נתונים לפרופיל קושי.</p> : isV2 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/16</span></>} label="רמת טקסט" />
+              <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/20</span></>} label="רמת טקסט" />
               <Stat value={duration(v2?.last_avg_scene_ms ?? null)} label="זמן אחרון/סצנה" />
               <Stat value={v2?.sessions_count ?? 0} label="הדמיות שכוילו" />
             </div>
             <div>
-              <div style={{ ...micro, fontSize: 8.5, marginBottom: 8 }}>◇ רמת קושי לכל סוג אתגר (1-10)</div>
+              <div style={{ ...micro, fontSize: 8.5, marginBottom: 8 }}>◇ רמת קושי לכל סוג אתגר (1-20)</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
                 {PUZZLE_ORDER.map((t) => {
                   const lvl = v2?.per_puzzle_level?.[t]
@@ -138,7 +138,7 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
                     <div key={t} style={{ padding: '8px 11px', borderRadius: 10, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(120,200,255,.12)' }}>
                       <div style={{ fontSize: 11, color: '#cfe1f2', marginBottom: 3 }}>{puzzleTypeLabel(t)}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: '#7ef6ff' }}>{lvl}<span style={{ fontSize: 11, opacity: 0.45 }}>/10</span></span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: '#7ef6ff' }}>{lvl}<span style={{ fontSize: 11, opacity: 0.45 }}>/20</span></span>
                         {rate !== undefined && <span dir="ltr" style={{ fontSize: 11, color: '#8aa0b8' }}>{pct(rate)}</span>}
                       </div>
                     </div>
