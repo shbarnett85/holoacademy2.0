@@ -111,7 +111,10 @@ export function puzzleDataSpec(type: string, level: number): string {
     }
     case 'sequenceOrder': {
       const { itemCount, guidance } = scaleSequenceOrder(level)
-      return `"type":"sequenceOrder" — "question" (הוראה) + "items": מערך של **בדיוק ${itemCount} פריטים** {id (snake_case אנגלי), text (עברית)} + "correctOrder": מערך ה-id-ים בסדר הנכון + "orderType": "chronological"/"logical"/"hierarchical". ה-items מחומר הלימוד; ודא ש-correctOrder נכון עובדתית. **קושי: ${guidance}**`
+      const dateRule = level <= 8
+        ? 'מותר לכלול את התאריך/השנה בגוף הפריט כעזר למיון (מתאים לרמה זו).'
+        : '**אסור לחשוף את ערך הסידור** (שנה/מספר/תאריך מדויק) בגוף הפריט — ברמה זו האתגר חייב לבוא מהיכרות עם הרצף ההיסטורי/הסיבתי, לא מהשוואת מספרים גלויים. נסח כל פריט כתיאור האירוע/השלב בלבד, ללא השנה.'
+      return `"type":"sequenceOrder" — "question" (הוראה) + "items": מערך של **בדיוק ${itemCount} פריטים** {id (snake_case אנגלי), text (עברית)} + "correctOrder": מערך ה-id-ים בסדר הנכון + "orderType": "chronological"/"logical"/"hierarchical". ה-items מחומר הלימוד; ודא ש-correctOrder נכון עובדתית. **בחר אירועים/שלבים עם סדר חד-משמעי ונבדל — אסור ששני פריטים יישבו על אותה נקודה בזמן/סדר (למשל שתי שנים זהות); לכל פריט מיקום ייחודי ברצף.** ${dateRule} **קושי: ${guidance}**`
     }
     case 'hangman': {
       const { maxWrong, guidance } = scaleHangman(level)

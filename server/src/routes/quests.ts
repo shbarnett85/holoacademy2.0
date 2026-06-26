@@ -201,6 +201,14 @@ const gameDataSchema = z
             add(`${where}: "correctOrder" חייב לכלול בדיוק את כל מזהי הפריטים פעם אחת`)
           else if (!p.correctOrder.every((id) => itemIds.has(id)) || new Set(p.correctOrder).size !== p.correctOrder.length)
             add(`${where}: "correctOrder" חייב להכיל את אותם id-ים של items, ללא כפילויות`)
+          /* ייחודיות ערך-הסידור: שני פריטים זהים בטקסט, או החולקים אותה שנה (4 ספרות) →
+             אין סדר חד-משמעי (כמו 1554 פעמיים) → פסול, retry. */
+          const seqTexts = (p.items ?? []).map((i) => i.text.trim())
+          if (new Set(seqTexts).size !== seqTexts.length)
+            add(`${where}: חידת סדר — שני פריטים זהים בטקסט; כל פריט חייב להיות ייחודי`)
+          const seqYears = (p.items ?? []).map((i) => i.text.match(/\b\d{4}\b/)?.[0]).filter((y): y is string => !!y)
+          if (new Set(seqYears).size !== seqYears.length)
+            add(`${where}: חידת סדר — שני פריטים חולקים אותה שנה/ערך סידור; הסדר חייב להיות חד-משמעי ונבדל`)
           break
         }
         case 'finalQuiz':
