@@ -284,12 +284,13 @@ function validateGameData(
 
 async function callClaude(messages: { role: 'user' | 'assistant'; content: string }[]) {
   /* streaming מונע timeout של ה-SDK בפלטים ארוכים (קווסטים של 15 סצנות).
-     sonnet-4-6 (דור חדש, מאוזן) עם effort=medium — אותה איכות, מהיר יותר. */
+     effort=low — מצמצם את זמן ה"חשיבה" הפנימי שתפח עם הצטברות ההנחיות (האבחון
+     הראה שהקריאה הראשית = הצוואר, נשלטת ע"י reasoning ולא ע"י נפח הפלט). */
   const response = await claude.messages
     .stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 32000,
-      output_config: { effort: 'medium' },
+      output_config: { effort: 'low' },
       messages,
     })
     .finalMessage()
