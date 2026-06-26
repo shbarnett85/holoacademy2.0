@@ -34,6 +34,18 @@ export function difficultyLabel(level: number): string {
   return `${l}/20 (${band})`
 }
 
+/* ── תקציב פסילות/ניסיונות — **קבוע בכל הרמות** (לא תלוי-רמה) ──
+   הרמה משנה רק את גודל/מורכבות האתגר (זוגות/חלקים/אורך רצף/קושי המילה), לא את
+   מספר הפסילות — הוגנות נתפסת. הפסילות עדיין נספרות לכיול 60/80; רק התקרה קבועה.
+   קבועים מרוכזים כאן לכיוונון קל. */
+export const FAIL_BUDGET = {
+  memoryMistakes: 10,
+  tileSwapBadSwaps: 5,
+  wordCompletionAttempts: 3,
+  sequenceOrderAttempts: 3,
+  hangmanWrong: 6,
+} as const
+
 /* אורך משפט מרבי מומלץ (מילים) — **לוולידציה תוכנתית רכה בלבד**, לא מוזרק לפרומפט.
    לא-ליניארי: עולה מהר בנמוך, מתרווח בגבוה. */
 export function maxSentenceWords(level: number): number {
@@ -121,11 +133,8 @@ export function scaleTrueFalse(level: number): { guidance: string } {
 /* ── פאזל הזזה — ליניארי: 2x2 (רמה 1) → 6x6 (רמה 20). תקציב "החלפות גרועות" יורד. */
 export function scaleTileSwap(level: number): { gridSize: number; maxBadSwaps: number } {
   const l = clampLevel(level)
-  const gridSize = Math.round(lerp20(l, 2, 6)) /* 2 → 6 */
-  const count = gridSize * gridSize
-  const mult = l <= 4 ? 2.5 : l <= 8 ? 1.6 : l <= 12 ? 1.0 : l <= 16 ? 0.6 : 0.35
-  const maxBadSwaps = Math.max(2, Math.round(count * mult))
-  return { gridSize, maxBadSwaps }
+  const gridSize = Math.round(lerp20(l, 2, 6)) /* 2 → 6 — הרמה משנה רק את גודל הרשת */
+  return { gridSize, maxBadSwaps: FAIL_BUDGET.tileSwapBadSwaps } /* פסילות קבועות */
 }
 
 /* ── חיפוש מילים (ליניארי) ── */
@@ -165,8 +174,8 @@ export function scaleWordSearch(level: number): WordSearchScale {
 /* ── זיכרון (ליניארי): 2 זוגות + 12 פסילות → 14 זוגות + פסילה 1 ── */
 export function scaleMemory(level: number): { pairCount: number; maxMistakes: number; guidance: string } {
   const l = clampLevel(level)
-  const pairCount = Math.round(lerp20(l, 2, 14)) /* 2 → 14 */
-  const maxMistakes = Math.max(1, Math.round(lerp20(l, 12, 1))) /* 12 → 1 */
+  const pairCount = Math.round(lerp20(l, 2, 14)) /* 2 → 14 — הרמה משנה רק את מספר הזוגות */
+  const maxMistakes = FAIL_BUDGET.memoryMistakes /* פסילות קבועות */
   const guidance =
     l <= 6
       ? 'התאמת מושג↔הגדרה קצרה וברורה מאוד; הזוגות שונים זה מזה בעליל.'
@@ -181,7 +190,7 @@ export function scaleWordCompletion(level: number): { wordBankSize: number; blan
   const l = clampLevel(level)
   const wordBankSize = l <= 4 ? 8 : l <= 8 ? 6 : l <= 10 ? 5 : l <= 12 ? 4 : l <= 16 ? 3 : 0
   const blankCount = l <= 8 ? 1 : l <= 14 ? 2 : 3
-  const maxAttempts = Math.max(1, Math.round(lerp20(l, 4, 1)))
+  const maxAttempts = FAIL_BUDGET.wordCompletionAttempts /* ניסיונות קבועים */
   const guidance =
     l <= 6
       ? 'חלל אחד על מילת ליבה קלה, ובנק מילים נדיב ובולט.'
@@ -194,8 +203,8 @@ export function scaleWordCompletion(level: number): { wordBankSize: number; blan
 /* ── חידת סדר (ליניארי): 3 פריטים → 9 פריטים ── */
 export function scaleSequenceOrder(level: number): { itemCount: number; maxAttempts: number; guidance: string } {
   const l = clampLevel(level)
-  const itemCount = Math.round(lerp20(l, 3, 9)) /* 3 → 9 */
-  const maxAttempts = Math.max(1, Math.round(lerp20(l, 4, 1)))
+  const itemCount = Math.round(lerp20(l, 3, 9)) /* 3 → 9 — הרמה משנה רק את אורך הרצף */
+  const maxAttempts = FAIL_BUDGET.sequenceOrderAttempts /* ניסיונות קבועים */
   const guidance =
     l <= 6
       ? 'מעט פריטים עם הבדלים גדולים וברורים ביניהם (קל מאוד למקם).'
@@ -230,7 +239,7 @@ export function moralDilemmaDepth(ageLevel: number | undefined, textLevel: numbe
 /* ── זיהוי קוד / hangman (ליניארי): 10 ניחושים + מושג מוכר → 2 ניחושים + מושג נדיר ── */
 export function scaleHangman(level: number): { maxWrong: number; guidance: string } {
   const l = clampLevel(level)
-  const maxWrong = Math.max(2, Math.round(lerp20(l, 10, 2))) /* 10 → 2 */
+  const maxWrong = FAIL_BUDGET.hangmanWrong /* ניסיונות קבועים (6); הרמה משנה רק את קושי המילה */
   const guidance =
     l <= 4
       ? 'מושג קצר ומוכר מאוד (3-5 אותיות), והרמז ישיר וכמעט חושף את התשובה.'
