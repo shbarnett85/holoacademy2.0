@@ -286,20 +286,21 @@ function validateGameData(
   return { ok: true, data: parsed.data }
 }
 
-async function callClaude(messages: { role: 'user' | 'assistant'; content: string }[]) {
-  /* streaming מונע timeout של ה-SDK בפלטים ארוכים (קווסטים של 15 סצנות).
-     effort=low — מצמצם את זמן ה"חשיבה" הפנימי שתפח עם הצטברות ההנחיות (האבחון
-     הראה שהקריאה הראשית = הצוואר, נשלטת ע"י reasoning ולא ע"י נפח הפלט). */
+async function callClaude(messages: { role: 'user' | 'assistant'; content: string }[], cachedSystem?: string) {
+  /* streaming מונע timeout של ה-SDK בפלטים ארוכים. effort=low. cachedSystem (אם סופק) —
+     בלוק קבוע שנשלח כ-system עם cache_control:ephemeral; נחסך מעיבוד חוזר בקריאות
+     עוקבות תוך 5 דקות (retry, יצירות רצופות, ובמיוחד ייצוא וריאציות פר-תלמיד). */
   const response = await claude.messages
     .stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 32000,
       output_config: { effort: 'low' },
+      ...(cachedSystem ? { system: [{ type: 'text' as const, text: cachedSystem, cache_control: { type: 'ephemeral' as const } }] } : {}),
       messages,
     })
     .finalMessage()
-  const u = response.usage
-  console.log(`[tokens] sonnet: in=${u.input_tokens} out=${u.output_tokens}`)
+  const u = response.usage as { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
+  console.log(`[tokens] sonnet: in=${u.input_tokens} out=${u.output_tokens} cacheWrite=${u.cache_creation_input_tokens ?? 0} cacheRead=${u.cache_read_input_tokens ?? 0}`)
   const textBlock = response.content.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') {
     throw new AppError(502, 'תשובה ריקה מ-Claude')
@@ -677,43 +678,45 @@ async function regeneratePuzzles(
 
   const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם), ללא לוכסנים.'
   const avgLevel = Math.round(jobs.reduce((a, j) => a + j.level, 0) / jobs.length)
-  const itemsTxt = jobs
-    .map((j, n) => {
-      const orig = JSON.stringify(scenes[j.idx].puzzle, null, 0)
-      return `### אתגר ${n} (type="${j.type}", רמת קושי יעד=${j.level}/10)
-מפרט הרמה: ${specForPuzzle(j.type, j.level, j.fqCount)}
-האתגר המקורי (שמור על אותו נושא/מושג נלמד ועל אותה תשובה נכונה תוכנית):
-${orig}`
-    })
+
+  /* ── system מקושש (cache_control): כללי הזהב הקבועים + האתגרים המקוריים — זהים בין כל
+     התלמידים של אותה הדמיה, כך שבייצוא פר-תלמיד הקריאה ה-2+ פוגעת ב-cache. ── */
+  const originalsBlock = jobs
+    .map((j, n) => `### אתגר ${n} (type="${j.type}")\n${JSON.stringify(scenes[j.idx].puzzle, null, 0)}`)
     .join('\n\n')
+  const cachedSystem = `אתה מתאים אתגרים בהדמיה חינוכית בעברית לרמת הקושי של תלמיד ספציפי, לפי הכללים והאתגרים המקוריים הבאים.
 
-  const lowAnchor = avgLevel <= 3
-    ? `\n• **רמת היעד נמוכה (≤3) — קריטי**: שאל על **הרעיון הכי בסיסי בתוך הנושא**, לא על אותו רעיון מתוחכם עם מסיחים מטופשים. רמה 1 = עובדה/הגדרה יסודית יחידה שתלמיד מתקשה עונה עליה כמעט תמיד; **אפס הפשטה, אפס ניואנס, אפס קישור בין מושגים**. אל "תייפה" כלפי מעלה — מוטב פשוט מדי מאשר קשה מדי.`
-    : ''
-  const highAnchor = avgLevel >= 8
-    ? `\n• **רמת היעד גבוהה (≥8) — קריטי**: הקושי בא מ**עומק מושגי**, לא מאוצר מילים או ניסוח מפותל. שאל שאלה שדורשת **הסקה רב-שלבית, הפשטה/עיקרון כללי, ניואנס וקישור בין כמה רעיונות** — לא עובדה ישירה. המסיחים כמעט-נכונים ודורשים הבחנה דקה (טעויות תפיסה נפוצות). **מבחן אנטי-קישוט**: אם אפשר לפשט את ניסוח השאלה ועדיין היא קשה — מצוין. אם פישוט הניסוח הופך אותה לקלה — הקושי היה לשוני מזויף; העמק את הרעיון במקום.`
-    : ''
-  const instruction = `אתה מתאים אתגרים בהדמיה חינוכית בעברית לרמת הקושי של תלמיד ספציפי.
-${difficultyHeader(avgLevel)}
-
-## כללי הזהב
+## כללי הזהב (קבועים)
 • **שמור על אותו נושא/תחום לימוד** (למשל: השקעות, מלחמת סיני, מחזור המים) — אך **שנה את עומק השאלה עצמה לפי הרמה**, לא רק את המסיחים. אל תמציא נושא חדש, אבל כן שנה איזו שאלה בתוך הנושא נשאלת.
 • **הורדת רמה = שאלה על רעיון בסיסי יותר בתוך הנושא** — לא אותו רעיון מתוחכם עם תשובות מטופשות. **דוגמה (השקעות)**: רמה גבוהה = "כשהריבית במשק יורדת, אילו נכסים מרוויחים?"; רמה נמוכה ≠ אותה שאלה עם מסיחים אבסורדיים, אלא שאלה יסודית כמו "מניות קונים בעזרת: אבנים / בובות / כסף". הרעיון הנבחן עצמו פשוט יותר.
-• **התאם את הקושי לרמת היעד** לפי המפרט: מספר התשובות/המסיחים/הזוגות/הפריטים/החללים, **עומק הרעיון הנבחן**, ורמת התעתוע של המסיחים (נמוך=שגויים בעליל; גבוה=כמעט-נכונים מתעתעים) — שני אלה נעים יחד עם עומק השאלה, לא במקומו.
-• **רמת קריאה: ${readingLevelDescriptor(textLevel)}** ${genderLine}
+• **התאם את הקושי לרמת היעד** לפי המפרט: מספר התשובות/המסיחים/הזוגות/הפריטים/החללים, **עומק הרעיון הנבחן**, ורמת התעתוע של המסיחים (נמוך=שגויים בעליל; גבוה=כמעט-נכונים מתעתעים).
 • **אסור** לשנות את שדה "type". שמור על המבנה המדויק שהמפרט דורש.
 • לאתגרים עם תשובה נכונה — ודא שיש בדיוק תשובה נכונה אחת והיא נכונה עובדתית.
 • **השפה תקנית וזורמת תמיד** — פשוטה כמו ספר ילדים איכותי, אך לעולם לא קטועה/טלגרפית ולא דקדוק משובש.
-• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי) חייב להישאר מדויק. אל תפשט מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לא "נייר לנשום ארוך"). אם מורכב מדי — השאר את המונח הנכון עם הסבר קצר, או החלף במונח פשוט **ונכון**. לעולם לא ביטוי חסר-משמעות.${lowAnchor}${highAnchor}
+• **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי) חייב להישאר מדויק. אל תפשט מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לא "נייר לנשום ארוך"). אם מורכב מדי — השאר את המונח הנכון עם הסבר קצר, או החלף במונח פשוט **ונכון**.
 
-לפניך ${jobs.length} אתגרים. החזר **מערך JSON בלבד** באורך ${jobs.length} בדיוק (באותו סדר), כל איבר הוא אובייקט ה-puzzle המלא והמחודש (כולל "type"). ללא טקסט נוסף וללא עטיפת markdown.
+## האתגרים המקוריים (לפי אינדקס — שמור על אותו נושא/מושג ועל אותה תשובה נכונה תוכנית):
+${originalsBlock}`
 
-${itemsTxt}`
+  const lowAnchor = avgLevel <= 3
+    ? `\n• **רמת היעד נמוכה (≤3) — קריטי**: שאל על **הרעיון הכי בסיסי בתוך הנושא**, לא על אותו רעיון מתוחכם עם מסיחים מטופשים. רמה 1 = עובדה/הגדרה יסודית יחידה; **אפס הפשטה, אפס ניואנס**. מוטב פשוט מדי מאשר קשה מדי.`
+    : ''
+  const highAnchor = avgLevel >= 8
+    ? `\n• **רמת היעד גבוהה (≥8) — קריטי**: הקושי בא מ**עומק מושגי**, לא מאוצר מילים. שאלה שדורשת הסקה רב-שלבית/הפשטה/ניואנס/קישור בין רעיונות — לא עובדה ישירה. מסיחים כמעט-נכונים. אם פישוט הניסוח הופך אותה לקלה — העמק את הרעיון במקום.`
+    : ''
+  /* ── user משתנה (פר-תלמיד): רמת קריאה/מגדר/עוגנים + יעדי הרמה לכל אתגר ── */
+  const user = `${difficultyHeader(avgLevel)}
+• **רמת קריאה: ${readingLevelDescriptor(textLevel)}** ${genderLine}${lowAnchor}${highAnchor}
+
+## יעדי הרמה לכל אתגר — התאם את האתגר המקורי (באותו אינדקס שב-system) לרמה:
+${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפרט: ${specForPuzzle(j.type, j.level, j.fqCount)}`).join('\n')}
+
+החזר **מערך JSON בלבד** באורך ${jobs.length} בדיוק (באותו סדר), כל איבר הוא אובייקט ה-puzzle המלא והמחודש (כולל "type"). ללא טקסט נוסף וללא עטיפת markdown.`
 
   try {
     const t0 = Date.now()
     console.log('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
-    const out = await callClaude([{ role: 'user', content: instruction }])
+    const out = await callClaude([{ role: 'user', content: user }], cachedSystem)
     const parsed = extractJson(out)
     if (!Array.isArray(parsed)) { console.error('[variant:puzzles] התגובה אינה מערך'); return }
     let applied = 0
@@ -1366,11 +1369,11 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
    של ה-proxy בפרודקשן). בסיום מעדכן את game_data בשורה; בכשל כותב genError. */
 async function generateQuestInBackground(questId: string, params: QuestGenerationParams): Promise<void> {
   const expectedKeys = requiredKeyCount(params)
-  const prompt = buildQuestPrompt(params)
+  const { system: genSystem, user: prompt } = buildQuestPrompt(params)
   const tStart = Date.now()
   const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
   let retryCount = 0
-  console.log(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
+  console.log(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length}+${genSystem.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
 
   try {
     let gameData: GameData | null = null
@@ -1396,7 +1399,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     if (!producedParallel) {
     /* ── נתיב סדרתי (Hub / fallback): קריאה אחת + ולידציה + retry ── */
     const tMain = Date.now()
-    const firstText = await callClaude([{ role: 'user', content: prompt }])
+    const firstText = await callClaude([{ role: 'user', content: prompt }], genSystem)
     console.log(`[gen] קריאה ראשית (sonnet): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
 
     let raw: unknown
@@ -1461,7 +1464,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
         { role: 'user', content: prompt },
         { role: 'assistant', content: firstText },
         { role: 'user', content: first.retryMessage! },
-      ])
+      ], genSystem)
       console.log(`[gen] retry (sonnet): ${secs(tRetry)} שניות`)
 
       let retryRaw: unknown
