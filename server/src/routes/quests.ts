@@ -20,6 +20,7 @@ import { PROFILE_PUZZLE_TYPES, defaultProfileForGrade, gradeToLevel, levelToGrad
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
+import { nakdan } from '../lib/dicta.js'
 
 export const questsRouter = Router()
 
@@ -565,6 +566,26 @@ function applyVariantText(gd: GameData, rew: Record<string, string>): void {
   if (eb) { const n = str('end:bad:narrative'); if (n) eb.narrative = n; const d = str('end:bad:dlg'); if (d) eb.drHoloDialog = d }
 }
 
+/* ניקוד מלא לכל הטקסט הפונה לתלמיד דרך Dicta Nakdan (רמות כתיבה נמוכות ≤6, קוראים
+   מתחילים). מחליף את ניקוד המודל בניקוד תקני ומדויק. best-effort (כשל לשדה בודד →
+   נשמר ניקוד המודל). pool של 6 בו-זמנית. */
+async function applyNiqqudToGameData(gd: GameData): Promise<number> {
+  const texts = collectVariantText(gd, { puzzles: true })
+  const keys = Object.keys(texts)
+  if (keys.length === 0) return 0
+  const out: Record<string, string> = {}
+  let i = 0
+  const worker = async () => {
+    while (i < keys.length) {
+      const k = keys[i++]
+      out[k] = await nakdan(texts[k])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(6, keys.length) }, worker))
+  applyVariantText(gd, out)
+  return keys.length
+}
+
 /* כוונון קושי חידות לפי פרופיל — משנה puzzle.difficulty + hangman.maxWrong. ללא AI. */
 function applyDifficultyOverrides(gd: GameData, perPuzzleLevel: Record<string, number>): void {
   for (const sc of gd.scenes as unknown as LooseScene[]) {
@@ -830,6 +851,9 @@ ${JSON.stringify(batch, null, 0)}`
 
   /* ולידציית ניסוח — מתקן מקטעים שעדיין מורכבים מדי לרמת הקריאה */
   await enforceNarrativePhrasing(variant, textLevel, form)
+
+  /* ניקוד מלא ומדויק (Dicta) לתלמיד ברמת קריאה נמוכה (≤6) */
+  if (textLevel <= 6) await applyNiqqudToGameData(variant)
 
   /* רמת קריאה אישית (1-20) — קצב אפקט ההקלדה בקליינט לפי רמת התלמיד */
   ;(variant as unknown as { readingScale?: number }).readingScale = textLevel
@@ -1396,6 +1420,13 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     for (const sc of gameData.scenes) if (sc.puzzle) sc.puzzle.difficulty = level
     /* רמת קריאה (1-20) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
     ;(gameData as unknown as { readingScale?: number }).readingScale = level
+
+    /* ניקוד מלא ומדויק (Dicta) לרמות נמוכות (≤6) — קוראים מתחילים. מחליף את ניקוד המודל. */
+    if (level <= 6) {
+      const t0 = Date.now()
+      const n = await applyNiqqudToGameData(gameData)
+      console.log(`[gen] ניקוד Dicta על ${n} מקטעים: ${secs(t0)} שניות`)
+    }
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending' }
