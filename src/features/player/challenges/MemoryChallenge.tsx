@@ -39,6 +39,7 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
   const [mistakes, setMistakes] = useState(0)
   const [busy, setBusy] = useState(false)
   const [over, setOver] = useState(false)
+  const [revealAll, setRevealAll] = useState(false) /* כישלון → חשיפת כל הזוגות ללמידה */
 
   function flip(idx: number) {
     if (over || busy) return
@@ -65,10 +66,11 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
       setTimeout(() => {
         setFlipped([])
         setBusy(false)
-        /* מיצוי תקציב הפסילות = כישלון */
+        /* מיצוי תקציב הפסילות = כישלון → חושפים את כל הזוגות ללמידה לפני המעבר */
         if (newMistakes >= mistakeBudget) {
           setOver(true)
-          onResult({ correct: false })
+          setRevealAll(true)
+          setTimeout(() => onResult({ correct: false }), 1800)
         }
       }, 850)
     }
@@ -90,7 +92,7 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
       <FailPips remaining={mistakeBudget - mistakes} total={mistakeBudget} label="פסילות" />
 
       {over && mistakes >= mistakeBudget && (
-        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>💥 נגמרו הפסילות</p>
+        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>💥 נגמרו הפסילות — אלו הזוגות הנכונים</p>
       )}
 
       <div
@@ -98,7 +100,7 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
         style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '0.4rem', maxWidth: '30rem' }}
       >
         {deck.map((card, idx) => {
-          const isUp = matched.has(idx) || flipped.includes(idx)
+          const isUp = revealAll || matched.has(idx) || flipped.includes(idx)
           const isMatched = matched.has(idx)
           return (
             <button
