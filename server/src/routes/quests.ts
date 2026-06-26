@@ -105,6 +105,8 @@ const sceneSchema = z.object({
   narrative: z.string().optional(),
   imagePrompt: z.string().optional(),
   imageUrl: z.string().optional(),
+  /* דיאלוג ד"ר הולו בסצנה (טקסט מדובר המוצג לתלמיד) */
+  drHoloDialog: z.string().optional(),
   /* הבעת הפנים של ד"ר הולו בסצנה זו — תואמת לטון הנרטיב (רק כשהוא מופיע ויזואלית) */
   drHoloExpression: z.string().optional(),
   puzzle: puzzleObjectSchema.optional(),
@@ -336,6 +338,7 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
     if (sceneIds && !sceneIds.includes(s.id)) continue
     lines.push(`[${s.id}] כותרת: ${s.title}`)
     if (s.narrative) lines.push(`  נרטיב: ${s.narrative}`)
+    if (s.drHoloDialog) lines.push(`  דיאלוג ד"ר הולו: ${s.drHoloDialog}`)
     if (s.puzzle?.question) lines.push(`  שאלה: ${s.puzzle.question}`)
     for (const q of s.puzzle?.questions ?? []) lines.push(`  שאלת מבחן: ${q.question}`)
   }
@@ -347,11 +350,12 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
 async function runFactCheck(gameData: GameData, sceneIds?: string[]): Promise<{ ok: boolean; errors: FactError[] }> {
   const content = factCheckContent(gameData, sceneIds)
   if (!content.trim()) return { ok: true, errors: [] }
-  const instruction = `אתה בודק עובדות בכלי חינוכי. עבור על התוכן הבא וזהה שני סוגי בעיות:
+  const instruction = `אתה בודק עובדות **ותקניות-לשון** בכלי חינוכי. עבור על התוכן הבא וזהה ארבעה סוגי בעיות:
 1. **שגיאות עובדתיות/היסטוריות/אנכרוניזמים** — דמות בתקופה הלא נכונה, מבנה שטרם נבנה או כבר נהרס, טכנולוגיה שטרם הומצאה, נתון/תאריך/קשר שגוי.
 2. **ביטויים מדעיים/לוגיים חסרי-משמעות או מטעים** — ניסוח שנשמע "מדעי" אך אין לו פשר אמיתי או שמטעה תפיסתית (למשל "גביש של אוויר", "אנרגיה שלילית של חום"), **גם אם הרעיון הכללי מאחוריו נכון**. דגל את הביטוי והצע ניסוח מדעי תקין.
 3. **כפל-תרגום בשם לועזי** — מילת-תפקיד עברית לפני שם לועזי שכבר מכיל אותה (למשל "כנסיית ווסטמינסטר אביי" = כנסייה+Abbey, "נהר התמזה ריבר", "מדבר הסהרה" = מדבר+صحراء). דגל והצע את השם המקובל בעברית.
-אל תדגל סגנון, ניסוח ספרותי או דעות — רק שגיאות עובדתיות, ביטויים מדעיים/לוגיים שגויים מובהקים, וכפל-תרגום בשמות.
+4. **בחירת-מילה שגויה בהקשר וצירוף לא-תקני** — (א) מילה **שנשמעת דומה אך לא נכונה במשמעות** (למשל "הפורטל מְשַׁדֵּךְ אתכם" — מְשַׁדֵּךְ = matchmaking; הכוונה מְשַׁגֵּר/מְשַׁנֵּעַ/מַעֲבִיר). (ב) **צירוף מתורגם-מילולית מאנגלית** שאינו עברית טבעית (למשל "סביב אתכם" = around you; התקני הוא "סְבִיבְכֶם"). (ג) שיבוש מורפולוגי/תחבירי בולט. דגל את המילה/הצירוף השגוי והצע את הניסוח התקין. **התעלם מהניקוד** — הוא תקין; בדוק את **בחירת המילה ותקניות הצירוף** בלבד.
+אל תדגל סגנון, ניסוח ספרותי, העדפה אישית או מילים נדירות-אך-תקינות — רק שגיאות עובדתיות, ביטויים מדעיים/לוגיים שגויים מובהקים, כפל-תרגום בשמות, ובחירת-מילה/צירוף שגויים מובהקים.
 החזר JSON תקין בלבד, ללא טקסט נוסף, במבנה:
 { "hasErrors": boolean, "errors": [{ "sceneId": "מזהה הסצנה", "problem": "תיאור השגיאה בעברית", "correction": "התיקון הנכון בעברית" }] }
 אם אין שגיאות עובדתיות החזר { "hasErrors": false, "errors": [] }.`
@@ -377,14 +381,15 @@ async function scopedFactFix(gameData: GameData, errors: FactError[]): Promise<s
     const errs = errors.filter((e) => e.sceneId === s.id)
     const fields: string[] = [`title: ${s.title}`]
     if (s.narrative) fields.push(`narrative: ${s.narrative}`)
+    if (s.drHoloDialog) fields.push(`drHoloDialog: ${s.drHoloDialog}`)
     if (s.puzzle?.question) fields.push(`question: ${s.puzzle.question}`)
     if (s.puzzle?.explanationCorrect) fields.push(`explanationCorrect: ${s.puzzle.explanationCorrect}`)
     if (s.puzzle?.explanationIncorrect) fields.push(`explanationIncorrect: ${s.puzzle.explanationIncorrect}`)
     return `סצנה "${s.id}":\n${fields.join('\n')}\nשגיאות לתיקון:\n${errs.map((e) => `- ${e.problem}${e.correction ? ` → ${e.correction}` : ''}`).join('\n')}`
   }).join('\n\n')
 
-  const instruction = `תקן אך ורק את השגיאות העובדתיות בשדות הטקסט של הסצנות הבאות. שמור על אותה משמעות, אורך, שפה (עברית) וסגנון — שנה רק את העובדה השגויה. אל תיגע במבנה, בחידות, בתשובות או במזהים.
-החזר JSON תקין בלבד במבנה: { "<sceneId>": { "title"?, "narrative"?, "question"?, "explanationCorrect"?, "explanationIncorrect"? } } — כלול אך ורק שדות שבאמת השתנו.
+  const instruction = `תקן אך ורק את השגיאות העובדתיות והלשוניות (בחירת-מילה שגויה / צירוף לא-תקני) בשדות הטקסט של הסצנות הבאות. שמור על אותה משמעות, אורך, שפה (עברית) וסגנון — שנה רק את הטעות. **שמר על הניקוד אם קיים** (הוא תקין). אל תיגע במבנה, בחידות, בתשובות או במזהים.
+החזר JSON תקין בלבד במבנה: { "<sceneId>": { "title"?, "narrative"?, "drHoloDialog"?, "question"?, "explanationCorrect"?, "explanationIncorrect"? } } — כלול אך ורק שדות שבאמת השתנו.
 
 ${blocks}`
 
@@ -398,6 +403,7 @@ ${blocks}`
     const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
     const t = str(fix.title); if (t) { s.title = t; changed = true }
     const n = str(fix.narrative); if (n && s.narrative !== undefined) { s.narrative = n; changed = true }
+    const d = str(fix.drHoloDialog); if (d && s.drHoloDialog !== undefined) { s.drHoloDialog = d; changed = true }
     if (s.puzzle) {
       const q = str(fix.question); if (q) { s.puzzle.question = q; changed = true }
       const ec = str(fix.explanationCorrect); if (ec) { s.puzzle.explanationCorrect = ec; changed = true }
