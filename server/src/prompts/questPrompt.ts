@@ -497,6 +497,141 @@ ${finalQuizInstructions(params.puzzlePreferences, level)}
 - החזר JSON תקין בלבד.`
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   מקבול יצירה לינארית — שלד סדרתי קצר → מילוי סצנות במקביל.
+   ════════════════════════════════════════════════════════════════════════ */
+
+export interface SkeletonScene {
+  id: string
+  title: string
+  role: string
+  characters: string
+  beat: string
+  puzzleType: string /* 'none' או סוג חידה */
+}
+export interface QuestSkeleton {
+  isHistorical: boolean
+  mission: string
+  scenes: SkeletonScene[]
+  endingGood: string
+  endingBad: string
+}
+
+/* קריאת השלד — קצרה וסדרתית. מתכננת את רצף הסצנות (ids, תפקיד, beat, חידה) בלי
+   טקסט מלא. פלט קטן = מהיר. */
+export function buildSkeletonPrompt(params: QuestGenerationParams): string {
+  const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
+  const grade = levelToGradeLabel(level)
+  const prefs = params.puzzlePreferences
+  const puzzleLines = prefs?.types
+    ? Object.entries(prefs.types)
+        .filter(([t, on]) => on && t !== 'itemUsage' && t !== 'finalQuiz' && PUZZLE_TYPE_NAMES[t])
+        .map(([t]) => `${prefs.counts?.[t] ?? 1}× ${t}`)
+    : []
+  const finalQuiz = !!prefs?.types?.finalQuiz
+  return `אתה מתכנן **שלד עלילה** להדמיה חינוכית לינארית בעברית. החזר **JSON שלד בלבד** — בלי טקסט נרטיב מלא, רק תכנון.
+
+## פרטים
+- כותרת: ${params.title}
+- נושא לימודי: ${params.curriculum}
+- שכבת גיל: ${grade} (רמה ${level}/20)
+- אורך: **בדיוק ${params.questLength} סצנות**${params.includeDrHolo ? '\n- ד"ר הולו מנחה את המסע' : ''}
+
+## מבנה הקשת (חובה)
+1. **סצנה ראשונה = מעבדת ד"ר הולו**: מציג את **המשימה המרכזית** (לאן יוצאים, מה לומדים, מה המטרה). ללא חידה.
+2. **סצנות ביניים** (לינאריות): כל אחת מקדמת את המסע לעבר המשימה, במקום/שלב חדש.
+3. **סצנה אחרונה = סצנת השיא**: המשימה **נפתרת בפועל** (העימות/החשיפה/ההכרעה).
+
+## חלוקת חידות בין הסצנות
+שבץ: ${puzzleLines.length ? puzzleLines.join(', ') : 'ללא חידות בסצנות הביניים'}.${finalQuiz ? ' **מבחן הסיכום (finalQuiz) — בסצנת השיא בלבד.**' : ''} סצנת הפתיחה ללא חידה.
+
+## פלט — JSON שלד בלבד
+{
+  "isHistorical": true/false (האם מתרחש בעבר),
+  "mission": "המשימה המרכזית שד\\"ר הולו מציג — משפט אחד",
+  "scenes": [
+    { "id": "scene_lab", "title": "כותרת קצרה", "role": "פתיחה — ד\\"ר הולו מציג את המשימה", "characters": "מי מופיע בסצנה", "beat": "מה קורה, איך הסצנה מסתיימת, ומה מוביל לסצנה הבאה", "puzzleType": "none" }
+    /* ... בדיוק ${params.questLength} סצנות; האחרונה role=\"שיא\"${finalQuiz ? ', puzzleType=\"finalQuiz\"' : ''} ... */
+  ],
+  "endingGood": "תיאור קצר של סיום ההצלחה",
+  "endingBad": "תיאור קצר של הסיום החלקי"
+}
+מזהי סצנות: snake_case אנגלי ייחודי. **בלי נרטיב מלא — רק beats.** החזר JSON תקין בלבד.`
+}
+
+/* כללי תמונה תמציתיים לכתיבת סצנה בודדת */
+function sceneImageRules(): string {
+  return `## תמונה (imagePrompt)
+- imagePrompt באנגלית בלבד, תיאור הסביבה. אם ד"ר הולו מופיע בסצנה — שלב את ה-placeholder המדויק {DR_HOLO} (אל תתאר אותו במילים) + הוסף שדה "drHoloExpression" באנגלית קצרה שתואמת לטון הסצנה. אם לא מופיע — בלי {DR_HOLO} ובלי drHoloExpression.
+- בהדמיה היסטורית: תאר מבנים/אתרים **כפי שנראו בתקופה — חדשים ושלמים**, לא הריסות מודרניות, וצרף ", historically accurate, in its original pristine state".`
+}
+
+/* מילוי סצנה בודדת (פתיחה/ביניים) — מקבל את השלד המלא כהקשר + הסצנה שלו. מקבילי. */
+export function buildScenePrompt(params: QuestGenerationParams, skeleton: QuestSkeleton, idx: number): string {
+  const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
+  const scene = skeleton.scenes[idx]
+  const next = skeleton.scenes[idx + 1]
+  const prev = skeleton.scenes[idx - 1]
+  const ptype = scene.puzzleType && scene.puzzleType !== 'none' ? scene.puzzleType : ''
+  const puzzleSpec = ptype ? puzzleDataSpec(ptype, level) : ''
+  return `אתה כותב **סצנה אחת** בהדמיה חינוכית בעברית, לפי שלד עלילה נתון. החזר **JSON של הסצנה בלבד**, נאמן לשלד.
+
+## השלד (הקשר — אל תכתוב אותו מחדש)
+משימה מרכזית: ${skeleton.mission}
+רצף הסצנות:
+${skeleton.scenes.map((s, i) => `${i + 1}. [${s.id}] ${s.title} — ${s.beat}`).join('\n')}
+
+## הסצנה שעליך לכתוב עכשיו: [${scene.id}] — ${scene.role}
+beat: ${scene.beat}
+דמויות/חפצים: ${scene.characters}
+${prev ? `הסצנה הקודמת (${prev.title}) הסתיימה כך: ${prev.beat} — המשך מכאן בהיגיון.` : 'זו סצנת הפתיחה (מעבדת ד"ר הולו).'}
+${next ? `הסצנה הבאה: ${next.title} — הסצנה שלך צריכה להוביל אליה.` : ''}
+${levelBlock(level)}
+${niqqudBlock(level)}
+${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
+${puzzleSpec ? `## חידת הסצנה (חובה)\n${puzzleSpec}\nכלול "explanationCorrect"/"explanationIncorrect" לחידות רב-ברירה/נכון-לא.` : 'לסצנה זו **אין** חידה — אל תכלול שדה puzzle.'}
+${sceneImageRules()}
+
+## פלט — JSON של הסצנה בלבד
+{ "id": "${scene.id}", "title": "כותרת בעברית", "narrative": "טקסט סיפורי בעברית", "imagePrompt": "English scene description", ${ptype ? '"puzzle": { ... לפי המפרט ... }, ' : ''}"nextSceneId": "${next ? next.id : ''}" }
+החזר JSON תקין בלבד.`
+}
+
+/* מילוי סצנת השיא + שני הסיומים — **אחרון**, עם הנרטיבים שכבר נכתבו (למבחן סיכום אינטגרטיבי). */
+export function buildClimaxPrompt(params: QuestGenerationParams, skeleton: QuestSkeleton, filled: { id: string; title: string; narrative: string }[]): string {
+  const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
+  const climax = skeleton.scenes[skeleton.scenes.length - 1]
+  const ptype = climax.puzzleType && climax.puzzleType !== 'none' ? climax.puzzleType : ''
+  const fqCount = Math.min(10, Math.max(3, params.puzzlePreferences?.counts?.finalQuiz ?? 5))
+  const puzzleSpec = ptype === 'finalQuiz'
+    ? `"type":"finalQuiz", "question": כותרת, "questions": מערך של **בדיוק ${fqCount}** שאלות אינטגרטיביות (כל שאלה {question, options[${scaleFinalQuiz(level).optionCount}], correctIndex, explanationCorrect, explanationIncorrect}) הבוחנות הבנה כוללת של **כל** ההדמיה. ${scaleFinalQuiz(level).guidance}`
+    : ptype ? puzzleDataSpec(ptype, level) : ''
+  return `אתה כותב את **סצנת השיא** (הסצנה האחרונה) + שני הסיומים בהדמיה חינוכית בעברית. החזר **JSON בלבד**.
+
+## המשימה המרכזית: ${skeleton.mission}
+## מה קרה בסצנות (לסיכום אינטגרטיבי):
+${filled.map((s) => `- ${s.title}: ${s.narrative.slice(0, 200)}`).join('\n')}
+
+## סצנת השיא: [${climax.id}] — ${climax.title}
+beat: ${climax.beat}
+**כאן המשימה נפתרת בפועל** (העימות/החשיפה/ההכרעה). סצנה לינארית — **ללא nextSceneId** (היעדרו מסמן את המעבר לסיום).
+${levelBlock(level)}
+${niqqudBlock(level)}
+${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
+${puzzleSpec ? `## חידת השיא\n${puzzleSpec}` : ''}
+${sceneImageRules()}
+
+## הסיומים (תמונה ייעודית לכל אחד, **שונה מהפתיחה**)
+- endingGood: ניצחון חוגג — מעבדה זוהרת, ד"ר הולו גאה/שמח. endingBad: חלקי וקודר — מעבדה עמומה, ד"ר הולו מאוכזב/עייף (לעולם לא מאשים).
+- לכל סיום: title, narrative, drHoloDialog, imagePrompt (עם {DR_HOLO}), drHoloExpression.
+
+## פלט — JSON בלבד
+{ "climax": { "id": "${climax.id}", "title": "...", "narrative": "...", "imagePrompt": "...", "drHoloExpression": "...", ${ptype ? '"puzzle": {...}, ' : ''}"nextSceneId": null },
+  "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." },
+  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." } }
+החזר JSON תקין בלבד.`
+}
+
 /* הודעת תיקון ל-retry כשמספר המפתחות לא תואם */
 export function buildRetryMessage(expected: number, actual: number): string {
   return `ה-JSON שהחזרת מכיל ${actual} מפתחות (collectableItem) במקום ${expected} הנדרשים. תקן את המבנה כך שיכלול בדיוק ${expected} מפתחות, והחזר את ה-JSON המלא המתוקן בלבד.`

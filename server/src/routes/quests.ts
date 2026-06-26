@@ -11,8 +11,12 @@ import {
   formOfAddressRule,
   puzzleDataSpec,
   difficultyHeader,
+  buildSkeletonPrompt,
+  buildScenePrompt,
+  buildClimaxPrompt,
   type QuestGenerationParams,
   type FormOfAddress,
+  type QuestSkeleton,
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
 import { clampLevel, scaleHangman, scaleFinalQuiz, moralDilemmaDepth, narrativeStyleSpec, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
@@ -1301,6 +1305,62 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
    generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
 interface GenMeta { warnings?: string[]; hub?: HubInfo | null }
 
+/* ── מקבול יצירה לינארית: שלד סדרתי קצר → מילוי סצנות במקביל → שיא+סיומים אחרון ──
+   רק להדמיות לינאריות (ללא מפתחות/Hub). מחזיר GameData מורכב ומאומת; כל כשל זורק
+   ונופל לנתיב הסדרתי. הרווח: זמן הסצנה האיטית במקום סכום כל הסצנות. */
+async function generateLinearParallel(params: QuestGenerationParams): Promise<GameData> {
+  const sx = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
+
+  /* 1. שלד — קריאה קצרה סדרתית */
+  const tSk = Date.now()
+  const skel = extractJson(await callClaude([{ role: 'user', content: buildSkeletonPrompt(params) }])) as QuestSkeleton
+  if (!skel || !Array.isArray(skel.scenes) || skel.scenes.length < 2) throw new Error('שלד לא תקין')
+  const ids = skel.scenes.map((s) => s.id)
+  if (new Set(ids).size !== ids.length || ids.some((id) => !id)) throw new Error('שלד: מזהי סצנות כפולים/חסרים')
+  console.log(`[gen][מקבול] שלד: ${sx(tSk)}ש׳ · ${skel.scenes.length} סצנות`)
+
+  const lastIdx = skel.scenes.length - 1
+
+  /* 2. מילוי פתיחה+ביניים במקביל (כל הסצנות חוץ מהשיא) */
+  const tFill = Date.now()
+  const filled = await Promise.all(
+    skel.scenes.slice(0, lastIdx).map(async (s, i) => {
+      const scene = extractJson(await callClaude([{ role: 'user', content: buildScenePrompt(params, skel, i) }])) as Record<string, unknown>
+      if (!scene || typeof scene !== 'object' || !scene.title) throw new Error(`סצנה ${s.id} לא נכתבה`)
+      scene.id = s.id
+      scene.nextSceneId = skel.scenes[i + 1].id /* נעילת השרשור לשלד */
+      delete scene.choices /* לינארי — בלי בחירות */
+      return scene
+    }),
+  )
+  console.log(`[gen][מקבול] מילוי ${filled.length} סצנות במקביל: ${sx(tFill)}ש׳`)
+
+  /* 3. שיא + סיומים — אחרון, עם הנרטיבים שנכתבו (למבחן סיכום אינטגרטיבי) */
+  const tCl = Date.now()
+  const summaries = filled.map((s) => ({ id: String(s.id), title: String(s.title ?? ''), narrative: String(s.narrative ?? '') }))
+  const cx = extractJson(await callClaude([{ role: 'user', content: buildClimaxPrompt(params, skel, summaries) }])) as Record<string, any>
+  if (!cx?.climax?.id && !cx?.climax?.title) throw new Error('שיא לא נכתב')
+  cx.climax.id = skel.scenes[lastIdx].id
+  cx.climax.nextSceneId = null
+  delete cx.climax.choices
+  console.log(`[gen][מקבול] שיא+סיומים: ${sx(tCl)}ש׳`)
+
+  /* 4. הרכבה לפי סדר השלד */
+  const assembled = {
+    scenes: [...filled, cx.climax],
+    entrySceneId: skel.scenes[0].id,
+    isHistorical: !!skel.isHistorical,
+    endingGood: cx.endingGood,
+    endingBad: cx.endingBad,
+  }
+
+  /* 5. ולידציה — כשל → fallback לסדרתי */
+  const v = validateGameData(assembled, 0)
+  if (!v.ok) throw new Error('ולידציית ההרכבה נכשלה: ' + v.reason)
+  if (params.includeDrHolo && (!v.data.endingGood || !v.data.endingBad)) throw new Error('חסרות סצנות סיום בהרכבה')
+  return v.data
+}
+
 /* ── יצירת ההדמיה ברקע ──
    רצה אחרי שה-route כבר החזיר את ה-id (מנתק את היצירה הארוכה ~130-170ש׳ מ-timeout
    של ה-proxy בפרודקשן). בסיום מעדכן את game_data בשורה; בכשל כותב genError. */
@@ -1313,12 +1373,32 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
   console.log(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
 
   try {
-    /* קריאה ראשונה */
+    let gameData: GameData | null = null
+    let warnings: string[] = []
+    let hubInfo: HubInfo | undefined
+
+    /* נתיב מקבול לינארי (ללא מפתחות/Hub) — שלד קצר → סצנות במקביל. fallback בטוח לסדרתי.
+       **כבוי כברירת מחדל** (PARALLEL_GEN=1 להפעלה): אבחון הראה שלקווסטים קצרים (~4 סצנות)
+       הוא איטי יותר מהקריאה המונוליטית — תקורת הקריאה-לכל-סצנה (עיבוד הכללים מחדש בכל
+       סצנה) + מונוליט השיא+סיומים עולים על רווח המקביליות. נשמר לאופטימיזציה עתידית
+       (פרומפטים רזים per-סצנה / קווסטים ארוכים שבהם זמן-הסצנה-האיטית « הסכום). */
+    let producedParallel = false
+    if (expectedKeys === 0 && process.env.PARALLEL_GEN === '1') {
+      try {
+        gameData = await generateLinearParallel(params)
+        producedParallel = true
+        console.log(`[gen] ✓ נתיב מקבול לינארי`)
+      } catch (e) {
+        console.warn('[gen] מקבול נכשל → נתיב סדרתי:', e instanceof Error ? e.message : e)
+      }
+    }
+
+    if (!producedParallel) {
+    /* ── נתיב סדרתי (Hub / fallback): קריאה אחת + ולידציה + retry ── */
     const tMain = Date.now()
     const firstText = await callClaude([{ role: 'user', content: prompt }])
     console.log(`[gen] קריאה ראשית (sonnet): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
 
-    let gameData: GameData
     let raw: unknown
     try {
       raw = extractJson(firstText)
@@ -1368,9 +1448,6 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       return { data: result.data }
     }
 
-    let warnings: string[] = []
-    let hubInfo: HubInfo | undefined
-
     const first = fullValidate(raw)
     if (first.data && !first.retryMessage) {
       gameData = first.data
@@ -1416,6 +1493,9 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
         throw new AppError(502, second.fatal ?? 'יצירת הקווסט נכשלה לאחר ניסיון תיקון')
       }
     }
+    } /* ── סוף הנתיב הסדרתי ── */
+
+    if (!gameData) throw new AppError(502, 'יצירת ההדמיה נכשלה')
 
     /* הזרקת רמת הקושי לכל אתגר — לחישוב פרמטרי תצוגה בקליינט (פאזל/חיפוש מילים) */
     const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
