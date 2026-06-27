@@ -424,6 +424,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 - "imagePrompt" חובה בכל סצנה — תיאור ויזואלי של הסביבה באנגלית בלבד, ללא דמויות טקסט.
 - "collectableItem" רק בסצנות מפתח (אם הוגדרו), אחרת השמט את השדה.
 - בסצנה עם "choices" אין צורך ב-"nextSceneId".
+- **כל "puzzle" — בכל סוג ובכל סצנה, כולל הסצנות האחרונות בקווסט ארוך — חייב לכלול שדה "question" לא-ריק. זו שגיאה נפוצה בסצנות מאוחרות; אל תשמיט אותו.**
 - החזר JSON תקין בלבד.`
 
 export function buildQuestPrompt(params: QuestGenerationParams): { system: string; user: string } {

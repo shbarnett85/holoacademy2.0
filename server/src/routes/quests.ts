@@ -328,11 +328,53 @@ function repairRawPuzzles(raw: unknown): string[] {
     /* חידה מבוססת-משחק — הוראה גנרית מספיקה (question הוא הוראה, לא תוכן) */
     const fallback = PUZZLE_DEFAULT_QUESTION[type]
     if (fallback) { p.question = fallback; warnings.push(`הושלמה הוראת ברירת-מחדל לחידה ב${where} (חסרה "question")`); return }
-    /* חידת-תוכן (multipleChoice/trueFalse או סוג לא מוכר) ללא שאלה — הסר את החידה ודגל */
+    /* חידת-תוכן (multipleChoice/trueFalse או סוג לא מוכר) ללא שאלה — הסר את החידה ודגל.
+       (קודם לכן רץ recoverMissingQuestions שמנסה לשחזר את ה-question; כאן רק מה שלא שוחזר.) */
     delete scene.puzzle
     warnings.push(`חידה הוסרה ב${where}: חסרה שאלה (question) ולא ניתן לשחזר את התוכן`)
   })
   return warnings
+}
+
+/* ── עמידות שלב 1 (רנדר-מחדש ממוקד, לפני repairRawPuzzles): לחידת-תוכן
+   (multipleChoice/trueFalse) חסרת-question אך עם choices תקינים — מבקש מ-haiku **רק את
+   ה-question** לפי הנרטיב + התשובות הקיימות (התשובה הנכונה ידועה מ-isCorrect). כך החידה
+   **משוחזרת ולא נזרקת** (שומר את הערך הלימודי). מה שלא שוחזר נופל ל-repairRawPuzzles (drop).
+   קריאת haiku אחת לכל החידות החסרות. best-effort — כשל לא מפיל את היצירה. */
+async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promise<void> {
+  const scenes = (raw as { scenes?: unknown })?.scenes
+  if (!Array.isArray(scenes)) return
+  const jobs: { scene: { title?: string; narrative?: string }; puzzle: Record<string, unknown> }[] = []
+  for (const sc of scenes) {
+    const scene = sc as { title?: string; narrative?: string; puzzle?: Record<string, unknown> }
+    const p = scene.puzzle
+    if (!p || typeof p !== 'object') continue
+    const q = typeof p.question === 'string' ? p.question.trim() : ''
+    if (q) continue
+    const choices = p.choices as { text?: string; isCorrect?: boolean }[] | undefined
+    if ((p.type === 'multipleChoice' || p.type === 'trueFalse') && Array.isArray(choices) && choices.length >= 2) {
+      jobs.push({ scene, puzzle: p })
+    }
+  }
+  if (jobs.length === 0) return
+  const blocks = jobs.map((j, n) => {
+    const choices = (j.puzzle.choices as { text?: string; isCorrect?: boolean }[]) ?? []
+    const correct = choices.find((c) => c.isCorrect)?.text ?? ''
+    const opts = choices.map((c) => c.text).filter(Boolean).join(' / ')
+    return `### חידה ${n} (type=${j.puzzle.type})\nנרטיב הסצנה: ${(j.scene.narrative ?? '').slice(0, 400)}\nהתשובות: ${opts}\nהתשובה הנכונה: ${correct}`
+  }).join('\n\n')
+  const instruction = `לכל אחת מהחידות הבאות חסר השדה "question". כתוב שאלה בעברית טבעית ותקנית שמתאימה לתשובות ולנרטיב — כך שהתשובה הנכונה המסומנת אכן תהיה התשובה הנכונה לשאלתך. אל תשנה את התשובות. החזר JSON תקין בלבד במבנה { "questions": ["שאלה לחידה 0", "שאלה לחידה 1", ...] } באורך **${jobs.length} בדיוק** (באותו סדר).\n\n${blocks}`
+  try {
+    const text = await callHaiku([{ role: 'user', content: instruction }], 1500)
+    const parsed = extractJson(text) as { questions?: unknown }
+    const qs = Array.isArray(parsed.questions) ? parsed.questions : []
+    jobs.forEach((j, n) => {
+      const q = typeof qs[n] === 'string' ? (qs[n] as string).trim() : ''
+      if (q) { j.puzzle.question = q; warnings.push(`שוחזרה שאלה חסרה בחידה (סצנה "${j.scene.title ?? '?'}")`) }
+    })
+  } catch (e) {
+    console.error('[recover-question] שחזור נכשל (יפול ל-repair):', e instanceof Error ? e.message : e)
+  }
 }
 
 async function callClaude(messages: { role: 'user' | 'assistant'; content: string }[], cachedSystem?: string) {
@@ -1507,6 +1549,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       return { data: result.data }
     }
 
+    await recoverMissingQuestions(raw, warnings) /* רנדר-מחדש ממוקד לחידות-תוכן חסרות-question (לפני drop) */
     const first = fullValidate(raw)
     if (first.data && !first.retryMessage) {
       gameData = first.data
@@ -1530,6 +1573,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
         throw new AppError(502, 'Claude החזיר JSON לא תקין גם לאחר ניסיון תיקון')
       }
 
+      await recoverMissingQuestions(retryRaw, warnings)
       const second = fullValidate(retryRaw)
       if (second.data && !second.retryMessage) {
         gameData = second.data
