@@ -58,39 +58,56 @@ export default function SceneEditModal({
     setChoices((cs) => cs.map((c) => (c.id === id ? { ...c, text } : c)))
   }
 
+  /* שמירת הסצנה (PATCH) ועדכון ה-state בהורה — ללא סגירת המודאל. מחזיר אם הצליח. */
+  async function persist(): Promise<boolean> {
+    const payload: Record<string, unknown> = { sceneId: scene.id, narrative, imagePrompt }
+    if (hasPuzzle) {
+      const puzzlePayload: Record<string, unknown> = {
+        question,
+        explanationCorrect: explCorrect,
+        explanationIncorrect: explIncorrect,
+      }
+      /* שולחים choices רק אם היו קיימות במקור — לא לדרוס חידה ללא תשובות */
+      if (scene.puzzle?.choices) puzzlePayload.choices = choices
+      payload.puzzle = puzzlePayload
+    }
+    const res = await apiFetch(`/api/quests/${questId}/scene`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.error ?? 'שמירת הסצנה נכשלה')
+    }
+    const { scene: updated } = await res.json()
+    onSaved(updated)
+    return true
+  }
+
   async function save() {
     if (saving) return
     setSaving(true)
     setError(null)
     try {
-      const payload: Record<string, unknown> = { sceneId: scene.id, narrative, imagePrompt }
-      if (hasPuzzle) {
-        const puzzlePayload: Record<string, unknown> = {
-          question,
-          explanationCorrect: explCorrect,
-          explanationIncorrect: explIncorrect,
-        }
-        /* שולחים choices רק אם היו קיימות במקור — לא לדרוס חידה ללא תשובות */
-        if (scene.puzzle?.choices) puzzlePayload.choices = choices
-        payload.puzzle = puzzlePayload
-      }
-
-      const res = await apiFetch(`/api/quests/${questId}/scene`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(body?.error ?? 'שמירת הסצנה נכשלה')
-      }
-      const { scene: updated } = await res.json()
-      onSaved(updated)
+      await persist()
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'שמירת הסצנה נכשלה')
     } finally {
       setSaving(false)
+    }
+  }
+
+  /* "צור תמונה" — שומר קודם את הפרומפט הערוך (כדי שהתמונה תיווצר ממנו), ואז מרנדר מחדש */
+  async function generateFromPrompt() {
+    if (saving || regenerating) return
+    setError(null)
+    try {
+      await persist()
+      onRegenerateImage(scene.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'שמירת הסצנה נכשלה')
     }
   }
 
@@ -196,7 +213,18 @@ export default function SceneEditModal({
 
         {/* פרומפט תמונה + thumbnail */}
         <div className="mb-4">
-          <label style={labelStyle}>פרומפט לתמונה (imagePrompt)</label>
+          <div className="flex items-center gap-2 mb-1">
+            <label style={{ ...labelStyle, marginBottom: 0 }}>פרומפט לתמונה (imagePrompt)</label>
+            <button
+              title="שומר את הפרומפט ויוצר ממנו תמונה"
+              disabled={regenerating || saving}
+              onClick={generateFromPrompt}
+              className="holo-button"
+              style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
+            >
+              {regenerating ? 'יוצר…' : 'צור תמונה 🎨'}
+            </button>
+          </div>
           <div className="flex gap-3 items-start">
             {scene.imageUrl && (
               <div className="relative shrink-0">
