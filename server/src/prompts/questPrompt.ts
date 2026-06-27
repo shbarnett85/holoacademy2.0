@@ -210,7 +210,7 @@ function puzzleListText(prefs: PuzzlePreferences | undefined, level: number): st
     .map(([type]) => puzzleDataSpec(type, level))
     .filter(Boolean)
     .map((s) => `- ${s}`)
-  return `\n## סוגי אתגרים נדרשים\nשלב את האתגרים הבאים בסצנות (כל אתגר בשדה puzzle עם "type" מתאים):\n${lines.join('\n')}\n\n### מפרט נתוני האתגרים (חובה למלא בעברית, בהקשר חומר הלימוד, ובהתאמה לרמת הקושי!)\n${specs.join('\n')}`
+  return `\n## סוגי אתגרים נדרשים\nשלב את האתגרים הבאים בסצנות (כל אתגר בשדה puzzle עם "type" מתאים):\n${lines.join('\n')}\n\n### מפרט נתוני האתגרים (חובה למלא בעברית, בהקשר חומר הלימוד, ובהתאמה לרמת הקושי!)\n**חובה מוחלטת: לכל puzzle — בכל סוג, ובכל סצנה כולל הסצנות המאוחרות — חייב להיות שדה "question" לא-ריק בעברית** (שאלה בחידות תוכן, או הוראה קצרה בחידות מבוססות-משחק כמו tileSwap/wordSearch/memory/sequenceOrder). אל תשמיט את "question" לעולם.\n${specs.join('\n')}`
 }
 
 /* הנחיות מבחן הסיכום — אתגר finalQuiz אחד בסצנת השיא */

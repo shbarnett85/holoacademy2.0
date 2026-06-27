@@ -288,6 +288,53 @@ function validateGameData(
   return { ok: true, data: parsed.data }
 }
 
+/* הוראת ברירת-מחדל ל-question בחידות מבוססות-משחק (שבהן question הוא הוראה גנרית, לא תוכן לימודי) */
+const PUZZLE_DEFAULT_QUESTION: Record<string, string> = {
+  tileSwap: 'השלם את התמונה',
+  slidingPuzzle: 'השלם את התמונה',
+  wordSearch: 'מצא את כל המילים המוסתרות',
+  memory: 'התאם בין הזוגות',
+  sequenceOrder: 'סדר את הפריטים בסדר הנכון',
+  wordCompletion: 'השלם את המילים החסרות',
+  hangman: 'נחש את המילה',
+  finalQuiz: 'מבחן הסיכום',
+}
+
+/* ── עמידות: תיקון חידות פגומות לפני הולידציה הקשיחה ──
+   חידה בודדת חסרת "question" (שדה חובה בסכמה) מפילה את כל ה-safeParse עם שגיאה סתומה
+   ואת כל ההדמיה. כאן מתקנים נקודתית כדי שלא ייפול הכול: חידה מבוססת-משחק (tileSwap/
+   wordSearch/...) מקבלת הוראה גנרית; שאלת מוסר גוזרת question מה-situation; חידת-תוכן
+   (multipleChoice/trueFalse) חסרת-שאלה — מסירים את החידה מהסצנה (סצנה בלי חידה עדיפה על
+   כשל מלא) ומדגלים למורה. מחזיר אזהרות; מוטציה על raw. */
+function repairRawPuzzles(raw: unknown): string[] {
+  const warnings: string[] = []
+  const scenes = (raw as { scenes?: unknown })?.scenes
+  if (!Array.isArray(scenes)) return warnings
+  scenes.forEach((sc, idx) => {
+    const scene = sc as { title?: string; puzzle?: Record<string, unknown> | null }
+    const p = scene?.puzzle
+    if (!p || typeof p !== 'object') return
+    const where = scene.title ? `"${scene.title}"` : `סצנה ${idx + 1}`
+    const q = typeof p.question === 'string' ? p.question.trim() : ''
+    if (q) return /* יש שאלה — תקין */
+    const type = typeof p.type === 'string' ? p.type : ''
+    /* שאלת מוסר — גזור question מה-situation */
+    if (type === 'moralDilemma') {
+      const sit = typeof p.situation === 'string' ? p.situation.trim() : ''
+      if (sit) { p.question = 'מה תבחר?' }
+      else { delete scene.puzzle; warnings.push(`חידה הוסרה ב${where}: שאלת מוסר ללא תיאור דילמה`) }
+      return
+    }
+    /* חידה מבוססת-משחק — הוראה גנרית מספיקה (question הוא הוראה, לא תוכן) */
+    const fallback = PUZZLE_DEFAULT_QUESTION[type]
+    if (fallback) { p.question = fallback; warnings.push(`הושלמה הוראת ברירת-מחדל לחידה ב${where} (חסרה "question")`); return }
+    /* חידת-תוכן (multipleChoice/trueFalse או סוג לא מוכר) ללא שאלה — הסר את החידה ודגל */
+    delete scene.puzzle
+    warnings.push(`חידה הוסרה ב${where}: חסרה שאלה (question) ולא ניתן לשחזר את התוכן`)
+  })
+  return warnings
+}
+
 async function callClaude(messages: { role: 'user' | 'assistant'; content: string }[], cachedSystem?: string) {
   /* streaming מונע timeout של ה-SDK בפלטים ארוכים. effort=low. cachedSystem (אם סופק) —
      בלוק קבוע שנשלח כ-system עם cache_control:ephemeral; נחסך מעיבוד חוזר בקריאות
@@ -1364,6 +1411,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
   }
 
   /* 5. ולידציה — כשל → fallback לסדרתי */
+  repairRawPuzzles(assembled) /* עמידות: תקן חידות חסרות-question לפני הולידציה */
   const v = validateGameData(assembled, 0)
   if (!v.ok) throw new Error('ולידציית ההרכבה נכשלה: ' + v.reason)
   if (params.includeDrHolo && (!v.data.endingGood || !v.data.endingBad)) throw new Error('חסרות סצנות סיום בהרכבה')
@@ -1423,6 +1471,8 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       hub?: HubInfo
       structureErrors?: string[]
     } {
+      /* עמידות: תקן חידות חסרות-question לפני הולידציה הקשיחה (שלא תיפול כל ההדמיה) */
+      for (const w of repairRawPuzzles(candidate)) { if (!warnings.includes(w)) warnings.push(w) }
       const result = validateGameData(candidate, expectedKeys)
       if (!result.ok) {
         return {
