@@ -3,6 +3,7 @@ import { apiFetch } from '../../shared/lib/api'
 import type { GeneratedQuest, HubInfo } from './creatorStore'
 import SceneCards from './SceneCards'
 import SceneEditModal from './SceneEditModal'
+import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 
 type Scene = GeneratedQuest['game_data']['scenes'][number]
 type EndingScene = NonNullable<GeneratedQuest['game_data']['endingGood']>
@@ -101,7 +102,7 @@ function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: 
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${accent}, rgba(255,69,230,.4))`, opacity: hov ? 1 : 0.5, transition: 'opacity .2s' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ ...micro, color: `rgba(${rgb},.7)`, marginBottom: 7 }}>
-          {good ? '🏆 סיום ניצחון' : '🤖 סיום מעודד'} · {good ? '≥3 קריסטלים' : '<3 קריסטלים'}
+          {good ? '🏆 סיום ניצחון' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><DrHoloEmblem size={13} /> סיום מעודד</span>} · {good ? '≥3 קריסטלים' : '<3 קריסטלים'}
         </div>
         <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800, color: '#fff' }}>{ending.title}</h3>
         {ending.narrative && (
@@ -110,8 +111,9 @@ function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: 
           </p>
         )}
         {ending.drHoloDialog && (
-          <p style={{ margin: 0, fontSize: 12, color: 'rgba(200,170,255,.7)', fontStyle: 'italic' }}>
-            🤖 {ending.drHoloDialog.length > 80 ? ending.drHoloDialog.slice(0, 80) + '…' : ending.drHoloDialog}
+          <p style={{ margin: 0, fontSize: 12, color: 'rgba(200,170,255,.7)', fontStyle: 'italic', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+            <span style={{ flexShrink: 0, marginTop: 1 }}><DrHoloEmblem size={14} /></span>
+            <span>{ending.drHoloDialog.length > 80 ? ending.drHoloDialog.slice(0, 80) + '…' : ending.drHoloDialog}</span>
           </p>
         )}
       </div>
@@ -168,7 +170,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 60 }} onClick={onClose}>
       <div className="holo-panel w-full" style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--holo-glow)', borderColor: good ? 'rgba(255,180,84,.6)' : 'rgba(155,140,255,.6)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="holo-text-glow text-xl font-black">✏️ {good ? '🏆 מסך ניצחון' : '🤖 מסך מעודד'}</h2>
+          <h2 className="holo-text-glow text-xl font-black" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>✏️ {good ? '🏆 מסך ניצחון' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><DrHoloEmblem size={20} /> מסך מעודד</span>}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--holo-text)', opacity: 0.6, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
         </div>
         <div className="mb-4">
@@ -180,7 +182,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
           <textarea value={narrative} onChange={(e) => setNarrative(e.target.value)} rows={5} style={fieldStyle} placeholder="הטקסט שמוצג לתלמיד בסיום…" />
         </div>
         <div className="mb-4">
-          <label style={labelStyle}>🤖 דיאלוג ד"ר הולו</label>
+          <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 5 }}><DrHoloEmblem size={15} /> דיאלוג ד"ר הולו</label>
           <textarea value={dialog} onChange={(e) => setDialog(e.target.value)} rows={3} style={fieldStyle} placeholder="מה ד&quot;ר הולו אומר בסיום…" />
         </div>
         <div className="mb-4">

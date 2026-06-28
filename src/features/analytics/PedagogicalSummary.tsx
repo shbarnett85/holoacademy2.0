@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiJson } from '../../shared/lib/api'
 import { glass, micro } from '../creator/studioStyles'
+import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 
 /* "סיכום פדגוגי" — ד"ר הולו כשכבת פרשנות. כפתור אחד שמכליל לפי הקשר
    (תלמיד / כיתה / הקצאה). הפלט מסומן כנכתב ע"י AI, נשמר עם timestamp,
@@ -110,7 +111,7 @@ export default function PedagogicalSummary({ scope, id, title }: { scope: Scope;
 
   if (loading) return null
   if (forbidden) return (
-    <div style={{ ...glass, padding: '12px 16px', fontSize: 12.5, color: '#8aa0b8' }}>🤖 {forbidden}</div>
+    <div style={{ ...glass, padding: '12px 16px', fontSize: 12.5, color: '#8aa0b8', display: 'flex', alignItems: 'center', gap: 7 }}><DrHoloEmblem size={16} /> {forbidden}</div>
   )
 
   const text = summary?.edited_content?.trim() || summary?.content || ''
@@ -122,7 +123,7 @@ export default function PedagogicalSummary({ scope, id, title }: { scope: Scope;
     <div style={{ ...glass, padding: 20, borderColor: 'rgba(136,85,255,0.4)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <span style={{ fontSize: 18 }}>🤖</span>
+          <span style={{ display: 'inline-flex' }}><DrHoloEmblem size={20} /></span>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#cdb6ff' }}>סיכום פדגוגי</div>
             <div style={{ ...micro, fontSize: 8.5, color: 'rgba(180,150,255,.7)' }}>נכתב ע״י ד״ר הולו · AI{edited ? ' · נערך ע״י המורה' : ''}</div>
