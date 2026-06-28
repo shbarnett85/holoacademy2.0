@@ -294,7 +294,7 @@ function Studio() {
               <NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
                 onChange={(lv) => s.set({ puzzleDifficulty: lv })} />
             </div>
-            <p style={{ ...micro, marginBottom: 20 }}>שכבת הגיל קובעת שפה, אופי ותוכן. קושי החידות נצמד אליה — ואפשר לכוונן בנפרד.</p>
+            <p style={{ fontSize: 11.5, lineHeight: 1.6, color: '#7d94ae', marginBottom: 20 }}>שכבת הגיל קובעת שפה, אופי ותוכן. קושי החידות נצמד אליה — ואפשר לכוונן בנפרד.</p>
 
             <label style={fieldLabel}>סוג ההדמיה</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 20 }}>
