@@ -12,6 +12,14 @@ const TABS: { id: TabId; label: string; to: string }[] = [
   { id: 'students', label: 'תלמידים', to: '/manage/students' },
 ]
 
+/* כותרת הסרגל העליון לפי הטאב הפעיל */
+const TITLES: Record<TabId, string> = {
+  create: 'יוצר ההדמיות',
+  library: 'ספריית הדמיות',
+  analytics: 'אנליטיקה',
+  students: 'תלמידים',
+}
+
 /* סרגל עליון משותף לאולפן (לוגו + טאבים שמנווטים ב-router + סטטוס + יציאה) */
 export default function StudioTopBar({ active }: { active: TabId }) {
   const navigate = useNavigate()
@@ -38,7 +46,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
         </span>
         <div>
-          <div style={{ fontSize: 19, fontWeight: 800, color: '#fff' }}>יוצר ההדמיות</div>
+          <div style={{ fontSize: 19, fontWeight: 800, color: '#fff' }}>{TITLES[active]}</div>
           <div style={{ ...micro, marginTop: 1 }}>HOLOACADEMY · STUDIO</div>
         </div>
       </div>
