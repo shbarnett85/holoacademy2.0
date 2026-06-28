@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -25,6 +26,7 @@ export default function FinalQuizChallenge({ puzzle, onResult }: Props) {
     if (answered) return
     setPicked(i)
     if (i === q.correctIndex) setCorrectCount((c) => c + 1)
+    else triggerErrorFlash()
   }
 
   function next() {

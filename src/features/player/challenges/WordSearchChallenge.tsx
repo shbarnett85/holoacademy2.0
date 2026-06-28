@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleWordSearch, type WordSearchScale } from '../../../shared/lib/difficultyScaling'
 import { Countdown } from './failUi'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -87,6 +88,7 @@ export default function WordSearchChallenge({ puzzle, onResult }: Props) {
   function onTimeout() {
     if (done) return
     setDone('lose')
+    triggerErrorFlash()
     setFoundCells(new Set(answerCells))
     setFoundWords(new Set(words))
     setTimeout(() => onResult({ correct: false, score: 0 }), 1200)

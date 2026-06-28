@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -58,6 +59,7 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
     const w = wrong + 1
     setWrong(w)
     setShake((k) => k + 1)
+    triggerErrorFlash()
     setValues(Array(blankCount).fill(''))
     if (w >= maxAttempts) {
       setLocked(true)

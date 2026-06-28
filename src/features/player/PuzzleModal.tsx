@@ -9,6 +9,7 @@ import SequenceOrderChallenge from './challenges/SequenceOrderChallenge'
 import HangmanChallenge from './challenges/HangmanChallenge'
 import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
+import { triggerErrorFlash } from './challenges/errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -131,7 +132,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
               <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
               <div className="flex flex-col gap-3 mt-5">
                 {puzzle.choices.map((c) => (
-                  <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => handleResult({ correct: c.isCorrect })}>
+                  <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => { if (!c.isCorrect) triggerErrorFlash(); handleResult({ correct: c.isCorrect }) }}>
                     {c.text}
                   </button>
                 ))}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -46,6 +47,7 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
       const w = wrong + 1
       setWrong(w)
       setShakeKey((k) => k + 1)
+      triggerErrorFlash()
       if (w >= maxWrong) {
         setDone('lose')
         setTimeout(() => onResult({ correct: false, score: 0 }), 900)

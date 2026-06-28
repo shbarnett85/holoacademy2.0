@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleMemory } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -62,6 +63,7 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
       /* טעות — הופכים בחזרה אחרי השהיה */
       const newMistakes = mistakes + 1
       setMistakes(newMistakes)
+      triggerErrorFlash()
       setBusy(true)
       setTimeout(() => {
         setFlipped([])

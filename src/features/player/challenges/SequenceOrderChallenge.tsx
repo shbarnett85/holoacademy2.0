@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleSequenceOrder } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -94,6 +95,7 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
     const w = wrong + 1
     setWrong(w)
     setResult('wrong')
+    triggerErrorFlash()
     if (w >= maxAttempts) {
       setFinished('lose')
       setOrder([...correctOrder]) /* חשיפת הסדר הנכון */

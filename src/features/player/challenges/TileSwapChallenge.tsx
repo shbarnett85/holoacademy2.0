@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleTileSwap } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
+import { triggerErrorFlash } from './errorFlash'
 
 interface Props {
   puzzle: Puzzle
@@ -59,6 +60,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
     if (!landedHome) {
       const b = badSwaps + 1
       setBadSwaps(b)
+      triggerErrorFlash()
       if (b >= maxBadSwaps) {
         setDone('lose')
         setOrder(Array.from({ length: count }, (_, i) => i)) /* חשיפת התמונה הפתורה */

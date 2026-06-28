@@ -10,6 +10,7 @@ import CrystalRain from './CrystalRain'
 import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
+import { ErrorFlashOverlay } from './challenges/errorFlash'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -268,6 +269,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
   return (
     <div className="min-h-screen flex flex-col" style={{ paddingBottom: '4.5rem' }}>
+      <ErrorFlashOverlay />
       <style>{`
         @keyframes gate-shake {
           0%, 100% { transform: translateX(0); }
