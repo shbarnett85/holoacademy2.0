@@ -356,7 +356,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* ד"ר הולו — בועת דיבור */}
           {scene.drHoloDialog && (
             <div className="flex items-start gap-3 mt-4 text-start">
-              <div style={{ fontSize: '2.5rem' }}>🤖</div>
+              <div className="shrink-0"><DrHoloEmblem size={40} /></div>
               <div
                 className="holo-panel flex-1"
                 style={{ borderColor: 'rgba(136,85,255,0.45)', padding: '0.9rem' }}
