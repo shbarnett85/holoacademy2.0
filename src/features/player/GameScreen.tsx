@@ -140,11 +140,19 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     return () => document.documentElement.classList.remove('holo-playing')
   }, [])
 
-  /* פתיחת אתגר — מתעדת מקומית תחילת ניסיון (puzzle_attempt) ואז פותחת את המודאל */
+  /* מעבר fade-out→fade-in בין הטקסט לאתגר (החלפה inline): מעמעם את התוכן, מחליף באמצע,
+     ומעלה חזרה. ~220ms לכל כיוון. */
+  const [contentVisible, setContentVisible] = useState(true)
+  const fadeSwap = useCallback((fn: () => void) => {
+    setContentVisible(false)
+    window.setTimeout(() => { fn(); setContentVisible(true) }, 220)
+  }, [])
+
+  /* פתיחת אתגר — מתעדת תחילת ניסיון ואז פותחת את האתגר ב-fade */
   const openPuzzle = useCallback(() => {
     engine.trackPuzzleAttempt()
-    setPuzzleOpen(true)
-  }, [engine])
+    fadeSwap(() => setPuzzleOpen(true))
+  }, [engine, fadeSwap])
 
   /* איסוף מפתח — אם הוא התנאי המספיק להתקדמות (פעולה-קדימה יחידה וברורה): אוסף, ואז
      ממתין לסיום אנימציית האיסוף (≈1.1ש') ועובר אוטומטית לסצנה הבאה — בלי לחיצה נוספת.
@@ -179,6 +187,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
+    setContentVisible(true) /* סצנה חדשה מתחילה גלויה (לא באמצע fade של החלפת אתגר) */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
@@ -445,6 +454,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           }}
         >
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה */}
+          {/* עטיפת fade — מעבר fade-out→fade-in בין הטקסט לאתגר (החלפת inline) */}
+          <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
           {puzzleOpen && scene.puzzle ? (
             <div className="mt-6">
@@ -452,12 +463,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 puzzle={scene.puzzle}
                 imageUrl={scene.imageUrl}
                 onSolve={engine.solvePuzzle}
-                onClose={() => setPuzzleOpen(false)}
+                onClose={() => fadeSwap(() => setPuzzleOpen(false))}
                 onContinue={() => {
-                  setPuzzleOpen(false)
                   const hasItem = !!scene.collectableItem
                   const hasChoices = !!scene.choices?.length
-                  if (!hasItem && !hasChoices && !engine.gateLocked) engine.advance()
+                  const willAdvance = !hasItem && !hasChoices && !engine.gateLocked
+                  if (willAdvance) { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
+                  else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
                 }}
                 /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
                    ממשיכה לפעולה הבאה (בחירות/המשך) */
@@ -584,6 +596,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           )}
           </>
           )}
+          </div>
         </div>
 
         {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons'), כך שאינה בולעת קליקים
