@@ -6,6 +6,7 @@ import PuzzleModal from './PuzzleModal'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
+import CrystalCharge from './CrystalCharge'
 import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
@@ -102,6 +103,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
   const fusionFiredRef = useRef(false)
+  /* טעינת הקריסטל במסך הניצחון — chargeT מטפס 0→1 (≈1.2ש') כך שהקריסטלים מתמלאים
+     בסנכרון עם החלקיקים המתכנסים. reduced-motion → קופץ ל-1 (מילוי סטטי). */
+  const crystalRowRef = useRef<HTMLDivElement>(null)
+  const [chargeT, setChargeT] = useState(0)
 
   const { scene } = engine
   /* האם זו באמת סצנת הסיום? (אין next *וגם* זו הסצנה האחרונה במערך) — אחרת "המשך"
@@ -123,6 +128,22 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     prevImgRef.current = scene.imageUrl /* לאחר ה-render: שומר את תמונת הסצנה הנוכחית לקראת ה-wipe הבא */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
+
+  /* מילוי הקריסטל בסיום — ramp רך 0→1 (או קפיצה ב-reduced-motion) */
+  useEffect(() => {
+    if (!engine.finished) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    if (reduce) { setChargeT(1); return }
+    let raf = 0
+    const start = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / 1200)
+      setChargeT(t)
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [engine.finished])
 
   /* סיום — שליחה מרוכזת אחת של סיכום האנליטיקה (רקעי, פעם אחת) */
   const completedRef = useRef(false)
@@ -200,8 +221,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           </>
         )}
 
-        {/* גשם קריסטלים — רק בסיום הטוב */}
+        {/* גשם קריסטלים + טעינת הקריסטל (חלקיקים מתכנסים) — רק בסיום הטוב */}
         {good && <CrystalRain />}
+        {good && <CrystalCharge count={Math.round(engine.crystalProgress * TOTAL_CRYSTALS)} targetRef={crystalRowRef} />}
 
         <div
           className="holo-panel text-center max-w-lg w-full relative"
@@ -235,10 +257,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </>
           )}
 
-          {/* הקריסטלים שנאספו */}
-          <div className="flex justify-center gap-1 mt-5" dir="ltr">
+          {/* הקריסטלים שנאספו — מתמלאים בסנכרון עם chargeT (החלקיקים המתכנסים) */}
+          <div ref={crystalRowRef} className="flex justify-center gap-1 mt-5" dir="ltr">
             {Array.from({ length: TOTAL_CRYSTALS }).map((_, i) => (
-              <CrystalGauge key={i} fill={Math.max(0, Math.min(1, engine.crystalProgress * TOTAL_CRYSTALS - i))} size={30} />
+              <CrystalGauge key={i} fill={Math.max(0, Math.min(1, engine.crystalProgress * TOTAL_CRYSTALS * chargeT - i))} size={30} />
             ))}
           </div>
 
