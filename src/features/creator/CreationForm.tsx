@@ -135,7 +135,7 @@ function Studio() {
                     </button>
                     </Tooltip>
                     {on && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end' }}>
+                      <Tooltip text={TT.puzzleCount} block><div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end' }}>
                         <span style={{ fontSize: 11.5, color: '#8aa0b8', marginLeft: 'auto' }}>כמות:</span>
                         {[1, 2, 3, 4, 5].map((n) => {
                           const sel = (s.puzzleCounts[p.key] ?? 1) === n
@@ -143,7 +143,7 @@ function Studio() {
                             <button key={n} onClick={() => s.setPuzzleCount(p.key, n)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)', background: sel ? 'linear-gradient(135deg,#2ff3ff,#9b8cff)' : 'rgba(4,9,18,.6)', border: '1px solid ' + (sel ? 'transparent' : 'rgba(120,200,255,.18)'), color: sel ? '#04101c' : '#aebfd2', boxShadow: sel ? '0 0 12px rgba(47,243,255,.4)' : 'none' }}>{n}</button>
                           )
                         })}
-                      </div>
+                      </div></Tooltip>
                     )}
                     {p.key === 'itemUsage' && on && (
                       <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--holo-cyan-bright)', opacity: 0.85 }}>🗝️ ייווצרו {s.puzzleCounts.itemUsage ?? 1} מפתחות ו-{s.puzzleCounts.itemUsage ?? 1} שערים נעולים</p>
@@ -168,12 +168,12 @@ function Studio() {
                     </Tooltip>
                     {on && (
                       <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <Tooltip text={TT.finalQuizCount} block><div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11.5, color: '#8aa0b8', marginLeft: 'auto' }}>שאלות:</span>
                           {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                             <button key={n} onClick={() => s.setPuzzleCount('finalQuiz', n)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)', background: count === n ? 'linear-gradient(135deg,#2ff3ff,#9b8cff)' : 'rgba(4,9,18,.6)', border: '1px solid ' + (count === n ? 'transparent' : 'rgba(120,200,255,.18)'), color: count === n ? '#04101c' : '#aebfd2', boxShadow: count === n ? '0 0 12px rgba(47,243,255,.4)' : 'none' }}>{n}</button>
                           ))}
-                        </div>
+                        </div></Tooltip>
                         <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--holo-cyan-bright)', opacity: 0.85 }}>🏁 בסצנת השיא ייווצר מבחן אינטגרטיבי של {count} שאלות</p>
                       </>
                     )}
