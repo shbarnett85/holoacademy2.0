@@ -218,8 +218,39 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [editingEnding, setEditingEnding] = useState<'good' | 'bad' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  /* "בצע שיפורים" — מריץ את בדיקת העובדות/התקניות בשרת ומחיל את התיקונים שזוהו.
+     refinedWarnings מחליף את ה-prop להצגה אחרי הריצה (האזהרות שנותרו). */
+  const [refining, setRefining] = useState(false)
+  const [refinedWarnings, setRefinedWarnings] = useState<string[] | null>(null)
+  const shownWarnings = refinedWarnings ?? warnings
 
   const editingScene = editingSceneId ? scenes.find((s) => s.id === editingSceneId) ?? null : null
+
+  /* קורא ל-POST /:id/refine, מחיל את הסצנות המתוקנות שחזרו דרך patchScene, ומעדכן את האזהרות */
+  async function runRefine() {
+    if (refining) return
+    setRefining(true)
+    try {
+      const res = await apiFetch(`/api/quests/${questId}/refine`, { method: 'POST' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error ?? 'ביצוע השיפורים נכשל')
+      }
+      const { gameData, correctedSceneIds, warnings: remaining } = await res.json()
+      const fixedScenes = (gameData?.scenes ?? []) as Scene[]
+      const ids: string[] = correctedSceneIds ?? []
+      for (const id of ids) {
+        const sc = fixedScenes.find((s) => s.id === id)
+        if (sc) patchScene(id, sc)
+      }
+      setRefinedWarnings(Array.isArray(remaining) ? remaining : [])
+      flashToast(ids.length > 0 ? `בוצעו שיפורים ב-${ids.length} סצנות ✓` : 'לא נמצאו תיקונים נוספים')
+    } catch (e) {
+      flashToast(e instanceof Error ? e.message : 'ביצוע השיפורים נכשל')
+    } finally {
+      setRefining(false)
+    }
+  }
 
   function flashToast(text: string) {
     setToast(text)
@@ -324,12 +355,23 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       </header>
 
       {/* אזהרות מבנה */}
-      {warnings.length > 0 && (
+      {shownWarnings.length > 0 && (
         <div className="holo-panel w-full" style={{ borderColor: 'rgba(255,200,0,0.5)', background: 'rgba(60,45,5,0.5)' }}>
           <h3 className="font-bold mb-2" style={{ color: '#ffd75e' }}>⚠️ אזהרות מבנה</h3>
           <ul className="text-sm flex flex-col gap-1" style={{ color: '#ffe9a8' }}>
-            {warnings.map((w, i) => <li key={i}>• {w}</li>)}
+            {shownWarnings.map((w, i) => <li key={i}>• {w}</li>)}
           </ul>
+          {/* בצע שיפורים — מיישם את התיקונים המוזכרים למעלה (בדיקת עובדות/תקניות בשרת) */}
+          <div className="mt-3">
+            <button
+              className="holo-button text-sm"
+              style={{ padding: '0.5rem 1.4rem', opacity: refining ? 0.7 : 1 }}
+              disabled={refining}
+              onClick={runRefine}
+            >
+              {refining ? 'מבצע שיפורים…' : '✨ בצע שיפורים'}
+            </button>
+          </div>
         </div>
       )}
 

@@ -1400,6 +1400,44 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
   }
 })
 
+/* POST /api/quests/:id/refine — "בצע שיפורים": מריץ על-פי-דרישה את בדיקת העובדות/התקניות
+   (runFactCheck, Haiku) ומחיל את התיקונים שזוהו (scopedFactFix) — אותם תיקונים המופיעים
+   ב"אזהרות מבנה". שומר את ה-game_data המעודכן ומחזיר אותו + מספר הסצנות שתוקנו + אזהרות
+   שנותרו (אם נשארו). דורש בעלות. */
+questsRouter.post('/:id/refine', requireStaff, async (req, res, next) => {
+  try {
+    const { data: quest, error } = await supabaseAdmin
+      .from('quests')
+      .select('id, game_data, created_by')
+      .eq('id', req.params.id)
+      .single()
+    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureOwner(req, quest.created_by)
+
+    const gameData = quest.game_data as GameData
+    const fc = await runFactCheck(gameData)
+    let correctedSceneIds: string[] = []
+    let warnings: string[] = []
+    if (fc.ok && fc.errors.length > 0) {
+      correctedSceneIds = await scopedFactFix(gameData, fc.errors)
+      /* אזהרות שנותרו: סצנות שלא תוקנו + בדיקה חוזרת על מה שתוקן */
+      const unfixed = fc.errors.filter((e) => !e.sceneId || !correctedSceneIds.includes(e.sceneId))
+      warnings = unfixed.map(factWarning)
+      if (correctedSceneIds.length > 0) {
+        const recheck = await runFactCheck(gameData, correctedSceneIds)
+        if (recheck.ok) warnings = [...warnings, ...recheck.errors.map(factWarning)]
+      }
+      const meta = gameData as unknown as { factCheck?: FactCheckMeta }
+      meta.factCheck = { status: 'done', warnings, correctedSceneIds }
+      const { error: upErr } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
+      if (upErr) throw new AppError(500, 'שגיאה בשמירה: ' + upErr.message)
+    }
+    res.json({ gameData, correctedSceneIds, warnings })
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* מטא יצירה שנשמר בתוך game_data בזמן/בסיום היצירה — הקליינט עושה polling וקורא אותו.
    generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
 interface GenMeta { warnings?: string[]; hub?: HubInfo | null }
