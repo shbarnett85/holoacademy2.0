@@ -371,6 +371,24 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         >
           <h1 className="holo-text-glow text-3xl font-black" style={{ textShadow: '0 2px 14px rgba(0,0,0,0.85), 0 0 22px rgba(0,246,255,0.5)' }}>{scene.title}</h1>
 
+          {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
+          {puzzleOpen && scene.puzzle ? (
+            <div className="mt-6">
+              <PuzzleModal
+                puzzle={scene.puzzle}
+                imageUrl={scene.imageUrl}
+                onSolve={engine.solvePuzzle}
+                onClose={() => setPuzzleOpen(false)}
+                onContinue={() => {
+                  setPuzzleOpen(false)
+                  const hasItem = !!scene.collectableItem
+                  const hasChoices = !!scene.choices?.length
+                  if (!hasItem && !hasChoices && !engine.gateLocked) engine.advance()
+                }}
+              />
+            </div>
+          ) : (
+          <>
           {scene.narrative && (
             <div className="holo-panel mt-6 text-start">
               <Typewriter
@@ -473,6 +491,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               {engine.message}
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
 
@@ -491,28 +511,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <p className="text-lg mt-2">{engine.unlockBubble}</p>
             <p className="text-xs mt-3" style={{ opacity: 0.4 }}>לחצו להמשך</p>
           </div>
-        </div>
-      )}
-
-      {/* פאנלי החידות — נעלמים ב-fade במצב עין (opacity על העוטף חל גם על fixed) */}
-      {puzzleOpen && scene.puzzle && (
-        <div style={{ opacity: eyeMode ? 0 : 1, pointerEvents: eyeMode ? 'none' : 'auto', transition: 'opacity 0.45s ease' }}>
-          <PuzzleModal
-            puzzle={scene.puzzle}
-            imageUrl={scene.imageUrl}
-            onSolve={engine.solvePuzzle}
-            onClose={() => setPuzzleOpen(false)}
-            onContinue={() => {
-              setPuzzleOpen(false)
-              /* מעבר ישיר לסצנה הבאה — אלא אם בסצנה יש עוד אינטראקציה:
-                 חפץ לאיסוף, בחירות ניווט, או שער נעול */
-              const hasItem = !!scene.collectableItem
-              const hasChoices = !!scene.choices?.length
-              if (!hasItem && !hasChoices && !engine.gateLocked) {
-                engine.advance()
-              }
-            }}
-          />
         </div>
       )}
 
