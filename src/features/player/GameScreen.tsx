@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import BottomHUD from './BottomHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
-import WipeTransition from './WipeTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
@@ -286,12 +285,21 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         .gate-glow { animation: gate-open-glow 0.8s ease; }
         @keyframes scene-fade { from { opacity: 0; } to { opacity: 1; } }
         .scene-fade { animation: scene-fade 0.5s ease; }
+        /* wipe בין שקופיות — הסצנה החדשה עצמה נחשפת בסריקת clip-path מהקצה (בלי קיר/overlay).
+           forward (RTL) = ימין←שמאל; back = הפוך. */
+        @keyframes scene-wipe-fwd  { from { clip-path: inset(0 0 0 100%); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+        @keyframes scene-wipe-back { from { clip-path: inset(0 100% 0 0); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+        .scene-wipe-fwd  { animation: scene-wipe-fwd 0.42s cubic-bezier(.7,0,.3,1); }
+        .scene-wipe-back { animation: scene-wipe-back 0.42s cubic-bezier(.7,0,.3,1); }
+        @media (prefers-reduced-motion: reduce) {
+          .scene-wipe-fwd, .scene-wipe-back { animation: scene-fade 0.35s ease; }
+        }
       `}</style>
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
       <div
         key={scene.id}
-        className="scene-fade flex-1 flex flex-col items-center justify-center p-6 gap-6 relative"
+        className={`${engine.transitionType === 'wipe' ? (engine.transitionDir === 'back' ? 'scene-wipe-back' : 'scene-wipe-fwd') : 'scene-fade'} flex-1 flex flex-col items-center justify-center p-6 gap-6 relative`}
         style={{
           background:
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
@@ -489,12 +497,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
 
-      {/* חור תולעת במעברי מעבדה↔עולם (כניסה/יציאה); wipe קל בין שקופיות */}
-      {engine.transitionType === 'wormhole' ? (
-        <WormholeTransition trigger={engine.transitionKey} />
-      ) : (
-        <WipeTransition trigger={engine.transitionKey} dir={engine.transitionDir} />
-      )}
+      {/* חור תולעת במעברי מעבדה↔עולם (כניסה/יציאה). ה-wipe בין שקופיות נעשה על מיכל
+          הסצנה עצמו (clip-path reveal) — ללא overlay/קיר. */}
+      {engine.transitionType === 'wormhole' && <WormholeTransition trigger={engine.transitionKey} />}
 
       <BottomHUD
         crystalProgress={engine.crystalProgress}
