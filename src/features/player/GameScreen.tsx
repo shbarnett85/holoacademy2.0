@@ -339,26 +339,17 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         }}
       >
         {scene.imageUrl && (
-          <>
-            <img
-              src={scene.imageUrl}
-              alt=""
-              style={{
-                position: 'absolute', inset: 0, width: '100%', height: '100%',
-                objectFit: 'cover', pointerEvents: 'none',
-              }}
-            />
-            {/* gradient כהה לקריאות הטקסט — נעלם במצב עין כדי לחשוף את התמונה הנקייה */}
-            <div
-              style={{
-                position: 'absolute', inset: 0, pointerEvents: 'none',
-                background:
-                  'linear-gradient(to top, rgba(10,10,31,0.92) 0%, rgba(10,10,31,0.55) 45%, rgba(10,10,31,0.35) 100%)',
-                opacity: eyeMode ? 0 : 1,
-                transition: 'opacity 0.5s ease',
-              }}
-            />
-          </>
+          /* התמונה מוצגת נקייה וחיה (כמו מצב-עין) — אין עוד שכבת-כהות גלובלית על כל המסך.
+             קריאוּת הטקסט מובטחת ע"י הפאנלים הייעודיים (holo-panel) של הנרטיב/הדיאלוג/הכפתורים,
+             ולא ע"י החשכת התמונה כולה. */
+          <img
+            src={scene.imageUrl}
+            alt=""
+            style={{
+              position: 'absolute', inset: 0, width: '100%', height: '100%',
+              objectFit: 'cover', pointerEvents: 'none',
+            }}
+          />
         )}
         {/* רשת נקודות עדינה */}
         <div
@@ -378,7 +369,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             transition: 'opacity 0.45s ease',
           }}
         >
-          <h1 className="holo-text-glow text-3xl font-black">{scene.title}</h1>
+          <h1 className="holo-text-glow text-3xl font-black" style={{ textShadow: '0 2px 14px rgba(0,0,0,0.85), 0 0 22px rgba(0,246,255,0.5)' }}>{scene.title}</h1>
 
           {scene.narrative && (
             <div className="holo-panel mt-6 text-start">
