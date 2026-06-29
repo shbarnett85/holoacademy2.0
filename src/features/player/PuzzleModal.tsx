@@ -153,12 +153,15 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(5,5,18,0.8)', backdropFilter: 'blur(4px)', zIndex: 45, overflowY: 'auto' }}
+      /* ה-overlay נעצר מעל ה-BottomHUD (bottom: 4.5rem = גובה הפס) — שכבה כהה אחת בלבד,
+         בלי כיסוי כפול מעל/מתחת לפס התחתון. items-start מצמיד את הפאנל (והכותרת) לראש
+         אזור התוכן כך שהכותרת יציבה בין אתגרים ולא צפה במרכז. */
+      className="fixed left-0 right-0 top-0 flex items-start justify-center px-4"
+      style={{ bottom: '4.5rem', paddingTop: '2.5rem', paddingBottom: '1rem', background: 'rgba(5,5,18,0.8)', backdropFilter: 'blur(4px)', zIndex: 45, overflowY: 'auto' }}
     >
       <div
         className="holo-panel w-full text-center"
-        style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: '92vh', overflowY: 'auto' }}
+        style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100vh - 8rem)', overflowY: 'auto' }}
       >
         <span className="text-xs rounded-full px-3 py-1" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
           {type === 'finalQuiz' ? '📝' : '🧩'} {puzzleTypeLabel(type)}
