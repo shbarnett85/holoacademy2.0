@@ -519,11 +519,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </div>
           )}
 
-          {/* פעולות — מופיעות רק אחרי שההקלדה הסתיימה (שלב 'buttons'), באותו materialize הולוגרפי */}
-          {reveal === 'buttons' && (
+          {/* פעולות — מרונדרות תמיד (שומרות את מקומן מראש כך שקופסת הטקסט לא זזה כשהן מופיעות),
+             אך גלויות רק בשלב 'buttons' — אז fade-in באותו materialize הולוגרפי. */}
           <div
-            className={`flex flex-col items-center gap-3 mt-8 ${stageInstant ? '' : 'holo-materialize'}`}
-            style={{ ['--mat-ms' as string]: `${BUTTONS_MAT_MS}ms` }}
+            className={`flex flex-col items-center gap-3 mt-8 ${reveal === 'buttons' && !stageInstant ? 'holo-materialize' : ''}`}
+            style={{
+              ['--mat-ms' as string]: `${BUTTONS_MAT_MS}ms`,
+              opacity: reveal === 'buttons' ? 1 : 0,
+              pointerEvents: reveal === 'buttons' ? 'auto' : 'none',
+            }}
           >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
@@ -585,7 +589,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               )
             )}
           </div>
-          )}
 
           {/* הודעות מערכת */}
           {engine.message && (
