@@ -21,7 +21,7 @@ const prefersReducedMotion = () =>
 /* רצף הופעה מדורג (visual-novel): הסצנה עולה במלואה → המתנה → materialize של קופסת
    הטקסט → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
 const SCENE_HOLD_MS = 1000   /* כמה זמן רואים את הסצנה/תמונת הרקע לבדה לפני שהקופסה מופיעה */
-const PANEL_MAT_MS = 750     /* משך ה-materialize של קופסת הטקסט (ההקלדה מתחילה אחריו) */
+const PANEL_MAT_MS = 375     /* משך ה-materialize של קופסת הטקסט (ההקלדה מתחילה אחריו) */
 const BUTTONS_MAT_MS = 1300  /* משך ה-materialize של הכפתורים */
 
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
