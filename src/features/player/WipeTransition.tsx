@@ -15,7 +15,7 @@ export default function WipeTransition({ trigger, dir }: { trigger: number; dir:
   useEffect(() => {
     if (!trigger) return
     setActive(true)
-    const dur = reduce ? 300 : 430
+    const dur = reduce ? 320 : 470
     const t = window.setTimeout(() => setActive(false), dur)
     /* skip — לחיצה/מקש כלשהו משלים את המעבר מיד */
     const skip = () => setActive(false)
@@ -26,27 +26,34 @@ export default function WipeTransition({ trigger, dir }: { trigger: number; dir:
 
   if (!active) return null
 
-  const anim = reduce ? 'holo-wipe-fade 300ms ease-out 1' : `holo-wipe-${dir} 420ms cubic-bezier(.65,0,.35,1) 1`
+  const anim = reduce ? 'holo-wipe-fade 320ms ease-out 1' : `holo-wipe-${dir} 470ms cubic-bezier(.7,0,.3,1) 1`
+  /* הקצה המוביל: ב-forward (נכנס מימין, נע שמאלה) — הקצה השמאלי מוביל; ב-back — ההפך */
+  const leadSide = dir === 'forward' ? { left: 0 } : { right: 0 }
   return (
     <div
       key={trigger}
       aria-hidden
       style={{
-        position: 'fixed', top: 0, bottom: 0, left: '-15vw', width: '130vw', zIndex: 50, pointerEvents: 'none', willChange: 'transform, opacity',
+        position: 'fixed', inset: 0, zIndex: 50, pointerEvents: 'none', willChange: 'transform, opacity',
         animation: anim,
-        /* ליבה אטומה 10%–90% (מכסה את כל ה-viewport כשממורכזת) + קצוות רכים */
-        background: 'linear-gradient(90deg, rgba(7,11,28,0) 0%, rgba(7,11,28,0.98) 10%, rgba(10,20,44,1) 50%, rgba(7,11,28,0.98) 90%, rgba(7,11,28,0) 100%)',
-        boxShadow: 'inset 0 0 120px rgba(0,246,255,0.12)',
+        /* קיר אטום מלא — לא שקוף-בקצוות (שנראה כמו קווים מהבהבים מעל תמונה) */
+        background: 'linear-gradient(135deg, #081228 0%, #0c1a3c 50%, #0a1430 100%)',
       }}
     >
       <style>{`
-        @keyframes holo-wipe-forward { from { transform: translateX(120%); } to { transform: translateX(-120%); } }
-        @keyframes holo-wipe-back    { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
-        @keyframes holo-wipe-fade    { 0% { opacity: 0; } 38% { opacity: 0.92; } 100% { opacity: 0; } }
+        @keyframes holo-wipe-forward {
+          0% { transform: translateX(100%); } 40% { transform: translateX(0); }
+          60% { transform: translateX(0); } 100% { transform: translateX(-100%); }
+        }
+        @keyframes holo-wipe-back {
+          0% { transform: translateX(-100%); } 40% { transform: translateX(0); }
+          60% { transform: translateX(0); } 100% { transform: translateX(100%); }
+        }
+        @keyframes holo-wipe-fade { 0% { opacity: 0; } 42% { opacity: 1; } 58% { opacity: 1; } 100% { opacity: 0; } }
       `}</style>
-      {/* קצה מוביל זוהר — נותן תחושת סריקה הולוגרפית (מושמט ב-reduced-motion שבו אין סחיפה) */}
+      {/* קצה מוביל זוהר — קו סריקה הולוגרפי על שפת הקיר (מושמט ב-reduced-motion) */}
       {!reduce && (
-        <div style={{ position: 'absolute', top: 0, bottom: 0, [dir === 'forward' ? 'left' : 'right']: '14%', width: 3, background: 'var(--holo-cyan, #2ff3ff)', boxShadow: '0 0 18px 3px rgba(0,246,255,0.8)' }} />
+        <div style={{ position: 'absolute', top: 0, bottom: 0, ...leadSide, width: 4, background: 'var(--holo-cyan, #2ff3ff)', boxShadow: '0 0 24px 5px rgba(0,246,255,0.85)' }} />
       )}
     </div>
   )
