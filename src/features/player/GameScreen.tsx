@@ -16,9 +16,11 @@ import { homePathForRole } from '../../shared/lib/homePath'
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-/* רצף הופעה מדורג (visual-novel): פאנל fade-in → הקלדה → כפתורים. משכי ה-fade נגישים כאן. */
-const REVEAL_PANEL_MS = 480  /* משך אפקט ה-materialize של הפאנל לפני שההקלדה מתחילה */
-const REVEAL_FADE_MS = 260   /* משך ה-fade של הכפתורים */
+/* רצף הופעה מדורג (visual-novel): הסצנה עולה במלואה → המתנה → materialize של קופסת
+   הטקסט → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
+const SCENE_HOLD_MS = 2000   /* כמה זמן רואים את הסצנה/תמונת הרקע לבדה לפני שהקופסה מופיעה */
+const PANEL_MAT_MS = 1500    /* משך ה-materialize של קופסת הטקסט (ההקלדה מתחילה אחריו) */
+const BUTTONS_MAT_MS = 1300  /* משך ה-materialize של הכפתורים */
 
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
    (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
@@ -106,8 +108,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [puzzleOpen, setPuzzleOpen] = useState(false)
   /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
      ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
-  const [reveal, setReveal] = useState<'panel' | 'typing' | 'buttons'>(
-    () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'panel'),
+  const [reveal, setReveal] = useState<'scene' | 'panel' | 'typing' | 'buttons'>(
+    () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene'),
   )
   const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
@@ -188,15 +190,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => {
     setSkipped(false)
     if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
-    setReveal('panel')
     const hasText = !!(scene.narrative || scene.drHoloDialog)
-    const t = window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), REVEAL_PANEL_MS)
-    return () => window.clearTimeout(t)
+    setReveal('scene') /* הסצנה/תמונה לבדה */
+    const timers = [
+      window.setTimeout(() => setReveal('panel'), SCENE_HOLD_MS), /* קופסת הטקסט עושה materialize */
+      window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), SCENE_HOLD_MS + PANEL_MAT_MS), /* ואז הקלדה */
+    ]
+    return () => timers.forEach((t) => window.clearTimeout(t))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
   const skipReveal = useCallback(() => { setSkipped(true); setReveal('buttons') }, [])
+  /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
+  const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
 
   /* מילוי הקריסטל בסיום — ramp רך 0→1 (או קפיצה ב-reduced-motion) */
   useEffect(() => {
@@ -477,11 +484,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </div>
           ) : (
           <>
-          {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט
-             (במקום מלבן נפרד), עם אווטאר קטן בתוך אותו פאנל. */}
-          {(scene.narrative || scene.drHoloDialog) && (
-            /* פאנל materialize — הופעה מרשימה (blur→חד + הבזק זוהר), opacity בלבד ללא scale/translate */
-            <div className="holo-panel mt-6 text-start holo-materialize" style={{ ['--mat-ms' as string]: `${REVEAL_PANEL_MS}ms` }}>
+          {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט.
+             מופיע רק אחרי שהסצנה "נחה" (reveal !== 'scene'), ב-materialize מרשים. */}
+          {reveal !== 'scene' && (scene.narrative || scene.drHoloDialog) && (
+            <div
+              className={`holo-panel mt-6 text-start ${stageInstant ? '' : 'holo-materialize'}`}
+              style={{ ['--mat-ms' as string]: `${PANEL_MAT_MS}ms` }}
+            >
               {scene.drHoloDialog && (
                 <div className="flex items-center gap-2 mb-2">
                   <DrHoloEmblem size={26} />
@@ -494,8 +503,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   scene.drHoloDialog ? `ד״ר הולו אומר: "${scene.drHoloDialog}"` : null,
                 ].filter(Boolean).join('\n\n')}
                 scale={gameData.readingScale ?? 6}
-                /* ההקלדה מתחילה רק אחרי שהפאנל נחשף (שלב 'typing'); בסיומה → שלב 'buttons' */
-                start={reveal !== 'panel'}
+                /* ההקלדה מתחילה רק אחרי ה-materialize של הקופסה (שלב 'typing'); בסיומה → 'buttons' */
+                start={reveal === 'typing' || reveal === 'buttons'}
                 onDone={() => setReveal('buttons')}
                 /* ביקור חוזר/דילוג → הטקסט במלואו מיד, בלי הקלדה */
                 instant={engine.transitionDir === 'back' || skipped}
@@ -510,14 +519,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </div>
           )}
 
-          {/* פעולות — fade-in רק אחרי שההקלדה הסתיימה (שלב 'buttons') */}
+          {/* פעולות — מופיעות רק אחרי שההקלדה הסתיימה (שלב 'buttons'), באותו materialize הולוגרפי */}
+          {reveal === 'buttons' && (
           <div
-            className="flex flex-col items-center gap-3 mt-8"
-            style={{
-              opacity: reveal === 'buttons' ? 1 : 0,
-              pointerEvents: reveal === 'buttons' ? 'auto' : 'none',
-              transition: `opacity ${REVEAL_FADE_MS}ms ease`,
-            }}
+            className={`flex flex-col items-center gap-3 mt-8 ${stageInstant ? '' : 'holo-materialize'}`}
+            style={{ ['--mat-ms' as string]: `${BUTTONS_MAT_MS}ms` }}
           >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
@@ -579,6 +585,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               )
             )}
           </div>
+          )}
 
           {/* הודעות מערכת */}
           {engine.message && (
