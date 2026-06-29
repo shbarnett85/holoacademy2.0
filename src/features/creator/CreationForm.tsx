@@ -8,6 +8,8 @@ import QuestPreview from './QuestPreview'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 import { GRADE_LEVEL_MIN, GRADE_LEVEL_MAX, levelToGradeLabel } from '../../shared/lib/difficultyCalibration'
+import Tooltip from '../../shared/ui/Tooltip'
+import { TT, TT_PUZZLE, TT_SIM, TT_ART } from './tooltips'
 
 /* שכבת-גיל לפי רמה (סקאלת 1-20) — מקור יחיד מ-difficultyCalibration */
 function gradeLabel(level: number): string {
@@ -124,12 +126,14 @@ function Studio() {
                 const on = !!s.puzzleTypes[p.key]
                 return (
                   <div key={p.key}>
+                    <Tooltip text={TT_PUZZLE[p.key]} block>
                     <button onClick={() => s.togglePuzzle(p.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'all .18s', background: on ? 'rgba(47,243,255,.09)' : 'rgba(4,9,18,.5)', border: '1px solid ' + (on ? 'rgba(47,243,255,.5)' : 'rgba(120,200,255,.12)'), boxShadow: on ? '0 0 16px rgba(47,243,255,.16)' : 'none' }}>
                       <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600, color: on ? '#fff' : '#aebfd2' }}>{p.label}</span>
                       <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'linear-gradient(135deg,#2ff3ff,#9b8cff)' : 'transparent', border: '1px solid ' + (on ? 'transparent' : 'rgba(120,160,200,.35)') }}>
                         {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#04101c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </span>
                     </button>
+                    </Tooltip>
                     {on && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end' }}>
                         <span style={{ fontSize: 11.5, color: '#8aa0b8', marginLeft: 'auto' }}>כמות:</span>
@@ -154,12 +158,14 @@ function Studio() {
                 const count = s.puzzleCounts.finalQuiz ?? 5
                 return (
                   <div>
+                    <Tooltip text={TT_PUZZLE.finalQuiz} block>
                     <button onClick={() => { s.togglePuzzle('finalQuiz'); if (!on && (s.puzzleCounts.finalQuiz ?? 0) < 3) s.setPuzzleCount('finalQuiz', 5) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'all .18s', background: on ? 'rgba(47,243,255,.09)' : 'rgba(4,9,18,.5)', border: '1px solid ' + (on ? 'rgba(47,243,255,.5)' : 'rgba(120,200,255,.12)'), boxShadow: on ? '0 0 16px rgba(47,243,255,.16)' : 'none' }}>
                       <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600, color: on ? '#fff' : '#aebfd2' }}>מבחן סיכום</span>
                       <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'linear-gradient(135deg,#2ff3ff,#9b8cff)' : 'transparent', border: '1px solid ' + (on ? 'transparent' : 'rgba(120,160,200,.35)') }}>
                         {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#04101c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </span>
                     </button>
+                    </Tooltip>
                     {on && (
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -208,26 +214,34 @@ function Studio() {
             <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 220px', minWidth: 180 }}>
                 <label style={fieldLabel}>נושא ההדמיה</label>
-                <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value })} placeholder="למשל: מסע אל מערכת השמש" />
+                <Tooltip text={TT.title} block>
+                  <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value })} placeholder="למשל: מסע אל מערכת השמש" />
+                </Tooltip>
               </div>
               <div style={{ flex: '0 0 170px', position: 'relative' }}>
                 <label style={fieldLabel}>מקצוע</label>
+                <Tooltip text={TT.subject} block>
                 <select className="cf-in" value={s.subject} onChange={(e) => s.set({ subject: e.target.value })}
                   style={{ ...inputBase, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingLeft: 28, color: s.subject ? 'var(--holo-text-bright)' : '#5e7290' }}>
                   <option value="">בחרו מקצוע…</option>
                   {SUBJECTS.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
                 </select>
+                </Tooltip>
                 <div style={{ position: 'absolute', left: 11, bottom: 12, pointerEvents: 'none', color: '#2ff3ff', fontSize: 10 }}>▾</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד <span style={{ fontWeight: 400, color: 'rgba(160,200,240,.5)', fontSize: 11 }}>(אופציונלי)</span></label>
+              <Tooltip text={TT.enhance}>
               <button type="button" onClick={enhanceContent} disabled={enhancing} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#e7d6ff', background: 'linear-gradient(135deg, rgba(155,140,255,.25), rgba(47,243,255,.18))', border: '1px solid rgba(155,140,255,.5)', boxShadow: '0 0 12px rgba(155,140,255,.25)', opacity: enhancing ? 0.6 : 1 }}>
                 {enhancing ? <><span style={{ display: 'inline-block', animation: 'cf-spin .8s linear infinite' }}>⟳</span> משפר…</> : <>שפר עם AI ✨</>}
               </button>
+              </Tooltip>
             </div>
-            <textarea className="cf-in" style={{ ...inputBase, marginBottom: 14, lineHeight: 1.55, minHeight: 110, flex: 1, resize: 'vertical' }} value={s.curriculum} onChange={(e) => s.set({ curriculum: e.target.value })} placeholder="תארו את החומר שתרצו ללמד: נושאים, מושגים, עובדות חשובות…" />
+            <Tooltip text={TT.curriculum} block>
+              <textarea className="cf-in" style={{ ...inputBase, marginBottom: 14, lineHeight: 1.55, minHeight: 110, flex: 1, resize: 'vertical' }} value={s.curriculum} onChange={(e) => s.set({ curriculum: e.target.value })} placeholder="תארו את החומר שתרצו ללמד: נושאים, מושגים, עובדות חשובות…" />
+            </Tooltip>
 
             {enhanceError && <p style={{ fontSize: 13, color: '#ff9bb3', marginBottom: 10 }}>⚠️ {enhanceError}</p>}
 
@@ -256,18 +270,20 @@ function Studio() {
                 <label style={{ ...fieldLabel, margin: 0 }}>אורך ההדמיה</label>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: '#7ef6ff' }}>{s.questLength} סצנות</span>
               </div>
-              <NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} />
+              <Tooltip text={TT.length} block><NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} /></Tooltip>
               <div style={{ ...micro, fontSize: 9.5, color: 'rgba(140,170,200,.5)', marginTop: 9 }}>4 — 15 סצנות</div>
             </div>
           </div>
 
           {/* כפתור יצירה */}
+          <Tooltip text={TT.generate} block>
           <button onClick={() => canSubmit && s.generate()} disabled={!canSubmit} style={{ width: '100%', padding: 18, borderRadius: 16, border: 'none', cursor: canSubmit ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: '#04101c', position: 'relative', overflow: 'hidden', background: 'linear-gradient(100deg,#2ff3ff,#9b8cff 55%,#ff45e6)', boxShadow: '0 0 30px rgba(47,243,255,.5), 0 12px 30px -10px rgba(255,69,230,.5)', opacity: canSubmit ? 1 : 0.45 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, justifyContent: 'center' }}>
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#04101c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>
               צור הדמיה
             </span>
           </button>
+          </Tooltip>
         </div>
 
         {/* התאמות (שמאל ב-RTL) */}
@@ -281,8 +297,8 @@ function Studio() {
               <span style={{ fontSize: 12.5, fontWeight: 700, color: '#7ef6ff' }}>{gradeText(s.writingLevel)}</span>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
-                onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} />
+              <Tooltip text={TT.ageLevel} block><NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} /></Tooltip>
             </div>
 
             {/* קושי חידות (עוקב אך עצמאי) — אפשר להזיז לבד; הזזת שכבת הגיל מאפסת אותו חזרה. */}
@@ -291,8 +307,8 @@ function Studio() {
               <span style={{ fontSize: 12.5, fontWeight: 700, color: '#ff9bd6' }}>{gradeText(s.puzzleDifficulty)}</span>
             </div>
             <div style={{ marginBottom: 10 }}>
-              <NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
-                onChange={(lv) => s.set({ puzzleDifficulty: lv })} />
+              <Tooltip text={TT.difficulty} block><NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ puzzleDifficulty: lv })} /></Tooltip>
             </div>
             <p style={{ fontSize: 11.5, lineHeight: 1.6, color: '#7d94ae', marginBottom: 20 }}>שכבת הגיל קובעת שפה, אופי ותוכן. קושי החידות נצמד אליה — ואפשר לכוונן בנפרד.</p>
 
@@ -301,11 +317,13 @@ function Studio() {
               {SIM_TYPES.map((t) => {
                 const on = s.questType === t.key
                 return (
-                  <button key={t.key} onClick={() => s.set({ questType: t.key })} style={{ textAlign: 'center', padding: '12px 6px', borderRadius: 11, cursor: 'pointer', transition: 'all .2s', background: on ? 'linear-gradient(160deg,rgba(47,243,255,.16),rgba(255,69,230,.1))' : 'rgba(4,9,18,.55)', border: '1px solid ' + (on ? 'rgba(47,243,255,.7)' : 'rgba(120,200,255,.14)'), boxShadow: on ? '0 0 18px rgba(47,243,255,.25)' : 'none' }}>
+                  <Tooltip key={t.key} text={TT_SIM[t.key]} block>
+                  <button onClick={() => s.set({ questType: t.key })} style={{ width: '100%', textAlign: 'center', padding: '12px 6px', borderRadius: 11, cursor: 'pointer', transition: 'all .2s', background: on ? 'linear-gradient(160deg,rgba(47,243,255,.16),rgba(255,69,230,.1))' : 'rgba(4,9,18,.55)', border: '1px solid ' + (on ? 'rgba(47,243,255,.7)' : 'rgba(120,200,255,.14)'), boxShadow: on ? '0 0 18px rgba(47,243,255,.25)' : 'none' }}>
                     <div style={{ display: 'flex', justifyContent: 'center', color: on ? '#5eead4' : '#8fd5e6', filter: on ? 'drop-shadow(0 0 8px rgba(34,211,238,.5))' : 'none' }}><HoloIcon name={t.key as HoloIconName} size={30} /></div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: on ? '#fff' : '#cfe1f2', marginTop: 4 }}>{t.label}</div>
                     <div style={{ fontSize: 10, color: '#7d94ae', marginTop: 2 }}>{t.desc}</div>
                   </button>
+                  </Tooltip>
                 )
               })}
             </div>
@@ -313,7 +331,7 @@ function Studio() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderRadius: 12, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(120,200,255,.12)', marginBottom: 20, color: s.includeDrHolo ? '#7ef6ff' : '#6f87a1' }}>
               <HoloIcon name="drholo" size={24} style={{ filter: s.includeDrHolo ? 'drop-shadow(0 0 8px rgba(34,211,238,.5))' : 'none' }} />
               <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: '#cfe1f2' }}>ד״ר הולו <span style={{ color: '#8aa0b8', fontWeight: 400 }}>· דמות מנחה</span></span>
-              <Toggle on={s.includeDrHolo} onClick={() => s.set({ includeDrHolo: !s.includeDrHolo })} />
+              <Tooltip text={TT.drHolo}><Toggle on={s.includeDrHolo} onClick={() => s.set({ includeDrHolo: !s.includeDrHolo })} /></Tooltip>
             </div>
 
             <label style={fieldLabel}>סגנון אמנותי</label>
@@ -321,10 +339,12 @@ function Studio() {
               {ART_STYLES.map((a) => {
                 const on = s.artStyle === a.key
                 return (
-                  <button key={a.key} onClick={() => s.set({ artStyle: a.key })} title={a.label} style={{ padding: '10px 4px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s', textAlign: 'center', background: on ? 'linear-gradient(150deg,rgba(255,69,230,.16),rgba(47,243,255,.12))' : 'rgba(4,9,18,.55)', border: '1px solid ' + (on ? 'rgba(255,69,230,.6)' : 'rgba(120,200,255,.14)'), color: on ? '#fff' : '#aebfd2', boxShadow: on ? '0 0 16px rgba(255,69,230,.2)' : 'none' }}>
+                  <Tooltip key={a.key} text={TT_ART[a.key]} block>
+                  <button onClick={() => s.set({ artStyle: a.key })} style={{ width: '100%', padding: '10px 4px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s', textAlign: 'center', background: on ? 'linear-gradient(150deg,rgba(255,69,230,.16),rgba(47,243,255,.12))' : 'rgba(4,9,18,.55)', border: '1px solid ' + (on ? 'rgba(255,69,230,.6)' : 'rgba(120,200,255,.14)'), color: on ? '#fff' : '#aebfd2', boxShadow: on ? '0 0 16px rgba(255,69,230,.2)' : 'none' }}>
                     <div style={{ display: 'flex', justifyContent: 'center', color: on ? '#f0a6ff' : '#8fd5e6', filter: on ? 'drop-shadow(0 0 8px rgba(217,70,239,.5))' : 'none' }}><HoloIcon name={a.key as HoloIconName} size={26} /></div>
                     <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5 }}>{a.label}</div>
                   </button>
+                  </Tooltip>
                 )
               })}
             </div>
