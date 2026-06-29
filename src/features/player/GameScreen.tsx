@@ -44,7 +44,7 @@ function Typewriter({ text, scale, onAdvance, instant }: { text: string; scale: 
   return (
     <p
       className="text-lg leading-relaxed cursor-pointer"
-      style={{ color: 'var(--holo-text)', minHeight: '3rem' }}
+      style={{ color: 'var(--holo-text)', minHeight: '3rem', whiteSpace: 'pre-line' }}
       onClick={handleClick}
     >
       {text.slice(0, count)}
@@ -437,14 +437,23 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </div>
           ) : (
           <>
-          {scene.narrative && (
+          {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט
+             (במקום מלבן נפרד), עם אווטאר קטן בתוך אותו פאנל. */}
+          {(scene.narrative || scene.drHoloDialog) && (
             <div className="holo-panel mt-6 text-start">
+              {scene.drHoloDialog && (
+                <div className="flex items-center gap-2 mb-2">
+                  <DrHoloEmblem size={26} />
+                  <span className="text-xs" style={{ color: 'var(--holo-purple)' }}>ד״ר הולו</span>
+                </div>
+              )}
               <Typewriter
-                text={scene.narrative}
+                text={[
+                  scene.narrative,
+                  scene.drHoloDialog ? `ד״ר הולו אומר: "${scene.drHoloDialog}"` : null,
+                ].filter(Boolean).join('\n\n')}
                 scale={gameData.readingScale ?? 6}
-                /* ביקור חוזר בשקופית (כבר נראתה בהדמיה זו, למשל חזרה לתחנה המרכזית) →
-                   הצגת הטקסט במלואו מיד, בלי אנימציית הקלדה. transitionDir==='back' מסמן
-                   ניווט לסצנה שכבר ב-visitedScenes. */
+                /* ביקור חוזר בשקופית (כבר נראתה בהדמיה זו) → הצגת הטקסט במלואו מיד, בלי הקלדה */
                 instant={engine.transitionDir === 'back'}
                 /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
                    בדיוק של כפתור המשך/סיום, כך שאין שינוי בלוגיקת המשחק (רק טריגר חלופי). */
@@ -454,20 +463,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                     : undefined
                 }
               />
-            </div>
-          )}
-
-          {/* ד"ר הולו — בועת דיבור */}
-          {scene.drHoloDialog && (
-            <div className="flex items-start gap-3 mt-4 text-start">
-              <div className="shrink-0"><DrHoloEmblem size={40} /></div>
-              <div
-                className="holo-panel flex-1"
-                style={{ borderColor: 'rgba(136,85,255,0.45)', padding: '0.9rem' }}
-              >
-                <span className="text-xs" style={{ color: 'var(--holo-purple)' }}>ד״ר הולו</span>
-                <p className="mt-1">{scene.drHoloDialog}</p>
-              </div>
             </div>
           )}
 
