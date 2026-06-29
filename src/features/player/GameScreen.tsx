@@ -96,6 +96,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [eyeMode, setEyeMode] = useState(false)
   const studentName = sessionStorage.getItem('holo_student_name') ?? 'אורח/ת'
   const preloadedRef = useRef(false)
+  /* תמונת הסצנה הקודמת — נשמרת כשכבה תחתית בזמן wipe, כדי שסצנה B תיחשף *מעליה*
+     ולא מעל רקע כהה ריק. מתעדכן אחרי כל render (ב-effect של sceneId). */
+  const prevImgRef = useRef<string | undefined>(undefined)
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
   const fusionFiredRef = useRef(false)
@@ -117,6 +120,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const sceneId = scene.id
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
+    prevImgRef.current = scene.imageUrl /* לאחר ה-render: שומר את תמונת הסצנה הנוכחית לקראת ה-wipe הבא */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
@@ -296,11 +300,18 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         }
       `}</style>
 
+      {/* שכבה תחתית: תמונת הסצנה הקודמת — נראית רק דרך האזור שטרם נחשף ב-wipe,
+          כך שסצנה B מתגלה מעל A ולא מעל רקע כהה ריק. */}
+      {engine.transitionType === 'wipe' && prevImgRef.current && (
+        <img src={prevImgRef.current} alt="" aria-hidden style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', zIndex: 0 }} />
+      )}
+
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
       <div
         key={scene.id}
         className={`${engine.transitionType === 'wipe' ? (engine.transitionDir === 'back' ? 'scene-wipe-back' : 'scene-wipe-fwd') : 'scene-fade'} flex-1 flex flex-col items-center justify-center p-6 gap-6 relative`}
         style={{
+          zIndex: 1,
           background:
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
         }}
