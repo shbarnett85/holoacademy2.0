@@ -628,7 +628,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         </div>
       )}
 
-      <EyeButton active={eyeMode} onToggle={() => setEyeMode((v) => !v)} />
+      {/* כפתור העין במשחק נמצא עכשיו בתוך ה-TopHUD (שורה כחולה עליונה) */}
 
       {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
@@ -638,7 +638,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         ? <WormholeTransition trigger={engine.transitionKey} />
         : <FadeTransition trigger={engine.transitionKey} />}
 
-      <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} />
+      <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} eyeActive={eyeMode} onToggleEye={() => setEyeMode((v) => !v)} />
 
       <BottomHUD
         crystalProgress={engine.crystalProgress}
