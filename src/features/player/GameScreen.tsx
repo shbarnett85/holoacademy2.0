@@ -312,7 +312,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ paddingBottom: '4.5rem' }}>
+    <div className="min-h-screen flex flex-col">
       <ErrorFlashOverlay />
       <style>{`
         @keyframes gate-shake {
@@ -353,6 +353,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         className={`${engine.transitionType === 'wipe' ? (engine.transitionDir === 'back' ? 'scene-wipe-back' : 'scene-wipe-fwd') : 'scene-fade'} flex-1 flex flex-col items-center justify-center p-6 gap-6 relative`}
         style={{
           zIndex: 1,
+          /* התמונה (absolute inset:0) ממלאת את כל ה-viewport; ה-padding התחתון שומר על התוכן
+             מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
+          paddingBottom: '5.5rem',
           background:
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
         }}

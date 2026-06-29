@@ -127,7 +127,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
       const rawPrompt = resolveDrHolo(ending.imagePrompt, ending.drHoloExpression)
       const base = gameData.isHistorical ? await enhanceHistoricalPrompt(rawPrompt) : rawPrompt
       const extraNeg = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
-      const b64 = await generateImage(styledPrompt(base, quest.art_style), 1344, 768, extraNeg)
+      const b64 = await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
       const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}`)
       ending.imageUrl = imageUrl
       const { error: upErr } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
@@ -150,7 +150,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
     const b64 =
       kind === 'item'
         ? await generateImage(styledPrompt(base, quest.art_style), 512, 512, extraNeg)
-        : await generateImage(styledPrompt(base, quest.art_style), 1344, 768, extraNeg)
+        : await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
 
     const publicId = kind === 'item' ? `item_${scene.collectableItem!.id}` : `scene_${scene.id}`
     const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, publicId)
@@ -196,8 +196,8 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           sceneId: scene.id,
           prompt: scene.imagePrompt,
           drHoloExpression: scene.drHoloExpression,
-          width: 1344,
-          height: 768,
+          width: 1280,
+          height: 720,
           publicId: `scene_${scene.id}`,
         })
       }
@@ -225,8 +225,8 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           ending: which,
           prompt: ending.imagePrompt,
           drHoloExpression: ending.drHoloExpression,
-          width: 1344,
-          height: 768,
+          width: 1280,
+          height: 720,
           publicId: `ending_${which}`,
         })
       }
