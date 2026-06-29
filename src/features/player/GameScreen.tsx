@@ -460,7 +460,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             {engine.canCollect && (
               <button
                 className="holo-button text-lg"
-                style={{ padding: '0.8rem 2rem', background: 'linear-gradient(135deg, var(--holo-purple), var(--holo-blue))' }}
+                style={{ padding: '0.8rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
                 onClick={collectAndAdvance}
               >
                 {scene.collectableItem!.icon} אספו את {scene.collectableItem!.name}

@@ -149,13 +149,16 @@ html {
 
 /* ── כפתור עם אפקט glow בהובר ── */
 .holo-button {
-  background: linear-gradient(135deg, var(--holo-blue), var(--holo-purple));
+  /* גרדיאנט מוכהה (~20% פחות bהירות מ-holo-blue/purple) כדי שהטקסט הלבן יעמוד
+     בקונטרסט WCAG AA (≥4.5:1) — הבהיר המקורי נתן ~3.3:1. */
+  background: linear-gradient(135deg, #0062cc, #6633cc);
   color: #fff;
   border: none;
   border-radius: 0.5rem;
   padding: 0.6rem 1.4rem;
   font-family: 'Heebo', sans-serif;
-  font-weight: 500;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); /* קריאוּת על הגרדיאנט */
   cursor: pointer;
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }

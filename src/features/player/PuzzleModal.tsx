@@ -105,7 +105,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             /* האתגר הסתיים עם מפתח לאיסוף — כפתור איסוף ישיר במקום "המשך" (פחות לחיצות) */
             <button
               className="holo-button text-lg"
-              style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, var(--holo-purple), var(--holo-blue))' }}
+              style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
               onClick={onCollect}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
