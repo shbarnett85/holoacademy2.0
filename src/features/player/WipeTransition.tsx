@@ -42,14 +42,12 @@ export default function WipeTransition({ trigger, dir }: { trigger: number; dir:
     >
       <style>{`
         @keyframes holo-wipe-forward {
-          0% { transform: translateX(100%); } 40% { transform: translateX(0); }
-          60% { transform: translateX(0); } 100% { transform: translateX(-100%); }
+          0% { transform: translateX(100%); } 35% { transform: translateX(0); } 100% { transform: translateX(-100%); }
         }
         @keyframes holo-wipe-back {
-          0% { transform: translateX(-100%); } 40% { transform: translateX(0); }
-          60% { transform: translateX(0); } 100% { transform: translateX(100%); }
+          0% { transform: translateX(-100%); } 35% { transform: translateX(0); } 100% { transform: translateX(100%); }
         }
-        @keyframes holo-wipe-fade { 0% { opacity: 0; } 42% { opacity: 1; } 58% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes holo-wipe-fade { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
       `}</style>
       {/* קצה מוביל זוהר — קו סריקה הולוגרפי על שפת הקיר (מושמט ב-reduced-motion) */}
       {!reduce && (

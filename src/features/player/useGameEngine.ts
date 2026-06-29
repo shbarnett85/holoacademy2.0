@@ -246,7 +246,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
         setCurrentSceneId(sceneId)
         setVisitedScenes((v) => (v.includes(sceneId) ? v : [...v, sceneId]))
         track('scene_enter', sceneId, {})
-      }, isPortal ? 350 : 210) /* התוכן מתחלף באמצע האפקט (wipe מהיר יותר) */
+      }, isPortal ? 350 : 165) /* התוכן מתחלף בשיא כיסוי ה-wipe (35%×470ms), ואז הקיר נסוג וחושף את הסצנה החדשה */
     },
     [currentSceneId, gameData.entrySceneId, visitedScenes, track],
   )
