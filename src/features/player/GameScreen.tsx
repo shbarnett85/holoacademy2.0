@@ -120,6 +120,24 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     setPuzzleOpen(true)
   }, [engine])
 
+  /* איסוף מפתח — אם הוא התנאי המספיק להתקדמות (פעולה-קדימה יחידה וברורה): אוסף, ואז
+     ממתין לסיום אנימציית האיסוף (≈1.1ש') ועובר אוטומטית לסצנה הבאה — בלי לחיצה נוספת.
+     • בחירת ניווט יחידה ופתוחה (לא נעולה) → עובר אליה (למשל "חזרו לתחנה המרכזית").
+     • סצנה לינארית (nextSceneId, ללא choices/שער) → advance.
+     • יותר מבחירה אחת → לא מקדם אוטומטית (התלמיד בוחר). */
+  const collectAndAdvance = useCallback(() => {
+    engine.collectCurrentItem()
+    setPuzzleOpen(false)
+    const ch = scene.choices
+    window.setTimeout(() => {
+      if (ch && ch.length === 1 && !ch[0].requiredItemIds?.length) {
+        engine.chooseChoice(ch[0])
+      } else if ((!ch || ch.length === 0) && scene.nextSceneId && !engine.gateLocked) {
+        engine.advance()
+      }
+    }, 1100)
+  }, [engine, scene])
+
   /* שמירת מצב ביניים ל-resume בכל מעבר סצנה — מקומי בלבד (sessionStorage), ללא רשת */
   const crystalsFull = engine.crystalsFull
   const sceneId = scene.id
@@ -387,7 +405,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 }}
                 /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
                    ממשיכה לפעולה הבאה (בחירות/המשך) */
-                onCollect={engine.canCollect ? () => { engine.collectCurrentItem(); setPuzzleOpen(false) } : undefined}
+                onCollect={engine.canCollect ? collectAndAdvance : undefined}
                 collectLabel={scene.collectableItem ? `${scene.collectableItem.icon} אספו את ${scene.collectableItem.name}` : undefined}
               />
             </div>
@@ -435,7 +453,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               <button
                 className="holo-button text-lg"
                 style={{ padding: '0.8rem 2rem', background: 'linear-gradient(135deg, var(--holo-purple), var(--holo-blue))' }}
-                onClick={() => engine.collectCurrentItem()}
+                onClick={collectAndAdvance}
               >
                 {scene.collectableItem!.icon} אספו את {scene.collectableItem!.name}
               </button>
