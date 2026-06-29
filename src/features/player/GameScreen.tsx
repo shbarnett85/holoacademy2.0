@@ -5,6 +5,7 @@ import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import WormholeTransition from './WormholeTransition'
+import FadeTransition from './FadeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
 import CrystalCharge from './CrystalCharge'
@@ -117,9 +118,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [eyeMode, setEyeMode] = useState(false)
   const studentName = sessionStorage.getItem('holo_student_name') ?? 'אורח/ת'
   const preloadedRef = useRef(false)
-  /* תמונת הסצנה הקודמת — נשמרת כשכבה תחתית בזמן wipe, כדי שסצנה B תיחשף *מעליה*
-     ולא מעל רקע כהה ריק. מתעדכן אחרי כל render (ב-effect של sceneId). */
-  const prevImgRef = useRef<string | undefined>(undefined)
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
   const fusionFiredRef = useRef(false)
@@ -180,7 +178,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const sceneId = scene.id
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
-    prevImgRef.current = scene.imageUrl /* לאחר ה-render: שומר את תמונת הסצנה הנוכחית לקראת ה-wipe הבא */
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
@@ -400,27 +397,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           100% { opacity: 1; filter: blur(0); }
         }
         .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
-        /* wipe בין שקופיות — הסצנה החדשה עצמה נחשפת בסריקת clip-path מהקצה (בלי קיר/overlay).
-           forward (RTL) = ימין←שמאל; back = הפוך. */
-        @keyframes scene-wipe-fwd  { from { clip-path: inset(0 0 0 100%); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
-        @keyframes scene-wipe-back { from { clip-path: inset(0 100% 0 0); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
-        .scene-wipe-fwd  { animation: scene-wipe-fwd 0.42s cubic-bezier(.7,0,.3,1); }
-        .scene-wipe-back { animation: scene-wipe-back 0.42s cubic-bezier(.7,0,.3,1); }
-        @media (prefers-reduced-motion: reduce) {
-          .scene-wipe-fwd, .scene-wipe-back { animation: scene-fade 0.35s ease; }
-        }
       `}</style>
-
-      {/* שכבה תחתית: תמונת הסצנה הקודמת — נראית רק דרך האזור שטרם נחשף ב-wipe,
-          כך שסצנה B מתגלה מעל A ולא מעל רקע כהה ריק. */}
-      {engine.transitionType === 'wipe' && prevImgRef.current && (
-        <img src={prevImgRef.current} alt="" aria-hidden style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', zIndex: 0 }} />
-      )}
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
       <div
         key={scene.id}
-        className={`${engine.transitionType === 'wipe' ? (engine.transitionDir === 'back' ? 'scene-wipe-back' : 'scene-wipe-fwd') : 'scene-fade'} flex-1 flex flex-col items-center justify-center p-6 gap-6 relative`}
+        className="scene-fade flex-1 flex flex-col items-center justify-center p-6 gap-6 relative"
         style={{
           zIndex: 1,
           /* התמונה (absolute inset:0) ממלאת את כל ה-viewport; ה-padding התחתון שומר על התוכן
@@ -638,9 +620,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
 
-      {/* חור תולעת במעברי מעבדה↔עולם (כניסה/יציאה). ה-wipe בין שקופיות נעשה על מיכל
-          הסצנה עצמו (clip-path reveal) — ללא overlay/קיר. */}
-      {engine.transitionType === 'wormhole' && <WormholeTransition trigger={engine.transitionKey} />}
+      {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
+      {engine.transitionType === 'wormhole'
+        ? <WormholeTransition trigger={engine.transitionKey} />
+        : <FadeTransition trigger={engine.transitionKey} />}
 
       <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} />
 

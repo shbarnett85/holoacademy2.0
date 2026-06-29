@@ -169,9 +169,9 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const [shakeGate, setShakeGate] = useState(false)
   const [gateGlow, setGateGlow] = useState(false)
   const [transitionKey, setTransitionKey] = useState(0)
-  /* 'wipe' = מעבר קל בין שקופיות בתוך ההדמיה; 'wormhole' = מעבר "גדול" בקצוות
+  /* 'fade' = fade-to-black בין שקופיות בתוך ההדמיה; 'wormhole' = מעבר "גדול" בקצוות
      (כניסה/יציאה מההדמיה וממעבדת ד"ר הולו = סצנת הכניסה). */
-  const [transitionType, setTransitionType] = useState<'wipe' | 'wormhole'>('wormhole')
+  const [transitionType, setTransitionType] = useState<'fade' | 'wormhole'>('wormhole')
   const [transitionDir, setTransitionDir] = useState<'forward' | 'back'>('forward')
   const [justCollected, setJustCollected] = useState<CollectableItem | null>(null)
   const [finished, setFinished] = useState(false)
@@ -242,14 +242,14 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
          כיוון ה-wipe מודע ל-RTL: קדימה (סצנה חדשה) = ימין←שמאל; חזרה (סצנה שכבר ביקרנו,
          כמו חזרה ל-Hub) = הפוך. */
       const isPortal = currentSceneId === gameData.entrySceneId || sceneId === gameData.entrySceneId
-      setTransitionType(isPortal ? 'wormhole' : 'wipe')
+      setTransitionType(isPortal ? 'wormhole' : 'fade')
       setTransitionDir(visitedScenes.includes(sceneId) ? 'back' : 'forward')
       setTransitionKey((k) => k + 1)
       setTimeout(() => {
         setCurrentSceneId(sceneId)
         setVisitedScenes((v) => (v.includes(sceneId) ? v : [...v, sceneId]))
         track('scene_enter', sceneId, {})
-      }, isPortal ? 350 : 30) /* wipe: מחליפים כמעט מיד — הסצנה החדשה נחשפת בעצמה בסריקת clip-path (אין קיר/overlay) */
+      }, isPortal ? 350 : 260) /* fade: מחליפים את התוכן בשיא ההחשכה (≈שחור מלא), ואז fade-in */
     },
     [currentSceneId, gameData.entrySceneId, visitedScenes, track],
   )
@@ -569,7 +569,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     setMessage(null)
     setUnlockBubble(null)
     setFinished(false)
-    setTransitionType('wipe')
+    setTransitionType('fade')
     junctionStack.current = []
     lastHubRef.current = null
     pendingUnlockRef.current = null
