@@ -385,6 +385,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   const hasChoices = !!scene.choices?.length
                   if (!hasItem && !hasChoices && !engine.gateLocked) engine.advance()
                 }}
+                /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
+                   ממשיכה לפעולה הבאה (בחירות/המשך) */
+                onCollect={engine.canCollect ? () => { engine.collectCurrentItem(); setPuzzleOpen(false) } : undefined}
+                collectLabel={scene.collectableItem ? `${scene.collectableItem.icon} אספו את ${scene.collectableItem.name}` : undefined}
               />
             </div>
           ) : (

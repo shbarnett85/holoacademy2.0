@@ -19,6 +19,9 @@ interface Props {
   onClose: () => void
   /* "המשך ←" אחרי ההסבר — הדרך היחידה להתקדם */
   onContinue: () => void
+  /* אם האתגר מסתיים באיסוף מפתח — מחליפים את "המשך" בכפתור איסוף ישיר (פישוט התהליך) */
+  onCollect?: () => void
+  collectLabel?: string
 }
 
 interface Result { correct: boolean; score: number }
@@ -41,7 +44,7 @@ function maxWidthFor(type?: string): string {
 }
 
 /* מודאל אתגר הולוגרפי — אתגר אינטראקטיבי → פאנל תוצאה/הסבר → המשך */
-export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue }: Props) {
+export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel }: Props) {
   const [result, setResult] = useState<Result | null>(null)
   /* הגנה מלחיצה כפולה — ה-state אסינכרוני, ה-ref מיידי */
   const lockedRef = useRef(false)
@@ -98,9 +101,20 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
         <div className="font-bold mb-2" style={{ color: good ? '#5fffb0' : '#ffce5e' }}>{header}</div>
         <p className="leading-relaxed" style={{ color: 'var(--holo-text)' }}>{body}</p>
         <div className="text-center mt-4">
-          <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
-            המשך ←
-          </button>
+          {onCollect ? (
+            /* האתגר הסתיים עם מפתח לאיסוף — כפתור איסוף ישיר במקום "המשך" (פחות לחיצות) */
+            <button
+              className="holo-button text-lg"
+              style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, var(--holo-purple), var(--holo-blue))' }}
+              onClick={onCollect}
+            >
+              {collectLabel ?? 'אספו את המפתח 🔑'}
+            </button>
+          ) : (
+            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
+              המשך ←
+            </button>
+          )}
         </div>
       </div>
     )
