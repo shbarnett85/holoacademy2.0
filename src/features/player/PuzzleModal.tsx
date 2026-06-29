@@ -178,7 +178,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
-          <MoralDilemmaChallenge puzzle={puzzle} onResolve={() => onSolve(true, 1)} onContinue={onContinue} />
+          <MoralDilemmaChallenge puzzle={puzzle} onResolve={() => onSolve(true, 1)} onContinue={onCollect ?? onContinue} />
         ) : result === null ? (
           <>
             {renderChallenge()}

@@ -135,16 +135,25 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      • בחירת ניווט יחידה ופתוחה (לא נעולה) → עובר אליה (למשל "חזרו לתחנה המרכזית").
      • סצנה לינארית (nextSceneId, ללא choices/שער) → advance.
      • יותר מבחירה אחת → לא מקדם אוטומטית (התלמיד בוחר). */
+  const advancingRef = useRef(false)
   const collectAndAdvance = useCallback(() => {
+    if (advancingRef.current) return /* מניעת לחיצה כפולה → מעבר כפול */
     engine.collectCurrentItem()
-    setPuzzleOpen(false)
     const ch = scene.choices
+    const singleOpen = !!ch && ch.length === 1 && !ch[0].requiredItemIds?.length
+    const linearNext = (!ch || ch.length === 0) && !!scene.nextSceneId && !engine.gateLocked
+    if (!singleOpen && !linearNext) {
+      /* אין פעולה-קדימה יחידה — סוגרים את האתגר, הסצנה תציג את הבחירות */
+      setPuzzleOpen(false)
+      return
+    }
+    /* מעבר אוטומטי: **משאירים את פאנל האתגר גלוי** במהלך אנימציית האיסוף, כדי שטקסט הסצנה
+       לא ייטען-מחדש ויתחיל להיכתב שוב לפני המעבר. סוגרים+מעבירים רק כשהמעבר מתחיל. */
+    advancingRef.current = true
     window.setTimeout(() => {
-      if (ch && ch.length === 1 && !ch[0].requiredItemIds?.length) {
-        engine.chooseChoice(ch[0])
-      } else if ((!ch || ch.length === 0) && scene.nextSceneId && !engine.gateLocked) {
-        engine.advance()
-      }
+      setPuzzleOpen(false)
+      if (singleOpen) engine.chooseChoice(ch![0])
+      else engine.advance()
     }, 1100)
   }, [engine, scene])
 
@@ -154,6 +163,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
     prevImgRef.current = scene.imageUrl /* לאחר ה-render: שומר את תמונת הסצנה הנוכחית לקראת ה-wipe הבא */
+    advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
