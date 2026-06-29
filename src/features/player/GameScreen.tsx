@@ -18,21 +18,22 @@ const prefersReducedMotion = () =>
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
    (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
    מפעילה onAdvance (אם סופק — כשהפעולה היחידה היא "המשך"). reduced-motion → טקסט מיידי. */
-function Typewriter({ text, scale, onAdvance }: { text: string; scale: number; onAdvance?: () => void }) {
-  const reduce = prefersReducedMotion()
-  const [count, setCount] = useState(() => (reduce ? text.length : 0))
+function Typewriter({ text, scale, onAdvance, instant }: { text: string; scale: number; onAdvance?: () => void; instant?: boolean }) {
+  /* instant=true (ביקור חוזר בשקופית, או reduced-motion) → הצגת הטקסט במלואו מיד, בלי הקלדה */
+  const skipAnim = prefersReducedMotion() || !!instant
+  const [count, setCount] = useState(() => (skipAnim ? text.length : 0))
   const done = count >= text.length
 
   useEffect(() => {
-    setCount(reduce ? text.length : 0)
-  }, [text, reduce])
+    setCount(skipAnim ? text.length : 0)
+  }, [text, skipAnim])
 
   useEffect(() => {
-    if (done || reduce) return
+    if (done || skipAnim) return
     const delay = typingDelayMs(scale)
     const timer = setInterval(() => setCount((c) => Math.min(c + 1, text.length)), delay)
     return () => clearInterval(timer)
-  }, [text, done, reduce, scale])
+  }, [text, done, skipAnim, scale])
 
   function handleClick() {
     if (!done) setCount(text.length) /* skip — השלמה מיידית */
@@ -416,6 +417,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               <Typewriter
                 text={scene.narrative}
                 scale={gameData.readingScale ?? 6}
+                /* ביקור חוזר בשקופית (כבר נראתה בהדמיה זו, למשל חזרה לתחנה המרכזית) →
+                   הצגת הטקסט במלואו מיד, בלי אנימציית הקלדה. transitionDir==='back' מסמן
+                   ניווט לסצנה שכבר ב-visitedScenes. */
+                instant={engine.transitionDir === 'back'}
                 /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
                    בדיוק של כפתור המשך/סיום, כך שאין שינוי בלוגיקת המשחק (רק טריגר חלופי). */
                 onAdvance={
