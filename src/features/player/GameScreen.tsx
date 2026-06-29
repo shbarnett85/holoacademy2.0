@@ -17,8 +17,8 @@ const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 /* רצף הופעה מדורג (visual-novel): פאנל fade-in → הקלדה → כפתורים. משכי ה-fade נגישים כאן. */
-const REVEAL_PANEL_MS = 280  /* כמה זמן fade-in של הפאנל לפני שההקלדה מתחילה */
-const REVEAL_FADE_MS = 250   /* משך ה-fade של הפאנל ושל הכפתורים */
+const REVEAL_PANEL_MS = 480  /* משך אפקט ה-materialize של הפאנל לפני שההקלדה מתחילה */
+const REVEAL_FADE_MS = 260   /* משך ה-fade של הכפתורים */
 
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
    (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
@@ -51,14 +51,13 @@ function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: {
     else onAdvance?.() /* לחיצה שנייה — המשך לסצנה הבאה (רק כשזו הפעולה הזמינה) */
   }
 
+  /* הקופסה בגודלה הסופי מההתחלה (כמו דף נייר שמתמלא): טקסט-רפאים מלא וקבוע שומר את
+     הגובה/הרוחב, והטקסט המוקלד מוצג מעליו — כך הקופסה לא "גדלה" תוך כדי ההקלדה. */
   return (
-    <p
-      className="text-lg leading-relaxed cursor-pointer"
-      style={{ color: 'var(--holo-text)', minHeight: '3rem', whiteSpace: 'pre-line' }}
-      onClick={handleClick}
-    >
-      {text.slice(0, count)}
-    </p>
+    <div className="relative cursor-pointer" onClick={handleClick}>
+      <p className="text-lg leading-relaxed" aria-hidden style={{ visibility: 'hidden', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
+      <p className="text-lg leading-relaxed" style={{ position: 'absolute', inset: 0, color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>{text.slice(0, count)}</p>
+    </div>
   )
 }
 
@@ -384,6 +383,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         .gate-glow { animation: gate-open-glow 0.8s ease; }
         @keyframes scene-fade { from { opacity: 0; } to { opacity: 1; } }
         .scene-fade { animation: scene-fade 0.5s ease; }
+        /* materialize — הופעת פאנל הטקסט: מטשטש→חד + הבזק זוהר הולוגרפי (opacity בלבד,
+           ללא scale/translate). הקופסה כבר בגודלה הסופי, ה"דף" מתגבש ואז מתמלא בהקלדה. */
+        @keyframes holo-materialize {
+          0%   { opacity: 0; filter: blur(14px); box-shadow: 0 0 0 rgba(47,243,255,0); }
+          55%  { opacity: 1; filter: blur(0); }
+          72%  { box-shadow: 0 0 46px rgba(47,243,255,.6), inset 0 0 26px rgba(47,243,255,.18); }
+          100% { opacity: 1; filter: blur(0); }
+        }
+        .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
         /* wipe בין שקופיות — הסצנה החדשה עצמה נחשפת בסריקת clip-path מהקצה (בלי קיר/overlay).
            forward (RTL) = ימין←שמאל; back = הפוך. */
         @keyframes scene-wipe-fwd  { from { clip-path: inset(0 0 0 100%); opacity: .4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
@@ -472,8 +480,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט
              (במקום מלבן נפרד), עם אווטאר קטן בתוך אותו פאנל. */}
           {(scene.narrative || scene.drHoloDialog) && (
-            /* פאנל fade-in (opacity בלבד, ללא scale/translate) — שלב 'panel' ברצף */
-            <div className="holo-panel mt-6 text-start" style={{ animation: `scene-fade ${REVEAL_FADE_MS}ms ease` }}>
+            /* פאנל materialize — הופעה מרשימה (blur→חד + הבזק זוהר), opacity בלבד ללא scale/translate */
+            <div className="holo-panel mt-6 text-start holo-materialize" style={{ ['--mat-ms' as string]: `${REVEAL_PANEL_MS}ms` }}>
               {scene.drHoloDialog && (
                 <div className="flex items-center gap-2 mb-2">
                   <DrHoloEmblem size={26} />
