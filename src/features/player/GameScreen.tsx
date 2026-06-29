@@ -16,25 +16,35 @@ import { homePathForRole } from '../../shared/lib/homePath'
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
+/* רצף הופעה מדורג (visual-novel): פאנל fade-in → הקלדה → כפתורים. משכי ה-fade נגישים כאן. */
+const REVEAL_PANEL_MS = 280  /* כמה זמן fade-in של הפאנל לפני שההקלדה מתחילה */
+const REVEAL_FADE_MS = 250   /* משך ה-fade של הפאנל ושל הכפתורים */
+
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
    (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
    מפעילה onAdvance (אם סופק — כשהפעולה היחידה היא "המשך"). reduced-motion → טקסט מיידי. */
-function Typewriter({ text, scale, onAdvance, instant }: { text: string; scale: number; onAdvance?: () => void; instant?: boolean }) {
-  /* instant=true (ביקור חוזר בשקופית, או reduced-motion) → הצגת הטקסט במלואו מיד, בלי הקלדה */
+function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: { text: string; scale: number; onAdvance?: () => void; instant?: boolean; start?: boolean; onDone?: () => void }) {
+  /* instant=true (ביקור חוזר בשקופית, reduced-motion, או דילוג) → הצגת הטקסט במלואו מיד.
+     start=false → ההקלדה ממתינה (בזמן fade-in של הפאנל ברצף המדורג). onDone → סיום הקלדה. */
   const skipAnim = prefersReducedMotion() || !!instant
   const [count, setCount] = useState(() => (skipAnim ? text.length : 0))
   const done = count >= text.length
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
 
   useEffect(() => {
     setCount(skipAnim ? text.length : 0)
   }, [text, skipAnim])
 
   useEffect(() => {
-    if (done || skipAnim) return
+    if (done || skipAnim || !start) return
     const delay = typingDelayMs(scale)
     const timer = setInterval(() => setCount((c) => Math.min(c + 1, text.length)), delay)
     return () => clearInterval(timer)
-  }, [text, done, skipAnim, scale])
+  }, [text, done, skipAnim, scale, start])
+
+  /* דיווח סיום ההקלדה (גם כשהטקסט מיידי/ריק) — מניע את שלב הכפתורים ברצף */
+  useEffect(() => { if (done) onDoneRef.current?.() }, [done])
 
   function handleClick() {
     if (!done) setCount(text.length) /* skip — השלמה מיידית */
@@ -95,6 +105,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
   const [puzzleOpen, setPuzzleOpen] = useState(false)
+  /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
+     ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
+  const [reveal, setReveal] = useState<'panel' | 'typing' | 'buttons'>(
+    () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'panel'),
+  )
+  const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   const [eyeMode, setEyeMode] = useState(false)
   const studentName = sessionStorage.getItem('holo_student_name') ?? 'אורח/ת'
@@ -166,6 +182,22 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
+
+  /* רצף ההופעה המדורג בכל כניסה לסצנה: panel → (אחרי REVEAL_PANEL_MS) → typing.
+     ההקלדה מדווחת onDone → buttons. ביקור חוזר/reduced-motion → מיד buttons.
+     ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
+  useEffect(() => {
+    setSkipped(false)
+    if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
+    setReveal('panel')
+    const hasText = !!(scene.narrative || scene.drHoloDialog)
+    const t = window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), REVEAL_PANEL_MS)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sceneId])
+
+  /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
+  const skipReveal = useCallback(() => { setSkipped(true); setReveal('buttons') }, [])
 
   /* מילוי הקריסטל בסיום — ramp רך 0→1 (או קפיצה ב-reduced-motion) */
   useEffect(() => {
@@ -440,7 +472,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט
              (במקום מלבן נפרד), עם אווטאר קטן בתוך אותו פאנל. */}
           {(scene.narrative || scene.drHoloDialog) && (
-            <div className="holo-panel mt-6 text-start">
+            /* פאנל fade-in (opacity בלבד, ללא scale/translate) — שלב 'panel' ברצף */
+            <div className="holo-panel mt-6 text-start" style={{ animation: `scene-fade ${REVEAL_FADE_MS}ms ease` }}>
               {scene.drHoloDialog && (
                 <div className="flex items-center gap-2 mb-2">
                   <DrHoloEmblem size={26} />
@@ -453,8 +486,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   scene.drHoloDialog ? `ד״ר הולו אומר: "${scene.drHoloDialog}"` : null,
                 ].filter(Boolean).join('\n\n')}
                 scale={gameData.readingScale ?? 6}
-                /* ביקור חוזר בשקופית (כבר נראתה בהדמיה זו) → הצגת הטקסט במלואו מיד, בלי הקלדה */
-                instant={engine.transitionDir === 'back'}
+                /* ההקלדה מתחילה רק אחרי שהפאנל נחשף (שלב 'typing'); בסיומה → שלב 'buttons' */
+                start={reveal !== 'panel'}
+                onDone={() => setReveal('buttons')}
+                /* ביקור חוזר/דילוג → הטקסט במלואו מיד, בלי הקלדה */
+                instant={engine.transitionDir === 'back' || skipped}
                 /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
                    בדיוק של כפתור המשך/סיום, כך שאין שינוי בלוגיקת המשחק (רק טריגר חלופי). */
                 onAdvance={
@@ -466,8 +502,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </div>
           )}
 
-          {/* פעולות */}
-          <div className="flex flex-col items-center gap-3 mt-8">
+          {/* פעולות — fade-in רק אחרי שההקלדה הסתיימה (שלב 'buttons') */}
+          <div
+            className="flex flex-col items-center gap-3 mt-8"
+            style={{
+              opacity: reveal === 'buttons' ? 1 : 0,
+              pointerEvents: reveal === 'buttons' ? 'auto' : 'none',
+              transition: `opacity ${REVEAL_FADE_MS}ms ease`,
+            }}
+          >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
                 {scene.puzzle.type === 'finalQuiz' ? '📝 התחילו את מבחן הסיכום' : '🧩 פתרו את האתגר'}
@@ -541,6 +584,16 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           </>
           )}
         </div>
+
+        {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons'), כך שאינה בולעת קליקים
+            על הכפתורים אחרי שהופיעו. לחיצה/טאץ' מקפיצים לסוף הרצף. */}
+        {reveal !== 'buttons' && (
+          <div
+            aria-hidden
+            onPointerDown={skipReveal}
+            style={{ position: 'absolute', inset: 0, zIndex: 20, cursor: 'pointer' }}
+          />
+        )}
       </div>
 
       {/* בועת פתיחת שער — unlockText, לחיצה מדלגת */}
