@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomHUD from './BottomHUD'
+import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import WormholeTransition from './WormholeTransition'
@@ -425,6 +426,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           /* התמונה (absolute inset:0) ממלאת את כל ה-viewport; ה-padding התחתון שומר על התוכן
              מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
           paddingBottom: '5.5rem',
+          paddingTop: '4rem', /* מרווח מתחת לפס העליון (TopHUD) כדי שהתוכן לא ייחתך */
           background:
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
         }}
@@ -460,8 +462,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             transition: 'opacity 0.45s ease',
           }}
         >
-          <h1 className="holo-text-glow text-3xl font-black" style={{ textShadow: '0 2px 14px rgba(0,0,0,0.85), 0 0 22px rgba(0,246,255,0.5)' }}>{scene.title}</h1>
-
+          {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה */}
           {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
           {puzzleOpen && scene.puzzle ? (
             <div className="mt-6">
@@ -641,6 +642,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           הסצנה עצמו (clip-path reveal) — ללא overlay/קיר. */}
       {engine.transitionType === 'wormhole' && <WormholeTransition trigger={engine.transitionKey} />}
 
+      <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} />
+
       <BottomHUD
         crystalProgress={engine.crystalProgress}
         shardEvent={engine.shardEvent}
@@ -648,7 +651,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         justCollected={engine.justCollected}
         studentName={studentName}
         onUseItem={engine.useItem}
-        onExit={handleExit}
         hidden={eyeMode}
       />
     </div>

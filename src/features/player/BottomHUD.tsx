@@ -11,7 +11,6 @@ interface Props {
   justCollected: CollectableItem | null
   studentName: string
   onUseItem: (itemId: string) => void
-  onExit: () => void
   /* מצב עין — הפס מחליק החוצה מתחתית המסך */
   hidden?: boolean
 }
@@ -87,7 +86,7 @@ function CrystalBar({ progress, shardEvent }: { progress: number; shardEvent: nu
 }
 
 /* HUD תחתון — קריסטלים, חפצים, שם תלמיד */
-export default function BottomHUD({ crystalProgress, shardEvent, inventory, justCollected, studentName, onUseItem, onExit, hidden = false }: Props) {
+export default function BottomHUD({ crystalProgress, shardEvent, inventory, justCollected, studentName, onUseItem, hidden = false }: Props) {
   return (
     <>
       <style>{`
@@ -167,18 +166,11 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
           })}
         </div>
 
-        {/* שמאל: שם + יציאה */}
+        {/* שמאל: שם התלמיד (כפתור היציאה עבר לפס העליון TopHUD) */}
         <div className="flex items-center gap-3">
           <span className="text-sm" style={{ color: 'var(--holo-text)', opacity: 0.7 }}>
             🧑‍🚀 {studentName}
           </span>
-          <button
-            onClick={onExit}
-            className="text-sm cursor-pointer rounded-md px-2 py-1"
-            style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)' }}
-          >
-            יציאה
-          </button>
         </div>
       </div>
     </>
