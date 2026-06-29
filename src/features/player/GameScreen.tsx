@@ -116,6 +116,14 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const sceneIdx = gameData.scenes.findIndex((s) => s.id === scene.id)
   const isFinalScene = !scene.nextSceneId && sceneIdx === gameData.scenes.length - 1
 
+  /* הגדלת כל טקסט-המשחק ב-80% — מוסיף קלאס ל-<html> שמגדיל את font-size של ה-root
+     (כל מידות המשחק מבוססות rem וגדלות פרופורציונלית). מוסר ביציאה כדי שלא ישפיע על
+     שאר האפליקציה (מורה/תלמיד). */
+  useEffect(() => {
+    document.documentElement.classList.add('holo-playing')
+    return () => document.documentElement.classList.remove('holo-playing')
+  }, [])
+
   /* פתיחת אתגר — מתעדת מקומית תחילת ניסיון (puzzle_attempt) ואז פותחת את המודאל */
   const openPuzzle = useCallback(() => {
     engine.trackPuzzleAttempt()
