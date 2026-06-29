@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import BottomHUD from './BottomHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
-import SceneTransition from './SceneTransition'
+import WipeTransition from './WipeTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
@@ -489,11 +489,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
 
-      {/* חור תולעת רק במעברי מעבדה↔עולם; השאר point cloud רגיל */}
+      {/* חור תולעת במעברי מעבדה↔עולם (כניסה/יציאה); wipe קל בין שקופיות */}
       {engine.transitionType === 'wormhole' ? (
         <WormholeTransition trigger={engine.transitionKey} />
       ) : (
-        <SceneTransition trigger={engine.transitionKey} />
+        <WipeTransition trigger={engine.transitionKey} dir={engine.transitionDir} />
       )}
 
       <BottomHUD

@@ -17,8 +17,16 @@ export default function WormholeTransition({ trigger }: { trigger: number }) {
     const cx = w / 2
     const cy = h / 2
 
-    const COUNT = 500
-    const DURATION = 1100
+    /* prefers-reduced-motion → פורטל מרוכך: פחות חלקיקים, קצר יותר */
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    const COUNT = reduce ? 130 : 500
+    const DURATION = reduce ? 600 : 1100
+
+    /* skip — לחיצה/מקש משלים את המעבר מיד (לא חוסם) */
+    let skipped = false
+    const skip = () => { skipped = true }
+    window.addEventListener('pointerdown', skip)
+    window.addEventListener('keydown', skip)
 
     interface Particle {
       angle: number      /* זווית סביב המרכז */
@@ -49,7 +57,7 @@ export default function WormholeTransition({ trigger }: { trigger: number }) {
 
     function frame(now: number) {
       const t = (now - start) / DURATION /* 0..1 */
-      if (t >= 1) {
+      if (t >= 1 || skipped) {
         ctx!.clearRect(0, 0, w, h)
         return
       }
@@ -100,6 +108,8 @@ export default function WormholeTransition({ trigger }: { trigger: number }) {
     raf = requestAnimationFrame(frame)
     return () => {
       cancelAnimationFrame(raf)
+      window.removeEventListener('pointerdown', skip)
+      window.removeEventListener('keydown', skip)
       ctx.clearRect(0, 0, w, h)
     }
   }, [trigger])

@@ -169,7 +169,10 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const [shakeGate, setShakeGate] = useState(false)
   const [gateGlow, setGateGlow] = useState(false)
   const [transitionKey, setTransitionKey] = useState(0)
-  const [transitionType, setTransitionType] = useState<'normal' | 'wormhole'>('normal')
+  /* 'wipe' = מעבר קל בין שקופיות בתוך ההדמיה; 'wormhole' = מעבר "גדול" בקצוות
+     (כניסה/יציאה מההדמיה וממעבדת ד"ר הולו = סצנת הכניסה). */
+  const [transitionType, setTransitionType] = useState<'wipe' | 'wormhole'>('wipe')
+  const [transitionDir, setTransitionDir] = useState<'forward' | 'back'>('forward')
   const [justCollected, setJustCollected] = useState<CollectableItem | null>(null)
   const [finished, setFinished] = useState(false)
   /* בועת פתיחת שער — unlockText מוצג ~2 שניות (או דילוג בלחיצה) ואז מעבר אוטומטי */
@@ -232,15 +235,20 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     (sceneId: string) => {
       junctionStack.current.push(currentSceneId)
       track('scene_exit', currentSceneId, {})
-      setTransitionType(currentSceneId === gameData.entrySceneId ? 'wormhole' : 'normal')
+      /* כניסה/יציאה ממעבדת ד"ר הולו (סצנת הכניסה) = פורטל; שקופית→שקופית = wipe קל.
+         כיוון ה-wipe מודע ל-RTL: קדימה (סצנה חדשה) = ימין←שמאל; חזרה (סצנה שכבר ביקרנו,
+         כמו חזרה ל-Hub) = הפוך. */
+      const isPortal = currentSceneId === gameData.entrySceneId || sceneId === gameData.entrySceneId
+      setTransitionType(isPortal ? 'wormhole' : 'wipe')
+      setTransitionDir(visitedScenes.includes(sceneId) ? 'back' : 'forward')
       setTransitionKey((k) => k + 1)
       setTimeout(() => {
         setCurrentSceneId(sceneId)
         setVisitedScenes((v) => (v.includes(sceneId) ? v : [...v, sceneId]))
         track('scene_enter', sceneId, {})
-      }, 350) /* התוכן מתחלף באמצע האפקט */
+      }, isPortal ? 350 : 210) /* התוכן מתחלף באמצע האפקט (wipe מהיר יותר) */
     },
-    [currentSceneId, gameData.entrySceneId, track],
+    [currentSceneId, gameData.entrySceneId, visitedScenes, track],
   )
 
   /* סיום ההדמיה — חזרה למעבדה דרך חור תולעת */
@@ -558,7 +566,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     setMessage(null)
     setUnlockBubble(null)
     setFinished(false)
-    setTransitionType('normal')
+    setTransitionType('wipe')
     junctionStack.current = []
     lastHubRef.current = null
     pendingUnlockRef.current = null
@@ -586,6 +594,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     gateGlow,
     transitionKey,
     transitionType,
+    transitionDir,
     justCollected,
     finished,
     gateLocked,
