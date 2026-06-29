@@ -61,9 +61,9 @@ function Chip({ children }: { children: React.ReactNode }) {
 const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#bfe9ff', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(120,200,255,.3)', fontFamily: 'var(--font-display)' }
 
 /* ── כרטיס הדמיה שלי ── */
-function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare }: {
+function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare, onDelete }: {
   q: QuestSummary; busy: boolean
-  onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void
+  onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void; onDelete: () => void
 }) {
   return (
     <div onClick={onOpen}
@@ -91,6 +91,11 @@ function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare }: {
             </button>
           )}
           <div style={{ flex: 1 }} />
+          {/* מחיקה — כפתור משני אדום (עם אישור בהורה) */}
+          <button disabled={busy} title="מחק הדמיה" onClick={(e) => { e.stopPropagation(); onDelete() }}
+            style={{ ...cardBtn, color: '#ff9bb3', borderColor: 'rgba(255,120,150,.35)', opacity: busy ? 0.5 : 1 }}>
+            מחק 🗑️
+          </button>
           {/* שתף — תמיד גלוי, פותח מודאל */}
           <button disabled={busy} onClick={(e) => { e.stopPropagation(); onShare() }}
             style={{ ...cardBtn, color: '#c8b8ff', borderColor: 'rgba(155,140,255,.45)', opacity: busy ? 0.5 : 1 }}>
@@ -557,6 +562,12 @@ export default function Library() {
     try { await apiJson(`/api/quests/${q.id}/unshare`, { method: 'POST' }); flash('ההדמיה הוסרה מהספרייה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusyId(null) }
   }
+  async function doDelete(q: QuestSummary) {
+    if (!window.confirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`)) return
+    setBusyId(q.id); setError(null)
+    try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
+    catch (e) { setError(e instanceof Error ? e.message : 'שגיאה במחיקה') } finally { setBusyId(null) }
+  }
   async function doCopy(q: PublicQuest) {
     setBusyId(q.id); setError(null)
     try {
@@ -653,7 +664,8 @@ export default function Library() {
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}
                     onPlay={() => navigate(`/play/${q.id}`)}
                     onShare={() => setShareFor(q)}
-                    onUnshare={() => doUnshare(q)} />
+                    onUnshare={() => doUnshare(q)}
+                    onDelete={() => doDelete(q)} />
                 ))}
               </div>
             </div>
