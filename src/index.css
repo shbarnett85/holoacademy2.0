@@ -23,6 +23,11 @@
   --font-mono: 'Space Mono', monospace;
 }
 
+/* ── DigitalEntrance: pulse עדין ל-scanline/glow (אינסופי) ── */
+@keyframes pulse-mild { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
+.animate-pulse-mild { animation: pulse-mild 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .animate-pulse-mild { animation: none; } }
+
 /* ── אנימציות משותפות למסכי הפתיחה/כניסה ── */
 @keyframes holo-shake {
   0%, 100% { transform: translateX(0); }

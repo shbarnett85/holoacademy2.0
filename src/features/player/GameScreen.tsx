@@ -12,6 +12,7 @@ import CrystalCharge from './CrystalCharge'
 import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
+import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { ErrorFlashOverlay } from './challenges/errorFlash'
 import { homePathForRole } from '../../shared/lib/homePath'
 
@@ -21,8 +22,7 @@ const prefersReducedMotion = () =>
 /* רצף הופעה מדורג (visual-novel): הסצנה עולה במלואה → המתנה → materialize של קופסת
    הטקסט → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
 const SCENE_HOLD_MS = 1000   /* כמה זמן רואים את הסצנה/תמונת הרקע לבדה לפני שהקופסה מופיעה */
-const PANEL_MAT_MS = 375     /* משך ה-materialize של קופסת הטקסט (ההקלדה מתחילה אחריו) */
-const BUTTONS_MAT_MS = 1300  /* משך ה-materialize של הכפתורים */
+const PANEL_MAT_MS = 800     /* משך הכניסה הדיגיטלית של קופסת הטקסט (ההקלדה מתחילה אחריו) — תואם ל-DigitalEntrance (~0.8s) */
 
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
    (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
@@ -482,10 +482,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט.
              מופיע רק אחרי שהסצנה "נחה" (reveal !== 'scene'), ב-materialize מרשים. */}
           {reveal !== 'scene' && (scene.narrative || scene.drHoloDialog) && (
-            <div
-              className={`holo-panel mt-6 text-start ${stageInstant ? '' : 'holo-materialize'}`}
-              style={{ ['--mat-ms' as string]: `${PANEL_MAT_MS}ms` }}
-            >
+            <DigitalEntrance instant={stageInstant} className="mt-6">
+            <div className="holo-panel text-start">
               {scene.drHoloDialog && (
                 <div className="flex items-center gap-2 mb-2">
                   <DrHoloEmblem size={26} />
@@ -512,17 +510,17 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 }
               />
             </div>
+            </DigitalEntrance>
           )}
 
           {/* פעולות — מרונדרות תמיד (שומרות את מקומן מראש כך שקופסת הטקסט לא זזה כשהן מופיעות),
              אך גלויות רק בשלב 'buttons' — אז fade-in באותו materialize הולוגרפי. */}
-          <div
-            className={`flex flex-col items-center gap-3 mt-8 ${reveal === 'buttons' && !stageInstant ? 'holo-materialize' : ''}`}
-            style={{
-              ['--mat-ms' as string]: `${BUTTONS_MAT_MS}ms`,
-              opacity: reveal === 'buttons' ? 1 : 0,
-              pointerEvents: reveal === 'buttons' ? 'auto' : 'none',
-            }}
+          <div style={{ visibility: reveal === 'buttons' ? 'visible' : 'hidden' }}>
+          <DigitalEntrance
+            key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
+            instant={stageInstant || reveal !== 'buttons'}
+            delay={0.05}
+            className="flex flex-col items-center gap-3 mt-8"
           >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
@@ -583,6 +581,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 </button>
               )
             )}
+          </DigitalEntrance>
           </div>
 
           {/* הודעות מערכת */}

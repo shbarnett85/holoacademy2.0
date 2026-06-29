@@ -10,6 +10,7 @@ import HangmanChallenge from './challenges/HangmanChallenge'
 import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
 import { triggerErrorFlash } from './challenges/errorFlash'
+import DigitalEntrance from '../../shared/components/DigitalEntrance'
 
 interface Props {
   puzzle: Puzzle
@@ -167,7 +168,9 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
   return (
     /* פאנל inline — מוצג *במקום* הנרטיב בתוך זרימת הסצנה (לא מודאל צף, אין שכבת כיסוי).
-       הקריאוּת מובטחת ע"י רקע ה-holo-panel עצמו. */
+       הקריאוּת מובטחת ע"י רקע ה-holo-panel עצמו. נכנס דרך DigitalEntrance (glitch+scale+blur)
+       כמכל-תיבה אחד — מכסה את כל סוגי האתגרים, בלי לעטוף קלפים/טיילים פנימיים. */
+    <DigitalEntrance className="w-full mx-auto">
     <div
       className="holo-panel w-full text-center mx-auto"
       style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}
@@ -197,5 +200,6 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
           renderResult(result)
         )}
     </div>
+    </DigitalEntrance>
   )
 }
