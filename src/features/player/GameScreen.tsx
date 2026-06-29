@@ -11,6 +11,7 @@ import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, 
 import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import { ErrorFlashOverlay } from './challenges/errorFlash'
+import { homePathForRole } from '../../shared/lib/homePath'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -185,7 +186,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       const totalScore = engine.challengeResults.filter((r) => r.correct).length
       onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
     }
-    navigate(backPath)
+    /* יעד מחושב טרי בזמן היציאה (לא ב-mount) — משקף את session הצוות החי: מורה/מנהל →
+       התפריט הראשי שלהם (/creator), super_admin → /admin, תלמיד → /student. backPath הוא
+       ברירת-מחדל אם אין session. */
+    navigate(homePathForRole() || backPath)
   }
 
   /* היתוך יהלומים — כשהקריסטל השלישי מתמלא לגמרי (מסה קריטית), פעם אחת */
