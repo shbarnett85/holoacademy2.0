@@ -171,7 +171,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const [transitionKey, setTransitionKey] = useState(0)
   /* 'wipe' = מעבר קל בין שקופיות בתוך ההדמיה; 'wormhole' = מעבר "גדול" בקצוות
      (כניסה/יציאה מההדמיה וממעבדת ד"ר הולו = סצנת הכניסה). */
-  const [transitionType, setTransitionType] = useState<'wipe' | 'wormhole'>('wipe')
+  const [transitionType, setTransitionType] = useState<'wipe' | 'wormhole'>('wormhole')
   const [transitionDir, setTransitionDir] = useState<'forward' | 'back'>('forward')
   const [justCollected, setJustCollected] = useState<CollectableItem | null>(null)
   const [finished, setFinished] = useState(false)
@@ -206,12 +206,15 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   /* האם המעבר הבא חסום בשער נעול שטרם נפתח */
   const gateLocked = !!nextScene?.requiresItemId && !unlockedGates.has(nextScene.id)
 
-  /* scene_enter לסצנה הראשונה (כניסה / resume) — פעם אחת */
+  /* scene_enter לסצנה הראשונה (כניסה / resume) — פעם אחת. גם מנגן פורטל-כניסה
+     (חור תולעת) — כניסה להדמיה היא מעבר "גדול", כמו היציאה (סיום). */
   const enteredOnceRef = useRef(false)
   useEffect(() => {
     if (enteredOnceRef.current) return
     enteredOnceRef.current = true
     track('scene_enter', currentSceneId, {})
+    setTransitionType('wormhole')
+    setTransitionKey((k) => k + 1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
