@@ -216,6 +216,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      הראשונה (סצנה ראשונה ללא פורטל) מריץ את הרצף מיד. */
   const [revealTick, setRevealTick] = useState(0)
 
+  /* transitioning=true כל עוד מעבר (פורטל/חור-תולעת) פעיל. בזמן הזה הסצנה החדשה כבר
+     הוחלפה במנוע אבל מוסתרת מתחת ל-overlay — מסתירים את פאנל הטקסט כדי שה-Typewriter
+     לא יתחיל להקליד (ולהשמיע צליל) במהלך אנימציית המעבר. מתאפס ב-onComplete. */
+  const [transitioning, setTransitioning] = useState(false)
+  useEffect(() => {
+    if (engine.transitionKey > 0) setTransitioning(true)
+  }, [engine.transitionKey])
+  const onTransitionDone = useCallback(() => { setTransitioning(false); setRevealTick((t) => t + 1) }, [])
+
   /* preload של קבצי הסאונד בכניסה למשחק (אין lag באירוע הראשון) */
   useEffect(() => { initSound() }, [])
 
@@ -519,7 +528,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           <>
           {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט.
              מופיע רק אחרי שהסצנה "נחה" (reveal !== 'scene'), ב-materialize מרשים. */}
-          {reveal !== 'scene' && (scene.narrative || scene.drHoloDialog) && (
+          {reveal !== 'scene' && !transitioning && (scene.narrative || scene.drHoloDialog) && (
             <DigitalEntrance instant={stageInstant} className="mt-6">
             <div className="holo-panel text-start">
               {scene.drHoloDialog && (
@@ -674,12 +683,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
           שקופית לשקופית (fade). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
       {engine.transitionType === 'wormhole'
-        ? <WormholeTransition trigger={engine.transitionKey} onComplete={() => setRevealTick((t) => t + 1)} />
+        ? <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
         : <PortalTransition
             trigger={engine.transitionKey}
             oldImageUrl={prevImg}
             newImageUrl={scene.imageUrl}
-            onComplete={() => setRevealTick((t) => t + 1)}
+            onComplete={onTransitionDone}
           />}
 
       <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} eyeActive={eyeMode} onToggleEye={() => setEyeMode((v) => !v)} />
