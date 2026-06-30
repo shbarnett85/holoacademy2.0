@@ -172,6 +172,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      • סצנה לינארית (nextSceneId, ללא choices/שער) → advance.
      • יותר מבחירה אחת → לא מקדם אוטומטית (התלמיד בוחר). */
   const advancingRef = useRef(false)
+  /* מצב "מתקדם": בין לחיצת איסוף/המשך אוטומטי לבין המעבר בפועל — מסתיר את כל כפתורי
+     הפעולה/בחירה כדי שלא יהבהבו אחרי איסוף המפתח (canCollect מתאפס → אחרת הבחירות צצות). */
+  const [advancing, setAdvancing] = useState(false)
   const collectAndAdvance = useCallback(() => {
     if (advancingRef.current) return /* מניעת לחיצה כפולה → מעבר כפול */
     engine.collectCurrentItem()
@@ -186,6 +189,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     /* מעבר אוטומטי: **משאירים את פאנל האתגר גלוי** במהלך אנימציית האיסוף, כדי שטקסט הסצנה
        לא ייטען-מחדש ויתחיל להיכתב שוב לפני המעבר. סוגרים+מעבירים רק כשהמעבר מתחיל. */
     advancingRef.current = true
+    setAdvancing(true) /* מסתיר את כפתורי הבחירה/פעולה עד המעבר לסצנה הבאה */
     window.setTimeout(() => {
       setPuzzleOpen(false)
       if (singleOpen) engine.chooseChoice(ch![0])
@@ -218,6 +222,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
+    setAdvancing(false)
     setContentVisible(true) /* סצנה חדשה מתחילה גלויה (לא באמצע fade של החלפת אתגר) */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
@@ -548,7 +553,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
           {/* פעולות — מרונדרות תמיד (שומרות את מקומן מראש כך שקופסת הטקסט לא זזה כשהן מופיעות),
              אך גלויות רק בשלב 'buttons' — אז fade-in באותו materialize הולוגרפי. */}
-          <div style={{ visibility: reveal === 'buttons' ? 'visible' : 'hidden' }}>
+          <div style={{ visibility: reveal === 'buttons' && !advancing ? 'visible' : 'hidden' }}>
           <DigitalEntrance
             key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
             instant={stageInstant || reveal !== 'buttons'}
