@@ -66,9 +66,9 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     done.current = false
     reduceRef.current = prefersReduced()
     clearAll()
-    playSound('portal')
 
     if (reduceRef.current) {
+      playSound('portal') /* cross-fade מיידי — הצליל בו-זמני עם החלפת השקופית */
       setPhase('enter') /* רנדר cross-fade פשוט */
       timers.current.push(window.setTimeout(finish, 600))
     } else {
@@ -76,7 +76,8 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
       /* מאפסים go=false *באותו batch* של המעבר ל-enter — כך הפריים הראשון של שלב הכניסה
          מצויר ב-scale(0.5)/brightness(0) (מתוך השחור), ורק אז ה-go-effect מניע אותו ל-1.
          בלי זה go נשאר true מסוף היציאה והשקופית מופיעה מיד בגודל מלא. */
-      timers.current.push(window.setTimeout(() => { setGo(false); setPhase('enter') }, EXIT_MS))
+      /* הצליל מתנגן בתחילת שלב הכניסה — בו-זמני עם הופעת שקופית ב מהעומק (מעבר א→ב) */
+      timers.current.push(window.setTimeout(() => { playSound('portal'); setGo(false); setPhase('enter') }, EXIT_MS))
       timers.current.push(window.setTimeout(startFlash, EXIT_MS + ENTER_MS))
     }
     return clearAll
