@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../../shared/lib/sound'
 
 /* ── PortalTransition ─────────────────────────────────────────────────────────
    מעבר "פורטל ניאון" יחיד בין שקופיות (מחליף את Scene/Wipe/Wormhole). overlay מלא-מסך.
@@ -65,6 +66,7 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     done.current = false
     reduceRef.current = prefersReduced()
     clearAll()
+    playSound('portal')
 
     if (reduceRef.current) {
       setPhase('enter') /* רנדר cross-fade פשוט */

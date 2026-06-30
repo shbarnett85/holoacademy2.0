@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../../../shared/lib/sound'
 
 /* ──────────────────────────────────────────────────────────────────────────
    משוב חזותי על טעות — הבזק אדום קצר + גליץ' קל, אחיד לכל סוגי האתגרים.
@@ -12,9 +13,10 @@ import { useEffect, useRef, useState } from 'react'
 
 const EVT = 'holo-error-flash'
 
-/* קריאה מאתגר כשיורדת פסילה/נעשתה טעות */
+/* קריאה מאתגר כשיורדת פסילה/נעשתה טעות — מכסה את כל סוגי האתגרים בנקודה אחת (כולל הסאונד) */
 export function triggerErrorFlash() {
   if (typeof window === 'undefined') return
+  playSound('error')
   window.dispatchEvent(new CustomEvent(EVT))
 }
 

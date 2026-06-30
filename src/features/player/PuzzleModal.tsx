@@ -11,6 +11,7 @@ import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
 import { triggerErrorFlash } from './challenges/errorFlash'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
+import { playSound } from '../../shared/lib/sound'
 
 interface Props {
   puzzle: Puzzle
@@ -54,6 +55,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     if (lockedRef.current) return
     lockedRef.current = true
     const score = r.score ?? (r.correct ? 1 : 0)
+    if (r.correct) playSound('win') /* סיום אתגר בהצלחה — crystal_win (good שמור לצעדי-ביניים) */
     setResult({ correct: r.correct, score })
     onSolve(r.correct, score)
   }
@@ -107,12 +109,12 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             <button
               className="holo-button text-lg"
               style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
-              onClick={onCollect}
+              onClick={() => { playSound('click'); onCollect() }}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
             </button>
           ) : (
-            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
+            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={() => { playSound('click'); onContinue() }}>
               המשך ←
             </button>
           )}

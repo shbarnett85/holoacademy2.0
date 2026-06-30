@@ -1,9 +1,12 @@
+import { useSoundSettings } from '../../shared/lib/sound'
+
 /* פס עליון — תואם ויזואלית ל-BottomHUD (אותו רקע/blur/border-glow), בראש המסך.
-   מכיל: כפתור עין (שמאל), כותרת הסצנה (מרכז), כפתור יציאה (ימין — RTL).
+   מכיל: כפתור עין (שמאל), כותרת הסצנה (מרכז), כפתור השתקה + יציאה (ימין — RTL).
    הפס מחליק כלפי מעלה במצב-עין; כפתור העין נשאר תמיד גלוי (אחרת אי-אפשר לצאת ממצב-עין). */
 export default function TopHUD({ title, onExit, hidden = false, eyeActive, onToggleEye }: {
   title: string; onExit: () => void; hidden?: boolean; eyeActive: boolean; onToggleEye: () => void
 }) {
+  const { muted, toggleMuted } = useSoundSettings()
   return (
     <>
       {/* כפתור עין — תמיד גלוי, יושב בשורת הפס משמאל (גם כשהפס מוסתר) */}
@@ -45,6 +48,22 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
         >
           {title}
         </h1>
+
+        {/* כפתור השתקה גלובלי — שמאלית לכפתור היציאה (RTL); המצב נשמר ב-localStorage */}
+        <button
+          onClick={toggleMuted}
+          title={muted ? 'הפעל סאונד' : 'השתק סאונד'}
+          aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'}
+          aria-pressed={muted}
+          className="cursor-pointer rounded-md flex items-center justify-center"
+          style={{
+            position: 'absolute', right: '5rem', top: '50%', transform: 'translateY(-50%)',
+            width: '2.1rem', height: '2.1rem', fontSize: '1.05rem',
+            background: 'transparent', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)',
+          }}
+        >
+          {muted ? '🔇' : '🔊'}
+        </button>
 
         {/* כפתור יציאה — פינה ימנית-עליונה (RTL) */}
         <button

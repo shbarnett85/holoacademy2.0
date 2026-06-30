@@ -15,6 +15,7 @@ import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { ErrorFlashOverlay } from './challenges/errorFlash'
 import { homePathForRole } from '../../shared/lib/homePath'
+import { playSound, initSound } from '../../shared/lib/sound'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -199,6 +200,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* רצף ההופעה המדורג מתחיל רק בסיום הפורטל (onComplete → bump). revealTick=0 בטעינה
      הראשונה (סצנה ראשונה ללא פורטל) מריץ את הרצף מיד. */
   const [revealTick, setRevealTick] = useState(0)
+
+  /* preload של קבצי הסאונד בכניסה למשחק (אין lag באירוע הראשון) */
+  useEffect(() => { initSound() }, [])
 
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
@@ -541,7 +545,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             className="flex flex-col items-center gap-3 mt-8"
           >
             {scene.puzzle && !engine.puzzleSolved && (
-              <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
+              <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={() => { playSound('click'); openPuzzle() }}>
                 {scene.puzzle.type === 'finalQuiz' ? '📝 התחילו את מבחן הסיכום' : '🧩 פתרו את האתגר'}
               </button>
             )}
@@ -550,7 +554,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               <button
                 className="holo-button text-lg"
                 style={{ padding: '0.8rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
-                onClick={collectAndAdvance}
+                onClick={() => { playSound('click'); collectAndAdvance() }}
               >
                 {scene.collectableItem!.icon} אספו את {scene.collectableItem!.name}
               </button>
@@ -573,7 +577,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                           opacity: locked ? 0.75 : 1,
                           ...(locked ? { background: 'rgba(0,60,100,0.5)', border: '1px solid rgba(0,246,255,0.3)' } : {}),
                         }}
-                        onClick={() => engine.chooseChoice(c)}
+                        onClick={() => { playSound('click'); engine.chooseChoice(c) }}
                       >
                         {locked ? '🔒 ' : ''}
                         {c.text}
@@ -593,7 +597,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 <button
                   className={`holo-button text-lg ${engine.shakeGate ? 'gate-shake' : ''} ${engine.gateGlow ? 'gate-glow' : ''}`}
                   style={{ padding: '0.8rem 2.5rem' }}
-                  onClick={() => engine.advance()}
+                  onClick={() => { playSound('click'); engine.advance() }}
                 >
                   {isFinalScene ? 'סיום 🏁' : 'המשך ←'}
                 </button>

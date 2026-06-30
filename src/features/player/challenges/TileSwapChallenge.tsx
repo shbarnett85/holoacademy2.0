@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { playSound } from '../../../shared/lib/sound'
 import type { Puzzle } from '../useGameEngine'
 import { scaleTileSwap } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
@@ -66,6 +67,8 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
         setOrder(Array.from({ length: count }, (_, i) => i)) /* חשיפת התמונה הפתורה */
         setTimeout(() => onResult({ correct: false, score: 0 }), 1100)
       }
+    } else {
+      playSound('good') /* אריח שנחת במקומו הנכון (צעד-ביניים) */
     }
   }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { playSound } from '../../shared/lib/sound'
 
 /* אפקט חור תולעת — חלקיקים נשאבים לערבולת מרכזית ומתפרצים החוצה.
    Canvas 2D בלבד, ~1100ms, ידידותי למחשבים חלשים.
@@ -10,6 +11,7 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
 
   useEffect(() => {
     if (trigger === 0) return
+    playSound('wormhole')
     let finished = false
     const finish = () => { if (finished) return; finished = true; onCompleteRef.current?.() }
     const canvas = canvasRef.current

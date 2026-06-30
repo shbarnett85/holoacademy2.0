@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { playSound } from '../../../shared/lib/sound'
 import type { Puzzle } from '../useGameEngine'
 import { triggerErrorFlash } from './errorFlash'
 
@@ -40,7 +41,9 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
       /* אות נכונה — בדיקת ניצחון */
       if ([...needed].every((l) => next.has(l))) {
         setDone('win')
-        setTimeout(() => onResult({ correct: true, score: 1 }), 850)
+        setTimeout(() => onResult({ correct: true, score: 1 }), 850) /* win בסיום */
+      } else {
+        playSound('good') /* אות נכונה (צעד-ביניים) */
       }
     } else {
       /* אות שגויה — רעד + ניקוב המד */

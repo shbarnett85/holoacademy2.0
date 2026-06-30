@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { playSound } from '../../shared/lib/sound'
 
 /* "היתוך קריסטלים" — שלושה יהלומים מתנגשים אל המרכז ומתפוצצים בהתפרצות זוהר.
    מנוע canvas (פורט מ-design-reference/היתוך קריסטלים.html), מתנגן *פעם אחת* (~2.65ש׳)
@@ -9,6 +10,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
   const doneRef = useRef(false)
 
   useEffect(() => {
+    playSound('fusion')
     const finish = () => { if (!doneRef.current) { doneRef.current = true; onDone() } }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const t = window.setTimeout(finish, 500); return () => window.clearTimeout(t)

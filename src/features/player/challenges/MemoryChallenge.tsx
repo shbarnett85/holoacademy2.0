@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { playSound } from '../../../shared/lib/sound'
 import type { Puzzle } from '../useGameEngine'
 import { scaleMemory } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
@@ -57,7 +58,9 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
       setFlipped([])
       if (m.size === deck.length) {
         setOver(true)
-        setTimeout(() => onResult({ correct: true, score: 1 }), 600)
+        setTimeout(() => onResult({ correct: true, score: 1 }), 600) /* win יושמע בסיום */
+      } else {
+        playSound('good') /* זוג שהותאם (צעד-ביניים) */
       }
     } else {
       /* טעות — הופכים בחזרה אחרי השהיה */
