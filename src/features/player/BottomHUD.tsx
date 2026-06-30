@@ -108,7 +108,7 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
           background: 'rgba(10,10,31,0.85)',
           borderTop: '1px solid rgba(0,246,255,0.25)',
           backdropFilter: 'blur(10px)',
-          zIndex: 40,
+          zIndex: 70,
           /* מצב עין — סגירה החוצה: slide-down + fade, וחזרה ב-slide-up */
           transform: hidden ? 'translateY(110%)' : 'translateY(0)',
           opacity: hidden ? 0 : 1,

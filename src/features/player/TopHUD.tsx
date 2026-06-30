@@ -13,7 +13,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
         aria-label="מצב עין"
         className="fixed cursor-pointer flex items-center justify-center"
         style={{
-          top: '0.35rem', left: '0.7rem', zIndex: 41,
+          top: '0.35rem', left: '0.7rem', zIndex: 71,
           width: '2.2rem', height: '2.2rem', borderRadius: '50%', fontSize: '1.05rem',
           background: 'rgba(0,20,40,0.6)', border: '1px solid rgba(0,246,255,0.35)', backdropFilter: 'blur(4px)',
           opacity: eyeActive ? 0.9 : 0.7, transition: 'opacity 0.3s ease',
@@ -31,7 +31,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           background: 'rgba(10,10,31,0.85)',
           borderBottom: '1px solid rgba(0,246,255,0.25)',
           backdropFilter: 'blur(10px)',
-          zIndex: 40,
+          zIndex: 70,
           transform: hidden ? 'translateY(-110%)' : 'translateY(0)',
           opacity: hidden ? 0 : 1,
           transition: 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease',

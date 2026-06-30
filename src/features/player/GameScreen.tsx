@@ -5,6 +5,7 @@ import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import PortalTransition from './PortalTransition'
+import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
 import CrystalCharge from './CrystalCharge'
@@ -311,8 +312,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-6 relative">
-        {/* מעבר הפורטל אל מסך הסיום (מהסצנה האחרונה לתמונת הסיום) */}
-        <PortalTransition trigger={engine.transitionKey} oldImageUrl={prevImg} newImageUrl={endImage} />
+        {/* מעבר חור-תולעת (חלקיקים) אל מסך הסיום — חזרה "מההדמיה לתפריט" */}
+        <WormholeTransition trigger={engine.transitionKey} />
         {endImage && (
           <>
             <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -648,14 +649,16 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
 
       {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
-      {/* מעבר פורטל ניאון יחיד — מחליף את כל המעברים הישנים. בסיומו (onComplete) מתחיל
-          הרצף המדורג (DigitalEntrance) של פאנל הטקסט בסצנה החדשה. */}
-      <PortalTransition
-        trigger={engine.transitionKey}
-        oldImageUrl={prevImg}
-        newImageUrl={scene.imageUrl}
-        onComplete={() => setRevealTick((t) => t + 1)}
-      />
+      {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
+          שקופית לשקופית (fade). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
+      {engine.transitionType === 'wormhole'
+        ? <WormholeTransition trigger={engine.transitionKey} onComplete={() => setRevealTick((t) => t + 1)} />
+        : <PortalTransition
+            trigger={engine.transitionKey}
+            oldImageUrl={prevImg}
+            newImageUrl={scene.imageUrl}
+            onComplete={() => setRevealTick((t) => t + 1)}
+          />}
 
       <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} eyeActive={eyeMode} onToggleEye={() => setEyeMode((v) => !v)} />
 
