@@ -1052,6 +1052,27 @@ questsRouter.get('/', requireStaff, async (req, res, next) => {
   }
 })
 
+/* GET /api/quests/demo — מאתר את הדמיית הדמו (לאונרדו דה וינצ׳י) מהספרייה הציבורית.
+   ציבורי (ללא אימות) כדי שכפתור הדמו בעמוד הבית יעבוד לפני התחברות. חייב להירשם
+   *לפני* '/:id' אחרת ייתפס כ-id='demo'. */
+questsRouter.get('/demo', async (_req, res, next) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('quests')
+      .select('id, title, is_public')
+      .limit(400)
+    if (error) throw new AppError(500, error.message)
+    const rows = (data ?? []) as { id: string; title: string; is_public?: boolean }[]
+    const isLeonardo = (t: string) => /לאונרדו|וינצ|vinci|da\s*vinci/i.test(t ?? '')
+    /* מעדיפים הדמיה ציבורית; נופלים לכל הדמיה תואמת אם עמודת is_public חסרה/לא מסומנת */
+    const pick = rows.find((r) => r.is_public && isLeonardo(r.title)) ?? rows.find((r) => isLeonardo(r.title))
+    if (!pick) throw new AppError(404, 'הדמיית הדמו (לאונרדו דה וינצ׳י) לא נמצאה בספרייה הציבורית')
+    res.json({ id: pick.id, title: pick.title })
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* GET /api/quests/:id — הדמיה בודדת מלאה */
 questsRouter.get('/:id', async (req, res, next) => {
   try {
