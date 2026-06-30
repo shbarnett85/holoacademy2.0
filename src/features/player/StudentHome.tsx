@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+import { useSoundSettings } from '../../shared/lib/sound'
 
 
 const ART_ICONS: Record<string, string> = {
@@ -210,6 +211,7 @@ const STATUS_CHIPS: { key: StatusFilter; label: string; color: 'cyan' | 'green' 
 
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
+  const { muted, toggleMuted } = useSoundSettings()
   const navigate = useNavigate()
   const name = sessionStorage.getItem('holo_student_name') ?? ''
   const [quests, setQuests] = useState<AssignedQuest[]>([])
@@ -340,17 +342,32 @@ export default function StudentHome() {
               שלום, <span style={{ color: 'var(--holo-cyan-bright)' }}>{name}</span> 👋
             </h1>
           </div>
-          <button
-            onClick={() => { logout(); navigate('/') }}
-            style={{
-              fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 10,
-              cursor: 'pointer', fontFamily: 'var(--font-display)',
-              background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-              color: 'rgba(160,200,240,.55)', transition: 'border-color .18s,color .18s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,80,120,.4)'; e.currentTarget.style.color = '#ff8099' }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(160,200,240,.55)' }}
-          >יציאה</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={toggleMuted}
+              title={muted ? 'הפעל סאונד' : 'השתק סאונד'}
+              aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'}
+              aria-pressed={muted}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 38, height: 38, borderRadius: 10, fontSize: '1.1rem',
+                cursor: 'pointer',
+                background: 'rgba(47,243,255,.05)', border: '1px solid rgba(47,243,255,.2)',
+                color: '#bfe9ff',
+              }}
+            >{muted ? '🔇' : '🔊'}</button>
+            <button
+              onClick={() => { logout(); navigate('/') }}
+              style={{
+                fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 10,
+                cursor: 'pointer', fontFamily: 'var(--font-display)',
+                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
+                color: 'rgba(160,200,240,.55)', transition: 'border-color .18s,color .18s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,80,120,.4)'; e.currentTarget.style.color = '#ff8099' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(160,200,240,.55)' }}
+            >יציאה</button>
+          </div>
         </div>
 
         {/* ── SEARCH & FILTER BAR ── */}
