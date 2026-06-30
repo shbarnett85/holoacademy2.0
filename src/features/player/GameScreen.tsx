@@ -15,7 +15,7 @@ import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { ErrorFlashOverlay } from './challenges/errorFlash'
 import { homePathForRole } from '../../shared/lib/homePath'
-import { initSound } from '../../shared/lib/sound'
+import { initSound, playSound } from '../../shared/lib/sound'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -47,6 +47,17 @@ function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: {
     const timer = setInterval(() => setCount((c) => Math.min(c + 1, text.length)), delay)
     return () => clearInterval(timer)
   }, [text, done, skipAnim, scale, start])
+
+  /* צליל הקלדה — מתנגן כל 3 תווים (שלא יהפוך לזמזום בעברית מהירה), מדלג על רווח/שורה.
+     לא רץ ב-reduced-motion/instant (skipAnim) ולא בזמן המתנה (start=false). בדילוג count
+     קופץ ל-length → התנאי count>=length עוצר מיד את הצלילים (ואין interval סאונד נפרד לנקות). */
+  useEffect(() => {
+    if (skipAnim || !start) return
+    if (count === 0 || count >= text.length) return
+    const ch = text[count - 1]
+    if (count % 3 === 0 && ch !== ' ' && ch !== '\n' && ch !== ' ') playSound('type')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count])
 
   /* דיווח סיום ההקלדה (גם כשהטקסט מיידי/ריק) — מניע את שלב הכפתורים ברצף */
   useEffect(() => { if (done) onDoneRef.current?.() }, [done])

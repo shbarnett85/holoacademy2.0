@@ -8,7 +8,7 @@ import { useSyncExternalStore } from 'react'
    mute/volume נשמרים ב-localStorage. כשל טעינה (404) → דילוג שקט (try/catch).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type'
 
 const FILES: Record<SoundName, string> = {
   click: '/sounds/click.mp3',
@@ -18,6 +18,7 @@ const FILES: Record<SoundName, string> = {
   fusion: '/sounds/3fusion.mp3',
   portal: '/sounds/portal_neon.wav',
   wormhole: '/sounds/wormhole.mp3',
+  type: '/sounds/type.mp3',
 }
 
 /* ארוכים — ניגון יחיד שמתאפס אם מופעל שוב לפני שנגמר */
