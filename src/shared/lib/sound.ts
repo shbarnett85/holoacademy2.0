@@ -122,6 +122,26 @@ export function playSound(name: SoundName) {
   } catch { /* דילוג שקט */ }
 }
 
+/* צליל קליק גלובלי — מאזין יחיד (capture) שמשמיע 'click' בלחיצה על כל כפתור/קישור-פעולה
+   בכל האפליקציה (דפי מורה/תלמיד + המשחק). pointerdown לתגובה מיידית. מותקן פעם אחת. */
+let clickBound = false
+export function installGlobalClickSound() {
+  if (!isBrowser || clickBound) return
+  clickBound = true
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      const el = e.target as HTMLElement | null
+      const btn = el?.closest?.('button, [role="button"], a[href], summary') as HTMLElement | null
+      if (!btn) return
+      if ((btn as HTMLButtonElement).disabled) return
+      if (btn.getAttribute('aria-disabled') === 'true') return
+      playSound('click')
+    },
+    true,
+  )
+}
+
 export function isMuted() { return muted }
 export function getVolume() { return volume }
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
+import { initSound, installGlobalClickSound } from './shared/lib/sound'
 
 /* טעינה עצלה לכל feature */
 const Home       = lazy(() => import('./features/home'))
@@ -34,6 +35,9 @@ function Loader() {
 export default function App() {
   /* ספלאש פתיחה — פעם אחת לכל טעינת לשונית (sessionStorage), לא בכל ניווט */
   const [splashDone, setSplashDone] = useState(() => sessionStorage.getItem('holo_splash_seen') === '1')
+
+  /* סאונד: preload + צליל קליק גלובלי על כל הכפתורים בכל האפליקציה (מורה/תלמיד/משחק) */
+  useEffect(() => { initSound(); installGlobalClickSound() }, [])
 
   return (
     <BrowserRouter>

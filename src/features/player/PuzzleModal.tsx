@@ -109,12 +109,12 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             <button
               className="holo-button text-lg"
               style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
-              onClick={() => { playSound('click'); onCollect() }}
+              onClick={onCollect}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
             </button>
           ) : (
-            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={() => { playSound('click'); onContinue() }}>
+            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
               המשך ←
             </button>
           )}
