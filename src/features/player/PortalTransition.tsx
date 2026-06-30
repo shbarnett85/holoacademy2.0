@@ -36,7 +36,6 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
   const [phase, setPhase] = useState<Phase>('idle')
   const [go, setGo] = useState(false)        /* flip שמניע את ה-CSS transition מ-initial ל-target */
   const [flashT, setFlashT] = useState(0)    /* 0..1 — התקדמות הבזק שלב 3 */
-  const newSnap = useRef<string | undefined>(undefined) /* תמונת היעד מוקפאת בכניסה לשלב enter */
 
   const timers = useRef<number[]>([])
   const raf = useRef<number>(0)
@@ -68,12 +67,11 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     clearAll()
 
     if (reduceRef.current) {
-      newSnap.current = newImageUrl
       setPhase('enter') /* רנדר cross-fade פשוט */
       timers.current.push(window.setTimeout(finish, 600))
     } else {
       setPhase('exit')
-      timers.current.push(window.setTimeout(() => { newSnap.current = newImageUrl; setPhase('enter') }, EXIT_MS))
+      timers.current.push(window.setTimeout(() => setPhase('enter'), EXIT_MS))
       timers.current.push(window.setTimeout(startFlash, EXIT_MS + ENTER_MS))
     }
     return clearAll
@@ -117,8 +115,8 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     opacity: phase === 'flash' ? 1 - flashT : 1,
   }
 
-  const oldSrc = oldImageUrl
-  const newSrc = newSnap.current ?? newImageUrl
+  const oldSrc = oldImageUrl   /* היוצאת — יציבה למשך כל המעבר */
+  const newSrc = newImageUrl   /* הנכנסת — יציבה (הסצנה כבר הוחלפה ב-engine מיד) */
 
   return (
     <div
@@ -128,12 +126,12 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     >
       {/* reduced-motion → cross-fade פשוט בלבד (ללא scale/frame) */}
       {reduce ? (
-        newSrc && <img src={newSrc} alt="" style={{ ...fill, opacity: go ? 1 : 0, transition: 'opacity 600ms ease' }} />
+        newSrc && <img key={`r-${newSrc}`} src={newSrc} alt="" style={{ ...fill, opacity: go ? 1 : 0, transition: 'opacity 600ms ease' }} />
       ) : (
         <>
           {/* שלב 1 — השקופית הישנה נדחפת לשחור */}
           {phase === 'exit' && (oldSrc
-            ? <img src={oldSrc} alt="" style={{
+            ? <img key={`out-${oldSrc}`} src={oldSrc} alt="" style={{
                 ...fill,
                 transform: go ? 'scale(2)' : 'scale(1)', opacity: go ? 0 : 1,
                 filter: go ? 'brightness(0)' : 'brightness(1)',

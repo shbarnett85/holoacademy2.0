@@ -245,11 +245,11 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       setTransitionType(isPortal ? 'wormhole' : 'fade')
       setTransitionDir(visitedScenes.includes(sceneId) ? 'back' : 'forward')
       setTransitionKey((k) => k + 1)
-      setTimeout(() => {
-        setCurrentSceneId(sceneId)
-        setVisitedScenes((v) => (v.includes(sceneId) ? v : [...v, sceneId]))
-        track('scene_enter', sceneId, {})
-      }, isPortal ? 350 : 260) /* fade: מחליפים את התוכן בשיא ההחשכה (≈שחור מלא), ואז fade-in */
+      /* החלפת הסצנה מתבצעת *מיד* — PortalTransition מחזיק את תמונת היוצאת (prevImg ב-GameScreen)
+         ומנפיש אותה בשלב היציאה, ואת הסצנה החדשה בשלב הכניסה; ה-overlay מכסה את ההחלפה. */
+      setCurrentSceneId(sceneId)
+      setVisitedScenes((v) => (v.includes(sceneId) ? v : [...v, sceneId]))
+      track('scene_enter', sceneId, {})
     },
     [currentSceneId, gameData.entrySceneId, visitedScenes, track],
   )

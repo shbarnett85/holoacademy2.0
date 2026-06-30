@@ -184,13 +184,16 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const crystalsFull = engine.crystalsFull
   const sceneId = scene.id
 
-  /* מעבר הפורטל: מקפיאים את תמונת הסצנה היוצאת ברגע ה-trigger (הסצנה מתחלפת מתחת ל-overlay
-     רק אחרי ~350ms), כדי ש-PortalTransition יציג שלב-1 (יציאה) על התמונה הישנה הנכונה. */
-  const [oldImg, setOldImg] = useState<string | undefined>(undefined)
+  /* מעבר הפורטל: הסצנה מתחלפת *מיד* (engine), אז שומרים את תמונת הסצנה היוצאת (prevImg)
+     ברגע שה-sceneId משתנה — PortalTransition מנפיש את היוצאת בשלב 1 ואת החדשה (scene.imageUrl)
+     בשלב 2. שתיהן יציבות למשך כל האנימציה (אין stale-closure / אותה שקופית פעמיים). */
+  const [prevImg, setPrevImg] = useState<string | undefined>(undefined)
+  const lastImgRef = useRef<string | undefined>(scene.imageUrl)
   useEffect(() => {
-    if (engine.transitionKey > 0) setOldImg(scene.imageUrl)
+    setPrevImg(lastImgRef.current) /* התמונה שהוצגה ברנדר הקודם = היוצאת */
+    lastImgRef.current = scene.imageUrl
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engine.transitionKey])
+  }, [sceneId])
 
   /* רצף ההופעה המדורג מתחיל רק בסיום הפורטל (onComplete → bump). revealTick=0 בטעינה
      הראשונה (סצנה ראשונה ללא פורטל) מריץ את הרצף מיד. */
@@ -309,7 +312,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-6 relative">
         {/* מעבר הפורטל אל מסך הסיום (מהסצנה האחרונה לתמונת הסיום) */}
-        <PortalTransition trigger={engine.transitionKey} oldImageUrl={oldImg} newImageUrl={endImage} />
+        <PortalTransition trigger={engine.transitionKey} oldImageUrl={prevImg} newImageUrl={endImage} />
         {endImage && (
           <>
             <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -649,7 +652,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           הרצף המדורג (DigitalEntrance) של פאנל הטקסט בסצנה החדשה. */}
       <PortalTransition
         trigger={engine.transitionKey}
-        oldImageUrl={oldImg}
+        oldImageUrl={prevImg}
         newImageUrl={scene.imageUrl}
         onComplete={() => setRevealTick((t) => t + 1)}
       />
