@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { apiFetch } from '../../shared/lib/api'
+import { playSound } from '../../shared/lib/sound'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { ART_STYLES, PUZZLE_TYPES, useCreatorStore } from './creatorStore'
 import HoloIcon, { type HoloIconName } from '../../shared/ui/HoloIcon'
@@ -45,7 +46,17 @@ function PanelHead({ icon, title, kicker }: { icon: React.ReactNode; title: stri
 /* סליידר ניאון — fill לפי הערך דרך --p */
 function NeonSlider({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (n: number) => void }) {
   const p = ((value - min) / (max - min)) * 100
-  return <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ '--p': p + '%' } as React.CSSProperties} />
+  /* צליל קליק בלחיצה ובשחרור — אך בלחיצה בודדת (ללא גרירה) רק קליק אחד:
+     pointerdown מנגן תמיד; pointerup מנגן רק אם הייתה תזוזה (גרירה) בין הלחיצה לשחרור. */
+  const pressed = useRef(false)
+  const moved = useRef(false)
+  return <input type="range" min={min} max={max} value={value}
+    onChange={(e) => onChange(Number(e.target.value))}
+    onPointerDown={() => { pressed.current = true; moved.current = false; playSound('click') }}
+    onPointerMove={() => { if (pressed.current) moved.current = true }}
+    onPointerUp={() => { if (pressed.current && moved.current) playSound('click'); pressed.current = false }}
+    onPointerCancel={() => { pressed.current = false }}
+    style={{ '--p': p + '%' } as React.CSSProperties} />
 }
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
