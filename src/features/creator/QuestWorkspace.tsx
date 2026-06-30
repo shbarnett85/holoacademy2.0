@@ -8,6 +8,13 @@ import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 type Scene = GeneratedQuest['game_data']['scenes'][number]
 type EndingScene = NonNullable<GeneratedQuest['game_data']['endingGood']>
 
+/* מוסיף פרמטר cache-bust ל-URL תמונה שזה עתה נוצרה-מחדש, כדי שהדפדפן יטען את החדשה
+   ולא יציג העתק ישן מהמטמון (Cloudinary מחזיר אותו public_id). מקומי לתצוגה בלבד. */
+function bustCache(url: string): string {
+  if (!url) return url
+  return url + (url.includes('?') ? '&' : '?') + 'r=' + Date.now()
+}
+
 interface ImageProgress {
   completed: number
   total: number
@@ -279,7 +286,11 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
         throw new Error(body?.error ?? 'יצירת התמונה נכשלה')
       }
       const { imageUrl } = await res.json()
-      patchScene(sceneId, { imageUrl })
+      /* תמונות סיום מזוהות לפי ה-sceneId הסינתטי — הן לא ב-scenes[], ולכן patchScene לא
+         ימצא אותן; מנתבים אותן ל-patchEnding (אחרת תמונת הסיום לא מתעדכנת בתצוגה). */
+      if (sceneId === '__endingGood__') patchEnding?.('good', { imageUrl: bustCache(imageUrl) })
+      else if (sceneId === '__endingBad__') patchEnding?.('bad', { imageUrl: bustCache(imageUrl) })
+      else patchScene(sceneId, { imageUrl: bustCache(imageUrl) })
     } catch (err) {
       setImgWarnings([err instanceof Error ? err.message : 'יצירת התמונה נכשלה'])
     } finally {
@@ -314,11 +325,11 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
 
           if (ev.imageUrl) {
             if (ev.kind === 'scene') {
-              patchScene(ev.sceneId, { imageUrl: ev.imageUrl })
+              patchScene(ev.sceneId, { imageUrl: bustCache(ev.imageUrl) })
             } else {
               const scene = scenes.find((s) => s.id === ev.sceneId)
               if (scene?.collectableItem) {
-                patchScene(ev.sceneId, { collectableItem: { ...scene.collectableItem, imageUrl: ev.imageUrl } })
+                patchScene(ev.sceneId, { collectableItem: { ...scene.collectableItem, imageUrl: bustCache(ev.imageUrl) } })
               }
             }
           }
