@@ -4,8 +4,7 @@ import BottomHUD from './BottomHUD'
 import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
-import WormholeTransition from './WormholeTransition'
-import FadeTransition from './FadeTransition'
+import PortalTransition from './PortalTransition'
 import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
 import CrystalCharge from './CrystalCharge'
@@ -184,6 +183,19 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* שמירת מצב ביניים ל-resume בכל מעבר סצנה — מקומי בלבד (sessionStorage), ללא רשת */
   const crystalsFull = engine.crystalsFull
   const sceneId = scene.id
+
+  /* מעבר הפורטל: מקפיאים את תמונת הסצנה היוצאת ברגע ה-trigger (הסצנה מתחלפת מתחת ל-overlay
+     רק אחרי ~350ms), כדי ש-PortalTransition יציג שלב-1 (יציאה) על התמונה הישנה הנכונה. */
+  const [oldImg, setOldImg] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    if (engine.transitionKey > 0) setOldImg(scene.imageUrl)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.transitionKey])
+
+  /* רצף ההופעה המדורג מתחיל רק בסיום הפורטל (onComplete → bump). revealTick=0 בטעינה
+     הראשונה (סצנה ראשונה ללא פורטל) מריץ את הרצף מיד. */
+  const [revealTick, setRevealTick] = useState(0)
+
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
@@ -191,7 +203,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
-  /* רצף ההופעה המדורג בכל כניסה לסצנה: panel → (אחרי REVEAL_PANEL_MS) → typing.
+  /* רצף ההופעה המדורג — מופעל מ-revealTick (בסיום הפורטל): panel → (אחרי PANEL_MAT_MS) → typing.
      ההקלדה מדווחת onDone → buttons. ביקור חוזר/reduced-motion → מיד buttons.
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
@@ -200,12 +212,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     const hasText = !!(scene.narrative || scene.drHoloDialog)
     setReveal('scene') /* הסצנה/תמונה לבדה */
     const timers = [
-      window.setTimeout(() => setReveal('panel'), SCENE_HOLD_MS), /* קופסת הטקסט עושה materialize */
+      window.setTimeout(() => setReveal('panel'), SCENE_HOLD_MS), /* קופסת הטקסט עושה DigitalEntrance */
       window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), SCENE_HOLD_MS + PANEL_MAT_MS), /* ואז הקלדה */
     ]
     return () => timers.forEach((t) => window.clearTimeout(t))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneId])
+  }, [revealTick])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
   const skipReveal = useCallback(() => { setSkipped(true); setReveal('buttons') }, [])
@@ -296,8 +308,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-6 relative">
-        {/* השלמת אפקט חור התולעת מעל מסך הסיום */}
-        <WormholeTransition trigger={engine.transitionKey} />
+        {/* מעבר הפורטל אל מסך הסיום (מהסצנה האחרונה לתמונת הסיום) */}
+        <PortalTransition trigger={engine.transitionKey} oldImageUrl={oldImg} newImageUrl={endImage} />
         {endImage && (
           <>
             <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -633,9 +645,14 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
 
       {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
-      {engine.transitionType === 'wormhole'
-        ? <WormholeTransition trigger={engine.transitionKey} />
-        : <FadeTransition trigger={engine.transitionKey} />}
+      {/* מעבר פורטל ניאון יחיד — מחליף את כל המעברים הישנים. בסיומו (onComplete) מתחיל
+          הרצף המדורג (DigitalEntrance) של פאנל הטקסט בסצנה החדשה. */}
+      <PortalTransition
+        trigger={engine.transitionKey}
+        oldImageUrl={oldImg}
+        newImageUrl={scene.imageUrl}
+        onComplete={() => setRevealTick((t) => t + 1)}
+      />
 
       <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} eyeActive={eyeMode} onToggleEye={() => setEyeMode((v) => !v)} />
 
