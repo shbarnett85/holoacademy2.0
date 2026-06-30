@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { glass, micro } from './studioStyles'
 import { checkNavGuard } from '../../shared/lib/navGuard'
+import { useSoundSettings } from '../../shared/lib/sound'
 
 type TabId = 'create' | 'library' | 'analytics' | 'students'
 
@@ -24,6 +25,7 @@ const TITLES: Record<TabId, string> = {
 export default function StudioTopBar({ active }: { active: TabId }) {
   const navigate = useNavigate()
   const { logout, user } = useStaffAuth()
+  const { muted, toggleMuted } = useSoundSettings()
 
   /* מעבר טאב: מנגן יציאה (holo-tab-out) על תוכן העמוד ואז מנווט; היעד נכנס עם holo-tab-in */
   function navTab(to: string) {
@@ -65,6 +67,9 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2ff3ff', boxShadow: '0 0 8px #2ff3ff', animation: 'holo-status-pulse 2s infinite' }} />
           <span style={{ fontSize: 12.5, color: '#bfe9ff', fontWeight: 500 }}>{user?.name ?? 'מורה'} מחובר</span>
         </div>
+        <button onClick={toggleMuted} title={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-pressed={muted} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', fontSize: '1.05rem', background: 'rgba(47,243,255,.07)', border: '1px solid rgba(47,243,255,.25)', color: '#bfe9ff' }}>
+          {muted ? '🔇' : '🔊'}
+        </button>
         <button onClick={() => { logout(); navigate('/') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'rgba(255,69,230,.07)', border: '1px solid rgba(255,69,230,.25)', color: 'rgba(255,150,230,.7)' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
         </button>

@@ -55,6 +55,9 @@ export async function generateImage(
         width,
         height,
         n: 1,
+        /* seed אקראי בכל קריאה — בלעדיו Qwen-Image משתמש ב-seed קבוע, ואותו prompt מחזיר
+           את אותה תמונה בדיוק (→ "יצירה מחדש" לא משנה כלום). */
+        seed: Math.floor(Math.random() * 2_147_483_647),
         response_format: 'b64_json',
       }),
     })
