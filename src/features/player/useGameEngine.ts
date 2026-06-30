@@ -168,9 +168,9 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const [message, setMessage] = useState<string | null>(null)
   const [shakeGate, setShakeGate] = useState(false)
   const [gateGlow, setGateGlow] = useState(false)
-  const [transitionKey, setTransitionKey] = useState(0)
-  /* 'fade' = fade-to-black בין שקופיות בתוך ההדמיה; 'wormhole' = מעבר "גדול" בקצוות
-     (כניסה/יציאה מההדמיה וממעבדת ד"ר הולו = סצנת הכניסה). */
+  /* מתחילים מ-1 + 'wormhole' → מעבר חור-תולעת *בכניסה להדמיה* (מהתפריט). מעברים פנימיים
+     (כולל מהמעבדה/אליה) הם 'fade' = פורטל ניאון; חור-תולעת רק בגבול הדמיה↔תפריט (כניסה ויציאה). */
+  const [transitionKey, setTransitionKey] = useState(1)
   const [transitionType, setTransitionType] = useState<'fade' | 'wormhole'>('wormhole')
   const [transitionDir, setTransitionDir] = useState<'forward' | 'back'>('forward')
   const [justCollected, setJustCollected] = useState<CollectableItem | null>(null)
@@ -241,8 +241,9 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       /* כניסה/יציאה ממעבדת ד"ר הולו (סצנת הכניסה) = פורטל; שקופית→שקופית = wipe קל.
          כיוון ה-wipe מודע ל-RTL: קדימה (סצנה חדשה) = ימין←שמאל; חזרה (סצנה שכבר ביקרנו,
          כמו חזרה ל-Hub) = הפוך. */
-      const isPortal = currentSceneId === gameData.entrySceneId || sceneId === gameData.entrySceneId
-      setTransitionType(isPortal ? 'wormhole' : 'fade')
+      /* כל מעבר *בתוך* ההדמיה (כולל מהמעבדה/אליה) = פורטל ניאון ('fade'); חור-תולעת שמור
+         לגבול הדמיה↔תפריט בלבד (כניסה במאתחל, יציאה ב-finishQuest). */
+      setTransitionType('fade')
       setTransitionDir(visitedScenes.includes(sceneId) ? 'back' : 'forward')
       setTransitionKey((k) => k + 1)
       /* החלפת הסצנה מתבצעת *מיד* — PortalTransition מחזיק את תמונת היוצאת (prevImg ב-GameScreen)

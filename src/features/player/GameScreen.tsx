@@ -213,6 +213,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => {
     setSkipped(false)
     if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
+    /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
+    if (revealTick === 0) { setReveal('scene'); return }
     const hasText = !!(scene.narrative || scene.drHoloDialog)
     setReveal('scene') /* הסצנה/תמונה לבדה */
     const timers = [
