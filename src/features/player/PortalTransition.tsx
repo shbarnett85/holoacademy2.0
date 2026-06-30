@@ -147,13 +147,17 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
               transform: go || phase === 'flash' ? 'scale(1)' : 'scale(0.5)',
               transition: phase === 'flash' ? 'none' : 'transform 1600ms cubic-bezier(0.16,1,0.3,1)',
             }}>
-              {newSrc
-                ? <img src={newSrc} alt="" style={{
-                    ...fill,
-                    filter: go || phase === 'flash' ? 'brightness(1)' : 'brightness(0)',
-                    transition: phase === 'flash' ? 'none' : 'filter 1600ms ease-out',
-                  }} />
-                : <div style={{ ...fill, background: 'var(--holo-bg, #05060f)' }} />}
+              {/* clip לפינות מעוגלות — השקופית כלואה בתוך המסגרת (overflow:hidden נפרד מהמסגרת
+                  כדי לא לחתוך את ה-glow של ה-box-shadow היוצא החוצה) */}
+              <div style={{ position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden' }}>
+                {newSrc
+                  ? <img key={`in-${newSrc}`} src={newSrc} alt="" style={{
+                      ...fill,
+                      filter: go || phase === 'flash' ? 'brightness(1)' : 'brightness(0)',
+                      transition: phase === 'flash' ? 'none' : 'filter 1600ms ease-out',
+                    }} />
+                  : <div style={{ ...fill, background: 'var(--holo-bg, #05060f)' }} />}
+              </div>
               <div style={frameStyle} />
             </div>
           )}
