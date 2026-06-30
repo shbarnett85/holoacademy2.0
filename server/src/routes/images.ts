@@ -128,7 +128,9 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
       const base = gameData.isHistorical ? await enhanceHistoricalPrompt(rawPrompt) : rawPrompt
       const extraNeg = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
       const b64 = await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
-      const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}`)
+      /* public_id ייחודי בכל יצירה-מחדש → URL חדש לגמרי שלא נמצא במטמון (אחרת אותו URL
+         מוגש מהמטמון של הדפדפן עם התמונה הישנה, ובמיוחד חוזר אחרי "שמור"). */
+      const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}_${Date.now().toString(36)}`)
       ending.imageUrl = imageUrl
       const { error: upErr } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
       if (upErr) throw new AppError(500, 'שגיאה בשמירה: ' + upErr.message)
@@ -152,7 +154,9 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
         ? await generateImage(styledPrompt(base, quest.art_style), 512, 512, extraNeg)
         : await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
 
-    const publicId = kind === 'item' ? `item_${scene.collectableItem!.id}` : `scene_${scene.id}`
+    /* public_id ייחודי בכל יצירה-מחדש → URL חדש (לא מהמטמון; לא חוזר לישנה אחרי "שמור") */
+    const uniq = Date.now().toString(36)
+    const publicId = kind === 'item' ? `item_${scene.collectableItem!.id}_${uniq}` : `scene_${scene.id}_${uniq}`
     const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, publicId)
 
     if (kind === 'item' && scene.collectableItem) scene.collectableItem.imageUrl = imageUrl

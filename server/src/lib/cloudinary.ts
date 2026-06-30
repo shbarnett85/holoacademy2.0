@@ -17,7 +17,6 @@ export async function uploadBase64Image(
     folder,
     public_id: publicId,
     overwrite: true,
-    invalidate: true, /* מנקה CDN cache ל-public_id חוזר (יצירה-מחדש) — שלא יוגש העתק ישן */
     resource_type: 'image',
   })
   return result.secure_url
