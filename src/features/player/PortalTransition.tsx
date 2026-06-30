@@ -71,7 +71,10 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
       timers.current.push(window.setTimeout(finish, 600))
     } else {
       setPhase('exit')
-      timers.current.push(window.setTimeout(() => setPhase('enter'), EXIT_MS))
+      /* מאפסים go=false *באותו batch* של המעבר ל-enter — כך הפריים הראשון של שלב הכניסה
+         מצויר ב-scale(0.5)/brightness(0) (מתוך השחור), ורק אז ה-go-effect מניע אותו ל-1.
+         בלי זה go נשאר true מסוף היציאה והשקופית מופיעה מיד בגודל מלא. */
+      timers.current.push(window.setTimeout(() => { setGo(false); setPhase('enter') }, EXIT_MS))
       timers.current.push(window.setTimeout(startFlash, EXIT_MS + ENTER_MS))
     }
     return clearAll
