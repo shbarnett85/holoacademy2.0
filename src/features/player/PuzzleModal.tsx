@@ -91,7 +91,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     } else {
       /* אתגרים אינטראקטיביים (פאזל/חיפוש/זיכרון) */
       header = good ? '✓ כל הכבוד! פתרת את האתגר 💎' : '✗ האתגר לא הושלם'
-      body = good ? 'הרסיסים שלך! 💠' : 'לא נורא — אפשר לנסות שוב במסע הבא.'
+      body = good ? 'מעולה! ממשיכים הלאה 🌟' : 'לא נורא — אפשר לנסות שוב במסע הבא.'
     }
 
     return (
