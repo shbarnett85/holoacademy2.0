@@ -20,9 +20,8 @@ import { initSound, playSound } from '../../shared/lib/sound'
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-/* רצף הופעה מדורג (visual-novel): הסצנה עולה במלואה → המתנה → materialize של קופסת
-   הטקסט → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
-const SCENE_HOLD_MS = 1000   /* כמה זמן רואים את הסצנה/תמונת הרקע לבדה לפני שהקופסה מופיעה */
+/* רצף הופעה מדורג (visual-novel): קופסת הטקסט מתחילה DigitalEntrance *מיד* עם עליית
+   הסצנה (במקביל) → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
 const PANEL_MAT_MS = 800     /* משך הכניסה הדיגיטלית של קופסת הטקסט (ההקלדה מתחילה אחריו) — תואם ל-DigitalEntrance (~0.8s) */
 
 /* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
@@ -245,10 +244,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
     if (revealTick === 0) { setReveal('scene'); return }
     const hasText = !!(scene.narrative || scene.drHoloDialog)
-    setReveal('scene') /* הסצנה/תמונה לבדה */
+    /* קופסת הטקסט מתחילה את ה-DigitalEntrance *מיד* עם עליית הסצנה (לא אחרי המתנה) */
+    setReveal('panel')
     const timers = [
-      window.setTimeout(() => setReveal('panel'), SCENE_HOLD_MS), /* קופסת הטקסט עושה DigitalEntrance */
-      window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), SCENE_HOLD_MS + PANEL_MAT_MS), /* ואז הקלדה */
+      window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), PANEL_MAT_MS), /* ואז הקלדה */
     ]
     return () => timers.forEach((t) => window.clearTimeout(t))
     // eslint-disable-next-line react-hooks/exhaustive-deps

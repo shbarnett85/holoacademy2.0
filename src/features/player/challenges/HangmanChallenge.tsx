@@ -68,6 +68,13 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
         .hang-shake { animation: hang-shake 0.4s ease; }
         @keyframes slot-pop { 0%{transform:scale(0.5);opacity:0;} 100%{transform:scale(1);opacity:1;} }
         .slot-pop { animation: slot-pop 0.25s ease; }
+        /* זוהר ריחוף על כפתורי האותיות (חידת הקוד) */
+        .hang-key:not(:disabled):hover {
+          box-shadow: 0 0 14px rgba(0,246,255,0.6), 0 0 4px rgba(0,246,255,0.9) inset;
+          border-color: rgba(0,246,255,0.85);
+          background: rgba(0,136,255,0.3);
+          transform: translateY(-1px);
+        }
       `}</style>
 
       <p className="text-sm mb-3" style={{ opacity: 0.85 }}>🔍 {puzzle.question}</p>
@@ -142,6 +149,7 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
             return (
               <button
                 key={letter}
+                className="hang-key"
                 onClick={() => guess(letter)}
                 disabled={used}
                 style={{
@@ -153,7 +161,7 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
                   background: used ? 'rgba(5,10,25,0.5)' : 'rgba(0,136,255,0.18)',
                   border: `1px solid ${wasWrong ? 'rgba(255,120,150,0.4)' : 'rgba(0,246,255,0.3)'}`,
                   opacity: used ? 0.3 : 1,
-                  transition: 'opacity 0.25s, background 0.2s',
+                  transition: 'opacity 0.25s, background 0.2s, box-shadow 0.2s, transform 0.15s',
                 }}
               >
                 {letter}
