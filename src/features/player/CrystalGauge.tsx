@@ -67,13 +67,13 @@ export default function CrystalGauge({ fill, size = 26, justCompleted = false }:
             <rect x="-85" y="-91" width="170" height="12" fill="#2ff3ff" />
             <rect x="-85" y="79" width="170" height="12" fill="#2ff3ff" />
           </g>
-          {/* פסי ה-H — קווים לבנים */}
+          {/* פסי ה-H — ציאן (הכול ציאן) */}
           <g clipPath={`url(#${diaId})`}>
-            <rect x="85" y="0" width="34" height="340" fill="#ffffff" />
-            <rect x="221" y="0" width="34" height="340" fill="#ffffff" />
+            <rect x="85" y="0" width="34" height="340" fill="#2ff3ff" />
+            <rect x="221" y="0" width="34" height="340" fill="#2ff3ff" />
           </g>
           <g transform="translate(170,170)">
-            <rect x="-85" y="-16" width="170" height="32" fill="#ffffff" />
+            <rect x="-85" y="-16" width="170" height="32" fill="#2ff3ff" />
             <line x1="-170" y1="0" x2="0" y2="-170" stroke={`url(#${cyId})`} strokeWidth="12" strokeLinecap="round" />
             <line x1="0" y1="-170" x2="170" y2="0" stroke={`url(#${cyId})`} strokeWidth="12" strokeLinecap="round" />
             <line x1="170" y1="0" x2="0" y2="170" stroke={`url(#${cyId})`} strokeWidth="12" strokeLinecap="round" />
