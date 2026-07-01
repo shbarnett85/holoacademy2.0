@@ -1,24 +1,54 @@
-<svg width="340" height="340" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="cy" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ff3ff"/><stop offset="1" stop-color="#1fd8e6"/></linearGradient>
-    <linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f241da"/><stop offset="1" stop-color="#d92fc0"/></linearGradient>
-    <clipPath id="diaL"><polygon points="170,0 340,170 170,340 0,170"/></clipPath>
-  </defs>
-  <g transform="translate(170,170)">
-    <rect x="-85" y="-91" width="170" height="12" fill="#2ff3ff"/>
-    <rect x="-85" y="79" width="170" height="12" fill="#f241da"/>
-  </g>
-  <g clip-path="url(#diaL)">
-    <rect x="85" y="0" width="34" height="340" fill="#ffffff"/>
-    <rect x="221" y="0" width="34" height="340" fill="#ffffff"/>
-  </g>
-  <g transform="translate(170,170)">
-    <rect x="-85" y="-16" width="170" height="32" fill="#ffffff"/>
-    <line x1="-170" y1="0" x2="0" y2="-170" stroke="url(#cy)" stroke-width="12" stroke-linecap="round"/>
-    <line x1="0" y1="-170" x2="170" y2="0" stroke="url(#cy)" stroke-width="12" stroke-linecap="round"/>
-    <line x1="170" y1="0" x2="0" y2="170" stroke="url(#mg)" stroke-width="12" stroke-linecap="round"/>
-    <line x1="0" y1="170" x2="-170" y2="0" stroke="url(#mg)" stroke-width="12" stroke-linecap="round"/>
-    <rect x="-170" y="-6" width="85" height="12" rx="6" fill="#f241da"/>
-    <rect x="85" y="-6" width="85" height="12" rx="6" fill="#f241da"/>
-  </g>
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+	<defs>
+		<clipPath clipPathUnits="userSpaceOnUse" id="cp1">
+			<path d="m500 70l430 430-430 430-430-430z"/>
+		</clipPath>
+		<clipPath clipPathUnits="userSpaceOnUse" id="cp2">
+			<path d="m500 70l430 430-430 430-430-430z"/>
+		</clipPath>
+	</defs>
+	<style>
+		.s0 { fill: #141a2e } 
+		.s1 { fill: #0d6675 } 
+		.s2 { fill: #7a2872 } 
+		.s3 { fill: #0a4a55 } 
+		.s4 { fill: #4a1545 } 
+		.s5 { fill: #1fb3c8 } 
+		.s6 { fill: #c249b3 } 
+		.s7 { fill: #2ff3ff } 
+		.s8 { fill: #f241da } 
+		.s9 { fill: #ffffff } 
+		.s10 { fill: none;stroke: #2ff3ff;stroke-width: 30 } 
+		.s11 { fill: none;stroke: #f241da;stroke-width: 30 } 
+	</style>
+	
+	<g id="Clip-Path" clip-path="url(#cp1)">
+		<g>
+			<path fill-rule="evenodd" class="s1" d="m70 68h860v434h-860z"/>
+			<path fill-rule="evenodd" class="s2" d="m70 498h860v434h-860z"/>
+			<path class="s3" d="m68 500h219v-217l213-215z"/>
+			<path class="s3" d="m932 500h-219v-217l-213-215z"/>
+			<path class="s4" d="m68 500h219v217l213 215z"/>
+			<path class="s4" d="m932 500h-219v217l-213 215z"/>
+			<path class="s1" d="m287 283h426l-213-215z"/>
+			<path class="s2" d="m287 717h426l-213 215z"/>
+			<path fill-rule="evenodd" class="s5" d="m287 283h426v185h-426z"/>
+			<path fill-rule="evenodd" class="s6" d="m287 532h426v185h-426z"/>
+		</g>
+	</g>
+	<path fill-rule="evenodd" class="s7" d="m287 283h426v30h-426z"/>
+	<path fill-rule="evenodd" class="s8" d="m287 687h426v30h-426z"/>
+	<g id="Clip-Path" clip-path="url(#cp2)">
+		<g>
+			<path fill-rule="evenodd" class="s9" d="m287 70h86v860h-86z"/>
+			<path fill-rule="evenodd" class="s9" d="m627 70h86v860h-86z"/>
+		</g>
+	</g>
+	<path fill-rule="evenodd" class="s9" d="m287 470h426v60h-426z"/>
+	<path fill-rule="evenodd" class="s10" d="m500 70l430 430-430 430-430-430z"/>
+	<path class="s11" d="m930 500l-430 430-430-430"/>
+	<path fill-rule="evenodd" class="s8" d="m287 479.72v30.56h-219v-30.56z"/>
+	<path id="Layer copy" fill-rule="evenodd" class="s8" d="m222.56 632.86l-21.19 21.24-153.59-153.3 21.19-21.23z"/>
+	<path fill-rule="evenodd" class="s8" d="m931 480v30h-218v-30z"/>
+	<path id="Layer copy 2" fill-rule="evenodd" class="s8" d="m930.99 478.93l21.02 21.41-154.87 152.01-21.01-21.41z"/>
 </svg>
