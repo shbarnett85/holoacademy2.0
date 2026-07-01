@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react'
 export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type'
 
 const FILES: Record<SoundName, string> = {
-  click: '/sounds/click.mp3',
+  click: '/sounds/digital_click.wav',
   good: '/sounds/good.mp3',
   win: '/sounds/crystal_win.mp3',
   error: '/sounds/digital_error.mp3',
