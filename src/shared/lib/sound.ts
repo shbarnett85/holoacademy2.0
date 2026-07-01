@@ -5,12 +5,14 @@ import { useSyncExternalStore } from 'react'
    ברצף מהיר בלי לחתוך זה את זה. סאונדים ארוכים (win/fusion/portal/wormhole) — אם
    מופעלים שוב לפני שנגמרו, ה-source הקודם נעצר (איפוס). preload פעם אחת.
    Autoplay: ה-AudioContext נוצר suspended ומתעורר (resume) ב-user-gesture הראשון.
-   mute/volume נשמרים ב-localStorage. כשל טעינה (404) → דילוג שקט (try/catch).
+   mute/volume נשמרים ב-localStorage. כשל טעינה (404)/קובץ חסר → **fallback סינתטי**
+   (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'hover' הוא סינתטי-בלבד (ללא קובץ).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover'
 
-const FILES: Record<SoundName, string> = {
+/* 'hover' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
+const FILES: Partial<Record<SoundName, string>> = {
   click: '/sounds/digital_click.wav',
   good: '/sounds/good.mp3',
   win: '/sounds/crystal_win.mp3',
@@ -63,12 +65,14 @@ function getCtx(): AudioContext | null {
 }
 
 async function decodeOne(name: SoundName, ac: AudioContext) {
+  const url = FILES[name]
+  if (!url) return /* אין קובץ (למשל hover) → סינתזה בלבד */
   try {
-    const res = await fetch(FILES[name])
-    if (!res.ok) return
+    const res = await fetch(url)
+    if (!res.ok) return /* 404 → יישאר ללא buffer → fallback סינתטי בזמן ניגון */
     const arr = await res.arrayBuffer()
     buffers[name] = await ac.decodeAudioData(arr)
-  } catch { /* דילוג שקט */ }
+  } catch { /* כשל → fallback סינתטי */ }
 }
 
 /* preload כל הקבצים פעם אחת */
@@ -99,12 +103,63 @@ function bindUnlock() {
 }
 if (isBrowser) bindUnlock()
 
+/* ── fallback סינתטי ─────────────────────────────────────────────────────────
+   מנגן קירוב מסונתז (oscillator/noise) כשאין buffer — קובץ חסר/נכשל, או 'hover'
+   שאין לו קובץ. כך שום שם צליל לא "נעלם". עוצמה כפופה ל-volume הגלובלי. */
+function synth(name: SoundName) {
+  const ac = getCtx()
+  if (!ac) return
+  const t0 = ac.currentTime
+  const out = ac.createGain()
+  out.gain.value = volume
+  out.connect(ac.destination)
+
+  const beep = (freq: number, dur: number, type: OscillatorType, peak: number, slideTo?: number) => {
+    const o = ac.createOscillator()
+    const g = ac.createGain()
+    o.type = type
+    o.frequency.setValueAtTime(freq, t0)
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur)
+    g.gain.setValueAtTime(0.0001, t0)
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    o.connect(g).connect(out)
+    o.start(t0)
+    o.stop(t0 + dur + 0.02)
+  }
+  const noise = (dur: number, peak: number) => {
+    const b = ac.createBuffer(1, Math.max(1, Math.floor(ac.sampleRate * dur)), ac.sampleRate)
+    const d = b.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    const s = ac.createBufferSource()
+    const g = ac.createGain()
+    s.buffer = b
+    g.gain.setValueAtTime(peak, t0)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    s.connect(g).connect(out)
+    s.start(t0)
+  }
+
+  switch (name) {
+    case 'click': beep(420, 0.05, 'triangle', 0.32, 620); break
+    case 'type': beep(680, 0.028, 'square', 0.16); break
+    case 'hover': beep(880, 0.04, 'sine', 0.09, 1040); break
+    case 'error': beep(300, 0.32, 'sawtooth', 0.38, 120); break
+    case 'good': beep(660, 0.12, 'sine', 0.32, 880); break
+    case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
+    case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
+    case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
+    case 'wormhole': beep(120, 0.8, 'sine', 0.3, 600); noise(0.6, 0.18); break
+    default: beep(440, 0.05, 'triangle', 0.28)
+  }
+}
+
 export function playSound(name: SoundName) {
   if (!isBrowser || muted) return
   const ac = getCtx()
   if (!ac) return
   const buf = buffers[name]
-  if (!buf) { initSound(); return } /* עדיין לא נטען — דילוג שקט (אין lag) */
+  if (!buf) { synth(name); return } /* אין buffer (חסר/נכשל/hover) → fallback סינתטי מיידי */
   try {
     if (LONG.has(name)) {
       const prev = activeLong[name]
@@ -123,24 +178,43 @@ export function playSound(name: SoundName) {
   } catch { /* דילוג שקט */ }
 }
 
-/* צליל קליק גלובלי — מאזין יחיד (capture) שמשמיע 'click' בלחיצה על כל כפתור/קישור-פעולה
-   בכל האפליקציה (דפי מורה/תלמיד + המשחק). pointerdown לתגובה מיידית. מותקן פעם אחת. */
+const INTERACTIVE = 'button, [role="button"], a[href], summary, input[type="checkbox"], input[type="radio"]'
+
+/* עוקף/משתיק פר-אלמנט: data-holo-silent (או אב עם התכונה) → ללא צליל;
+   data-holo-sound="name" → מנגן שם צליל אחר במקום 'click'. */
+function holoTarget(e: Event): { el: HTMLElement; sound: SoundName } | null {
+  const src = e.target as HTMLElement | null
+  const el = src?.closest?.(INTERACTIVE) as HTMLElement | null
+  if (!el) return null
+  if ((el as HTMLButtonElement).disabled) return null
+  if (el.getAttribute('aria-disabled') === 'true') return null
+  if (el.hasAttribute('data-holo-silent') || el.closest('[data-holo-silent]')) return null
+  const custom = el.getAttribute('data-holo-sound')
+  return { el, sound: (custom as SoundName) || 'click' }
+}
+
+/* צליל קליק + hover גלובלי — מאזינים יחידים (capture) בכל האפליקציה (מורה/תלמיד/משחק).
+   pointerdown → click (או data-holo-sound); כניסת עכבר לכפתור חדש → hover. מותקן פעם אחת. */
 let clickBound = false
 export function installGlobalClickSound() {
   if (!isBrowser || clickBound) return
   clickBound = true
-  document.addEventListener(
-    'pointerdown',
-    (e) => {
-      const el = e.target as HTMLElement | null
-      const btn = el?.closest?.('button, [role="button"], a[href], summary') as HTMLElement | null
-      if (!btn) return
-      if ((btn as HTMLButtonElement).disabled) return
-      if (btn.getAttribute('aria-disabled') === 'true') return
-      playSound('click')
-    },
-    true,
-  )
+
+  document.addEventListener('pointerdown', (e) => {
+    const hit = holoTarget(e)
+    if (hit) playSound(hit.sound)
+  }, true)
+
+  /* hover — מנגן פעם אחת בכניסה לכפתור חדש (dedupe לפי האלמנט, לא בכל pointermove) */
+  let lastHover: HTMLElement | null = null
+  document.addEventListener('pointerover', (e) => {
+    const src = e.target as HTMLElement | null
+    const el = src?.closest?.(INTERACTIVE) as HTMLElement | null
+    if (el === lastHover) return
+    lastHover = el
+    const hit = holoTarget(e)
+    if (hit) playSound('hover')
+  }, true)
 }
 
 export function isMuted() { return muted }
