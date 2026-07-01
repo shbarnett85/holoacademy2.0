@@ -24,15 +24,17 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
     resize()
     window.addEventListener('resize', resize)
 
-    /* יהלום Path2D ב-viewBox 220×210 (מרכז 110,105) — מתאר + פאות פנימיות */
-    const CRW = 220, CRH = 210
-    const crPath = new Path2D()
-    crPath.moveTo(55, 18); crPath.lineTo(165, 18); crPath.lineTo(202, 82); crPath.lineTo(110, 196); crPath.lineTo(18, 82); crPath.closePath()
-    crPath.moveTo(18, 82); crPath.lineTo(202, 82)
-    crPath.moveTo(55, 18); crPath.lineTo(110, 82); crPath.lineTo(165, 18)
-    crPath.moveTo(18, 82); crPath.lineTo(110, 196)
-    crPath.moveTo(202, 82); crPath.lineTo(110, 196)
-    crPath.moveTo(110, 82); crPath.lineTo(110, 196)
+    /* קריסטל HoloAcademy (מעוין + H של הלוגו) ב-viewBox 220×210 (מרכז 110,105).
+       crFill = מעוין למילוי ציאן; crStroke = מתאר המעוין + פסי ה-H לקווים. */
+    const CRW = 220, CRH = 210, CX = 110, CY = 105, R = 92
+    const VX = R * 0.5, VY = R * 0.5
+    const crFill = new Path2D()
+    crFill.moveTo(CX, CY - R); crFill.lineTo(CX + R, CY); crFill.lineTo(CX, CY + R); crFill.lineTo(CX - R, CY); crFill.closePath()
+    const crStroke = new Path2D()
+    crStroke.moveTo(CX, CY - R); crStroke.lineTo(CX + R, CY); crStroke.lineTo(CX, CY + R); crStroke.lineTo(CX - R, CY); crStroke.closePath()
+    crStroke.moveTo(CX - VX, CY - VY); crStroke.lineTo(CX - VX, CY + VY)
+    crStroke.moveTo(CX + VX, CY - VY); crStroke.lineTo(CX + VX, CY + VY)
+    crStroke.moveTo(CX - VX, CY); crStroke.lineTo(CX + VX, CY)
 
     const T_FLASH = 1200, T_END = 2650
     const TAU = Math.PI * 2
@@ -66,12 +68,13 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
     function drawCrystal(x: number, y: number, scale: number, rot: number, glow: number, alpha: number) {
       ctx.save(); ctx.globalAlpha = alpha
       ctx.translate(x, y); ctx.rotate(rot); ctx.scale(scale, scale); ctx.translate(-CRW / 2, -CRH / 2)
-      ctx.shadowColor = 'rgba(60,225,255,0.95)'; ctx.shadowBlur = glow
+      ctx.shadowColor = 'rgba(47,243,255,0.95)'; ctx.shadowBlur = glow
       const g = ctx.createLinearGradient(0, 0, CRW * 0.2, CRH)
-      g.addColorStop(0, '#d6f7ff'); g.addColorStop(0.4, '#5fdcff'); g.addColorStop(1, '#1fb4f0')
-      ctx.fillStyle = g; ctx.fill(crPath); ctx.shadowBlur = 0
+      g.addColorStop(0, '#8ffcff'); g.addColorStop(0.45, '#2ff3ff'); g.addColorStop(1, '#12b9d6')
+      ctx.fillStyle = g; ctx.fill(crFill); ctx.shadowBlur = 0
       ctx.lineJoin = 'round'; ctx.lineCap = 'round'
-      ctx.strokeStyle = 'rgba(238,253,255,0.95)'; ctx.lineWidth = 9; ctx.stroke(crPath)
+      /* מתאר + פסי ה-H — ציאן בהיר (קווים) */
+      ctx.strokeStyle = 'rgba(190,250,255,0.95)'; ctx.lineWidth = 9; ctx.stroke(crStroke)
       ctx.restore()
     }
 

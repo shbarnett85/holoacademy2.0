@@ -11,12 +11,12 @@ interface Crystal {
   color: string
 }
 
+/* קריסטל הלוגו הוא ציאן — פלטה תואמת (ציאן/כחול-קרח/לבן), ללא מגנטה */
 const COLORS = [
   'rgba(47,243,255,',    // cyan
   'rgba(200,240,255,',   // pale blue-white
   'rgba(255,255,255,',   // white
   'rgba(180,220,255,',   // ice blue
-  'rgba(255,120,220,',   // soft magenta accent
 ]
 
 function makeCrystal(canvasWidth: number): Crystal {
@@ -32,28 +32,37 @@ function makeCrystal(canvasWidth: number): Crystal {
   }
 }
 
-function drawDiamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, spin: number, color: string, opacity: number) {
+/* קריסטל HoloAcademy — מעוין (diamond) + מבנה H, בקווי ציאן (כמו הלוגו).
+   פרופורציות נגזרות מה-SVG (רדיוס 170): פסי H אנכיים ב-±0.5, קורה אמצעית ±0.094. */
+function drawCrystal(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, spin: number, color: string, opacity: number) {
   ctx.save()
   ctx.translate(cx, cy)
   ctx.rotate(spin)
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = `${color}${opacity})`
+
+  // מסגרת המעוין
+  ctx.lineWidth = Math.max(1, size * 0.09)
   ctx.beginPath()
-  // diamond (rhombus): top, right, bottom, left
   ctx.moveTo(0, -size)
-  ctx.lineTo(size * 0.55, 0)
+  ctx.lineTo(size, 0)
   ctx.lineTo(0, size)
-  ctx.lineTo(-size * 0.55, 0)
+  ctx.lineTo(-size, 0)
   ctx.closePath()
-  ctx.fillStyle = `${color}${opacity})`
-  ctx.fill()
-  // inner highlight
+  ctx.stroke()
+
+  // פסי ה-H — שני אנכיים + קורה אמצעית
+  const vx = size * 0.5
+  const vy = size * 0.5 /* קצה המעוין ב-x=±0.5 נמצא ב-y=±0.5 */
   ctx.beginPath()
-  ctx.moveTo(0, -size * 0.55)
-  ctx.lineTo(size * 0.22, -size * 0.1)
-  ctx.lineTo(0, size * 0.25)
-  ctx.lineTo(-size * 0.22, -size * 0.1)
-  ctx.closePath()
-  ctx.fillStyle = `rgba(255,255,255,${opacity * 0.35})`
-  ctx.fill()
+  ctx.moveTo(-vx, -vy); ctx.lineTo(-vx, vy)
+  ctx.moveTo(vx, -vy); ctx.lineTo(vx, vy)
+  ctx.stroke()
+  ctx.lineWidth = Math.max(1.4, size * 0.11)
+  ctx.beginPath()
+  ctx.moveTo(-vx, 0); ctx.lineTo(vx, 0)
+  ctx.stroke()
   ctx.restore()
 }
 
@@ -96,7 +105,7 @@ export default function CrystalRain() {
         if (c.y > H + 40) {
           Object.assign(c, makeCrystal(W))
         }
-        drawDiamond(rc, c.x, c.y, c.size, c.spin, c.color, c.opacity)
+        drawCrystal(rc, c.x, c.y, c.size, c.spin, c.color, c.opacity)
       }
 
       raf = requestAnimationFrame(frame)
