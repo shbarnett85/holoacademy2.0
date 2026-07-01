@@ -36,9 +36,23 @@ function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: {
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
 
+  /* caret (נקודת אור) — justSkipped מבדיל בין סיום-בלחיצה (נעלם מיידית, בלי fade)
+     לסיום טבעי של ההקלדה (fade-out עדין). caretGone מסיר את הקאret מה-DOM לגמרי
+     אחרי שהדעיכה הסתיימה, כדי שלא יישאר רווח קבוע בקצה הטקסט. */
+  const [justSkipped, setJustSkipped] = useState(false)
+  const [caretGone, setCaretGone] = useState(false)
+
   useEffect(() => {
     setCount(skipAnim ? text.length : 0)
+    setJustSkipped(false)
   }, [text, skipAnim])
+
+  useEffect(() => {
+    if (!done) { setCaretGone(false); return }
+    if (justSkipped) { setCaretGone(true); return } /* דילוג — נעלם מיידית */
+    const t = window.setTimeout(() => setCaretGone(true), 220) /* סיום טבעי — אחרי ה-fade */
+    return () => window.clearTimeout(t)
+  }, [done, justSkipped])
 
   useEffect(() => {
     if (done || skipAnim || !start) return
@@ -62,16 +76,39 @@ function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: {
   useEffect(() => { if (done) onDoneRef.current?.() }, [done])
 
   function handleClick() {
-    if (!done) setCount(text.length) /* skip — השלמה מיידית */
+    if (!done) { setJustSkipped(true); setCount(text.length) } /* skip — השלמה מיידית, caret נעלם בלי fade */
     else onAdvance?.() /* לחיצה שנייה — המשך לסצנה הבאה (רק כשזו הפעולה הזמינה) */
   }
 
+  /* caret מוצג רק בזמן הקלדה פעילה בפועל (לא ב-instant/reduced-motion, ולא לפני start) */
+  const showCaret = !skipAnim && start && !caretGone
+
   /* הקופסה בגודלה הסופי מההתחלה (כמו דף נייר שמתמלא): טקסט-רפאים מלא וקבוע שומר את
-     הגובה/הרוחב, והטקסט המוקלד מוצג מעליו — כך הקופסה לא "גדלה" תוך כדי ההקלדה. */
+     הגובה/הרוחב, והטקסט המוקלד מוצג מעליו — כך הקופסה לא "גדלה" תוך כדי ההקלדה.
+     ה-caret מרונדר *inline* מיד אחרי המחרוזת החלקית (לא במיקום אבסולוטי) — כך הוא
+     נגרר טבעית עם קצה הטקסט בזרימת ה-RTL, בלי חישוב מיקום ידני. */
   return (
     <div className="relative cursor-pointer" onClick={handleClick}>
       <p className="text-lg leading-relaxed" aria-hidden style={{ visibility: 'hidden', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
-      <p className="text-lg leading-relaxed" style={{ position: 'absolute', inset: 0, color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>{text.slice(0, count)}</p>
+      <p className="text-lg leading-relaxed" style={{ position: 'absolute', inset: 0, color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>
+        {text.slice(0, count)}
+        {showCaret && (
+          <span
+            aria-hidden
+            className={done ? '' : 'typewriter-caret'}
+            style={{
+              display: 'inline-block',
+              width: 8, height: 8, borderRadius: '50%',
+              background: '#2ff3ff',
+              boxShadow: '0 0 8px #2ff3ff, 0 0 16px rgba(47,243,255,0.6)',
+              marginInlineStart: 4,
+              verticalAlign: 'middle',
+              opacity: done ? 0 : 1,
+              transition: justSkipped ? 'none' : 'opacity 0.2s ease',
+            }}
+          />
+        )}
+      </p>
     </div>
   )
 }
@@ -452,6 +489,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           100% { opacity: 1; filter: blur(0); }
         }
         .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
+        /* caret ה-typewriter — נקודת אור פועמת שרצה בקצה הטקסט תוך כדי ההקלדה */
+        @keyframes typewriter-caret-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.55; transform: scale(0.8); }
+        }
+        .typewriter-caret { animation: typewriter-caret-pulse 0.9s ease-in-out infinite; }
       `}</style>
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
