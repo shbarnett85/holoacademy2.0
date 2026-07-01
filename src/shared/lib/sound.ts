@@ -114,14 +114,14 @@ function synth(name: SoundName) {
   out.gain.value = volume
   out.connect(ac.destination)
 
-  const beep = (freq: number, dur: number, type: OscillatorType, peak: number, slideTo?: number) => {
+  const beep = (freq: number, dur: number, type: OscillatorType, peak: number, slideTo?: number, attack = 0.006) => {
     const o = ac.createOscillator()
     const g = ac.createGain()
     o.type = type
     o.frequency.setValueAtTime(freq, t0)
     if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur)
     g.gain.setValueAtTime(0.0001, t0)
-    g.gain.linearRampToValueAtTime(peak, t0 + 0.006)
+    g.gain.linearRampToValueAtTime(peak, t0 + attack)
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
     o.connect(g).connect(out)
     o.start(t0)
@@ -143,7 +143,7 @@ function synth(name: SoundName) {
   switch (name) {
     case 'click': beep(420, 0.05, 'triangle', 0.32, 620); break
     case 'type': beep(680, 0.028, 'square', 0.16); break
-    case 'hover': beep(880, 0.04, 'sine', 0.09, 1040); break
+    case 'hover': beep(2100, 0.05, 'sine', 0.025, undefined, 0.001); break
     case 'error': beep(300, 0.32, 'sawtooth', 0.38, 120); break
     case 'good': beep(660, 0.12, 'sine', 0.32, 880); break
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
