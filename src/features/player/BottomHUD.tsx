@@ -77,8 +77,16 @@ function CrystalBar({ progress, shardEvent }: { progress: number; shardEvent: nu
       })}
 
       {flyingShard && (
-        <span className="shard-flying" style={{ fontSize: '1rem', color: 'var(--holo-cyan)', textShadow: '0 0 8px rgba(0,246,255,0.9)' }}>
-          ◆
+        <span className="shard-flying" style={{ filter: 'drop-shadow(0 0 6px rgba(47,243,255,0.9))' }}>
+          {/* רסיס עף — צורת קריסטל HoloAcademy (מעוין+H), לא היהלום הישן */}
+          <svg width="16" height="16" viewBox="0 0 340 340">
+            <polygon points="170,0 340,170 170,340 0,170" fill="none" stroke="#2ff3ff" strokeWidth="16" strokeLinejoin="round" />
+            <g stroke="#2ff3ff" strokeWidth="20" strokeLinecap="round">
+              <line x1="85" y1="85" x2="85" y2="255" />
+              <line x1="255" y1="85" x2="255" y2="255" />
+              <line x1="85" y1="170" x2="255" y2="170" />
+            </g>
+          </svg>
         </span>
       )}
     </div>
