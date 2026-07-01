@@ -18,7 +18,7 @@ const FILES: Record<SoundName, string> = {
   fusion: '/sounds/3fusion.mp3',
   portal: '/sounds/portal_neon.wav',
   wormhole: '/sounds/wormhole.mp3',
-  type: '/sounds/typewriter.wav',
+  type: '/sounds/type.wav',
 }
 
 /* ארוכים — ניגון יחיד שמתאפס אם מופעל שוב לפני שנגמר */
