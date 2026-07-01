@@ -85,6 +85,11 @@ export default function Home() {
     <HoloBackdrop>
       {/* כותרת */}
       <div style={{ textAlign: 'center', marginBottom: 56 }}>
+        <img
+          src="/holoacademy-logo.svg"
+          alt="HoloAcademy"
+          style={{ width: 116, height: 116, margin: '0 auto 22px', display: 'block', filter: 'drop-shadow(0 0 26px rgba(47,243,255,.35))' }}
+        />
         <h1 style={{
           margin: 0, fontSize: 58, fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1,
           background: 'linear-gradient(135deg, #ffffff 30%, #7ef6ff 65%, #ff45e6 100%)',
