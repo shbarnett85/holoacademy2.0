@@ -1,5 +1,6 @@
-/* יהלום הולוגרפי (brilliant cut) — ריק / מתמלא ברסיסים / שלם וזוהר.
-   פלטת "היהלומים החדשים": גוף תכלת #d6f7ff→#5fdcff→#1fb4f0 + פאות לבנות זוהרות. */
+/* קריסטל HoloAcademy (צורת המעוין+H של הלוגו) — ריק (אפור) / מתמלא ברסיסים / שלם וזוהר.
+   הצורה הריקה: מהקובץ holoacademy-crystal-empty (אפור #2e3647). המילוי חושף מלמטה-למעלה
+   את גרסת הצבע (ציאן/מגנטה + פאות לבנות) — זהה ללוגו. */
 
 interface Props {
   fill: number /* 0..1 */
@@ -7,55 +8,79 @@ interface Props {
   justCompleted?: boolean /* פעימה קצרה ברגע ההשלמה */
 }
 
+const EMPTY = '#2e3647'
+
 export default function CrystalGauge({ fill, size = 26, justCompleted = false }: Props) {
   const full = fill >= 0.999
-  const clipId = `gem-clip-${Math.round(fill * 1000)}-${size}`
-  /* מתאר היהלום (brilliant cut) ב-viewBox 24×26: שולחן עליון, כתר, חגורה, פביליון לקודקוד */
-  const OUTLINE = '6,2 18,2 22,9 12,25 2,9'
+  const uid = `cg-${Math.round(fill * 1000)}-${size}`
+  const diaId = `dia-${uid}`
+  const fillId = `fill-${uid}`
+  const cyId = `cy-${uid}`
+  const mgId = `mg-${uid}`
 
   return (
     <svg
       width={size}
-      height={size * 1.18}
-      viewBox="0 0 24 26"
+      height={size}
+      viewBox="0 0 340 340"
       className={justCompleted ? 'crystal-pop' : ''}
       style={{
         filter: full
-          ? 'drop-shadow(0 0 7px rgba(95,220,255,0.95))'
+          ? 'drop-shadow(0 0 7px rgba(47,243,255,0.9))'
           : fill > 0
-            ? `drop-shadow(0 0 ${2 + fill * 4}px rgba(95,220,255,${0.3 + fill * 0.5}))`
+            ? `drop-shadow(0 0 ${2 + fill * 4}px rgba(47,243,255,${0.25 + fill * 0.5}))`
             : 'none',
       }}
     >
       <defs>
-        <clipPath id={clipId}>
-          <rect x="0" y={26 - 26 * fill} width="24" height={26 * fill} />
-        </clipPath>
-        <linearGradient id="gem-grad" x1="0" y1="0" x2="0.25" y2="1">
-          <stop offset="0%" stopColor="#d6f7ff" />
-          <stop offset="45%" stopColor="#5fdcff" />
-          <stop offset="100%" stopColor="#1fb4f0" />
-        </linearGradient>
+        <clipPath id={diaId}><polygon points="170,0 340,170 170,340 0,170" /></clipPath>
+        {/* מילוי מלמטה-למעלה לפי fill */}
+        <clipPath id={fillId}><rect x="0" y={340 - 340 * fill} width="340" height={340 * fill} /></clipPath>
+        <linearGradient id={cyId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#2ff3ff" /><stop offset="1" stopColor="#1fd8e6" /></linearGradient>
+        <linearGradient id={mgId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f241da" /><stop offset="1" stopColor="#d92fc0" /></linearGradient>
       </defs>
 
-      {/* מתאר — עמום כשריק */}
-      <polygon points={OUTLINE} fill="rgba(95,220,255,0.05)" stroke={full ? '#bff0ff' : 'rgba(95,220,255,0.35)'} strokeWidth="1.3" strokeLinejoin="round" />
+      {/* ── בסיס ריק (אפור) ── */}
+      <g transform="translate(170,170)">
+        <rect x="-85" y="-91" width="170" height="12" fill={EMPTY} />
+        <rect x="-85" y="79" width="170" height="12" fill={EMPTY} />
+      </g>
+      <g clipPath={`url(#${diaId})`}>
+        <rect x="85" y="0" width="34" height="340" fill={EMPTY} />
+        <rect x="221" y="0" width="34" height="340" fill={EMPTY} />
+      </g>
+      <g transform="translate(170,170)">
+        <rect x="-85" y="-16" width="170" height="32" fill={EMPTY} />
+        <g stroke={EMPTY} strokeWidth="14" strokeLinecap="round" fill="none">
+          <line x1="-170" y1="0" x2="0" y2="-170" /><line x1="0" y1="-170" x2="170" y2="0" />
+          <line x1="170" y1="0" x2="0" y2="170" /><line x1="0" y1="170" x2="-170" y2="0" />
+        </g>
+        <rect x="-170" y="-6" width="85" height="12" rx="6" fill={EMPTY} />
+        <rect x="85" y="-6" width="85" height="12" rx="6" fill={EMPTY} />
+      </g>
 
-      {/* מילוי הרסיסים מלמטה למעלה */}
+      {/* ── מילוי צבעוני (נחשף מלמטה-למעלה) ── */}
       {fill > 0 && (
-        <g clipPath={`url(#${clipId})`}>
-          <polygon points={OUTLINE} fill="url(#gem-grad)" opacity={0.55 + fill * 0.45} />
+        <g clipPath={`url(#${fillId})`}>
+          <g transform="translate(170,170)">
+            <rect x="-85" y="-91" width="170" height="12" fill="#2ff3ff" />
+            <rect x="-85" y="79" width="170" height="12" fill="#f241da" />
+          </g>
+          <g clipPath={`url(#${diaId})`}>
+            <rect x="85" y="0" width="34" height="340" fill="#ffffff" />
+            <rect x="221" y="0" width="34" height="340" fill="#ffffff" />
+          </g>
+          <g transform="translate(170,170)">
+            <rect x="-85" y="-16" width="170" height="32" fill="#ffffff" />
+            <line x1="-170" y1="0" x2="0" y2="-170" stroke={`url(#${cyId})`} strokeWidth="12" strokeLinecap="round" />
+            <line x1="0" y1="-170" x2="170" y2="0" stroke={`url(#${cyId})`} strokeWidth="12" strokeLinecap="round" />
+            <line x1="170" y1="0" x2="0" y2="170" stroke={`url(#${mgId})`} strokeWidth="12" strokeLinecap="round" />
+            <line x1="0" y1="170" x2="-170" y2="0" stroke={`url(#${mgId})`} strokeWidth="12" strokeLinecap="round" />
+            <rect x="-170" y="-6" width="85" height="12" rx="6" fill="#f241da" />
+            <rect x="85" y="-6" width="85" height="12" rx="6" fill="#f241da" />
+          </g>
         </g>
       )}
-
-      {/* פאות פנימיות — לבנות-זוהרות כשמלא, עמומות כשריק */}
-      <path
-        d="M2 9 L22 9 M6 2 L12 9 L18 2 M2 9 L12 25 M22 9 L12 25 M12 9 L12 25"
-        stroke={full ? 'rgba(238,253,255,0.9)' : 'rgba(95,220,255,0.28)'}
-        strokeWidth="0.7"
-        strokeLinejoin="round"
-        fill="none"
-      />
     </svg>
   )
 }
