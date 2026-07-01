@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { playSound } from '../lib/sound';
 
 interface DigitalEntranceProps {
   children: React.ReactNode;
@@ -19,6 +20,15 @@ interface DigitalEntranceProps {
    ─────────────────────────────────────────────────────────────────────────── */
 const DigitalEntrance: React.FC<DigitalEntranceProps> = ({ children, className = '', delay = 0, instant = false }) => {
   const reduce = useReducedMotion();
+
+  /* צליל "חומריאליזציה" עדין מאוד — מתנגן פעם אחת בכל הופעה אמיתית (mount), מסונכרן
+     ל-delay של האנימציה; לא מתנגן במצב instant (דילוג/מצב סופי — אין אנימציה בפועל). */
+  useEffect(() => {
+    if (instant) return;
+    const t = window.setTimeout(() => playSound('reveal'), delay * 1000);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (instant) {
     return <div className={`relative ${className}`}>{children}</div>;

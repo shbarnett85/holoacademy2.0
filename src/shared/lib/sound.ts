@@ -9,9 +9,9 @@ import { useSyncExternalStore } from 'react'
    (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'hover' הוא סינתטי-בלבד (ללא קובץ).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover' | 'reveal'
 
-/* 'hover' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
+/* 'hover'/'reveal' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
 const FILES: Partial<Record<SoundName, string>> = {
   click: '/sounds/digital_click.wav',
   good: '/sounds/good.mp3',
@@ -144,6 +144,8 @@ function synth(name: SoundName) {
     case 'click': beep(420, 0.05, 'triangle', 0.32, 620); break
     case 'type': beep(680, 0.028, 'square', 0.16); break
     case 'hover': beep(2100, 0.05, 'sine', 0.025, undefined, 0.001); break
+    /* צליל "חומריאליזציה" עדין מאוד — מלווה את אנימציית פתיחת החלונות (DigitalEntrance) */
+    case 'reveal': beep(950, 0.16, 'sine', 0.045, 1500, 0.02); break
     case 'error': beep(300, 0.32, 'sawtooth', 0.38, 120); break
     case 'good': beep(660, 0.12, 'sine', 0.32, 880); break
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
