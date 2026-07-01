@@ -56,12 +56,13 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
         const ang = Math.random() * TAU
         const spd = (0.28 + Math.random() * 1.7) * scaleRef
         const r = Math.random()
-        const col = r < 0.30 ? [255, 244, 210] : r < 0.62 ? [255, 150, 50] : [60, 240, 255]
+        /* פלטת המותג (ציאן+מגנטה, כמו הלוגו) — לא כתום/זהב חם */
+        const col = r < 0.30 ? [220, 250, 255] : r < 0.62 ? [242, 65, 218] : [47, 243, 255]
         particles.push({ x: cx, y: cy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, life: 800 + Math.random() * 950, size: (1.6 + Math.random() * 3.4) * (scaleRef / 0.4), col, drag: 0.93 + Math.random() * 0.045, glow: r < 0.45 })
       }
       for (let i = 0; i < 20; i++) {
         const ang = Math.random() * TAU
-        filaments.push({ ang, len: (120 + Math.random() * 200) * (scaleRef / 0.4), wob: Math.random() * TAU, width: 1.5 + Math.random() * 2.5, cyan: Math.random() > 0.5, life: 360 + Math.random() * 280 })
+        filaments.push({ ang, len: (120 + Math.random() * 200) * (scaleRef / 0.4), wob: Math.random() * TAU, width: 1.5 + Math.random() * 2.5, cyan: Math.random() > 0.4, life: 360 + Math.random() * 280 })
       }
     }
 
@@ -101,7 +102,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
           const coreR = lerp(6, 60, heat) * (1 + 0.12 * Math.sin(now / 40))
           const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR * 3)
           cg.addColorStop(0, `rgba(255,255,255,${0.55 * heat})`); cg.addColorStop(0.3, `rgba(120,240,255,${0.45 * heat})`)
-          cg.addColorStop(0.7, `rgba(255,150,50,${0.2 * heat})`); cg.addColorStop(1, 'rgba(255,150,50,0)')
+          cg.addColorStop(0.7, `rgba(242,65,218,${0.2 * heat})`); cg.addColorStop(1, 'rgba(242,65,218,0)')
           ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H)
         }
         SRC.forEach((s, i) => {
@@ -124,7 +125,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
           const fr = lerp(60, Math.max(W, H) * 0.72, easeOut(clamp(tb / 680, 0, 1)))
           const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, fr)
           fg.addColorStop(0, `rgba(255,255,255,${0.98 * flashA})`); fg.addColorStop(0.22, `rgba(165,248,255,${0.9 * flashA})`)
-          fg.addColorStop(0.5, `rgba(255,160,60,${0.6 * flashA})`); fg.addColorStop(1, 'rgba(255,140,45,0)')
+          fg.addColorStop(0.5, `rgba(242,65,218,${0.6 * flashA})`); fg.addColorStop(1, 'rgba(242,65,218,0)')
           ctx.fillStyle = fg; ctx.fillRect(0, 0, W, H)
         }
         ctx.save()
@@ -132,7 +133,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
           const rp = clamp((tb - r * 95) / 950, 0, 1)
           if (rp <= 0 || rp >= 1) continue
           ctx.globalAlpha = (1 - rp) * 0.85; ctx.lineWidth = lerp(8, 0.6, rp)
-          ctx.strokeStyle = (r % 2) ? 'rgba(255,160,55,0.95)' : 'rgba(90,242,255,0.95)'
+          ctx.strokeStyle = (r % 2) ? 'rgba(242,65,218,0.95)' : 'rgba(90,242,255,0.95)'
           ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 22
           ctx.beginPath(); ctx.arc(cx, cy, easeOut(rp) * Math.min(W, H) * (0.46 + r * 0.07), 0, TAU); ctx.stroke()
         }
@@ -140,7 +141,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
         filaments.forEach((f) => {
           const fp = clamp(tb / f.life, 0, 1); if (fp >= 1) return
           ctx.save(); ctx.globalAlpha = (1 - fp) * 0.85
-          ctx.strokeStyle = f.cyan ? 'rgba(110,245,255,0.9)' : 'rgba(255,165,60,0.9)'
+          ctx.strokeStyle = f.cyan ? 'rgba(110,245,255,0.9)' : 'rgba(242,65,218,0.9)'
           ctx.lineWidth = f.width; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 14
           ctx.beginPath(); const reach = easeOut(fp) * f.len; ctx.moveTo(cx, cy)
           for (let q = 1; q <= 6; q++) { const tt = q / 6, rr = reach * tt, wob = Math.sin(tt * 6 + f.wob) * 10 * (1 - tt); ctx.lineTo(cx + Math.cos(f.ang) * rr - Math.sin(f.ang) * wob, cy + Math.sin(f.ang) * rr + Math.cos(f.ang) * wob) }
@@ -158,7 +159,7 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
         const coreA = Math.pow(1 - bp, 1.6) * 0.6
         if (coreA > 0.01) {
           const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 70)
-          cg.addColorStop(0, `rgba(200,250,255,${coreA})`); cg.addColorStop(0.5, `rgba(80,235,255,${coreA * 0.6})`); cg.addColorStop(1, 'rgba(255,150,55,0)')
+          cg.addColorStop(0, `rgba(200,250,255,${coreA})`); cg.addColorStop(0.5, `rgba(80,235,255,${coreA * 0.6})`); cg.addColorStop(1, 'rgba(242,65,218,0)')
           ctx.fillStyle = cg; ctx.fillRect(0, 0, W, H)
         }
       }
