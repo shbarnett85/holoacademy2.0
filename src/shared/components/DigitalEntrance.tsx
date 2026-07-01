@@ -41,12 +41,14 @@ const DigitalEntrance: React.FC<DigitalEntranceProps> = ({ children, className =
     <motion.div
       initial={{ opacity: 0, scaleY: 0.1, scaleX: 0.85, filter: 'blur(15px) brightness(2.5)' }}
       animate={{
-        opacity: [0, 0.4, 0.2, 0.9, 0.5, 1],
+        /* עולה בקצב לא-אחיד (תחושת "גליץ' דיגיטלי") אך אף פעם לא יורד אחרי ששיא גבוה יותר
+           כבר הוצג — כך שהתוכן (כפתורים/תשובות) לא "נעלם" חלקית תוך כדי הכניסה. */
+        opacity: [0, 0.5, 0.75, 1],
         scaleY: 1,
         scaleX: 1,
         filter: 'blur(0px) brightness(1)',
       }}
-      transition={{ duration: 0.8, delay, ease: 'easeOut', times: [0, 0.15, 0.3, 0.45, 0.6, 1] }}
+      transition={{ duration: 0.8, delay, ease: 'easeOut', times: [0, 0.15, 0.4, 1] }}
       className={`relative ${className}`}
     >
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,50,0)_0%,rgba(0,246,255,0.06)_50%,rgba(18,16,50,0)_100%)] bg-[length:100%_4px] pointer-events-none rounded-xl animate-pulse-mild"></div>
