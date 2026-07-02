@@ -315,3 +315,22 @@ CREATE TABLE IF NOT EXISTS quest_variants (
   UNIQUE(quest_id, student_id)
 );
 CREATE INDEX IF NOT EXISTS idx_quest_variants_lookup ON quest_variants(quest_id, student_id);
+
+-- ============================================================================
+-- 13) לוג בטיחות תוכן — חסימות ברמת קלט ופלט ביצירת הדמיות (Haiku, נפרד מ-fact-check)
+-- ----------------------------------------------------------------------------
+-- שתי נקודות בדיקה: 'input' (הנושא/התוכן שהמורה הזין, לפני יצירה ב-Sonnet) ו-'output'
+-- (ה-game_data שנוצר בפועל, לפני שמירה/חשיפה למורה). לא קשור לשכבת ה-fact-check
+-- (נכונות עובדתית) — מטרה שונה לגמרי (בטיחות תוכן). עמיד דרך hasContentSafetyLog.
+CREATE TABLE IF NOT EXISTS content_safety_log (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id    uuid REFERENCES users(id),
+  quest_id      uuid REFERENCES quests(id) ON DELETE SET NULL, -- null אם נחסם בשלב הקלט (אין עדיין quest)
+  stage         text NOT NULL CHECK (stage IN ('input','output')),
+  category      text NOT NULL,
+  input_title   text,
+  input_excerpt text,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_content_safety_teacher ON content_safety_log(teacher_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_content_safety_stage    ON content_safety_log(stage);

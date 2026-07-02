@@ -52,6 +52,11 @@ export async function hasUserGender(): Promise<boolean> {
   return check('__user_gender', () => supabaseAdmin.from('users').select('gender').limit(1))
 }
 
+/* האם טבלת content_safety_log קיימת — לוג חסימות שכבת בטיחות התוכן (קלט/פלט) */
+export async function hasContentSafetyLog(): Promise<boolean> {
+  return check('__content_safety_log', () => supabaseAdmin.from('content_safety_log').select('id').limit(1))
+}
+
 /* האם המבנה החדש של difficulty_profiles קיים (per_puzzle_level) */
 export async function hasDifficultyProfileV2(): Promise<boolean> {
   return check('__difficulty_v2', () => supabaseAdmin.from('difficulty_profiles').select('per_puzzle_level').limit(1))
