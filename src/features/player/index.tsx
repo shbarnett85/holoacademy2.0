@@ -11,13 +11,36 @@ interface QuestPayload {
   game_data: GameData | null
 }
 
-/* כניסה למשחק — טעינת ה-quest לפי id והפעלת המנוע */
+/* slug ידידותי לכתובת ההדמיה הציבורית (URL קריא, כמו /play/leonardo) — מתורגם
+   ל-id האמיתי דרך GET /api/quests/demo לפני שהמשחק/ה-session מתחילים. */
+const DEMO_SLUGS: Record<string, true> = { leonardo: true }
+
+/* כניסה למשחק — טעינת ה-quest לפי id (או slug ציבורי) והפעלת המנוע */
 export default function Player() {
-  const { questId } = useParams<{ questId: string }>()
+  const { questId: rawId } = useParams<{ questId: string }>()
+  const isDemoSlug = !!rawId && DEMO_SLUGS[rawId]
+  /* עד שה-slug מתורגם ל-id אמיתי — questId נשאר undefined, כך ש-usePlaySession
+     (וה-fetch) לא ינסו לפעול על מחרוזת לא-תקנית ("leonardo" אינו uuid). */
+  const [resolvedId, setResolvedId] = useState<string | undefined>(isDemoSlug ? undefined : rawId)
+  const questId = resolvedId
   const [quest, setQuest] = useState<QuestPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
   const { initialState, settled, saveResume, complete, variantGameData } = usePlaySession(questId)
+
+  useEffect(() => {
+    if (!isDemoSlug) return
+    fetch('/api/quests/demo')
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? 'הדמו לא נמצא')
+        }
+        return res.json()
+      })
+      .then((body) => setResolvedId(body.id))
+      .catch((e: Error) => setError(e.message))
+  }, [isDemoSlug])
 
   useEffect(() => {
     if (!questId) return

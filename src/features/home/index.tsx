@@ -21,26 +21,11 @@ export default function Home() {
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
-  const [demoLoading, setDemoLoading] = useState(false)
-  const [demoError, setDemoError] = useState<string | null>(null)
 
-  /* הדמיית דמו — מאתרת את הדמיית לאונרדו דה וינצ׳י מהספרייה הציבורית ופותחת אותה ב-/play */
-  async function startDemo() {
-    if (demoLoading) return
-    setDemoLoading(true)
-    setDemoError(null)
-    try {
-      const res = await fetch('/api/quests/demo')
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(body?.error ?? 'לא הצלחנו לטעון את הדמו')
-      }
-      const { id } = await res.json()
-      navigate(`/play/${id}`)
-    } catch (e) {
-      setDemoError(e instanceof Error ? e.message : 'לא הצלחנו לטעון את הדמו')
-      setDemoLoading(false)
-    }
+  /* הדמיית דמו — ניווט ל-URL קריא (/play/leonardo); Player מתרגם את ה-slug ל-id
+     האמיתי דרך GET /api/quests/demo (כתובת נוחה יותר לשיתוף מ-UUID גולמי). */
+  function startDemo() {
+    navigate('/play/leonardo')
   }
 
   function enterClass() {
@@ -141,12 +126,11 @@ export default function Home() {
       <div style={{ marginTop: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
         <button
           onClick={startDemo}
-          disabled={demoLoading}
           onMouseEnter={() => setHov('demo')}
           onMouseLeave={() => setHov(null)}
           style={{
             display: 'flex', alignItems: 'center', gap: 10, padding: '13px 30px', borderRadius: 14,
-            cursor: demoLoading ? 'wait' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700,
             color: hov === 'demo' ? '#fff' : 'rgba(200,230,255,.8)',
             background: hov === 'demo'
               ? 'linear-gradient(135deg, rgba(255,154,46,.22), rgba(255,69,230,.16))'
@@ -154,13 +138,12 @@ export default function Home() {
             border: '1px solid ' + (hov === 'demo' ? 'rgba(255,154,46,.5)' : 'rgba(255,154,46,.28)'),
             backdropFilter: 'blur(18px)',
             boxShadow: hov === 'demo' ? '0 0 36px rgba(255,154,46,.22)' : 'none',
-            transition: 'all .2s', opacity: demoLoading ? 0.7 : 1,
+            transition: 'all .2s',
           }}
         >
-          <span style={{ fontSize: 18 }}>{demoLoading ? '⏳' : '🎨'}</span>
-          {demoLoading ? 'טוען הדמיית דמו…' : 'נסו הדמיית דמו — לאונרדו דה וינצ׳י'}
+          <span style={{ fontSize: 18 }}>🎨</span>
+          נסו הדמיית דמו — לאונרדו דה וינצ׳י
         </button>
-        {demoError && <span style={{ fontSize: 13, color: '#ff8099' }}>{demoError}</span>}
       </div>
 
       {/* מודאל קוד כיתה */}
