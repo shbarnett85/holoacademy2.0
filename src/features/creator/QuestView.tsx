@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { apiFetch } from '../../shared/lib/api'
 import QuestWorkspace, { WorkspaceActions } from './QuestWorkspace'
@@ -22,6 +22,12 @@ export default function QuestView() {
   const navigate = useNavigate()
   const [quest, setQuest] = useState<QuestDetails | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [undoing, setUndoing] = useState(false)
+  /* סנאפשוט ה-game_data כפי שהיה בטעינת העמוד — כל עריכה בעמוד הזה (שמירת סצנה,
+     יצירת-תמונה-מחדש) כבר נשמרת מיידית לשרת ברגע שהיא נעשית (אין "טיוטה" ברמת
+     העמוד) — לכן "בטל שינויים" צריך לכתוב את הסנאפשוט הזה בחזרה לשרת, לא רק
+     לאפס state מקומי. נלכד פעם אחת בטעינה, לא מתעדכן אחר-כך. */
+  const originalRef = useRef<QuestDetails['game_data'] | null>(null)
 
   useEffect(() => {
     if (!questId) return
@@ -33,9 +39,37 @@ export default function QuestView() {
         }
         return res.json()
       })
-      .then((body) => setQuest(body.quest))
+      .then((body) => {
+        setQuest(body.quest)
+        originalRef.current = body.quest.game_data ? JSON.parse(JSON.stringify(body.quest.game_data)) : null
+      })
       .catch((e: Error) => setError(e.message))
   }, [questId])
+
+  const dirty = !!quest?.game_data && !!originalRef.current && JSON.stringify(quest.game_data) !== JSON.stringify(originalRef.current)
+
+  /* בטל שינויים — משחזר את ה-game_data המקורי (מרגע טעינת העמוד) גם בשרת וגם ב-state המקומי */
+  async function undoChanges() {
+    if (!quest || !originalRef.current || undoing) return
+    if (!window.confirm('לבטל את כל השינויים שנעשו בהדמיה זו מאז פתיחת העמוד? הפעולה תשחזר את הגרסה המקורית ותדרוס כל עריכה (כולל תמונות שנוצרו מחדש).')) return
+    setUndoing(true)
+    try {
+      const res = await apiFetch(`/api/quests/${quest.id}/restore`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameData: originalRef.current }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error ?? 'שחזור נכשל')
+      }
+      setQuest((q) => (q ? { ...q, game_data: originalRef.current } : q))
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'שחזור נכשל')
+    } finally {
+      setUndoing(false)
+    }
+  }
 
   /* עדכון סצנה ב-state המקומי */
   function patchScene(sceneId: string, patch: Partial<Scene>) {
@@ -96,6 +130,7 @@ export default function QuestView() {
           onSave={() => navigate('/creator/library')}
           onRegenerate={() => navigate('/creator')}
           onPlay={() => navigate(`/play/${quest.id}`)}
+          onUndo={dirty && !undoing ? undoChanges : undefined}
         />
       }
     />

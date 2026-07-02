@@ -1560,6 +1560,35 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
   }
 })
 
+/* PATCH /api/quests/:id/restore — "בטל שינויים": משחזר את ה-game_data המלא לסנאפשוט
+   שנשמר בקליינט בטעינת דף העריכה (לפני כל עריכת סצנה/תמונה בסשן הנוכחי). כל שינוי
+   בעמוד הזה (שמירת סצנה, יצירת-תמונה-מחדש) כבר נשמר מיידית ל-DB ברגע שנעשה — אין
+   "טיוטה לא-שמורה" ברמת העמוד — ולכן שחזור אמיתי דורש כתיבה חוזרת לשרת, לא רק
+   איפוס state מקומי. מקבל את ה-game_data המלא כמות-שהוא (בלי ולידציית סכמה מחדש)
+   כדי לשמר שדות-מטא שהוזרקו בזמן ריצה (factCheck/genMeta/readingScale) בלי לאבד אותם. */
+questsRouter.patch('/:id/restore', requireStaff, async (req, res, next) => {
+  try {
+    const gameData = req.body?.gameData
+    if (!gameData || !Array.isArray(gameData.scenes)) {
+      throw new AppError(400, 'gameData לא תקין')
+    }
+    const { data: quest, error } = await supabaseAdmin
+      .from('quests')
+      .select('id, created_by')
+      .eq('id', req.params.id)
+      .single()
+    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureOwner(req, quest.created_by)
+
+    const { error: updateError } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
+    if (updateError) throw new AppError(500, 'שגיאה בשחזור: ' + updateError.message)
+
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* POST /api/quests/:id/refine — "בצע שיפורים": מריץ על-פי-דרישה את בדיקת העובדות/התקניות
    (runFactCheck, Haiku) ומחיל את התיקונים שזוהו (scopedFactFix) — אותם תיקונים המופיעים
    ב"אזהרות מבנה". שומר את ה-game_data המעודכן ומחזיר אותו + מספר הסצנות שתוקנו + אזהרות

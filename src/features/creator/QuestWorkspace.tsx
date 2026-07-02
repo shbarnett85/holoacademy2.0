@@ -63,14 +63,18 @@ export const WsIcons = {
   check: <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>,
   refresh: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></svg>,
   play: <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z" /></svg>,
+  undo: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 5 5v1a5 5 0 0 1-5 5H9" /></svg>,
 }
 
-/* שלושת כפתורי הפעולה המשותפים לעמוד היצירה (QuestPreview) ולעמוד העריכה (QuestView).
-   *מקור יחיד* — כל שינוי בכפתורים חל אוטומטית על שני העמודים. */
-export function WorkspaceActions({ onSave, onRegenerate, onPlay }: { onSave: () => void; onRegenerate: () => void; onPlay: () => void }) {
+/* כפתורי הפעולה המשותפים לעמוד היצירה (QuestPreview) ולעמוד העריכה (QuestView).
+   *מקור יחיד* — כל שינוי בכפתורים חל אוטומטית על שני העמודים. onUndo אופציונלי —
+   רק ב-QuestView (עריכת הדמיה קיימת) יש "מצב מקורי" לחזור אליו; ב-QuestPreview
+   (מיד אחרי יצירה) אין עדיין עריכות, אז אין צורך בכפתור. */
+export function WorkspaceActions({ onSave, onRegenerate, onPlay, onUndo }: { onSave: () => void; onRegenerate: () => void; onPlay: () => void; onUndo?: () => void }) {
   return (
     <>
       <WsButton variant="primary" icon={WsIcons.check} onClick={onSave}>שמור</WsButton>
+      {onUndo && <WsButton variant="ghost" icon={WsIcons.undo} onClick={onUndo}>בטל שינויים</WsButton>}
       <WsButton variant="ghost" icon={WsIcons.refresh} onClick={onRegenerate}>צור מחדש</WsButton>
       <WsButton variant="play" icon={WsIcons.play} onClick={onPlay}>נסה הדמיה</WsButton>
     </>
