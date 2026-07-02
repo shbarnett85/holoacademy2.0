@@ -1458,6 +1458,11 @@ questsRouter.delete('/:id', requireStaff, async (req, res, next) => {
 
 /* ── עריכת סצנה בודדת — עדכון חלקי של game_data ── */
 
+/* עריכת חידה — כל השדות הספציפיים-לסוג נתמכים (לא רק multipleChoice/trueFalse) כדי
+   שלמורה תמיד תהיה דרך לערוך כל סוג אתגר: wordSearch (words), memory (pairs),
+   wordCompletion (sentence/answer/answers/wordBank), sequenceOrder (items/correctOrder/
+   orderType), hangman (answer/maxWrong), moralDilemma (situation/moralChoices), finalQuiz
+   (questions[]). */
 const patchPuzzleSchema = z.object({
   question: z.string().optional(),
   choices: z
@@ -1465,6 +1470,29 @@ const patchPuzzleSchema = z.object({
     .optional(),
   explanationCorrect: z.string().optional(),
   explanationIncorrect: z.string().optional(),
+  words: z.array(z.string().min(1)).optional(),
+  pairs: z.array(z.object({ a: z.string().min(1), b: z.string().min(1) })).optional(),
+  sentence: z.string().optional(),
+  answer: z.string().optional(),
+  answers: z.array(z.string().min(1)).optional(),
+  wordBank: z.array(z.string().min(1)).optional(),
+  items: z.array(z.object({ id: z.string().min(1), text: z.string().min(1), imagePrompt: z.string().optional() })).optional(),
+  correctOrder: z.array(z.string().min(1)).optional(),
+  orderType: z.enum(['chronological', 'logical', 'hierarchical']).optional(),
+  maxWrong: z.number().int().min(3).max(10).optional(),
+  situation: z.string().optional(),
+  moralChoices: z.array(z.object({ text: z.string().min(1), consequence: z.string().min(1) })).optional(),
+  questions: z
+    .array(
+      z.object({
+        question: z.string().min(1),
+        options: z.array(z.string().min(1)).min(2),
+        correctIndex: z.number().int().min(0),
+        explanationCorrect: z.string().optional(),
+        explanationIncorrect: z.string().optional(),
+      }),
+    )
+    .optional(),
 })
 
 const patchSceneSchema = z.object({
@@ -1488,6 +1516,19 @@ interface EditableScene {
     choices?: { id: string; text: string; isCorrect: boolean }[]
     explanationCorrect?: string
     explanationIncorrect?: string
+    words?: string[]
+    pairs?: { a: string; b: string }[]
+    sentence?: string
+    answer?: string
+    answers?: string[]
+    wordBank?: string[]
+    items?: { id: string; text: string; imagePrompt?: string }[]
+    correctOrder?: string[]
+    orderType?: 'chronological' | 'logical' | 'hierarchical'
+    maxWrong?: number
+    situation?: string
+    moralChoices?: { text: string; consequence: string }[]
+    questions?: { question: string; options: string[]; correctIndex: number; explanationCorrect?: string; explanationIncorrect?: string }[]
   }
 }
 
@@ -1550,6 +1591,20 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
         scene.puzzle.explanationCorrect = puzzle.explanationCorrect
       if (puzzle.explanationIncorrect !== undefined)
         scene.puzzle.explanationIncorrect = puzzle.explanationIncorrect
+      /* שדות ספציפיים-לסוג — כך שלכל סוג אתגר (לא רק multipleChoice/trueFalse) יש דרך עריכה */
+      if (puzzle.words !== undefined) scene.puzzle.words = puzzle.words
+      if (puzzle.pairs !== undefined) scene.puzzle.pairs = puzzle.pairs
+      if (puzzle.sentence !== undefined) scene.puzzle.sentence = puzzle.sentence
+      if (puzzle.answer !== undefined) scene.puzzle.answer = puzzle.answer
+      if (puzzle.answers !== undefined) scene.puzzle.answers = puzzle.answers
+      if (puzzle.wordBank !== undefined) scene.puzzle.wordBank = puzzle.wordBank
+      if (puzzle.items !== undefined) scene.puzzle.items = puzzle.items
+      if (puzzle.correctOrder !== undefined) scene.puzzle.correctOrder = puzzle.correctOrder
+      if (puzzle.orderType !== undefined) scene.puzzle.orderType = puzzle.orderType
+      if (puzzle.maxWrong !== undefined) scene.puzzle.maxWrong = puzzle.maxWrong
+      if (puzzle.situation !== undefined) scene.puzzle.situation = puzzle.situation
+      if (puzzle.moralChoices !== undefined) scene.puzzle.moralChoices = puzzle.moralChoices
+      if (puzzle.questions !== undefined) scene.puzzle.questions = puzzle.questions
     }
 
     const { error: updateError } = await supabaseAdmin
@@ -1588,6 +1643,33 @@ questsRouter.patch('/:id/restore', requireStaff, async (req, res, next) => {
     if (updateError) throw new AppError(500, 'שגיאה בשחזור: ' + updateError.message)
 
     res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* PATCH /api/quests/:id — עריכת שדות ברמת ההדמיה (כרגע: title בלבד) */
+questsRouter.patch('/:id', requireStaff, async (req, res, next) => {
+  try {
+    const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined
+    if (title !== undefined && title.length === 0) throw new AppError(400, 'שם ההדמיה לא יכול להיות ריק')
+
+    const { data: quest, error } = await supabaseAdmin
+      .from('quests')
+      .select('id, created_by')
+      .eq('id', req.params.id)
+      .single()
+    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureOwner(req, quest.created_by)
+
+    const patch: Record<string, unknown> = {}
+    if (title !== undefined) patch.title = title
+    if (Object.keys(patch).length === 0) throw new AppError(400, 'אין שדות לעדכון')
+
+    const { error: updateError } = await supabaseAdmin.from('quests').update(patch).eq('id', quest.id)
+    if (updateError) throw new AppError(500, 'שגיאה בשמירה: ' + updateError.message)
+
+    res.json({ ok: true, title })
   } catch (err) {
     next(err)
   }

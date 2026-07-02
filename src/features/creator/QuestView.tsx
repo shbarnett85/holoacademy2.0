@@ -71,6 +71,21 @@ export default function QuestView() {
     }
   }
 
+  /* עריכת שם ההדמיה — נשמרת מיידית (PATCH /:id), בנפרד מ"בטל שינויים" (שנוגע רק ל-game_data) */
+  async function saveTitle(newTitle: string) {
+    if (!quest) return
+    const res = await apiFetch(`/api/quests/${quest.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: newTitle }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => null)
+      throw new Error(body?.error ?? 'עדכון השם נכשל')
+    }
+    setQuest((q) => (q ? { ...q, title: newTitle } : q))
+  }
+
   /* עדכון סצנה ב-state המקומי */
   function patchScene(sceneId: string, patch: Partial<Scene>) {
     setQuest((q) =>
@@ -125,12 +140,14 @@ export default function QuestView() {
       endingBad={endingBad}
       patchScene={patchScene}
       patchEnding={patchEnding}
+      onTitleSave={saveTitle}
       actions={
         <WorkspaceActions
           onSave={() => navigate('/creator/library')}
           onRegenerate={() => navigate('/creator')}
           onPlay={() => navigate(`/play/${quest.id}`)}
-          onUndo={dirty && !undoing ? undoChanges : undefined}
+          onUndo={undoChanges}
+          undoDisabled={!dirty || undoing}
         />
       }
     />

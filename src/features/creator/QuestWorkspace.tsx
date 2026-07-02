@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { apiFetch } from '../../shared/lib/api'
 import type { GeneratedQuest, HubInfo } from './creatorStore'
 import SceneCards from './SceneCards'
@@ -36,25 +36,28 @@ interface Props {
   patchEnding?: (which: 'good' | 'bad', patch: Partial<EndingScene>) => void
   /* כפתורי פעולה ייעודיים להקשר (שמירה/חזרה/נסה הדמיה) */
   actions?: ReactNode
+  /* עריכת שם ההדמיה — אופציונלי (רק בדף העריכה, QuestView; לא ב-QuestPreview שאחרי יצירה) */
+  onTitleSave?: (newTitle: string) => Promise<void> | void
 }
 
 /* כפתור פעולה בעיצוב הטיוטות — primary (גרדיאנט) / ghost (זכוכית ציאן) / play (זכוכית סגולה).
    משותף ל-QuestPreview ו-QuestView כך ששלושת הכפתורים בתחתית זהים בכל עמודי הטיוטות. */
-export function WsButton({ variant, icon, children, onClick }: { variant: 'primary' | 'ghost' | 'play'; icon: ReactNode; children: ReactNode; onClick: () => void }) {
+export function WsButton({ variant, icon, children, onClick, disabled }: { variant: 'primary' | 'ghost' | 'play'; icon: ReactNode; children: ReactNode; onClick: () => void; disabled?: boolean }) {
   const [hov, setHov] = useState(false)
   const base: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: disabled ? 'not-allowed' : 'pointer',
     fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, transition: 'all .16s', whiteSpace: 'nowrap',
+    opacity: disabled ? 0.45 : 1,
   }
   let style: React.CSSProperties
   if (variant === 'primary') {
-    style = { ...base, background: 'linear-gradient(120deg,#2ff3ff,#9b8cff)', border: '1px solid transparent', color: '#04101c', boxShadow: hov ? '0 0 22px rgba(47,243,255,.5)' : '0 0 14px rgba(47,243,255,.28)' }
+    style = { ...base, background: 'linear-gradient(120deg,#2ff3ff,#9b8cff)', border: '1px solid transparent', color: '#04101c', boxShadow: hov && !disabled ? '0 0 22px rgba(47,243,255,.5)' : '0 0 14px rgba(47,243,255,.28)' }
   } else {
     const rgb = variant === 'play' ? '120,90,255' : '47,243,255'
-    style = { ...base, background: hov ? `rgba(${rgb},.18)` : `rgba(${rgb},.07)`, border: `1px solid rgba(${rgb},${hov ? '.65' : '.3'})`, color: hov ? '#fff' : variant === 'play' ? '#cdbcff' : '#bfe9ff', boxShadow: hov ? `0 0 16px rgba(${rgb},.3)` : 'none' }
+    style = { ...base, background: hov && !disabled ? `rgba(${rgb},.18)` : `rgba(${rgb},.07)`, border: `1px solid rgba(${rgb},${hov && !disabled ? '.65' : '.3'})`, color: hov && !disabled ? '#fff' : variant === 'play' ? '#cdbcff' : '#bfe9ff', boxShadow: hov && !disabled ? `0 0 16px rgba(${rgb},.3)` : 'none' }
   }
   return (
-    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={style}>{icon}{children}</button>
+    <button onClick={disabled ? undefined : onClick} disabled={disabled} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={style}>{icon}{children}</button>
   )
 }
 
@@ -70,11 +73,12 @@ export const WsIcons = {
    *מקור יחיד* — כל שינוי בכפתורים חל אוטומטית על שני העמודים. onUndo אופציונלי —
    רק ב-QuestView (עריכת הדמיה קיימת) יש "מצב מקורי" לחזור אליו; ב-QuestPreview
    (מיד אחרי יצירה) אין עדיין עריכות, אז אין צורך בכפתור. */
-export function WorkspaceActions({ onSave, onRegenerate, onPlay, onUndo }: { onSave: () => void; onRegenerate: () => void; onPlay: () => void; onUndo?: () => void }) {
+export function WorkspaceActions({ onSave, onRegenerate, onPlay, onUndo, undoDisabled }: { onSave: () => void; onRegenerate: () => void; onPlay: () => void; onUndo?: () => void; undoDisabled?: boolean }) {
   return (
     <>
       <WsButton variant="primary" icon={WsIcons.check} onClick={onSave}>שמור</WsButton>
-      {onUndo && <WsButton variant="ghost" icon={WsIcons.undo} onClick={onUndo}>בטל שינויים</WsButton>}
+      {/* תמיד גלוי כשהעמוד תומך בביטול (QuestView) — מנוטרל (לא מוסתר) כשאין מה לבטל */}
+      {onUndo && <WsButton variant="ghost" icon={WsIcons.undo} onClick={onUndo} disabled={undoDisabled}>בטל שינויים</WsButton>}
       <WsButton variant="ghost" icon={WsIcons.refresh} onClick={onRegenerate}>צור מחדש</WsButton>
       <WsButton variant="play" icon={WsIcons.play} onClick={onPlay}>נסה הדמיה</WsButton>
     </>
@@ -222,13 +226,32 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
 
 /* סביבת עבודה משותפת על הדמיה — כרטיסי סצנות, יצירה/עריכת תמונות, עריכת סצנה.
    זהה לחלון שלאחר יצירה (QuestPreview) ולמצב טיוטה מהספרייה (QuestView). */
-export default function QuestWorkspace({ questId, title, subtitle, scenes, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions }: Props) {
+export default function QuestWorkspace({ questId, title, subtitle, scenes, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions, onTitleSave }: Props) {
   const [imgProgress, setImgProgress] = useState<ImageProgress | null>(null)
   const [imgWarnings, setImgWarnings] = useState<string[]>([])
   const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null)
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [editingEnding, setEditingEnding] = useState<'good' | 'bad' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+
+  /* עריכת שם ההדמיה inline בכותרת (רק כשסופק onTitleSave) */
+  const [titleDraft, setTitleDraft] = useState(title)
+  const [savingTitle, setSavingTitle] = useState(false)
+  useEffect(() => setTitleDraft(title), [title])
+  async function commitTitle() {
+    const next = titleDraft.trim()
+    if (!onTitleSave || next === title || !next) { setTitleDraft(title); return }
+    setSavingTitle(true)
+    try {
+      await onTitleSave(next)
+      flashToast('שם ההדמיה עודכן ✓')
+    } catch (err) {
+      setTitleDraft(title)
+      flashToast(err instanceof Error ? err.message : 'עדכון השם נכשל')
+    } finally {
+      setSavingTitle(false)
+    }
+  }
   /* "בצע שיפורים" — מריץ את בדיקת העובדות/התקניות בשרת ומחיל את התיקונים שזוהו.
      refinedWarnings מחליף את ה-prop להצגה אחרי הריצה (האזהרות שנותרו). */
   const [refining, setRefining] = useState(false)
@@ -363,7 +386,26 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#fff' }}>{title}</h1>
+          {onTitleSave ? (
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+              disabled={savingTitle}
+              title="לחצו לעריכת שם ההדמיה"
+              style={{
+                margin: 0, fontSize: 24, fontWeight: 800, color: '#fff', width: '100%',
+                background: 'transparent', border: '1px solid transparent', borderRadius: 8,
+                padding: '2px 6px', marginInlineStart: -6, fontFamily: 'var(--font-display)',
+                opacity: savingTitle ? 0.6 : 1,
+              }}
+              onFocus={(e) => { e.currentTarget.style.background = 'rgba(0,136,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(0,246,255,0.3)' }}
+              onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.background = 'transparent' }}
+            />
+          ) : (
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: '#fff' }}>{title}</h1>
+          )}
           {subtitle && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.18em', color: 'rgba(47,243,255,.6)', marginTop: 4 }}>{subtitle}</div>}
         </div>
         <span style={{ fontSize: 11.5, color: 'var(--holo-cyan)', opacity: 0.7, whiteSpace: 'nowrap' }}>✏️ לחצו על סצנה לעריכה</span>
