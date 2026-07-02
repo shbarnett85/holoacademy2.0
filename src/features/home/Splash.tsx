@@ -27,6 +27,7 @@ export default function Splash({ onDone }: { onDone: () => void }) {
     if (!canvas) return
     const W = (canvas.width = window.innerWidth)
     const H = (canvas.height = window.innerHeight)
+    if (W <= 0 || H <= 0) return /* viewport לא מוכן/גודל-אפס — מדלגים על אפקט החלקיקים בלי לקרוס */
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -87,14 +88,26 @@ export default function Splash({ onDone }: { onDone: () => void }) {
   const entering = phase === 'entering'
   const dissolving = phase === 'disintegrate' || phase === 'out'
 
+  /* לחיצה/מגע בכל מקום על הספלאש מדלגים ישר לסיום. חשוב לא רק ל-UX (למי שממהר) —
+     זו גם ה"מחווית משתמש" הראשונה בכניסה קרה לדף (למשל קישור ישיר ל-/play/leonardo,
+     בלי קליק קודם על שום דבר). בלי מחווה אמיתית על העמוד, מדיניות הדפדפן חוסמת אודיו
+     לחלוטין — האנימציות האוטומטיות שרצות מיד אח"כ (חור-תולעת, כניסת הפאנל, הקלדה)
+     מנסות להשמיע צליל *לפני* שהייתה הזדמנות למחווה, וה-Web Audio API משתיק אותן
+     בשקט (לא ניתן לעקוף בקוד — זו מדיניות דפדפן, לא תקלה). הדילוג-בנגיעה כאן נותן
+     סיכוי מוקדם וטבעי למחווה כזו לפני שהמשחק בכלל עולה. */
+  function skip() { onDone() }
+
   return (
     <div
+      onClick={skip}
+      onTouchStart={skip}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999, background: '#04060e',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         opacity: phase === 'out' ? 0 : 1,
         transition: phase === 'out' ? 'opacity .4s ease' : 'none',
         overflow: 'hidden',
+        cursor: 'pointer',
       }}
     >
       <style>{`
