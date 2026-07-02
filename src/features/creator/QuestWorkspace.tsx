@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { apiFetch } from '../../shared/lib/api'
-import type { GeneratedQuest, HubInfo } from './creatorStore'
+import { ART_STYLES, type GeneratedQuest, type HubInfo } from './creatorStore'
 import SceneCards from './SceneCards'
 import SceneEditModal from './SceneEditModal'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
@@ -233,6 +233,8 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [editingEnding, setEditingEnding] = useState<'good' | 'bad' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  /* "צור תמונות מחדש" — בורר סגנון (ששת הסגנונות) לפני יצירה-מחדש של כל התמונות */
+  const [stylePickerOpen, setStylePickerOpen] = useState(false)
 
   /* עריכת שם ההדמיה inline בכותרת (רק כשסופק onTitleSave) */
   const [titleDraft, setTitleDraft] = useState(title)
@@ -325,13 +327,18 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
     }
   }
 
-  /* יצירת כל התמונות — קריאת SSE ועדכון thumbnails אחד-אחד */
-  async function generateImages() {
+  /* יצירת כל התמונות — קריאת SSE ועדכון thumbnails אחד-אחד.
+     style+regenerateAll: "צור תמונות מחדש" — כל התמונות נוצרות מחדש בסגנון שנבחר. */
+  async function generateImages(style?: string) {
     if (imgProgress?.running) return
     setImgProgress({ completed: 0, total: 0, running: true })
     setImgWarnings([])
     try {
-      const res = await apiFetch(`/api/quests/${questId}/generate-images`, { method: 'POST' })
+      const res = await apiFetch(`/api/quests/${questId}/generate-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(style ? { style, regenerateAll: true } : {}),
+      })
       if (!res.ok || !res.body) throw new Error('יצירת התמונות נכשלה')
 
       const reader = res.body.getReader()
@@ -512,16 +519,64 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       )}
 
       <div className="flex gap-3 mb-10 flex-wrap justify-center" style={{ width: '100%', maxWidth: 760 }}>
-        <button
-          disabled={imgProgress?.running}
-          onClick={generateImages}
-          style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: imgProgress?.running ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', background: 'rgba(255,69,230,.08)', border: '1px solid rgba(255,69,230,.35)', color: '#ffd6f6', opacity: imgProgress?.running ? 0.5 : 1, transition: 'all .16s' }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
-          {imgProgress?.running ? 'יוצר תמונות…' : 'צור תמונות'}
-        </button>
+        {/* לפני שנוצרו תמונות: "צור תמונות" (משלים חסרות). אחרי: "צור תמונות מחדש" —
+            פותח בורר סגנון, והבחירה מייצרת מחדש את *כל* התמונות בסגנון החדש. */}
+        {(() => {
+          const hasImages = scenes.some((s) => s.imageUrl)
+          return (
+            <button
+              disabled={imgProgress?.running}
+              onClick={() => (hasImages ? setStylePickerOpen(true) : generateImages())}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: imgProgress?.running ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', background: 'rgba(255,69,230,.08)', border: '1px solid rgba(255,69,230,.35)', color: '#ffd6f6', opacity: imgProgress?.running ? 0.5 : 1, transition: 'all .16s' }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+              {imgProgress?.running ? 'יוצר תמונות…' : hasImages ? 'צור תמונות מחדש' : 'צור תמונות'}
+            </button>
+          )
+        })()}
         {actions}
       </div>
+
+      {/* בורר סגנון ל"צור תמונות מחדש" — בחירת סגנון מתחילה יצירה-מחדש של כל התמונות */}
+      {stylePickerOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4"
+          style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 60 }}
+          onClick={() => setStylePickerOpen(false)}
+        >
+          <div
+            className="holo-panel w-full"
+            style={{ maxWidth: '30rem', boxShadow: 'var(--holo-glow)', borderColor: 'rgba(255,69,230,.5)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="holo-text-glow text-xl font-black">🎨 צור תמונות מחדש</h2>
+              <button onClick={() => setStylePickerOpen(false)} className="cursor-pointer text-xl" style={{ color: 'var(--holo-text)', opacity: 0.6 }} title="סגור">✕</button>
+            </div>
+            <p className="text-sm mb-4" style={{ opacity: 0.75 }}>
+              בחרו סגנון אמנותי — כל תמונות ההדמיה ייווצרו מחדש בסגנון שנבחר.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {ART_STYLES.map((a) => (
+                <button
+                  key={a.key}
+                  onClick={() => { setStylePickerOpen(false); void generateImages(a.key) }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    padding: '14px 6px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s',
+                    background: 'rgba(4,9,18,.55)', border: '1px solid rgba(255,69,230,.25)', color: '#e8dff5',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,69,230,.14)'; e.currentTarget.style.borderColor = 'rgba(255,69,230,.6)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(4,9,18,.55)'; e.currentTarget.style.borderColor = 'rgba(255,69,230,.25)' }}
+                >
+                  <span style={{ fontSize: 24 }}>{a.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{a.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* מודאל עריכת סצנה */}
       {editingScene && (

@@ -174,9 +174,14 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
   }
 })
 
-/* POST /api/quests/:id/generate-images — יצירת תמונות עם progress ב-SSE */
+/* POST /api/quests/:id/generate-images — יצירת תמונות עם progress ב-SSE.
+   body אופציונלי: { style?, regenerateAll? } — "צור תמונות מחדש": יצירה-מחדש של *כל*
+   התמונות בסגנון אמנותי חדש (המורה בוחר מתוך ששת הסגנונות). הסגנון נשמר ל-art_style
+   כך שגם regenerate-image עתידי של סצנה בודדת ישתמש בו. */
 imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) => {
   try {
+    const { style, regenerateAll } = (req.body ?? {}) as { style?: string; regenerateAll?: boolean }
+
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
       .select('id, art_style, game_data, created_by')
@@ -187,14 +192,22 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
     ensureOwner(req, quest.created_by)
 
     const gameData = quest.game_data as GameDataRef
-    const artStyle = quest.art_style as string | undefined
+    const artStyle = (style || quest.art_style) as string | undefined
+    /* סגנון חדש נשמר מיד — כך שגם יצירה-מחדש של תמונה בודדת בהמשך תשתמש בו */
+    if (style && style !== quest.art_style) {
+      await supabaseAdmin.from('quests').update({ art_style: style }).eq('id', quest.id)
+    }
     /* בהדמיה היסטורית — negative נוסף נגד הריסות מודרניות */
     const extraNegative = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
 
-    /* איסוף המשימות: סצנות וחפצים עם imagePrompt (שטרם נוצרה להם תמונה) */
+    /* regenerateAll → path ייחודי לכל תמונה (URL חדש, לא מוגש מהמטמון); אחרת path קבוע */
+    const uniq = regenerateAll ? `_${Date.now().toString(36)}` : ''
+
+    /* איסוף המשימות: סצנות וחפצים עם imagePrompt. ברירת מחדל — רק חסרות תמונה;
+       regenerateAll — כולן (יצירה-מחדש בסגנון חדש). */
     const tasks: ImageTask[] = []
     for (const scene of gameData.scenes) {
-      if (scene.imagePrompt && !scene.imageUrl) {
+      if (scene.imagePrompt && (regenerateAll || !scene.imageUrl)) {
         tasks.push({
           kind: 'scene',
           sceneId: scene.id,
@@ -202,11 +215,11 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           drHoloExpression: scene.drHoloExpression,
           width: 1280,
           height: 720,
-          publicId: `scene_${scene.id}`,
+          publicId: `scene_${scene.id}${uniq}`,
         })
       }
       const item = scene.collectableItem
-      if (item?.imagePrompt && !item.imageUrl) {
+      if (item?.imagePrompt && (regenerateAll || !item.imageUrl)) {
         tasks.push({
           kind: 'item',
           sceneId: scene.id,
@@ -214,7 +227,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           drHoloExpression: scene.drHoloExpression,
           width: 512,
           height: 512,
-          publicId: `item_${item.id}`,
+          publicId: `item_${item.id}${uniq}`,
         })
       }
     }
@@ -222,7 +235,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
     /* תמונות הסיום הייעודיות (endingGood/endingBad) — מסכי הסיכום, שונות מסצנת הפתיחה */
     for (const which of ['good', 'bad'] as const) {
       const ending = which === 'good' ? gameData.endingGood : gameData.endingBad
-      if (ending?.imagePrompt && !ending.imageUrl) {
+      if (ending?.imagePrompt && (regenerateAll || !ending.imageUrl)) {
         tasks.push({
           kind: 'scene',
           sceneId: ENDING_SCENE_ID[which],
@@ -231,7 +244,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           drHoloExpression: ending.drHoloExpression,
           width: 1280,
           height: 720,
-          publicId: `ending_${which}`,
+          publicId: `ending_${which}${uniq}`,
         })
       }
     }
