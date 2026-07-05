@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin, supabaseAnon } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { isUserActive, isSuperAdminEmail } from '../middleware/staffAuth.js'
+import { rateLimitByIp, recordFailure, isLocked, RATE_LIMIT_MESSAGE } from '../middleware/rateLimit.js'
 
 export const authRouter = Router()
 
@@ -29,7 +30,7 @@ const staffSignupSchema = z.object({
 })
 
 /* POST /api/auth/staff-signup — יצירת מורה/מנהל (MVP: signup פתוח) */
-authRouter.post('/auth/staff-signup', async (req, res, next) => {
+authRouter.post('/auth/staff-signup', rateLimitByIp('staff-signup', 5), async (req, res, next) => {
   try {
     const parsed = staffSignupSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
@@ -69,7 +70,7 @@ const staffLoginSchema = z.object({
 })
 
 /* POST /api/auth/staff-login — אימות מול Supabase Auth, החזרת session + פרופיל הצוות */
-authRouter.post('/auth/staff-login', async (req, res, next) => {
+authRouter.post('/auth/staff-login', rateLimitByIp('staff-login', 10), async (req, res, next) => {
   try {
     const parsed = staffLoginSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
@@ -124,7 +125,7 @@ authRouter.post('/auth/staff-login', async (req, res, next) => {
 /* POST /api/auth/guest-login — כניסה כמורה אורח ללא סיסמה (חשבון הדגמה).
    האישורים נקראים מ-env: GUEST_EMAIL / GUEST_PASSWORD (ברירת מחדל: teacher@demo.com / demo1234).
    אם החשבון לא קיים או הסיסמה שגויה, מחזיר 503 במקום 401. */
-authRouter.post('/auth/guest-login', async (req, res, next) => {
+authRouter.post('/auth/guest-login', rateLimitByIp('guest-login', 10), async (req, res, next) => {
   try {
     const email = process.env.GUEST_EMAIL || 'teacher@demo.com'
     const password = process.env.GUEST_PASSWORD || 'demo1234'
@@ -195,13 +196,19 @@ const loginSchema = z.object({
   pin: z.string().min(1),
 })
 
-/* POST /api/auth/student-login — שלב 2: אימות PIN והנפקת JWT */
-authRouter.post('/auth/student-login', async (req, res, next) => {
+/* POST /api/auth/student-login — שלב 2: אימות PIN והנפקת JWT.
+   הגנת brute-force כפולה: פר-IP (middleware) + נעילת-תלמיד אחרי 5 PINs שגויים
+   בחלון של דקה (נספרים כשלונות בלבד — התחברות תקינה לא ננעלת). */
+const STUDENT_PIN_MAX_FAILS = 5
+authRouter.post('/auth/student-login', rateLimitByIp('student-login', 20), async (req, res, next) => {
   try {
     const parsed = loginSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
 
     const { studentId, pin } = parsed.data
+    if (isLocked('student-pin', studentId, STUDENT_PIN_MAX_FAILS)) {
+      throw new AppError(429, RATE_LIMIT_MESSAGE)
+    }
 
     const { data: user, error } = await supabaseAdmin
       .from('users')
@@ -211,7 +218,10 @@ authRouter.post('/auth/student-login', async (req, res, next) => {
 
     if (error || !user) throw new AppError(401, 'תלמיד לא נמצא')
     if (!(await isUserActive(user.id))) throw new AppError(403, 'החשבון הושבת — פנה למורה')
-    if (String(user.pin) !== String(pin)) throw new AppError(401, 'קוד PIN שגוי')
+    if (String(user.pin) !== String(pin)) {
+      recordFailure('student-pin', studentId)
+      throw new AppError(401, 'קוד PIN שגוי')
+    }
 
     const secret = process.env.JWT_SECRET
     if (!secret) throw new AppError(500, 'JWT_SECRET לא מוגדר')
