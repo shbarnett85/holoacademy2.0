@@ -547,11 +547,19 @@ export default function Library() {
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  /* עוקב חיים — מונע setState אחרי unmount (ניווט מהיר באמצע טעינה) */
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
+
   function loadMine() {
-    apiJson<{ quests: QuestSummary[] }>('/api/quests').then((b) => setQuests(b.quests)).catch((e: Error) => setError(e.message))
+    apiJson<{ quests: QuestSummary[] }>('/api/quests')
+      .then((b) => { if (mountedRef.current) setQuests(b.quests) })
+      .catch((e: Error) => { if (mountedRef.current) setError(e.message) })
   }
   function loadPublic() {
-    apiJson<{ quests: PublicQuest[] }>('/api/library').then((b) => setPublicQuests(b.quests)).catch(() => setPublicQuests([]))
+    apiJson<{ quests: PublicQuest[] }>('/api/library')
+      .then((b) => { if (mountedRef.current) setPublicQuests(b.quests) })
+      .catch(() => { if (mountedRef.current) setPublicQuests([]) })
   }
   useEffect(() => { loadMine(); loadPublic() }, [])
 

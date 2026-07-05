@@ -7,6 +7,19 @@ export default defineConfig({
     tailwindcss(),
     react(),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        /* פיצול ה-vendor הכבד מה-bundle הראשי — react+router משתנים רק בשדרוג
+           תלויות, כך שה-chunk שלהם נשאר במטמון הדפדפן בין דיפלויים */
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-router') || id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/scheduler')) {
+            return 'vendor'
+          }
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       /* כל בקשת /api מופנית לשרת ה-Express.

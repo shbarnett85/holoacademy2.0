@@ -236,14 +236,18 @@ export default function StudentHome() {
     if (!isLoggedIn) return
     const token = sessionStorage.getItem('holo_token')
     if (!token) { setLoading(false); setDbgError('אין token בסשן — נסה להתחבר מחדש'); return }
+    /* דגל ביטול — ניווט החוצה באמצע הטעינה לא יפעיל setState על קומפוננטה מנותקת */
+    let cancelled = false
     fetch('/api/sessions/assigned', { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const body = await r.json()
+        if (cancelled) return
         if (!r.ok) { setDbgError(`שגיאה ${r.status}: ${body.error ?? JSON.stringify(body)}`); return }
         setQuests(body.quests ?? [])
       })
-      .catch((e) => setDbgError(String(e)))
-      .finally(() => setLoading(false))
+      .catch((e) => { if (!cancelled) setDbgError(String(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [isLoggedIn])
 
   const isNew = (q: AssignedQuest) => !!(lastLogin && q.assignedAt && q.assignedAt > lastLogin)
