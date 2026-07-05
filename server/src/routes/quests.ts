@@ -264,13 +264,25 @@ const generateRequestSchema = z.object({
   formOfAddress: z.enum(['male', 'female', 'plural']).optional(),
 })
 
-/* חילוץ JSON מתשובת Claude (כולל ניקוי גדרות קוד אם יש) */
+/* חילוץ JSON מתשובת Claude (כולל ניקוי גדרות קוד אם יש).
+   סובלני: אם הפרסינג הישיר נכשל (המודל הוסיף טקסט לפני/אחרי ה-JSON — קורה
+   לעיתים בפלטים ארוכים), מחלץ את הקטע מה-{ הראשון עד ה-} האחרון ומנסה שוב —
+   אותה טכניקה שכבר הוכיחה את עצמה ב-extractSafetyJson של בדיקת הבטיחות. */
 function extractJson(text: string): unknown {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
-  return JSON.parse(cleaned)
+  try {
+    return JSON.parse(cleaned)
+  } catch (err) {
+    const first = cleaned.indexOf('{')
+    const last = cleaned.lastIndexOf('}')
+    if (first !== -1 && last > first) {
+      return JSON.parse(cleaned.slice(first, last + 1))
+    }
+    throw err
+  }
 }
 
 /* ולידציה מלאה: סכמה + מספר מפתחות תואם */

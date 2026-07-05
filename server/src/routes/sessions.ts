@@ -418,9 +418,21 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     }
 
     if (rows.length > 0) {
-      await supabaseAdmin.from('events').delete().eq('session_id', session.id)
-      const { error: evErr } = await supabaseAdmin.from('events').insert(rows)
+      /* idempotency בסדר בטוח: קודם insert של הרשומות החדשות (עם החזרת ה-ids),
+         ואז delete של הישנות בלבד (id לא ברשימת החדשים). כך כשל ב-insert משאיר
+         את הנתונים הישנים שלמים (בניגוד ל-delete-קודם, שאיבד הכול אם ה-insert
+         נכשל אחריו); כשל ב-delete משאיר כפילויות — ו-retry הבא מנקה אותן. */
+      const { data: inserted, error: evErr } = await supabaseAdmin.from('events').insert(rows).select('id')
       if (evErr) throw new AppError(500, 'כתיבת סיכום ה-events נכשלה: ' + evErr.message)
+      const newIds = ((inserted ?? []) as { id: string }[]).map((r) => r.id)
+      if (newIds.length > 0) {
+        const { error: delErr } = await supabaseAdmin
+          .from('events')
+          .delete()
+          .eq('session_id', session.id)
+          .not('id', 'in', `(${newIds.join(',')})`)
+        if (delErr) console.warn('[complete] ניקוי events ישנים נכשל (יתוקן ב-retry הבא):', delErr.message)
+      }
     }
 
     const patch: Record<string, unknown> = { completed_at: new Date().toISOString(), total_score: totalScore }
