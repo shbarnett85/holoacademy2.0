@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { apiFetch } from '../../shared/lib/api'
+import { useEscToClose } from '../../shared/ui/useModalA11y'
 import { ART_STYLES, type GeneratedQuest, type HubInfo } from './creatorStore'
 import SceneCards from './SceneCards'
 import SceneEditModal from './SceneEditModal'
@@ -166,6 +167,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
   const [error, setError] = useState<string | null>(null)
   const good = which === 'good'
   const synthId = good ? '__endingGood__' : '__endingBad__'
+  useEscToClose(onClose)
 
   async function save() {
     if (saving) return
@@ -182,7 +184,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 60 }} onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 60 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="עריכת מסך סיום">
       <div className="holo-panel w-full" style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--holo-glow)', borderColor: good ? 'rgba(255,180,84,.6)' : 'rgba(155,140,255,.6)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="holo-text-glow text-xl font-black" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>✏️ {good ? '🏆 מסך ניצחון' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><DrHoloEmblem size={20} /> מסך מעודד</span>}</h2>
@@ -235,6 +237,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
   const [toast, setToast] = useState<string | null>(null)
   /* "צור תמונות מחדש" — בורר סגנון (ששת הסגנונות) לפני יצירה-מחדש של כל התמונות */
   const [stylePickerOpen, setStylePickerOpen] = useState(false)
+  useEscToClose(() => setStylePickerOpen(false), stylePickerOpen)
 
   /* עריכת שם ההדמיה inline בכותרת (רק כשסופק onTitleSave) */
   const [titleDraft, setTitleDraft] = useState(title)
@@ -543,6 +546,9 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           className="fixed inset-0 flex items-center justify-center p-4"
           style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 60 }}
           onClick={() => setStylePickerOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="בחירת סגנון תמונות"
         >
           <div
             className="holo-panel w-full"

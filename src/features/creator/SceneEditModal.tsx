@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { apiFetch } from '../../shared/lib/api'
+import { useEscToClose } from '../../shared/ui/useModalA11y'
 import type { GeneratedQuest } from './creatorStore'
 
 type Scene = GeneratedQuest['game_data']['scenes'][number]
@@ -141,11 +142,16 @@ export default function SceneEditModal({
     }
   }
 
+  useEscToClose(onClose)
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ background: 'rgba(5,5,18,0.7)', backdropFilter: 'blur(4px)', zIndex: 60 }}
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="עריכת סצנה"
     >
       <div
         className="holo-panel w-full"
