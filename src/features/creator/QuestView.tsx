@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { apiFetch } from '../../shared/lib/api'
+import { holoConfirm, holoAlert } from '../../shared/ui/dialog'
 import QuestWorkspace, { WorkspaceActions } from './QuestWorkspace'
 import type { GeneratedQuest } from './creatorStore'
 
@@ -51,7 +52,7 @@ export default function QuestView() {
   /* בטל שינויים — משחזר את ה-game_data המקורי (מרגע טעינת העמוד) גם בשרת וגם ב-state המקומי */
   async function undoChanges() {
     if (!quest || !originalRef.current || undoing) return
-    if (!window.confirm('לבטל את כל השינויים שנעשו בהדמיה זו מאז פתיחת העמוד? הפעולה תשחזר את הגרסה המקורית ותדרוס כל עריכה (כולל תמונות שנוצרו מחדש).')) return
+    if (!(await holoConfirm('לבטל את כל השינויים שנעשו בהדמיה זו מאז פתיחת העמוד? הפעולה תשחזר את הגרסה המקורית ותדרוס כל עריכה (כולל תמונות שנוצרו מחדש).', 'בטל שינויים', 'השאר'))) return
     setUndoing(true)
     try {
       const res = await apiFetch(`/api/quests/${quest.id}/restore`, {
@@ -65,7 +66,7 @@ export default function QuestView() {
       }
       setQuest((q) => (q ? { ...q, game_data: originalRef.current } : q))
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'שחזור נכשל')
+      void holoAlert(e instanceof Error ? e.message : 'שחזור נכשל')
     } finally {
       setUndoing(false)
     }

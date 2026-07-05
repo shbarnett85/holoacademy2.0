@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
+import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
@@ -547,9 +548,14 @@ export default function Library() {
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  /* עוקב חיים — מונע setState אחרי unmount (ניווט מהיר באמצע טעינה) */
+  /* עוקב חיים — מונע setState אחרי unmount (ניווט מהיר באמצע טעינה).
+     חשוב: מאתחלים ל-true בגוף ה-effect (לא רק בהצהרה) — ב-StrictMode ה-effect רץ
+     mount→unmount→remount, ובלי האיפוס ה-cleanup הראשון היה משאיר false לתמיד. */
   const mountedRef = useRef(true)
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   function loadMine() {
     apiJson<{ quests: QuestSummary[] }>('/api/quests')
@@ -571,7 +577,7 @@ export default function Library() {
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusyId(null) }
   }
   async function doDelete(q: QuestSummary) {
-    if (!window.confirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`)) return
+    if (!(await holoConfirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
     setBusyId(q.id); setError(null)
     try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה במחיקה') } finally { setBusyId(null) }

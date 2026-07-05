@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
 import ErrorBoundary from './shared/ui/ErrorBoundary'
+import { HoloDialogHost } from './shared/ui/dialog'
 import { initSound, installGlobalClickSound } from './shared/lib/sound'
 
 /* טעינה עצלה לכל feature */
@@ -66,6 +67,7 @@ export default function App() {
         </Routes>
         </div>
       </Suspense>
+      <HoloDialogHost />
       </ErrorBoundary>
     </BrowserRouter>
   )
