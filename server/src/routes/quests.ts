@@ -25,6 +25,7 @@ import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasContentSafetyLog } from '../lib/activeColumn.js'
 import { nakdan } from '../lib/dicta.js'
+import { debug } from '../lib/log.js'
 
 export const questsRouter = Router()
 
@@ -817,7 +818,7 @@ ${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפר�
 
   try {
     const t0 = Date.now()
-    console.log('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
+    debug('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
     const out = await callClaude([{ role: 'user', content: user }], cachedSystem)
     const parsed = extractJson(out)
     if (!Array.isArray(parsed)) { console.error('[variant:puzzles] התגובה אינה מערך'); return }
@@ -832,7 +833,7 @@ ${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפר�
       ;(scenes[j.idx] as { puzzle?: unknown }).puzzle = merged
       applied++
     })
-    console.log('[variant:puzzles] done', Date.now() - t0, 'ms, applied:', applied, '/', jobs.length)
+    debug('[variant:puzzles] done', Date.now() - t0, 'ms, applied:', applied, '/', jobs.length)
   } catch (err) {
     console.error('[variant:puzzles] נכשל:', err instanceof Error ? err.message : err)
   }
@@ -860,7 +861,7 @@ async function enforceNarrativePhrasing(gd: GameData, scaleLevel: number, form: 
     if (longestSentenceWords(v) > tolerance) offending[k] = v
   }
   const keys = Object.keys(offending)
-  if (keys.length === 0) { console.log('[phrasing:enforce] level', scaleLevel, 'limit', limit, '— הכל תקין'); return 0 }
+  if (keys.length === 0) { debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, '— הכל תקין'); return 0 }
   const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם).'
   const instruction = `המקטעים הבאים (JSON של key→טקסט) מנוסחים מורכב מדי לרמת הקריאה הנדרשת. פשט **רק את הניסוח** (אורך משפט, תחביר, אוצר מילים):
 ${narrativeStyleSpec(scaleLevel)}
@@ -873,7 +874,7 @@ ${JSON.stringify(offending, null, 0)}`
     const out = await callHaiku([{ role: 'user', content: instruction }], 8000)
     const rew = extractJson(out)
     if (rew && typeof rew === 'object') applyVariantText(gd, rew as Record<string, string>)
-    console.log('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
+    debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
     return keys.length
   } catch (err) {
     console.error('[phrasing:enforce] נכשל:', err instanceof Error ? err.message : err)
@@ -899,7 +900,7 @@ async function buildStudentVariant(
   /* שכתוב נרטיב/דיאלוג/בחירות/סיומים בלבד — תוכן האתגרים כבר נוצר מחדש ב-Sonnet */
   const texts = collectVariantText(variant, { puzzles: false })
   /* ── DIAG ── */
-  console.log('[variant:build]', { textLevel, form, textCount: Object.keys(texts).length, willCallHaiku: Object.keys(texts).length > 0 })
+  debug('[variant:build]', { textLevel, form, textCount: Object.keys(texts).length, willCallHaiku: Object.keys(texts).length > 0 })
   /* ── /DIAG ── */
   if (Object.keys(texts).length > 0) {
     const genderLine = form !== 'plural'
@@ -930,7 +931,7 @@ ${JSON.stringify(batch, null, 0)}`
 
     try {
       const t0 = Date.now()
-      console.log('[variant:haiku] calling haiku, promptLen:', JSON.stringify(texts).length)
+      debug('[variant:haiku] calling haiku, promptLen:', JSON.stringify(texts).length)
       const rew = await rewriteBatch(texts)
       if (Object.keys(rew).length > 0) applyVariantText(variant, rew)
 
@@ -943,18 +944,18 @@ ${JSON.stringify(batch, null, 0)}`
       }
       const firstChanged = srcKeys.length - Object.keys(leftover).length
       if (Object.keys(leftover).length > 0) {
-        console.log('[variant:haiku] retry leftover:', Object.keys(leftover).length, '/', srcKeys.length)
+        debug('[variant:haiku] retry leftover:', Object.keys(leftover).length, '/', srcKeys.length)
         const rew2 = await rewriteBatch(leftover)
         if (Object.keys(rew2).length > 0) applyVariantText(variant, rew2)
         const stillSame = Object.keys(leftover).filter((k) => {
           const r = rew2[k]
           return typeof r !== 'string' || !r.trim() || r.trim() === texts[k]
         }).length
-        console.log('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: Object.keys(leftover).length, stillSame })
+        debug('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: Object.keys(leftover).length, stillSame })
       } else {
-        console.log('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: 0, stillSame: 0 })
+        debug('[variant:merge]', { total: srcKeys.length, firstPass: firstChanged, retried: 0, stillSame: 0 })
       }
-      console.log('[variant:haiku] done', Date.now() - t0, 'ms')
+      debug('[variant:haiku] done', Date.now() - t0, 'ms')
     } catch (err) {
       console.error('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
     }
@@ -1338,7 +1339,7 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
     const moralLevel = moralDilemmaDepth(gradeToLevel(gradeLabel) ?? undefined, textLevel)
 
     /* ── DIAG ── */
-    console.log('[variant:profile]', {
+    debug('[variant:profile]', {
       studentId, v2,
       hasProfileRow: pr !== null,
       gradeLabel, textLevel, moralLevel,
@@ -1351,7 +1352,7 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
     const snapshot = { textLevel, perPuzzleLevel, gender }
 
     const hasTable = await hasQuestVariants()
-    console.log('[variant:save]', { hasTable, studentId })
+    debug('[variant:save]', { hasTable, studentId })
     if (hasTable) {
       const { error } = await supabaseAdmin.from('quest_variants').upsert(
         { quest_id: questId, student_id: studentId, game_data: variantData, profile_snapshot: snapshot, created_at: new Date().toISOString() },

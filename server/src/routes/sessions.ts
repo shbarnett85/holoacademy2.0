@@ -137,16 +137,10 @@ function countChallenges(gameData: unknown): number {
 
 /* טעינת וריאציה מותאמת-תלמיד (אם קיימת וטבלת quest_variants קיימת) */
 async function loadVariantGameData(questId: string, userId: string): Promise<unknown> {
-  if (!(await hasQuestVariants())) { console.log('[serve:variant] no table'); return null }
-  const { data, error } = await supabaseAdmin
+  if (!(await hasQuestVariants())) return null
+  const { data } = await supabaseAdmin
     .from('quest_variants').select('game_data').eq('quest_id', questId).eq('student_id', userId).maybeSingle()
-  const gd = (data as { game_data?: { scenes?: { narrative?: string }[] } } | null)?.game_data
-  /* ── DIAG: השווה את הנרטיב המוגש מול הבסיס ── */
-  const { data: baseQuest } = await supabaseAdmin.from('quests').select('game_data').eq('id', questId).single()
-  const baseNarr = (baseQuest?.game_data as { scenes?: { narrative?: string }[] } | undefined)?.scenes?.[0]?.narrative
-  const varNarr = gd?.scenes?.[0]?.narrative
-  console.log('[serve:variant]', { found: !!data, error: error?.message, identical: baseNarr === varNarr, base: baseNarr?.slice(0, 45), variant: varNarr?.slice(0, 45) })
-  return gd ?? null
+  return (data as { game_data?: unknown } | null)?.game_data ?? null
 }
 
 /* ── כיול הקושי בשרת (JS) — רץ אחרי כל session שהושלם, מחליף את ה-RPC הישן ──
