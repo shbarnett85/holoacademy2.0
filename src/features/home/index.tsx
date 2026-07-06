@@ -236,6 +236,49 @@ export default function Home() {
         </div>
       )}
 
+      {/* "איך זה עובד" — למי שלא ילחץ "שחקו": מורים סקפטיים ומקבלי החלטות ברשות */}
+      <div style={{ width: '100%', maxWidth: 960, padding: '0 20px 70px', boxSizing: 'border-box', position: 'relative', zIndex: 1 }}>
+        <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#fff', marginBottom: 18 }}>איך זה עובד?</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 14 }}>
+          {[
+            { n: '1', icon: '📝', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
+            { n: '2', icon: '🧬', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות, עם בדיקת עובדות ובטיחות תוכן.' },
+            { n: '3', icon: '📊', title: 'התלמידים משחקים — המורה רואה', text: 'כניסה בקוד כיתה, קושי שמתכוונן אישית לכל תלמיד, ותובנות למידה למורה בזמן אמת.' },
+          ].map((s) => (
+            <div key={s.n} style={{
+              flex: '1 1 260px', maxWidth: 300, padding: '18px 18px 16px', borderRadius: 16, textAlign: 'right',
+              background: 'linear-gradient(135deg, rgba(10,22,46,.75), rgba(4,9,20,.85))',
+              border: '1px solid rgba(120,180,220,.14)', backdropFilter: 'blur(14px)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{
+                  width: 26, height: 26, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 800, color: '#04101c', background: 'linear-gradient(135deg, #2ff3ff, #9b8cff)',
+                }}>{s.n}</span>
+                <span style={{ fontSize: 20 }}>{s.icon}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#dff2ff' }}>{s.title}</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'rgba(170,205,235,.72)', lineHeight: 1.7 }}>{s.text}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 16 }}>
+          {['עברית מלאה, RTL', 'התאמת קושי אישית לכל תלמיד', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
+            <span key={c} style={{ fontSize: 11.5, fontWeight: 600, padding: '5px 13px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)' }}>✓ {c}</span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 22 }}>
+          <button onClick={() => navigate('/staff/login')} style={{
+            padding: '12px 28px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700,
+            color: '#04101c', background: 'linear-gradient(120deg, #2ff3ff, #9b8cff)', border: 'none', boxShadow: '0 0 26px rgba(47,243,255,.25)',
+          }}>אני מורה — בואו נתחיל ✨</button>
+          <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" style={{
+            padding: '12px 24px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
+            color: 'rgba(200,230,255,.85)', background: 'rgba(10,22,46,.7)', border: '1px solid rgba(120,180,220,.25)', textDecoration: 'none',
+          }}>📄 תקציר לרשויות ובתי ספר</a>
+        </div>
+      </div>
+
       {/* מודאל קוד כיתה */}
       {showCodeModal && (
         <div
