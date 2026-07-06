@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
-import { extractJson, checkAnswerConsistency, type GameData } from './questSchemas.js'
+import { extractJson, checkAnswerConsistency, type FactCheckMeta, type GameData } from './questSchemas.js'
 import { enforceNarrativePhrasing } from './questVariants.js'
 import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { info, error as logError } from './log.js'
@@ -129,13 +129,9 @@ export function factWarning(e: FactError): string {
   return `ד"ר הולו ממליץ לבדוק: ${e.problem}${e.correction ? ` (תיקון מוצע: ${e.correction})` : ''}`
 }
 
-/* מטא בדיקת עובדות שנשמר בתוך game_data (ללא צורך במיגרציה) — הקליינט קורא אותו לתצוגה */
-export interface FactCheckMeta {
-  status: 'pending' | 'done'
-  warnings?: string[]
-  correctedSceneIds?: string[]
-  error?: boolean
-}
+/* מטא בדיקת העובדות (FactCheckMeta) מוגדר ב-questSchemas.ts (מודול pure, נבדק ביחידה)
+   יחד עם healStaleFactCheck — ה-watchdog לריצה שנקטעה. מיוצא מכאן לתאימות. */
+export type { FactCheckMeta } from './questSchemas.js'
 
 /* בדיקת העובדות המלאה (זיהוי → תיקון ממוקד → בדיקה חוזרת) — רצה ברקע ומעדכנת את ה-DB.
    best-effort: כל כשל נבלע, ה-status תמיד מסומן 'done' בסוף כדי שהקליינט יפסיק לחכות. */

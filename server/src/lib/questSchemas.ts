@@ -416,3 +416,35 @@ export function repairRawPuzzles(raw: unknown): string[] {
 }
 
 export type PuzzleObj = z.infer<typeof puzzleObjectSchema>
+
+/* ── מטא בדיקת עובדות (נשמר בתוך game_data, ללא מיגרציה) ── */
+
+export interface FactCheckMeta {
+  status: 'pending' | 'done'
+  startedAt?: string
+  warnings?: string[]
+  correctedSceneIds?: string[]
+  error?: boolean
+  stale?: boolean
+}
+
+/* watchdog ל-fact-check תקוע: אם השרת מופעל מחדש (deploy/קריסה) באמצע factCheckInBackground,
+   הסטטוס נשאר 'pending' לנצח והקליינט מציג "בודק עובדות…" בלי סוף. ריפוי עצלן בקריאה
+   (GET /:id, בלי cron): pending בן יותר מ-10 דקות — או ללא startedAt (נכתב לפני שהשדה
+   נוסף, כלומר לפחות בן-deploy) — מסומן done+stale עם אזהרה למורה. מחזיר true אם רופא. */
+export const FACT_CHECK_STALE_MS = 10 * 60_000
+export function healStaleFactCheck(gameData: GameData, now: number = Date.now()): boolean {
+  const meta = gameData as unknown as { factCheck?: FactCheckMeta }
+  const fc = meta.factCheck
+  if (!fc || fc.status !== 'pending') return false
+  const started = fc.startedAt ? Date.parse(fc.startedAt) : NaN
+  if (Number.isFinite(started) && now - started < FACT_CHECK_STALE_MS) return false
+  meta.factCheck = {
+    status: 'done',
+    warnings: [...(fc.warnings ?? []), 'בדיקת העובדות ברקע לא הושלמה (כנראה עדכון שרת באמצע הריצה). התוכן זמין כרגיל — אפשר להריץ בדיקה חוזרת בכפתור השיפור בעמוד העריכה.'],
+    correctedSceneIds: [],
+    error: true,
+    stale: true,
+  }
+  return true
+}

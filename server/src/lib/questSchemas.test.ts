@@ -4,6 +4,9 @@ import {
   markedTrueFalseAnswer,
   mcExplanationMismatch,
   checkAnswerConsistency,
+  healStaleFactCheck,
+  FACT_CHECK_STALE_MS,
+  type FactCheckMeta,
   type GameData,
 } from './questSchemas.js'
 
@@ -115,5 +118,46 @@ describe('checkAnswerConsistency — רב-ברירה + מבחן (אזהרה)', (
 describe('mcExplanationMismatch', () => {
   it('null כשאין תבנית "התשובה הנכונה היא"', () => {
     expect(mcExplanationMismatch([{ text: 'א', isCorrect: true }, { text: 'ב', isCorrect: false }], 'סתם הסבר')).toBeNull()
+  })
+})
+
+describe('healStaleFactCheck — watchdog ל-pending תקוע', () => {
+  const NOW = Date.parse('2026-07-06T12:00:00Z')
+  const gdWithMeta = (factCheck?: FactCheckMeta): GameData => {
+    const gd = { scenes: [{ id: 's1', title: 'בדיקה' }], entrySceneId: 's1' } as unknown as GameData
+    if (factCheck) (gd as unknown as { factCheck?: FactCheckMeta }).factCheck = factCheck
+    return gd
+  }
+  const metaOf = (gd: GameData) => (gd as unknown as { factCheck?: FactCheckMeta }).factCheck
+
+  it('pending טרי (בתוך חלון הריצה) — לא נוגע', () => {
+    const gd = gdWithMeta({ status: 'pending', startedAt: new Date(NOW - 60_000).toISOString() })
+    expect(healStaleFactCheck(gd, NOW)).toBe(false)
+    expect(metaOf(gd)?.status).toBe('pending')
+  })
+  it('pending בן יותר מ-10 דקות (ריסטרט באמצע) → done+stale+אזהרה', () => {
+    const gd = gdWithMeta({ status: 'pending', startedAt: new Date(NOW - FACT_CHECK_STALE_MS - 1000).toISOString() })
+    expect(healStaleFactCheck(gd, NOW)).toBe(true)
+    const m = metaOf(gd)
+    expect(m?.status).toBe('done')
+    expect(m?.stale).toBe(true)
+    expect(m?.warnings?.some((w) => w.includes('לא הושלמה'))).toBe(true)
+  })
+  it('pending ללא startedAt (רשומה מלפני השדה) → נרפא מיד', () => {
+    const gd = gdWithMeta({ status: 'pending' })
+    expect(healStaleFactCheck(gd, NOW)).toBe(true)
+    expect(metaOf(gd)?.status).toBe('done')
+  })
+  it('done / ללא מטא — לא נוגע', () => {
+    const done = gdWithMeta({ status: 'done', warnings: ['קיים'] })
+    expect(healStaleFactCheck(done, NOW)).toBe(false)
+    expect(metaOf(done)?.warnings).toEqual(['קיים'])
+    expect(healStaleFactCheck(gdWithMeta(undefined), NOW)).toBe(false)
+  })
+  it('אזהרות שנצברו לפני הריצה נשמרות בריפוי', () => {
+    const gd = gdWithMeta({ status: 'pending', warnings: ['אזהרת יצירה קודמת'] })
+    healStaleFactCheck(gd, NOW)
+    expect(metaOf(gd)?.warnings?.[0]).toBe('אזהרת יצירה קודמת')
+    expect(metaOf(gd)?.warnings).toHaveLength(2)
   })
 })

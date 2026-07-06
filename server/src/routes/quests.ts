@@ -22,7 +22,7 @@ import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
-import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
+import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
@@ -140,6 +140,13 @@ questsRouter.get('/:id', async (req, res, next) => {
       .single()
 
     if (error || !data) throw new AppError(404, 'הדמיה לא נמצאה')
+
+    /* watchdog: fact-check שנתקע על 'pending' (ריסטרט שרת באמצע הריצה ברקע) — ריפוי עצלן
+       בקריאה, בלי cron. מסומן done+stale, נשמר best-effort, וה-polling של הקליינט נעצר. */
+    if (data.game_data && healStaleFactCheck(data.game_data as GameData)) {
+      void supabaseAdmin.from('quests').update({ game_data: data.game_data }).eq('id', data.id)
+        .then(({ error: healErr }) => { if (healErr) logError('[fact-check] שמירת ריפוי pending תקוע נכשלה:', healErr.message) })
+    }
 
     /* אם התלמיד מחובר ויש וריאנט אישי — החזר אותו במקום ה-game_data המקורי */
     let gameData = data.game_data
@@ -988,7 +995,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     }
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
-    ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending' }
+    ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending', startedAt: new Date().toISOString() }
     ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null }
 
     /* עדכון השורה (שכבר נוצרה כ-stub) עם ה-game_data המוכן */
