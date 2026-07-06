@@ -1,6 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+
+/* הדמיה בחלון הראווה — מדף "התנסו עכשיו" ללא הרשמה */
+interface ShowcaseQuest {
+  id: string
+  title: string
+  subject: string | null
+  gradeMin: number | null
+  gradeMax: number | null
+  sceneCount: number
+  thumbUrl: string | null
+}
+
+const GRADE_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'יא', 'יב']
+function gradeRangeLabel(min: number | null, max: number | null): string | null {
+  const a = min && min >= 1 && min <= 12 ? GRADE_LETTERS[min - 1] : null
+  const b = max && max >= 1 && max <= 12 ? GRADE_LETTERS[max - 1] : null
+  if (a && b) return a === b ? `כיתה ${a}׳` : `כיתות ${a}׳-${b}׳`
+  return a ? `כיתה ${a}׳` : null
+}
 
 interface ModeCard {
   id: 'student' | 'teacher'
@@ -21,6 +40,15 @@ export default function Home() {
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
+  /* מדף "התנסו עכשיו" — ההדמיות הרשמיות, משחק מיידי בלי הרשמה. best-effort:
+     כשל/ריק → נופלים לכפתור הדמו הבודד (לאונרדו). */
+  const [showcase, setShowcase] = useState<ShowcaseQuest[]>([])
+  useEffect(() => {
+    fetch('/api/quests/showcase')
+      .then((res) => (res.ok ? res.json() : { quests: [] }))
+      .then((body: { quests?: ShowcaseQuest[] }) => setShowcase((body.quests ?? []).filter((q) => q.thumbUrl).slice(0, 8)))
+      .catch(() => setShowcase([]))
+  }, [])
 
   /* הדמיית דמו — ניווט ל-URL קריא (/play/leonardo); Player מתרגם את ה-slug ל-id
      האמיתי דרך GET /api/quests/demo (כתובת נוחה יותר לשיתוף מ-UUID גולמי). */
@@ -122,29 +150,90 @@ export default function Home() {
         })}
       </div>
 
-      {/* כפתור הדמיית דמו — התנסות בלאונרדו דה וינצ׳י ללא התחברות */}
-      <div style={{ marginTop: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={startDemo}
-          onMouseEnter={() => setHov('demo')}
-          onMouseLeave={() => setHov(null)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '13px 30px', borderRadius: 14,
-            cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700,
-            color: hov === 'demo' ? '#fff' : 'rgba(200,230,255,.8)',
-            background: hov === 'demo'
-              ? 'linear-gradient(135deg, rgba(255,154,46,.22), rgba(255,69,230,.16))'
-              : 'linear-gradient(135deg, rgba(10,22,46,.82), rgba(4,9,20,.9))',
-            border: '1px solid ' + (hov === 'demo' ? 'rgba(255,154,46,.5)' : 'rgba(255,154,46,.28)'),
-            backdropFilter: 'blur(18px)',
-            boxShadow: hov === 'demo' ? '0 0 36px rgba(255,154,46,.22)' : 'none',
-            transition: 'all .2s',
-          }}
-        >
-          <span style={{ fontSize: 18 }}>🎨</span>
-          נסו הדמיית דמו — לאונרדו דה וינצ׳י
-        </button>
-      </div>
+      {/* מדף "התנסו עכשיו" — ההדמיות הרשמיות, משחק מיידי ללא הרשמה.
+          כשהמדף ריק (לפני שיתוף/מיגרציה) — כפתור הדמו הבודד כ-fallback. */}
+      {showcase.length > 0 ? (
+        <div style={{ marginTop: 44, marginBottom: 46, width: '100%', maxWidth: 1060, padding: '0 20px', boxSizing: 'border-box', position: 'relative', zIndex: 1 }}>
+          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+            <div style={{ fontSize: 21, fontWeight: 800, color: '#fff' }}>
+              <span style={{ filter: 'drop-shadow(0 0 10px rgba(255,154,46,.6))' }}>🎮</span>{' '}
+              התנסו עכשיו — <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>בלי הרשמה</span>
+            </div>
+            <div style={{ fontSize: 13, color: 'rgba(160,200,240,.55)', marginTop: 6 }}>
+              הדמיות מהספרייה הרשמית — לחצו ושחקו, כמו שהתלמידים חווים
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16 }}>
+            {showcase.map((q) => {
+              const isHov = hov === q.id
+              const grades = gradeRangeLabel(q.gradeMin, q.gradeMax)
+              return (
+                <button
+                  key={q.id}
+                  onClick={() => navigate(`/play/${q.id}`)}
+                  onMouseEnter={() => setHov(q.id)}
+                  onMouseLeave={() => setHov(null)}
+                  style={{
+                    width: 236, padding: 0, borderRadius: 16, overflow: 'hidden', cursor: 'pointer', textAlign: 'right',
+                    background: 'linear-gradient(135deg, rgba(10,22,46,.85), rgba(4,9,20,.92))',
+                    border: `1px solid ${isHov ? 'rgba(255,154,46,.55)' : 'rgba(120,180,220,.14)'}`,
+                    boxShadow: isHov ? '0 0 34px rgba(255,154,46,.2), 0 14px 40px rgba(0,0,0,.5)' : '0 8px 26px rgba(0,0,0,.35)',
+                    transform: isHov ? 'translateY(-4px)' : 'none',
+                    transition: 'all .2s cubic-bezier(.22,.7,.35,1)', fontFamily: 'var(--font-display)',
+                  }}
+                >
+                  <div style={{ position: 'relative', height: 118, overflow: 'hidden' }}>
+                    <img src={q.thumbUrl!} alt="" loading="lazy"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transform: isHov ? 'scale(1.06)' : 'scale(1)', transition: 'transform .35s' }} />
+                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(4,9,20,.85))' }} />
+                    <div style={{
+                      position: 'absolute', bottom: 8, left: 8, padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      background: isHov ? 'rgba(255,154,46,.9)' : 'rgba(4,9,20,.72)', color: isHov ? '#04101c' : 'rgba(255,200,140,.95)',
+                      border: '1px solid rgba(255,154,46,.4)', transition: 'all .2s', backdropFilter: 'blur(6px)',
+                    }}>שחקו ▶</div>
+                  </div>
+                  <div style={{ padding: '10px 14px 12px' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: isHov ? '#fff' : '#c4dcee', lineHeight: 1.45, minHeight: 38, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', transition: 'color .2s' }}>
+                      {q.title}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 7 }}>
+                      {q.subject && (
+                        <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 9px', borderRadius: 7, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>
+                      )}
+                      {grades && (
+                        <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 9px', borderRadius: 7, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div style={{ marginTop: 30, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={startDemo}
+            onMouseEnter={() => setHov('demo')}
+            onMouseLeave={() => setHov(null)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '13px 30px', borderRadius: 14,
+              cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700,
+              color: hov === 'demo' ? '#fff' : 'rgba(200,230,255,.8)',
+              background: hov === 'demo'
+                ? 'linear-gradient(135deg, rgba(255,154,46,.22), rgba(255,69,230,.16))'
+                : 'linear-gradient(135deg, rgba(10,22,46,.82), rgba(4,9,20,.9))',
+              border: '1px solid ' + (hov === 'demo' ? 'rgba(255,154,46,.5)' : 'rgba(255,154,46,.28)'),
+              backdropFilter: 'blur(18px)',
+              boxShadow: hov === 'demo' ? '0 0 36px rgba(255,154,46,.22)' : 'none',
+              transition: 'all .2s',
+            }}
+          >
+            <span style={{ fontSize: 18 }}>🎨</span>
+            נסו הדמיית דמו — לאונרדו דה וינצ׳י
+          </button>
+        </div>
+      )}
 
       {/* מודאל קוד כיתה */}
       {showCodeModal && (

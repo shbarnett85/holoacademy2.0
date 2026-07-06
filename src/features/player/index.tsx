@@ -56,6 +56,14 @@ export default function Player() {
       .catch((e: Error) => setError(e.message))
   }, [questId])
 
+  /* כותרת הלשונית = שם ההדמיה (קריא בהיסטוריה, בלשוניות ובשיתוף קישור) */
+  useEffect(() => {
+    if (!quest?.title) return
+    const prev = document.title
+    document.title = `${quest.title} · HoloAcademy`
+    return () => { document.title = prev }
+  }, [quest?.title])
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen p-6">

@@ -19,7 +19,7 @@ import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficult
 import { defaultProfileForGrade, gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasQuestGrade } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
 import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
@@ -125,6 +125,51 @@ questsRouter.get('/demo', async (_req, res, next) => {
     const pick = rows.find((r) => r.is_public && isLeonardo(r.title)) ?? rows.find((r) => isLeonardo(r.title))
     if (!pick) throw new AppError(404, 'הדמיית הדמו (לאונרדו דה וינצ׳י) לא נמצאה בספרייה הציבורית')
     res.json({ id: pick.id, title: pick.title })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* GET /api/quests/showcase — חלון הראווה לדף הבית, **ללא הזדהות**: ההדמיות
+   הרשמיות המשותפות בפורמט קל (בלי game_data מלא) — מבקר קר משחק בקליק אחד.
+   cache בזיכרון ל-5 דקות (נטען בכל ביקור בדף הבית, התוכן משתנה לעיתים רחוקות). */
+let showcaseCache: { at: number; payload: unknown } | null = null
+questsRouter.get('/showcase', async (_req, res, next) => {
+  try {
+    if (showcaseCache && Date.now() - showcaseCache.at < 5 * 60_000) { res.json(showcaseCache.payload); return }
+    if (!(await hasPublicQuests())) { res.json({ quests: [] }); return }
+    const withGrade = await hasQuestGrade()
+    const withSubject = await hasQuestSubject()
+    const cols = `id, title, game_data, created_at${withSubject ? ', subject' : ''}${withGrade ? ', grade_min, grade_max, is_official' : ''}`
+    const { data, error } = await supabaseAdmin
+      .from('quests')
+      .select(cols)
+      .eq('is_public', true)
+      .order('created_at', { ascending: true })
+      .limit(40)
+    if (error) throw new AppError(500, error.message)
+    interface Row { id: string; title: string; game_data: unknown; subject?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
+    const rows = (data ?? []) as unknown as Row[]
+    /* רשמיות קודם; אם אין עמודת is_official/אין רשמיות — כל הציבוריות */
+    const officials = withGrade ? rows.filter((r) => r.is_official) : []
+    const pool = officials.length > 0 ? officials : rows
+    const quests = pool.map((r) => {
+      const gd = r.game_data as { scenes?: { id: string; imageUrl?: string }[]; entrySceneId?: string } | null
+      const scenes = gd?.scenes ?? []
+      const entry = scenes.find((s) => s.id === gd?.entrySceneId) ?? scenes[0]
+      return {
+        id: r.id,
+        title: r.title,
+        subject: r.subject ?? null,
+        gradeMin: r.grade_min ?? null,
+        gradeMax: r.grade_max ?? null,
+        sceneCount: scenes.length,
+        thumbUrl: entry?.imageUrl ?? scenes.find((s) => s.imageUrl)?.imageUrl ?? null,
+      }
+    }).filter((q) => q.sceneCount > 0)
+    const payload = { quests }
+    showcaseCache = { at: Date.now(), payload }
+    res.json(payload)
   } catch (err) {
     next(err)
   }

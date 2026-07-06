@@ -1,8 +1,11 @@
 import './env.js'
 import path from 'node:path'
+import fs from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
 import cors from 'cors'
+import { supabaseAdmin } from './lib/supabase.js'
+import { injectPlayMeta, questToPlayMeta } from './lib/playMeta.js'
 import { authRouter } from './routes/auth.js'
 import { questsRouter } from './routes/quests.js'
 import { imagesRouter } from './routes/images.js'
@@ -60,6 +63,24 @@ app.use('/api/library', libraryRouter)
 if (process.env.NODE_ENV === 'production') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url))
   const distPath = path.resolve(__dirname, '../../dist')
+
+  /* קישורי /play/:id עם תגי OG של ההדמיה (תצוגה עשירה בוואטסאפ) — חייב לבוא לפני
+     ה-static וה-catch-all. best-effort: כל כשל נופל ל-index.html הרגיל. */
+  let indexHtmlCache: string | null = null
+  app.get('/play/:id', async (req, res) => {
+    const fallback = () => res.sendFile(path.join(distPath, 'index.html'))
+    try {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.params.id)) { fallback(); return }
+      indexHtmlCache ??= await fs.readFile(path.join(distPath, 'index.html'), 'utf8')
+      const { data: quest } = await supabaseAdmin.from('quests').select('title, game_data').eq('id', req.params.id).single()
+      if (!quest) { fallback(); return }
+      const url = `https://${req.headers.host ?? 'holoacademy.ai'}/play/${req.params.id}`
+      res.type('html').send(injectPlayMeta(indexHtmlCache, questToPlayMeta(quest, url)))
+    } catch {
+      fallback()
+    }
+  })
+
   app.use(express.static(distPath))
   app.get('{*path}', (_req, res) => res.sendFile(path.join(distPath, 'index.html')))
 }
