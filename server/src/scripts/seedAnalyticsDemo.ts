@@ -28,6 +28,9 @@ async function main() {
 
   /* מטלה — idempotent (לפי class+quest) */
   const teacherId = (cls as { teacher_id?: string }).teacher_id ?? null
+  /* עדשת השיעורים מסננת own||homeroom — ההדמיה חייבת להיות בבעלות מורה הכיתה כדי שתופיע.
+     מקצים ל-teacher_id של הכיתה רק אם היא חסרת-בעלים (created_by=null) — לא חוטפים הדמיה. */
+  if (teacherId) await supabaseAdmin.from('quests').update({ created_by: teacherId }).eq('id', QUEST_ID).is('created_by', null)
   let { data: asg } = await supabaseAdmin.from('assignments').select('id').eq('class_id', cls.id).eq('quest_id', QUEST_ID).maybeSingle()
   if (!asg) {
     const ins = await supabaseAdmin.from('assignments').insert({ class_id: cls.id, quest_id: QUEST_ID, user_id: teacherId, due_date: new Date(Date.now() + 7 * 864e5).toISOString() }).select('id').single()

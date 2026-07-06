@@ -119,9 +119,39 @@ async function seedStaffAuth() {
   console.log('✦ הזדהות צוות מוכנה.')
 }
 
+/* ריפוי-עצמי לשיוך כיתת ההדגמה — רץ בכל seed (גם כשבית הספר כבר קיים).
+   בעבר ה-teacher_id של demo-7b נדד לחשבון אחר, ומצב "מורה אורח" (teacher@demo.com →
+   "המורה רון") נשאר עם אנליטיקה ותלמידים ריקים כי הסינון הוא לפי בעלות המורה על הכיתה.
+   כאן מוודאים ש"המורה רון" משויך ל-demo-7b (dual-path: class_teachers אם קיים, אחרת
+   teacher_id), ושהדמיית האנליטיקה-לדוגמה בבעלותו כך שעדשת השיעורים אינה ריקה. */
+async function ensureDemoClassOwnership() {
+  const { data: school } = await supabaseAdmin.from('schools').select('id').eq('slug', 'demo').maybeSingle()
+  if (!school) return
+  const { data: ron } = await supabaseAdmin
+    .from('users').select('id').eq('name', 'המורה רון').eq('role', 'teacher').eq('school_id', school.id).maybeSingle()
+  if (!ron) return
+  const { data: cls } = await supabaseAdmin.from('classes').select('id, teacher_id').eq('url_code', 'demo-7b').maybeSingle()
+  if (!cls) return
+
+  if (await hasClassTeachers()) {
+    const { data: link } = await supabaseAdmin
+      .from('class_teachers').select('class_id').eq('class_id', cls.id).eq('teacher_id', ron.id).maybeSingle()
+    if (!link) await supabaseAdmin.from('class_teachers').insert({ class_id: cls.id, teacher_id: ron.id, subject: '' })
+  } else if ((cls as { teacher_id?: string }).teacher_id !== ron.id) {
+    await supabaseAdmin.from('classes').update({ teacher_id: ron.id }).eq('id', cls.id)
+    console.log('✦ שויכה מחדש כיתת ההדגמה (demo-7b) ל"המורה רון" (מצב אורח).')
+  }
+
+  /* הדמיית האנליטיקה-לדוגמה חסרת-בעלים → מקצים ל"המורה רון" כדי שעדשת השיעורים תציג אותה
+     (הסינון own||homeroom). מגבילים ל-created_by=null בלבד — לא חוטפים הדמיה של מורה אחר. */
+  const analyticsQuest = process.env.ANALYTICS_DEMO_QUEST ?? 'b9ca7497-8e97-4745-a2be-b066acb70afc'
+  await supabaseAdmin.from('quests').update({ created_by: ron.id }).eq('id', analyticsQuest).is('created_by', null)
+}
+
 async function main() {
   await seedDemoData()
   await seedStaffAuth()
+  await ensureDemoClassOwnership()
 
   console.log('\n✦ Seed הושלם!')
   console.log('\nהזדהות צוות (Supabase Auth):')
