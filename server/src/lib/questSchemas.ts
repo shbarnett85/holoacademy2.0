@@ -52,6 +52,8 @@ export const puzzleObjectSchema = z.object({
   maxWrong: z.number().int().min(3).max(10).optional(),
   /* רמת הקושי שהוזרקה בעת היצירה */
   difficulty: z.number().int().min(1).max(20).optional(),
+  /* יעד הלמידה שהאתגר בוחן (מזהה מתוך game_data.objectives) — מזין את דיווח השליטה */
+  objectiveId: z.string().optional(),
   /* finalQuiz — רצף שאלות סיכום */
   questions: z
     .array(
@@ -61,6 +63,8 @@ export const puzzleObjectSchema = z.object({
         correctIndex: z.number().int().min(0),
         explanationCorrect: z.string().optional(),
         explanationIncorrect: z.string().optional(),
+        /* יעד הלמידה שהשאלה בוחנת — תיוג פר-שאלה במבחן הסיכום */
+        objectiveId: z.string().optional(),
       }),
     )
     .optional(),
@@ -233,6 +237,8 @@ export const generateRequestSchema = z.object({
   subject: z.string().optional(),
   /* צורת פנייה — ברירת מחדל plural (גרסה כיתתית/ניטרלית) */
   formOfAddress: z.enum(['male', 'female', 'plural']).optional(),
+  /* יעדי למידה (טקסט חופשי מהמורה / חילוץ AI) — השרת מקצה מזהים ומזריק לפרומפט */
+  objectives: z.array(z.string().min(1).max(300)).max(8).optional(),
 })
 
 /* חילוץ JSON מתשובת Claude (כולל ניקוי גדרות קוד אם יש).

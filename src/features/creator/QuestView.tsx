@@ -14,7 +14,7 @@ interface QuestDetails {
   title: string
   created_at: string
   status: string
-  game_data: { scenes: Scene[]; endingGood?: EndingScene; endingBad?: EndingScene } | null
+  game_data: { scenes: Scene[]; endingGood?: EndingScene; endingBad?: EndingScene; objectives?: { id: string; text: string }[] } | null
 }
 
 /* מצב טיוטה מהספרייה — אותה סביבת עבודה כמו החלון שאחרי יצירה (QuestWorkspace) */
@@ -141,6 +141,7 @@ export default function QuestView() {
       endingBad={endingBad}
       patchScene={patchScene}
       patchEnding={patchEnding}
+      objectives={quest.game_data?.objectives}
       onTitleSave={saveTitle}
       actions={
         <WorkspaceActions

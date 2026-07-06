@@ -394,6 +394,7 @@ const patchPuzzleSchema = z.object({
   maxWrong: z.number().int().min(3).max(10).optional(),
   situation: z.string().optional(),
   moralChoices: z.array(z.object({ text: z.string().min(1), consequence: z.string().min(1) })).optional(),
+  objectiveId: z.string().nullable().optional(),
   questions: z
     .array(
       z.object({
@@ -402,6 +403,7 @@ const patchPuzzleSchema = z.object({
         correctIndex: z.number().int().min(0),
         explanationCorrect: z.string().optional(),
         explanationIncorrect: z.string().optional(),
+        objectiveId: z.string().optional(),
       }),
     )
     .optional(),
@@ -440,7 +442,8 @@ interface EditableScene {
     maxWrong?: number
     situation?: string
     moralChoices?: { text: string; consequence: string }[]
-    questions?: { question: string; options: string[]; correctIndex: number; explanationCorrect?: string; explanationIncorrect?: string }[]
+    objectiveId?: string | null
+    questions?: { question: string; options: string[]; correctIndex: number; explanationCorrect?: string; explanationIncorrect?: string; objectiveId?: string }[]
   }
 }
 
@@ -517,6 +520,7 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
       if (puzzle.situation !== undefined) scene.puzzle.situation = puzzle.situation
       if (puzzle.moralChoices !== undefined) scene.puzzle.moralChoices = puzzle.moralChoices
       if (puzzle.questions !== undefined) scene.puzzle.questions = puzzle.questions
+      if (puzzle.objectiveId !== undefined) scene.puzzle.objectiveId = puzzle.objectiveId ?? undefined
     }
 
     const { error: updateError } = await supabaseAdmin
@@ -843,6 +847,21 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     /* רמת קריאה (1-20) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
     ;(gameData as unknown as { readingScale?: number }).readingScale = level
 
+    /* יעדי למידה — נשמרים ב-game_data (מקור האמת למיפוי סצנה→יעד באנליטיקה).
+       בדיקת כיסוי רכה: יעד שאף אתגר לא מתויג בו → אזהרה למורה, לא כשל. */
+    if (params.objectives && params.objectives.length > 0) {
+      ;(gameData as unknown as { objectives?: typeof params.objectives }).objectives = params.objectives
+      const covered = new Set<string>()
+      for (const sc of gameData.scenes) {
+        if (sc.puzzle?.objectiveId) covered.add(sc.puzzle.objectiveId)
+        for (const q of sc.puzzle?.questions ?? []) if (q.objectiveId) covered.add(q.objectiveId)
+      }
+      const uncovered = params.objectives.filter((o) => !covered.has(o.id))
+      if (uncovered.length > 0) {
+        warnings.push(`יעדי למידה שלא נבחנים באף אתגר: ${uncovered.map((o) => `"${o.text}"`).join(', ')} — מומלץ לערוך אתגר ולתייג אותו ביעד`)
+      }
+    }
+
     /* ניקוד מלא ומדויק (Dicta) לרמות נמוכות (≤6) — קוראים מתחילים. מחליף את ניקוד המודל. */
     if (level <= 6) {
       const t0 = Date.now()
@@ -880,7 +899,12 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     if (!parsed.success) {
       throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
     }
-    const params: QuestGenerationParams = parsed.data
+    /* יעדי למידה: המורה שולח טקסט חופשי; השרת מקצה מזהים יציבים (obj_1..) לתיוג האתגרים */
+    const objectives = (parsed.data.objectives ?? [])
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((text, i) => ({ id: `obj_${i + 1}`, text }))
+    const params: QuestGenerationParams = { ...parsed.data, objectives: objectives.length > 0 ? objectives : undefined }
 
     /* שכבת בטיחות — בדיקת קלט (חוסמת, לפני יצירת ה-stub וקריאת Sonnet) */
     const inputSafety = await runInputSafetyCheck(params.title, params.curriculum)

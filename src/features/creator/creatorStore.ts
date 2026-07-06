@@ -56,12 +56,15 @@ export interface GeneratedQuest {
         situation?: string
         moralChoices?: { text: string; consequence: string }[]
         difficulty?: number
+        /* יעד הלמידה שהאתגר בוחן — מזהה מתוך game_data.objectives */
+        objectiveId?: string | null
         questions?: {
           question: string
           options: string[]
           correctIndex: number
           explanationCorrect?: string
           explanationIncorrect?: string
+          objectiveId?: string
         }[]
       }
       collectableItem?: { id: string; name: string; icon: string; imageUrl?: string }
@@ -71,6 +74,8 @@ export interface GeneratedQuest {
     }[]
     entrySceneId: string
     isHistorical?: boolean
+    /* יעדי הלמידה של ההדמיה — האתגרים מתויגים בהם דרך puzzle.objectiveId */
+    objectives?: { id: string; text: string }[]
     endingGood?: { title: string; narrative: string; drHoloDialog?: string; imagePrompt?: string; imageUrl?: string; drHoloExpression?: string }
     endingBad?: { title: string; narrative: string; drHoloDialog?: string; imagePrompt?: string; imageUrl?: string; drHoloExpression?: string }
     /* מטא בדיקת עובדות אסינכרונית — נכתב ברקע אחרי היצירה */
@@ -96,6 +101,8 @@ interface CreatorState {
   title: string
   subject: string
   curriculum: string
+  /* יעדי למידה (אופציונלי, עד 8) — כל אתגר יתויג ביעד שהוא בוחן */
+  objectives: string[]
   questType: 'adventure' | 'tour'
   questLength: number
 
@@ -127,6 +134,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
   title: '',
   subject: '',
   curriculum: '',
+  objectives: [],
   questType: 'adventure',
   questLength: 7,
   puzzleTypes: {},
@@ -171,6 +179,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
           title: s.title,
           subject: s.subject || undefined,
           curriculum: s.curriculum,
+          objectives: s.objectives.filter((o) => o.trim()).length > 0 ? s.objectives.filter((o) => o.trim()) : undefined,
           questType: s.questType,
           questLength: s.questLength,
           puzzlePreferences: {
