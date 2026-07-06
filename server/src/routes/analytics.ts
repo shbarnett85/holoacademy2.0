@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
+import { computeWeakConcepts } from '../lib/weakConcepts.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
 export const analyticsRouter = Router()
@@ -1069,6 +1070,64 @@ analyticsRouter.post('/summary', async (req, res, next) => {
       /* לפני המיגרציה — מחזירים את הסיכום החי בלי לשמור (בלי cache) */
       res.json({ summary: { ...row, id: null }, cached: false, notPersisted: true })
     }
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── GET /api/analytics/review-suggestions — "ד"ר הולו מציע" (spaced retrieval, שלב ב׳) ──
+   מטלות בחלון ההיזכרות (5-30 יום, ?minDays= לבדיקות) של הדמיות בבעלות המורה, שעדיין
+   אין להן הדמיית-חזרה ושיש בהן מושגים חלשים → הצעה ליצירת חזרה. מחושב רק כשהמורה
+   פותח את האנליטיקה (אין cron), מוגבל ל-3 הצעות ול-10 מועמדות לבדיקת חולשות. */
+analyticsRouter.get('/review-suggestions', async (req, res, next) => {
+  try {
+    const minDays = req.query.minDays !== undefined ? Math.max(0, Number(req.query.minDays) || 0) : 5
+    const maxDays = 30
+    const now = Date.now()
+    const classes = await accessibleClasses(req)
+    if (classes.length === 0) { res.json({ suggestions: [] }); return }
+    const classNames = new Map(classes.map((c) => [c.id, c.gradeLabel]))
+
+    const { data: asgs } = await supabaseAdmin
+      .from('assignments')
+      .select('id, quest_id, class_id, created_at, quests(title, game_data, created_by)')
+      .in('class_id', classes.map((c) => c.id))
+      .gte('created_at', new Date(now - maxDays * 86_400_000).toISOString())
+      .lte('created_at', new Date(now - minDays * 86_400_000).toISOString())
+      .order('created_at', { ascending: false })
+
+    type AsgRow = { id: string; quest_id: string; class_id: string; created_at: string; quests: { title?: string; game_data?: unknown; created_by?: string | null } | { title?: string; game_data?: unknown; created_by?: string | null }[] | null }
+    const rows = ((asgs ?? []) as unknown as AsgRow[])
+      .map((a) => ({ ...a, quest: Array.isArray(a.quests) ? a.quests[0] : a.quests }))
+      /* רק הדמיות בבעלות המורה (יצירת חזרה דורשת בעלות) — מנהל רואה הכול */
+      .filter((a) => a.quest?.game_data && (req.staff!.role !== 'teacher' || a.quest?.created_by === req.staff!.userId))
+      /* לא מציעים חזרה להדמיה שהיא עצמה חזרה */
+      .filter((a) => !(a.quest!.game_data as { reviewOf?: unknown }).reviewOf)
+      .slice(0, 10)
+    if (rows.length === 0) { res.json({ suggestions: [] }); return }
+
+    /* מטלות שכבר יש להן הדמיית-חזרה — שאילתה אחת על jsonb path */
+    const { data: reviews } = await supabaseAdmin
+      .from('quests')
+      .select('reviewAsg:game_data->reviewOf->>assignmentId')
+      .not('game_data->reviewOf', 'is', null)
+    const reviewedAsgIds = new Set(((reviews ?? []) as { reviewAsg: string | null }[]).map((r) => r.reviewAsg).filter(Boolean))
+
+    const suggestions: { assignmentId: string; questId: string; title: string; className: string; weakCount: number }[] = []
+    for (const a of rows) {
+      if (suggestions.length >= 3) break
+      if (reviewedAsgIds.has(a.id)) continue
+      const concepts = await computeWeakConcepts(a.quest_id, a.class_id, a.quest!.game_data)
+      if (concepts.length === 0) continue
+      suggestions.push({
+        assignmentId: a.id,
+        questId: a.quest_id,
+        title: a.quest!.title ?? '',
+        className: classNames.get(a.class_id) ?? '',
+        weakCount: concepts.length,
+      })
+    }
+    res.json({ suggestions })
   } catch (err) {
     next(err)
   }

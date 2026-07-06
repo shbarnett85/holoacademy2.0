@@ -55,6 +55,19 @@ export default function LessonsPane() {
     apiJson<{ assignments: AssignmentRow[] }>('/api/analytics/assignments').then((b) => setAssignments(b.assignments)).catch((e: Error) => setError(e.message))
   }, [])
 
+  /* "ד"ר הולו מציע" — מטלות בחלון ההיזכרות (5-14 יום) עם מושגים חלשים ובלי הדמיית-חזרה.
+     best-effort: כשל שקט (ההצעה היא תוספת, לא ליבה). ניתן לסגור לסשן. */
+  const [suggestions, setSuggestions] = useState<{ assignmentId: string; title: string; className: string; weakCount: number }[]>([])
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(() => sessionStorage.getItem('holo_review_sugg_dismissed') === '1')
+  useEffect(() => {
+    let cancelled = false
+    apiJson<{ suggestions: typeof suggestions }>('/api/analytics/review-suggestions')
+      .then((b) => { if (!cancelled) setSuggestions(b.suggestions ?? []) })
+      .catch(() => { /* שקט */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const all = useMemo(() => assignments ?? [], [assignments])
   const layers = useMemo(() => [...new Set(all.map((a) => layerOf(a.classGradeLabel)))].filter(Boolean).sort((x, y) => x.localeCompare(y, 'he')), [all])
   const classOptions = useMemo(() => {
@@ -96,6 +109,30 @@ export default function LessonsPane() {
     <>
       {error && <p style={{ color: '#ff9bb3', fontSize: 14 }}>⚠️ {error}</p>}
       <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.6)', flex: '0 0 auto' }}>📚 סיכום שיעורים</div>
+
+      {/* ד"ר הולו מציע — הדמיות חזרה למטלות בחלון ההיזכרות */}
+      {suggestions.length > 0 && !suggestionsDismissed && (
+        <div style={{ ...glass, padding: '12px 16px', borderColor: 'rgba(155,140,255,.5)', flex: '0 0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ ...micro, fontSize: 9, color: '#c9b6ff' }}>🔄 ד"ר הולו מציע</div>
+            <button onClick={() => { setSuggestionsDismissed(true); sessionStorage.setItem('holo_review_sugg_dismissed', '1') }}
+              style={{ background: 'none', border: 'none', color: 'rgba(200,190,255,.5)', cursor: 'pointer', fontSize: 13 }} title="סגור">✕</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
+            {suggestions.map((s) => (
+              <div key={s.assignmentId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: '#cfe1f2' }}>
+                  ב"<b>{s.title}</b>" (כיתה {s.className}) נותרו <b style={{ color: '#ffce5e' }}>{s.weakCount}</b> מושגים חלשים — זה הזמן להדמיית חזרה.
+                </span>
+                <button onClick={() => setAssignmentId(s.assignmentId)}
+                  style={{ padding: '5px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: '#e7d6ff', background: 'rgba(155,140,255,.14)', border: '1px solid rgba(155,140,255,.5)', whiteSpace: 'nowrap' }}>
+                  פתח ←
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* שורת סינון */}
       <div style={{ ...glass, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: '0 0 auto' }}>

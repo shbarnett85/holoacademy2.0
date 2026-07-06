@@ -10,7 +10,8 @@
     "seed:snapshots": "tsx src/scripts/seedProgressSnapshots.ts",
     "migrate": "tsx src/scripts/runSqlFile.ts",
     "create-superadmin": "tsx src/scripts/createSuperAdmin.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "seed:library": "tsx src/scripts/seedLibrary.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
