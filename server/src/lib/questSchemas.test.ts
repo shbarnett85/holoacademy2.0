@@ -1,0 +1,119 @@
+import { describe, it, expect } from 'vitest'
+import {
+  assertedTrueFalseAnswer,
+  markedTrueFalseAnswer,
+  mcExplanationMismatch,
+  checkAnswerConsistency,
+  type GameData,
+} from './questSchemas.js'
+
+/* בונה GameData מינימלי עם סצנה-חידה אחת */
+function gdWith(puzzle: Record<string, unknown>): GameData {
+  return { scenes: [{ id: 's1', title: 'בדיקה', puzzle }], entrySceneId: 's1' } as unknown as GameData
+}
+const tf = (correctIsTrue: boolean, ec?: string, ei?: string, question = 'היגד כלשהו.') => ({
+  type: 'trueFalse', question,
+  choices: [
+    { id: 'a', text: 'נכון', isCorrect: correctIsTrue },
+    { id: 'b', text: 'לא נכון', isCorrect: !correctIsTrue },
+  ],
+  explanationCorrect: ec, explanationIncorrect: ei,
+})
+
+describe('markedTrueFalseAnswer', () => {
+  it('מסומן נכון → true, לא נכון → false', () => {
+    expect(markedTrueFalseAnswer([{ text: 'נכון', isCorrect: true }, { text: 'לא נכון', isCorrect: false }])).toBe('true')
+    expect(markedTrueFalseAnswer([{ text: 'נכון', isCorrect: false }, { text: 'לא נכון', isCorrect: true }])).toBe('false')
+  })
+  it('אין isCorrect / טקסט לא-סטנדרטי → null', () => {
+    expect(markedTrueFalseAnswer([{ text: 'נכון', isCorrect: false }, { text: 'לא נכון', isCorrect: false }])).toBeNull()
+    expect(markedTrueFalseAnswer([{ text: 'אולי', isCorrect: true }, { text: 'בכלל לא', isCorrect: false }])).toBeNull()
+  })
+})
+
+describe('assertedTrueFalseAnswer — "לא נכון" לא נקרא בטעות כ"נכון"', () => {
+  it('explanationIncorrect "התשובה הנכונה היא לא נכון" → false', () => {
+    expect(assertedTrueFalseAnswer(undefined, 'התשובה הנכונה היא לא נכון. כי...')).toBe('false')
+  })
+  it('explanationIncorrect "התשובה הנכונה היא נכון" → true', () => {
+    expect(assertedTrueFalseAnswer(undefined, 'התשובה הנכונה היא נכון. כי...')).toBe('true')
+  })
+  it('explanationCorrect "נכון מאוד שזה לא נכון" → false', () => {
+    expect(assertedTrueFalseAnswer('נכון מאוד שזה לא נכון! השמש היא כוכב', undefined)).toBe('false')
+  })
+  it('ללא תבנית מזוהה → null (אפס false-positive)', () => {
+    expect(assertedTrueFalseAnswer('הסבר כללי בלי הצהרת תשובה', 'עוד הסבר')).toBeNull()
+    expect(assertedTrueFalseAnswer(undefined, undefined)).toBeNull()
+  })
+})
+
+describe('checkAnswerConsistency — נכון/לא-נכון (חוסם)', () => {
+  it('חידה עקבית (מסומן נכון + הסבר מצהיר נכון) — אין חסימה', () => {
+    const r = checkAnswerConsistency(gdWith(tf(true, 'נכון מאוד!', 'התשובה הנכונה היא נכון.')))
+    expect(r.blocking).toHaveLength(0)
+  })
+  it('הבאג האמיתי (הדפוס): מסומן "לא נכון" אך ההסבר מצהיר "נכון" → חסימה', () => {
+    const r = checkAnswerConsistency(gdWith(tf(false, "נכון מאוד שבחרתם 'נכון'!", 'התשובה הנכונה היא נכון. תנך גוטנברג...')))
+    expect(r.blocking).toHaveLength(1)
+    expect(r.blocking[0]).toContain('סותרת את ההסבר')
+  })
+  it('היפוך הפוך: מסומן "נכון" אך ההסבר מצהיר "לא נכון" → חסימה', () => {
+    const r = checkAnswerConsistency(gdWith(tf(true, undefined, 'התשובה הנכונה היא לא נכון.')))
+    expect(r.blocking).toHaveLength(1)
+  })
+  it('כשאי-אפשר לחלץ תשובה מההסבר — לא חוסם (שמרני)', () => {
+    const r = checkAnswerConsistency(gdWith(tf(false, 'הסבר יפה', 'הסבר אחר')))
+    expect(r.blocking).toHaveLength(0)
+  })
+  it('היגד נכון/לא-נכון המנוסח כשאלת WH ("מה…?") → אזהרה (הבאג של מערכת השמש)', () => {
+    const r = checkAnswerConsistency(gdWith(tf(false, undefined, 'התשובה הנכונה היא לא נכון.', 'מה ההבדל בין כוכב לכוכב לכת?')))
+    expect(r.warnings.some((w) => w.includes('מנוסח כשאלת'))).toBe(true)
+  })
+  it('שאלת כן/לא לגיטימית ("…נכון או לא נכון?" / "האם…?") — לא מדגל', () => {
+    expect(checkAnswerConsistency(gdWith(tf(true, undefined, 'התשובה הנכונה היא נכון.', 'האם שמינית קטנה מרבע?'))).warnings).toHaveLength(0)
+    expect(checkAnswerConsistency(gdWith(tf(true, undefined, 'התשובה הנכונה היא נכון.', '25% מ-200 שווה חצי מ-100. נכון או לא נכון?'))).warnings).toHaveLength(0)
+  })
+})
+
+describe('checkAnswerConsistency — רב-ברירה + מבחן (אזהרה)', () => {
+  it('MC שבו ההסבר מצטט אפשרות אחרת בדיוק → אזהרה', () => {
+    const r = checkAnswerConsistency(gdWith({
+      type: 'multipleChoice', question: 'ש?',
+      choices: [
+        { id: 'a', text: 'ברלין', isCorrect: true },
+        { id: 'b', text: 'פריז', isCorrect: false },
+      ],
+      explanationIncorrect: 'התשובה הנכונה היא פריז.',
+    }))
+    expect(r.warnings).toHaveLength(1)
+    expect(r.warnings[0]).toContain('השונה מהאפשרות המסומנת')
+  })
+  it('MC עקבי (ההסבר מצטט את המסומנת) — אין אזהרה', () => {
+    const r = checkAnswerConsistency(gdWith({
+      type: 'multipleChoice', question: 'ש?',
+      choices: [
+        { id: 'a', text: 'ברלין', isCorrect: true },
+        { id: 'b', text: 'פריז', isCorrect: false },
+      ],
+      explanationIncorrect: 'התשובה הנכונה היא ברלין.',
+    }))
+    expect(r.warnings).toHaveLength(0)
+  })
+  it('MC עם פרפרזה חלקית בהסבר — לא מדגל (דיוק גבוה, לא recall)', () => {
+    const r = checkAnswerConsistency(gdWith({
+      type: 'multipleChoice', question: 'ש?',
+      choices: [
+        { id: 'a', text: 'בגלל חום השמש שמאדה את המים', isCorrect: true },
+        { id: 'b', text: 'בגלל הרוח', isCorrect: false },
+      ],
+      explanationIncorrect: 'התשובה הנכונה היא שהשמש מחממת.',
+    }))
+    expect(r.warnings).toHaveLength(0)
+  })
+})
+
+describe('mcExplanationMismatch', () => {
+  it('null כשאין תבנית "התשובה הנכונה היא"', () => {
+    expect(mcExplanationMismatch([{ text: 'א', isCorrect: true }, { text: 'ב', isCorrect: false }], 'סתם הסבר')).toBeNull()
+  })
+})

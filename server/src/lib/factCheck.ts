@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
-import { extractJson, type GameData } from './questSchemas.js'
+import { extractJson, checkAnswerConsistency, type GameData } from './questSchemas.js'
 import { enforceNarrativePhrasing } from './questVariants.js'
 import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { info, error as logError } from './log.js'
@@ -43,6 +43,7 @@ export async function runFactCheck(gameData: GameData, sceneIds?: string[]): Pro
 7. **בחירת-מילה שגויה סמנטית וצירוף מתורגם-מילולית** — (א) פועל/שם-עצם שלא מתאים סמנטית להקשר גם אם דקדוקית תקין (למשל "דגם לו לאיזה כיוון ללכת" — "דגם"=יצר-דגם, הכוונה "הצביע/רמז"). (ב) צירוף מתורגם-מילולית מאנגלית שאינו עברית טבעית (למשל "סביב אתכם"=around you, התקני "סְבִיבְכֶם"). (ג) עברית "מתורגמת"/גבוהה-מדי שמרגישה מאולצת בפי ילד — העדף "ה-X של Y" על סמיכות ספרותית ומשפטים קצרים (עד כ-15 מילה) על פסוקיות מרובות. **התעלם מהניקוד** — הוא תקין; בדוק בחירת-מילה ותחביר בלבד.
 
 אל תדגל סגנון, ניסוח ספרותי תקין, העדפה אישית או מילים נדירות-אך-תקינות — רק שגיאות מהסוגים למעלה, חד-משמעיות ובטוחות.
+**סף ביטחון גבוה (קריטי)**: אם יש לך ספק כלשהו אם משהו הוא באמת שגיאה — **אל תדגל**. עדיף להחמיץ טעות מלדגל טעות-שווא, כי כל דיגול גורר שכתוב אוטומטי שעלול לשבש טקסט תקין. דגל רק כשאתה בטוח לחלוטין שזו שגיאה אמיתית.
 החזר JSON תקין בלבד, ללא טקסט נוסף, במבנה:
 { "hasErrors": boolean, "errors": [{ "sceneId": "מזהה הסצנה", "problem": "תיאור השגיאה בעברית", "correction": "התיקון הנכון בעברית" }] }
 אם אין שגיאות עובדתיות החזר { "hasErrors": false, "errors": [] }.`
@@ -58,11 +59,14 @@ export async function runFactCheck(gameData: GameData, sceneIds?: string[]): Pro
 }
 
 /* תיקון ממוקד על haiku — מתקן רק את שדות הטקסט של הסצנות שבהן זוהו שגיאות (כותרת/נרטיב/שאלה/הסברים),
-   בלי לגעת ב-id, בחידות (choices/answer/isCorrect), במפתחות או במבנה. מחזיר את מזהי הסצנות שתוקנו. */
-export async function scopedFactFix(gameData: GameData, errors: FactError[]): Promise<string[]> {
+   בלי לגעת ב-id, בחידות (choices/answer/isCorrect), במפתחות או במבנה.
+   **שומר-סף דטרמיניסטי**: אחרי כל תיקון, אם הוא הפך חידת נכון/לא-נכון לבלתי-עקבית (התשובה
+   המסומנת כבר לא תואמת את ההסבר — בדיוק הבאג שהתיקון האוטומטי יצר בעבר), הסצנה **משוחזרת**
+   ומדווחת ב-reverted במקום לפרסם תשובה הפוכה. מחזיר את המזהים שתוקנו ואת אלה ששוחזרו. */
+export async function scopedFactFix(gameData: GameData, errors: FactError[]): Promise<{ corrected: string[]; reverted: string[] }> {
   const ids = [...new Set(errors.map((e) => e.sceneId).filter((x): x is string => !!x))]
   const scenes = gameData.scenes.filter((s) => ids.includes(s.id))
-  if (scenes.length === 0) return []
+  if (scenes.length === 0) return { corrected: [], reverted: [] }
 
   const blocks = scenes.map((s) => {
     const errs = errors.filter((e) => e.sceneId === s.id)
@@ -83,11 +87,15 @@ ${blocks}`
   const text = await callHaiku([{ role: 'user', content: instruction }], 4000)
   const fixes = extractJson(text) as Record<string, Record<string, unknown>>
   const corrected: string[] = []
+  const reverted: string[] = []
   for (const s of scenes) {
     const fix = fixes?.[s.id]
     if (!fix || typeof fix !== 'object') continue
-    let changed = false
     const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+    /* snapshot לפני — לשחזור אם התיקון יצר סתירה תשובה/הסבר */
+    const snap = { title: s.title, narrative: s.narrative, drHoloDialog: s.drHoloDialog,
+      question: s.puzzle?.question, ec: s.puzzle?.explanationCorrect, ei: s.puzzle?.explanationIncorrect }
+    let changed = false
     const t = str(fix.title); if (t) { s.title = t; changed = true }
     const n = str(fix.narrative); if (n && s.narrative !== undefined) { s.narrative = n; changed = true }
     const d = str(fix.drHoloDialog); if (d && s.drHoloDialog !== undefined) { s.drHoloDialog = d; changed = true }
@@ -96,9 +104,24 @@ ${blocks}`
       const ec = str(fix.explanationCorrect); if (ec) { s.puzzle.explanationCorrect = ec; changed = true }
       const ei = str(fix.explanationIncorrect); if (ei) { s.puzzle.explanationIncorrect = ei; changed = true }
     }
-    if (changed) corrected.push(s.id)
+    if (!changed) continue
+    /* שומר-סף דטרמיניסטי: אם התיקון הפך את החידה לבלתי-עקבית (נכון/לא-נכון הפוך) — שחזר */
+    const nowInconsistent = checkAnswerConsistency({ scenes: [s], entrySceneId: s.id } as GameData).blocking.length > 0
+    if (nowInconsistent) {
+      s.title = snap.title
+      if (s.narrative !== undefined) s.narrative = snap.narrative as typeof s.narrative
+      if (s.drHoloDialog !== undefined) s.drHoloDialog = snap.drHoloDialog as typeof s.drHoloDialog
+      if (s.puzzle) {
+        if (snap.question !== undefined) s.puzzle.question = snap.question
+        if (snap.ec !== undefined) s.puzzle.explanationCorrect = snap.ec
+        if (snap.ei !== undefined) s.puzzle.explanationIncorrect = snap.ei
+      }
+      reverted.push(s.id)
+    } else {
+      corrected.push(s.id)
+    }
   }
-  return corrected
+  return { corrected, reverted }
 }
 
 /* ניסוח אזהרה למורה */
@@ -133,15 +156,17 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
     detected = fc.errors.length
     if (fc.ok && fc.errors.length > 0) {
       try {
-        correctedSceneIds = await scopedFactFix(gameData, fc.errors)
+        const fix = await scopedFactFix(gameData, fc.errors)
+        correctedSceneIds = fix.corrected
         /* בדיקה חוזרת רק על הסצנות שתוקנו */
-        if (correctedSceneIds.length > 0) {
-          const recheck = await runFactCheck(gameData, correctedSceneIds)
+        if (fix.corrected.length > 0) {
+          const recheck = await runFactCheck(gameData, fix.corrected)
           if (recheck.ok && recheck.errors.length > 0) warnings = [...warnings, ...recheck.errors.map(factWarning)]
         }
-        /* שגיאות בסצנות שלא תוקנו אוטומטית (למשל בתשובות חידה) → אזהרה למורה */
-        const unfixed = fc.errors.filter((e) => !e.sceneId || !correctedSceneIds.includes(e.sceneId))
+        /* שגיאות בסצנות שלא תוקנו אוטומטית (חידות, או תיקון ששוחזר) → אזהרה למורה לבדיקה ידנית */
+        const unfixed = fc.errors.filter((e) => !e.sceneId || !fix.corrected.includes(e.sceneId))
         if (unfixed.length > 0) warnings = [...warnings, ...unfixed.map(factWarning)]
+        if (fix.reverted.length > 0) info(`[fact-check] ${fix.reverted.length} תיקונים שוחזרו (היו יוצרים סתירת תשובה/הסבר): ${fix.reverted.join(',')}`)
       } catch (err) {
         logError('[fact-check] תיקון ברקע נכשל:', err instanceof Error ? err.message : err)
         warnings = [...warnings, ...fc.errors.map(factWarning)]

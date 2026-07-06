@@ -22,7 +22,7 @@ import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
-import { extractJson, validateGameData, repairRawPuzzles, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
+import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
@@ -702,12 +702,13 @@ questsRouter.post('/:id/refine', requireStaff, async (req, res, next) => {
     let correctedSceneIds: string[] = []
     let warnings: string[] = []
     if (fc.ok && fc.errors.length > 0) {
-      correctedSceneIds = await scopedFactFix(gameData, fc.errors)
-      /* אזהרות שנותרו: סצנות שלא תוקנו + בדיקה חוזרת על מה שתוקן */
-      const unfixed = fc.errors.filter((e) => !e.sceneId || !correctedSceneIds.includes(e.sceneId))
+      const fix = await scopedFactFix(gameData, fc.errors)
+      correctedSceneIds = fix.corrected
+      /* אזהרות שנותרו: סצנות שלא תוקנו (כולל תיקון ששוחזר) + בדיקה חוזרת על מה שתוקן */
+      const unfixed = fc.errors.filter((e) => !e.sceneId || !fix.corrected.includes(e.sceneId))
       warnings = unfixed.map(factWarning)
-      if (correctedSceneIds.length > 0) {
-        const recheck = await runFactCheck(gameData, correctedSceneIds)
+      if (fix.corrected.length > 0) {
+        const recheck = await runFactCheck(gameData, fix.corrected)
         if (recheck.ok) warnings = [...warnings, ...recheck.errors.map(factWarning)]
       }
       const meta = gameData as unknown as { factCheck?: FactCheckMeta }
@@ -834,6 +835,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       fatal?: string
       hub?: HubInfo
       structureErrors?: string[]
+      consistencyErrors?: string[]
     } {
       /* עמידות: תקן חידות חסרות-question לפני הולידציה הקשיחה (שלא תיפול כל ההדמיה) */
       for (const w of repairRawPuzzles(candidate)) { if (!warnings.includes(w)) warnings.push(w) }
@@ -855,6 +857,15 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
           fatal: 'חסרות סצנות סיום (endingGood/endingBad)',
         }
       }
+      /* עקביות תשובות (דטרמיניסטי): אזהרות רכות (MC/מבחן) נצברות ל-warnings; חסימות
+         (נכון/לא-נכון עם תשובה הפוכה מההסבר) → retry ממוקד, ואם נכשל שוב → אזהרה בולטת. */
+      const consistency = checkAnswerConsistency(result.data)
+      for (const w of consistency.warnings) { if (!warnings.includes(w)) warnings.push(w) }
+      const consistencyErrors = consistency.blocking.length ? consistency.blocking : undefined
+      const consistencyRetry = consistencyErrors
+        ? `בחידות נכון/לא-נכון התשובה המסומנת (isCorrect) סותרת את מה שההסבר קובע. תקן כך שהסימון יתאים להסבר — שנה **אך ורק** את ה-isCorrect או את ניסוח ההיגד/ההסבר כדי שיהיו עקביים, בלי לגעת בשום שדה אחר:\n${consistencyErrors.map((e) => '- ' + e).join('\n')}\nהחזר את ה-JSON המלא המתוקן בלבד.`
+        : undefined
+
       /* ולידציית מבנה Hub — רק כשנדרשים מפתחות */
       if (expectedKeys > 0) {
         const hubResult = validateHubStructure(result.data, expectedKeys)
@@ -866,8 +877,10 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
             hub: hubResult.hub,
           }
         }
+        if (consistencyErrors) return { data: result.data, retryMessage: consistencyRetry, consistencyErrors, hub: hubResult.hub }
         return { data: result.data, hub: hubResult.hub }
       }
+      if (consistencyErrors) return { data: result.data, retryMessage: consistencyRetry, consistencyErrors }
       return { data: result.data }
     }
 
@@ -897,23 +910,24 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
       await recoverMissingQuestions(retryRaw, warnings)
       const second = fullValidate(retryRaw)
+      /* אוסף אזהרות רכות מ-structure/consistency שנותרו אחרי ה-retry (best-effort — לא מפילים) */
+      const softWarnings = (v: ReturnType<typeof fullValidate>): string[] => [
+        ...(v.structureErrors ?? []).map((e) => `מבנה הקווסט אינו תקין במלואו: ${e}`),
+        ...(v.consistencyErrors ?? []).map((e) => `⚠ בדיקת תשובות: ${e}`),
+      ]
       if (second.data && !second.retryMessage) {
         gameData = second.data
         hubInfo = second.hub
-      } else if (second.data && second.structureErrors) {
-        /* סכמה תקינה אבל מבנה ה-Hub עדיין שגוי — מחזירים עם אזהרות למורה */
+      } else if (second.data) {
+        /* סכמה תקינה אבל נותרו בעיות מבנה/עקביות — מחזירים את הגרסה עם אזהרות בולטות למורה */
         gameData = second.data
         hubInfo = second.hub
-        warnings = second.structureErrors.map(
-          (e) => `מבנה הקווסט אינו תקין במלואו: ${e}`,
-        )
-      } else if (first.data && first.structureErrors) {
-        /* ה-retry החמיר (סכמה שבורה) — חוזרים לגרסה הראשונה עם אזהרות */
+        warnings = [...warnings, ...softWarnings(second)]
+      } else if (first.data) {
+        /* ה-retry החמיר (סכמה שבורה) — חוזרים לגרסה הראשונה עם אזהרותיה */
         gameData = first.data
         hubInfo = first.hub
-        warnings = first.structureErrors.map(
-          (e) => `מבנה הקווסט אינו תקין במלואו: ${e}`,
-        )
+        warnings = [...warnings, ...softWarnings(first)]
       } else {
         throw new AppError(502, second.fatal ?? 'יצירת הקווסט נכשלה לאחר ניסיון תיקון')
       }

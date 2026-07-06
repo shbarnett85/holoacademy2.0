@@ -278,6 +278,95 @@ export function validateGameData(
   return { ok: true, data: parsed.data }
 }
 
+/* ── בדיקת עקביות-עצמית של תשובות (דטרמיניסטית, ללא AI וללא ידע חיצוני) ──
+   חידת נכון/לא-נכון ורב-ברירה מקודדות את התשובה **פעמיים**: ב-isCorrect וגם בטקסט
+   ההסבר. כשהשניים סותרים — משהו הפך ערך-אמת (המודל או המתקן האוטומטי), והתלמיד
+   ייכשל על תשובה נכונה. הבדיקה מזהה סתירה בין שני שדות שהמודל עצמו כתב, בלי לדעת מי
+   צודק. trueFalse → **חוסם** (retry ואז אזהרה); multipleChoice/finalQuiz → **אזהרה**.
+   ה-parsers שמרניים בכוונה: מחזירים null כשלא ניתן לחלץ בוודאות → אפס false-positives. */
+
+const stripQuotes = (s?: string): string => (s ?? '').replace(/["'`׳״]/g, '').replace(/\s+/g, ' ').trim()
+
+/* התשובה שההסבר מצהיר עליה כנכונה בחידת נכון/לא-נכון. null אם לא ניתן לחלץ בוודאות.
+   חובה לבדוק "לא נכון" לפני "נכון" — "לא נכון" מכיל את "נכון" כתת-מחרוזת. */
+export function assertedTrueFalseAnswer(explanationCorrect?: string, explanationIncorrect?: string): 'true' | 'false' | null {
+  const ei = stripQuotes(explanationIncorrect)
+  const m = ei.match(/התשובה הנכונה היא\s+(לא נכון|נכון)/)
+  if (m) return m[1] === 'לא נכון' ? 'false' : 'true'
+  const ec = stripQuotes(explanationCorrect)
+  /* "נכון מאוד שזה לא נכון" / "נכון מאוד שבחרתם לא נכון" → מצהיר על "לא נכון" */
+  if (/נכון מאוד\s+ש\S*\s*לא נכון/.test(ec)) return 'false'
+  return null
+}
+
+/* התשובה המסומנת (isCorrect) בחידת נכון/לא-נכון. null אם הטקסט אינו נכון/לא-נכון ברור. */
+export function markedTrueFalseAnswer(choices?: { text: string; isCorrect: boolean }[]): 'true' | 'false' | null {
+  const correct = choices?.find((c) => c.isCorrect)
+  if (!correct) return null
+  const t = stripQuotes(correct.text)
+  if (t.startsWith('לא נכון') || t === 'לא') return 'false'
+  if (t.startsWith('נכון') || t === 'כן') return 'true'
+  return null
+}
+
+/* התשובה שההסבר "מצטט" כנכונה ברב-ברירה (מתוך explanationIncorrect: "התשובה הנכונה היא: X").
+   מוחזר רק כשהוא **תואם בדיוק** (אחרי נרמול) לטקסט של אפשרות שאינה המסומנת — התאמה
+   מדויקת = דיוק גבוה, כמעט אפס false-positives (פרפרזה חלקית לא מדגלת). */
+export function mcExplanationMismatch(
+  choices?: { text: string; isCorrect: boolean }[],
+  explanationIncorrect?: string,
+): string | null {
+  if (!choices || choices.length < 2) return null
+  const correct = choices.find((c) => c.isCorrect)
+  if (!correct) return null
+  const m = stripQuotes(explanationIncorrect).match(/התשובה הנכונה היא:?\s+([^.!?\n]+)/)
+  if (!m) return null
+  const key = (s: string) => stripQuotes(s).replace(/[.,:]/g, '')
+  const named = key(m[1])
+  if (named.length < 3) return null
+  const correctKey = key(correct.text)
+  /* עקבי — ההסבר מצטט את המסומנת (זהות/הכלה) */
+  if (named.includes(correctKey) || correctKey.includes(named)) return null
+  /* ההסבר מצטט אפשרות *אחרת* → סתירה */
+  const other = choices.find((c) => !c.isCorrect && (key(c.text).includes(named) || named.includes(key(c.text))))
+  if (other) return `ההסבר מצהיר על תשובה נכונה ("${m[1].trim().slice(0, 40)}") השונה מהאפשרות המסומנת — בדוק את הסימון`
+  return null
+}
+
+export function checkAnswerConsistency(gd: GameData): { blocking: string[]; warnings: string[] } {
+  const blocking: string[] = []
+  const warnings: string[] = []
+  for (const s of gd.scenes) {
+    const p = s.puzzle
+    if (!p) continue
+    const where = `בסצנה "${s.title}"`
+    if (p.type === 'trueFalse') {
+      const asserted = assertedTrueFalseAnswer(p.explanationCorrect, p.explanationIncorrect)
+      const marked = markedTrueFalseAnswer(p.choices)
+      if (asserted && marked && asserted !== marked) {
+        blocking.push(`${where}: בחידת נכון/לא-נכון התשובה המסומנת ("${marked === 'true' ? 'נכון' : 'לא נכון'}") סותרת את ההסבר (שמצהיר "${asserted === 'true' ? 'נכון' : 'לא נכון'}"). התאם ביניהם — או ההיגד או הסימון.`)
+      }
+      /* היגד נכון/לא-נכון חייב להיות **קביעה** שאפשר לשפוט כאמת/שקר. שאלת-פתיחה (WH:
+         מה/מדוע/כיצד/איזה/מי/כמה) שהוגדרה כ-trueFalse היא הבאג של "מסע בין כוכבים" —
+         "מה ההבדל...?" לא ניתן לענות עליו נכון/לא-נכון. **לא** מדגלים שאלות כן/לא לגיטימיות
+         ("האם...?", "...נכון או לא נכון?") — רק WH. אזהרה לבדיקה ידנית. */
+      const q = (p.question ?? '').trim()
+      if (q.endsWith('?') && /(^|[\s"'(])(מה|מדוע|למה|כיצד|איך|איזו|איזה|מי|כמה)([\s"'?]|$)/.test(q)) {
+        warnings.push(`${where}: היגד נכון/לא-נכון מנוסח כשאלת "מה/מדוע/איך" ולא כקביעה — ודא שהתשובה נכון/לא-נכון מתייחסת להיגד ברור.`)
+      }
+    } else if (p.type === 'multipleChoice') {
+      const w = mcExplanationMismatch(p.choices, p.explanationIncorrect)
+      if (w) warnings.push(`${where}: ${w}`)
+    }
+    for (const q of p.questions ?? []) {
+      const opts = q.options.map((text, i) => ({ text, isCorrect: i === q.correctIndex }))
+      const w = mcExplanationMismatch(opts, q.explanationIncorrect)
+      if (w) warnings.push(`${where} (מבחן סיכום): ${w}`)
+    }
+  }
+  return { blocking, warnings }
+}
+
 /* הוראת ברירת-מחדל ל-question בחידות מבוססות-משחק (שבהן question הוא הוראה גנרית, לא תוכן לימודי) */
 const PUZZLE_DEFAULT_QUESTION: Record<string, string> = {
   tileSwap: 'השלם את התמונה',
