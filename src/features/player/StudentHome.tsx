@@ -25,6 +25,8 @@ interface AssignedQuest {
   sessionStatus: 'completed' | 'in_progress' | null
   crystals: number | null
   maxScore: number | null
+  /* הדמיית חזרה — משימת חיזוק שנוצרה מהמושגים שהכיתה התקשתה בהם */
+  isReview?: boolean
 }
 
 /* ── crystal dots ── */
@@ -88,6 +90,16 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           boxShadow: '0 0 12px rgba(47,243,255,.5)', backdropFilter: 'blur(6px)',
           animation: 'holo-status-pulse 2s ease-in-out infinite',
         }}>✦ חדש</div>
+      )}
+
+      {/* badge: הדמיית חזרה (משימת חיזוק) — מוזז שמאלה כשיש גם "חדש" */}
+      {q.isReview && (
+        <div style={{
+          position: 'absolute', top: 10, right: isNew ? 62 : 10,
+          background: 'rgba(155,140,255,.18)', border: '1px solid rgba(155,140,255,.65)',
+          borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
+          color: '#c9b6ff', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
+        }}>🔄 חיזוק</div>
       )}
 
       {/* badge: הושלם */}

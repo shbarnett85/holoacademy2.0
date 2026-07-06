@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { apiJson } from '../../shared/lib/api'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { apiFetch, apiJson } from '../../shared/lib/api'
 import { glass, micro } from '../creator/studioStyles'
 import DonutChart from './charts'
 import { pct, duration, FLAG_META, STATUS_META } from './format'
@@ -94,6 +95,90 @@ function ObjectiveMastery({ objectives, onStudent }: { objectives: PerObjective[
         })}
       </div>
     </Panel>
+  )
+}
+
+/* ── הדמיית חזרה — לולאת ה-spaced-retrieval ──
+   מוצג רק כשיש מושגים/יעדים חלשים. לחיצה → השרת מחשב את החולשות ומייצר הרפתקת-המשך
+   קצרה ברקע; פה עוקבים ב-polling קל עד שהיא מוכנה ואז מציעים לפתוח לעריכה/הקצאה. */
+function ReviewQuestPanel({ questId, assignmentId, data }: { questId: string; assignmentId: string; data: AssignmentAnalytics }) {
+  const navigate = useNavigate()
+  const [state, setState] = useState<{ phase: 'idle' | 'working' | 'ready' | 'error'; reviewId?: string; title?: string; msg?: string }>({ phase: 'idle' })
+  const timerRef = useRef<number | null>(null)
+  useEffect(() => () => { if (timerRef.current) window.clearInterval(timerRef.current) }, [])
+
+  /* ספירת החולשות מהנתונים שכבר בדשבורד: יעדים חלשים אם יש תיוג, אחרת אתגרים חלשים */
+  const weakObjectives = (data.perObjective ?? []).filter((o) => o.masteryLevel === 'weak').length
+  const weakChallenges = data.perChallenge.filter((c) => c.successRate !== null && c.successRate < 0.6 && c.attempts >= 2).length
+  const weakCount = weakObjectives > 0 ? weakObjectives : weakChallenges
+  if (weakCount === 0 && state.phase === 'idle') return null
+
+  async function create() {
+    setState({ phase: 'working' })
+    try {
+      const res = await apiFetch(`/api/quests/${questId}/review-quest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error ?? 'יצירת הדמיית החזרה נכשלה')
+      const reviewId: string = body.questId
+      /* polling קל עד שהיצירה ברקע מסתיימת */
+      timerRef.current = window.setInterval(async () => {
+        try {
+          const r = await fetch(`/api/quests/${reviewId}`)
+          const b = await r.json()
+          const gd = b?.quest?.game_data
+          if (gd?.genError) {
+            if (timerRef.current) window.clearInterval(timerRef.current)
+            setState({ phase: 'error', msg: gd.genError })
+          } else if (Array.isArray(gd?.scenes) && gd.scenes.length > 0) {
+            if (timerRef.current) window.clearInterval(timerRef.current)
+            setState({ phase: 'ready', reviewId, title: body.title })
+          }
+        } catch { /* ניסיון הבא */ }
+      }, 4000)
+    } catch (e) {
+      setState({ phase: 'error', msg: e instanceof Error ? e.message : 'שגיאה' })
+    }
+  }
+
+  return (
+    <div style={{ ...glass, padding: 18, borderColor: 'rgba(155,140,255,0.45)' }}>
+      <div style={{ ...micro, fontSize: 9, marginBottom: 10 }}>🔄 הדמיית חזרה</div>
+      {state.phase === 'idle' && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, color: '#cfe1f2' }}>
+            זוהו <b style={{ color: '#ffce5e' }}>{weakCount}</b> {weakObjectives > 0 ? 'יעדים' : 'מושגים'} שהכיתה התקשתה בהם — אפשר לייצר הרפתקת-המשך קצרה שמחזקת אותם מזווית חדשה.
+          </span>
+          <button onClick={create}
+            style={{ padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, color: '#fff', background: 'linear-gradient(135deg,#9b8cff,#2ff3ff)', border: 'none', whiteSpace: 'nowrap' }}>
+            ✨ צור הדמיית חזרה
+          </button>
+        </div>
+      )}
+      {state.phase === 'working' && (
+        <span style={{ fontSize: 13.5, color: '#c9b6ff' }}>
+          <span style={{ display: 'inline-block', animation: 'holo-spin .9s linear infinite' }}>⟳</span> ד"ר הולו בונה הדמיית חזרה מהמושגים החלשים… (כדקה-שתיים; אפשר להישאר בעמוד)
+        </span>
+      )}
+      {state.phase === 'ready' && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, color: '#5fffb0' }}>✓ "{state.title}" מוכנה — עברו עליה ואז הקצו לכיתה.</span>
+          <button onClick={() => navigate(`/creator/quest/${state.reviewId}`)}
+            style={{ padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, color: '#04101c', background: '#5fffb0', border: 'none', whiteSpace: 'nowrap' }}>
+            פתח את הדמיית החזרה ←
+          </button>
+        </div>
+      )}
+      {state.phase === 'error' && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, color: '#ff9bb3' }}>⚠️ {state.msg}</span>
+          <button onClick={create} style={{ padding: '7px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 13, color: '#bfe9ff', background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.3)' }}>נסה שוב</button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -192,6 +277,9 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
       {data.perObjective && data.perObjective.length > 0 && (
         <ObjectiveMastery objectives={data.perObjective} onStudent={onStudent} />
       )}
+
+      {/* הדמיית חזרה — מוצג רק כשיש מושגים/יעדים חלשים */}
+      <ReviewQuestPanel questId={data.quest.id} assignmentId={assignmentId} data={data} />
 
       {/* סיכום פדגוגי — ד"ר הולו על ביצועי הכיתה בהדמיה */}
       <PedagogicalSummary scope="assignment" id={assignmentId} title={`${data.quest.title} · כיתה ${data.class.name}`} />

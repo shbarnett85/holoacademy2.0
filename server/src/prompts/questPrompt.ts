@@ -46,6 +46,12 @@ export interface QuestGenerationParams {
   formOfAddress?: FormOfAddress
   /* יעדי למידה (אופציונלי) — כל אתגר מתויג ביעד שהוא בוחן; מזין את דיווח השליטה */
   objectives?: LearningObjective[]
+  /* הדמיית חזרה: בלוק המושגים החלשים + כלל "זווית חדשה" (נבנה ב-lib/weakConcepts) */
+  reviewContext?: string
+  /* מטא הדמיית חזרה — מוזרק ל-game_data בסיום היצירה (לא לפרומפט) */
+  reviewOf?: { questId: string; assignmentId?: string; baseTitle?: string }
+  /* מאגר תמונות למחזור מההדמיה המקורית — הדמיית חזרה לא מייצרת תמונות חדשות */
+  imagePool?: { scenes: string[]; endingGood?: string; endingBad?: string }
 }
 
 /* כלל הניסוח הדקדוקי — מוזרק לפרומפט וגם משמש את שכתוב הווריאציה האישית (haiku). */
@@ -523,6 +529,7 @@ ${params.difficultySettings ? `- הגדרות קושי: ${JSON.stringify(params.
 
 ${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
 ${narrativeStructureInstructions(params.questType)}
+${params.reviewContext ? `\n## הדמיית חזרה (דרישות ייעודיות!)\n${params.reviewContext}\n` : ''}
 ${objectivesInstructions(params.objectives)}
 ${structureInstructions}
 ${params.includeDrHolo ? labStructureInstructions() : ''}

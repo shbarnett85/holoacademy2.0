@@ -12,6 +12,8 @@ interface QuestSummary {
   created_at: string
   is_published: boolean
   is_public: boolean
+  /* הדמיית חזרה — נוצרה מהמושגים החלשים של מטלה (reviewOf ב-game_data) */
+  is_review?: boolean
   sceneCount: number
   subject?: string | null
 }
@@ -76,6 +78,7 @@ function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare, onDelete }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--holo-text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
           {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: '#7ef6ff', background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.4)' }}>🌐 משותפת</span>}
+          {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: '#c9b6ff', background: 'rgba(155,140,255,.12)', border: '1px solid rgba(155,140,255,.45)' }}>🔄 הדמיית חזרה</span>}
           <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? '#7effc9' : '#ffce8a', background: q.is_published ? 'rgba(74,222,128,.12)' : 'rgba(255,184,107,.12)', border: '1px solid ' + (q.is_published ? 'rgba(74,222,128,.4)' : 'rgba(255,184,107,.4)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>

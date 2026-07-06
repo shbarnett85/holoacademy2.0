@@ -27,6 +27,7 @@ import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant, applyNiqqudToGameData } from '../lib/questVariants.js'
+import { computeWeakConcepts, reviewContextBlock } from '../lib/weakConcepts.js'
 
 export const questsRouter = Router()
 
@@ -91,12 +92,13 @@ questsRouter.get('/', requireStaff, async (req, res, next) => {
 
     if (error) throw new AppError(500, 'שגיאה בשליפת הדמיות: ' + error.message)
 
-    const quests = ((data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[] }; is_public?: boolean; subject?: string | null }[]).map((q) => ({
+    const quests = ((data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null }[]).map((q) => ({
       id: q.id,
       title: q.title,
       created_at: q.created_at,
       is_published: q.status === 'published',
       is_public: pub ? q.is_public === true : false,
+      is_review: !!q.game_data?.reviewOf,
       sceneCount: q.game_data?.scenes?.length ?? 0,
       subject: subj ? (q.subject ?? null) : null,
     }))
@@ -273,6 +275,92 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
     }
 
     res.json({ ok: true, variantGameData: variantData, profileSnapshot: snapshot, persisted: hasTable })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── POST /api/quests/:id/review-quest — יצירת "הדמיית חזרה" מהמושגים החלשים ──
+   לולאת ה-spaced-retrieval: השרת מחשב את המושגים/היעדים שהכיתה נכשלה בהם (מה-events
+   המסוכמים), ומייצר הרפתקת-המשך קצרה (4 סצנות) שבוחנת אותם **מזווית חדשה** דרך צינור
+   היצירה הרגיל (בטיחות/ולידציה/fact-check — הכל כלול). תמונות ממוחזרות מההדמיה
+   המקורית (אפס עלות תמונות). ההדמיה החדשה נושאת reviewOf + objectives של היעדים
+   החלשים — כך דיווח השליטה מודד את שיפור החזרה מול המקור. */
+const reviewQuestSchema = z.object({ assignmentId: z.string().uuid() })
+
+questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
+  try {
+    const parsed = reviewQuestSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'assignmentId נדרש')
+
+    const { data: asg, error: asgErr } = await supabaseAdmin
+      .from('assignments')
+      .select('id, quest_id, class_id')
+      .eq('id', parsed.data.assignmentId)
+      .single()
+    if (asgErr || !asg) throw new AppError(404, 'מטלה לא נמצאה')
+    if (asg.quest_id !== req.params.id) throw new AppError(400, 'המטלה אינה שייכת להדמיה זו')
+
+    const { data: base, error: baseErr } = await supabaseAdmin
+      .from('quests')
+      .select('id, title, curriculum, art_style, difficulty_settings, game_data, created_by')
+      .eq('id', req.params.id)
+      .single()
+    if (baseErr || !base?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureOwner(req, base.created_by)
+
+    const concepts = await computeWeakConcepts(base.id, asg.class_id, base.game_data)
+    if (concepts.length === 0) {
+      throw new AppError(400, 'אין מושגים חלשים לחיזוק — הכיתה שלטה בחומר או שאין עדיין מספיק נתונים')
+    }
+
+    /* יעדי הדמיית החזרה = המושגים החלשים (עד 8) */
+    const objectives = concepts.slice(0, 8).map((c, i) => ({ id: `obj_${i + 1}`, text: c.text }))
+
+    /* מאגר תמונות למיחזור מההדמיה המקורית */
+    const baseGd = base.game_data as { scenes?: { imageUrl?: string }[]; endingGood?: { imageUrl?: string }; endingBad?: { imageUrl?: string } }
+    const imagePool = {
+      scenes: (baseGd.scenes ?? []).map((s) => s.imageUrl).filter((u): u is string => !!u),
+      endingGood: baseGd.endingGood?.imageUrl,
+      endingBad: baseGd.endingBad?.imageUrl,
+    }
+
+    const reviewTitle = `חזרה: ${base.title}`.slice(0, 120)
+    const params: QuestGenerationParams = {
+      title: reviewTitle,
+      curriculum: (base.curriculum as string | null) ?? '',
+      questLength: 4,
+      puzzlePreferences: { types: { multipleChoice: true, trueFalse: true, wordCompletion: true } },
+      difficultySettings: (base.difficulty_settings as Record<string, unknown> | null) ?? undefined,
+      includeDrHolo: true,
+      artStyle: (base.art_style as string | null) ?? undefined,
+      questType: 'adventure',
+      formOfAddress: 'plural',
+      objectives,
+      reviewContext: reviewContextBlock(base.title, concepts),
+      reviewOf: { questId: base.id, assignmentId: asg.id, baseTitle: base.title },
+      imagePool: imagePool.scenes.length > 0 ? imagePool : undefined,
+    }
+
+    const stub: Record<string, unknown> = {
+      title: reviewTitle,
+      curriculum: params.curriculum,
+      quest_type: 'adventure',
+      quest_length: params.questLength,
+      art_style: base.art_style ?? 'digital-painting',
+      include_dr_holo: true,
+      puzzle_preferences: params.puzzlePreferences ?? {},
+      difficulty_settings: params.difficultySettings ?? {},
+      game_data: { generating: true },
+      status: 'draft',
+      created_by: req.staff!.userId,
+    }
+    const { data: created, error: insErr } = await supabaseAdmin.from('quests').insert(stub).select('id').single()
+    if (insErr || !created) throw new AppError(500, 'יצירת הדמיית החזרה נכשלה: ' + (insErr?.message ?? ''))
+
+    /* מחזירים מיד — היצירה רצה ברקע (הקליינט עושה polling ל-GET /:id) */
+    res.status(201).json({ questId: created.id, title: reviewTitle, weakConcepts: concepts.length })
+    void generateQuestInBackground(created.id, params, req.staff!.userId)
   } catch (err) {
     next(err)
   }
@@ -860,6 +948,18 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       if (uncovered.length > 0) {
         warnings.push(`יעדי למידה שלא נבחנים באף אתגר: ${uncovered.map((o) => `"${o.text}"`).join(', ')} — מומלץ לערוך אתגר ולתייג אותו ביעד`)
       }
+    }
+
+    /* הדמיית חזרה — סימון המקור + מיחזור תמונות מההדמיה המקורית (אפס עלות תמונות;
+       אותו נושא, אז התמונות רלוונטיות. המורה יכול לרענן תמונה בודדת אם ירצה). */
+    if (params.reviewOf) {
+      ;(gameData as unknown as { reviewOf?: typeof params.reviewOf }).reviewOf = params.reviewOf
+    }
+    if (params.imagePool && params.imagePool.scenes.length > 0) {
+      const pool = params.imagePool.scenes
+      gameData.scenes.forEach((sc, i) => { if (!sc.imageUrl) sc.imageUrl = pool[i % pool.length] })
+      if (gameData.endingGood && !gameData.endingGood.imageUrl && params.imagePool.endingGood) gameData.endingGood.imageUrl = params.imagePool.endingGood
+      if (gameData.endingBad && !gameData.endingBad.imageUrl && params.imagePool.endingBad) gameData.endingBad.imageUrl = params.imagePool.endingBad
     }
 
     /* ניקוד מלא ומדויק (Dicta) לרמות נמוכות (≤6) — קוראים מתחילים. מחליף את ניקוד המודל. */

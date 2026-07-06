@@ -50,7 +50,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     if (questResult.error) throw new AppError(500, questResult.error.message)
 
     type Scene = { id: string; imageUrl?: string }
-    type GameData = { scenes?: Scene[]; entrySceneId?: string }
+    type GameData = { scenes?: Scene[]; entrySceneId?: string; reviewOf?: unknown }
     type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; created_by?: string | null }
 
     /* שמות מורים לפי created_by */
@@ -95,6 +95,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         id: q.id,
         title: q.title,
         sceneCount: gd?.scenes?.length ?? 0,
+        isReview: !!gd?.reviewOf,
         artStyle: q.art_style,
         subject: subjectMap.get(q.id) ?? null,
         teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
