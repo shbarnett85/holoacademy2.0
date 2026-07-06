@@ -197,8 +197,9 @@ const loginSchema = z.object({
 })
 
 /* POST /api/auth/student-login — שלב 2: אימות PIN והנפקת JWT.
-   הגנת brute-force כפולה: פר-IP (middleware) + נעילת-תלמיד אחרי 5 PINs שגויים
-   בחלון של דקה (נספרים כשלונות בלבד — התחברות תקינה לא ננעלת). */
+   הגנת brute-force כפולה: פר-IP (middleware) + נעילת-תלמיד מדורגת אחרי 5 PINs
+   שגויים — כל נעילה עוקבת ארוכה פי-3 (1דק׳→3→9…, תקרה 30דק׳). נספרים כשלונות
+   בלבד — התחברות תקינה לא ננעלת. */
 const STUDENT_PIN_MAX_FAILS = 5
 authRouter.post('/auth/student-login', rateLimitByIp('student-login', 20), async (req, res, next) => {
   try {
@@ -219,7 +220,7 @@ authRouter.post('/auth/student-login', rateLimitByIp('student-login', 20), async
     if (error || !user) throw new AppError(401, 'תלמיד לא נמצא')
     if (!(await isUserActive(user.id))) throw new AppError(403, 'החשבון הושבת — פנה למורה')
     if (String(user.pin) !== String(pin)) {
-      recordFailure('student-pin', studentId)
+      recordFailure('student-pin', studentId, STUDENT_PIN_MAX_FAILS)
       throw new AppError(401, 'קוד PIN שגוי')
     }
 
