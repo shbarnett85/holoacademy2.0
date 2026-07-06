@@ -5,6 +5,7 @@ import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import ConfirmModal from './ConfirmModal'
 import SchoolUsers from './SchoolUsers'
 import Reports from './Reports'
+import FunnelPanel from './FunnelPanel'
 
 interface AdminSchool {
   id: string
@@ -149,6 +150,8 @@ export default function SuperAdminPanel() {
           ))}
         </div>
       )}
+
+      <div className="w-full mt-4"><FunnelPanel /></div>
 
       <div className="w-full mt-4 mb-8"><Reports /></div>
 
