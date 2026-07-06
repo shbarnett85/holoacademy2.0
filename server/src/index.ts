@@ -33,6 +33,7 @@ app.use(cors({ origin: allowedOrigins, credentials: true }))
 app.use(express.json({ limit: '2mb' }))
 
 /* endpoint בדיקה */
+/* endpoint ציבורי — בוליאני "מוגדר/לא" בלבד, בלי לחשוף שום חלק מהמפתחות עצמם */
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
@@ -40,8 +41,6 @@ app.get('/api/health', (_req, res) => {
     guestConfigured: !!(process.env.GUEST_EMAIL?.trim()),
     supabaseConfigured: !!(process.env.SUPABASE_URL?.trim()),
     togetherConfigured: !!(process.env.TOGETHER_API_KEY?.trim()),
-    togetherKeyPrefix: process.env.TOGETHER_API_KEY?.trim().slice(0, 8) ?? 'missing',
-    togetherKeyLength: process.env.TOGETHER_API_KEY?.length ?? 0,
     anthropicConfigured: !!(process.env.ANTHROPIC_API_KEY?.trim()),
   })
 })
