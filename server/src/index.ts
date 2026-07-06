@@ -13,6 +13,7 @@ import { sessionsRouter } from './routes/sessions.js'
 import { analyticsRouter } from './routes/analytics.js'
 import { libraryRouter } from './routes/library.js'
 import { errorHandler } from './middleware/errors.js'
+import { info } from './lib/log.js'
 
 const app = express()
 
@@ -69,7 +70,7 @@ app.use(errorHandler)
 
 const port = Number(process.env.PORT) || 3001
 const server = app.listen(port, () => {
-  console.log(`✦ HoloAcademy server רץ על http://localhost:${port}`)
+  info(`✦ HoloAcademy server רץ על http://localhost:${port}`)
 })
 
 /* יצירות גדולות יכולות להימשך עד 10 דקות — מסירים את ה-timeout-ים של Node

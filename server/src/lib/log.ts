@@ -1,13 +1,41 @@
-/* לוגים מדורגים — debug מושתק בפרודקשן (אלא אם DEBUG_LOGS=1), info תמיד.
-   מחליף console.log ישיר בנתיבי הקוד הפטפטניים (variant/phrasing) כדי שלוגי
-   הפרודקשן יישארו טלמטריה מכוונת בלבד (זמני יצירה, טוקנים, fact-check). */
+import { format } from 'node:util'
+import { pino } from 'pino'
 
-const debugEnabled = process.env.NODE_ENV !== 'production' || process.env.DEBUG_LOGS === '1'
+/* לוגר מובנה (pino) לכל השרת — מחליף console.* ישיר.
+   - dev: פלט קריא (pino-pretty, צבעים, שעה) — חוויית הקריאה של לוגי היצירה נשמרת.
+   - production: שורות JSON מובנות (level/time/msg) — נוחות לחיפוש ב-Railway.
+   - רמה: LOG_LEVEL מפורש > DEBUG_LOGS=1 (תאימות לאחור) > prod=info / dev=debug.
+   ה-API שומר חתימת console (ריבוי ארגומנטים) דרך util.format — כל אתרי הקריאה
+   הקיימים (עברית, אובייקטים, מספרים) עובדים כמו שהם. */
+
+const level =
+  process.env.LOG_LEVEL ??
+  (process.env.DEBUG_LOGS === '1' ? 'debug' : process.env.NODE_ENV === 'production' ? 'info' : 'debug')
+
+export const logger = pino({
+  level,
+  ...(process.env.NODE_ENV !== 'production'
+    ? {
+        transport: {
+          target: 'pino-pretty',
+          options: { colorize: true, translateTime: 'SYS:HH:MM:ss', ignore: 'pid,hostname' },
+        },
+      }
+    : {}),
+})
 
 export function debug(...args: unknown[]): void {
-  if (debugEnabled) console.log(...args)
+  logger.debug(format(...args))
 }
 
 export function info(...args: unknown[]): void {
-  console.log(...args)
+  logger.info(format(...args))
+}
+
+export function warn(...args: unknown[]): void {
+  logger.warn(format(...args))
+}
+
+export function error(...args: unknown[]): void {
+  logger.error(format(...args))
 }

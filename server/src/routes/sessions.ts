@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
+import { warn } from '../lib/log.js'
 import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasQuestVariants } from '../lib/activeColumn.js'
 import {
   calibrate,
@@ -431,7 +432,7 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
           .delete()
           .eq('session_id', session.id)
           .not('id', 'in', `(${newIds.join(',')})`)
-        if (delErr) console.warn('[complete] ניקוי events ישנים נכשל (יתוקן ב-retry הבא):', delErr.message)
+        if (delErr) warn('[complete] ניקוי events ישנים נכשל (יתוקן ב-retry הבא):', delErr.message)
       }
     }
 
@@ -464,10 +465,10 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
           success_rates: perTypeSuccess,
           overall_success: overall,
         })
-        if (snapErr) console.warn('[snapshot] כתיבת progress_snapshot נכשלה ל-session', session.id, '—', snapErr.message)
+        if (snapErr) warn('[snapshot] כתיבת progress_snapshot נכשלה ל-session', session.id, '—', snapErr.message)
       }
     } catch (e) {
-      console.warn('[calibrate] כיול הפרופיל נכשל ל-session', session.id, '—', e instanceof Error ? e.message : e)
+      warn('[calibrate] כיול הפרופיל נכשל ל-session', session.id, '—', e instanceof Error ? e.message : e)
     }
     res.json({ ok: true, profileUpdated })
   } catch (err) {

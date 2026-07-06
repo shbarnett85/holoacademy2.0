@@ -1,3 +1,4 @@
+import { warn } from './log.js'
 import { createClient } from '@supabase/supabase-js'
 
 /* קליינט אדמין — משתמש ב-SERVICE_ROLE_KEY ועוקף RLS. לשימוש בצד שרת בלבד! */
@@ -5,7 +6,7 @@ const url = process.env.SUPABASE_URL
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!url || !serviceRoleKey) {
-  console.warn('⚠ חסרים SUPABASE_URL או SUPABASE_SERVICE_ROLE_KEY ב-.env — קריאות DB ייכשלו עד שיוגדרו')
+  warn('⚠ חסרים SUPABASE_URL או SUPABASE_SERVICE_ROLE_KEY ב-.env — קריאות DB ייכשלו עד שיוגדרו')
 }
 
 /* placeholder מאפשר לשרת לעלות גם בלי מפתחות — הקריאות עצמן ייכשלו עד להגדרה */

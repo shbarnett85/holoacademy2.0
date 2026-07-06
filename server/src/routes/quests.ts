@@ -25,7 +25,7 @@ import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasContentSafetyLog } from '../lib/activeColumn.js'
 import { nakdan } from '../lib/dicta.js'
-import { debug } from '../lib/log.js'
+import { debug, info, warn, error as logError } from '../lib/log.js'
 
 export const questsRouter = Router()
 
@@ -386,7 +386,7 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
       if (q) { j.puzzle.question = q; warnings.push(`שוחזרה שאלה חסרה בחידה (סצנה "${j.scene.title ?? '?'}")`) }
     })
   } catch (e) {
-    console.error('[recover-question] שחזור נכשל (יפול ל-repair):', e instanceof Error ? e.message : e)
+    logError('[recover-question] שחזור נכשל (יפול ל-repair):', e instanceof Error ? e.message : e)
   }
 }
 
@@ -404,7 +404,7 @@ async function callClaude(messages: { role: 'user' | 'assistant'; content: strin
     })
     .finalMessage()
   const u = response.usage as { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
-  console.log(`[tokens] sonnet: in=${u.input_tokens} out=${u.output_tokens} cacheWrite=${u.cache_creation_input_tokens ?? 0} cacheRead=${u.cache_read_input_tokens ?? 0}`)
+  info(`[tokens] sonnet: in=${u.input_tokens} out=${u.output_tokens} cacheWrite=${u.cache_creation_input_tokens ?? 0} cacheRead=${u.cache_read_input_tokens ?? 0}`)
   const textBlock = response.content.find((b) => b.type === 'text')
   if (!textBlock || textBlock.type !== 'text') {
     throw new AppError(502, 'תשובה ריקה מ-Claude')
@@ -422,7 +422,7 @@ async function callHaiku(messages: { role: 'user' | 'assistant'; content: string
     messages,
   })
   const u = response.usage
-  console.log(`[tokens] haiku: in=${u.input_tokens} out=${u.output_tokens}`)
+  info(`[tokens] haiku: in=${u.input_tokens} out=${u.output_tokens}`)
   const block = response.content.find((b) => b.type === 'text')
   return block && block.type === 'text' ? block.text : ''
 }
@@ -474,7 +474,7 @@ async function runFactCheck(gameData: GameData, sceneIds?: string[]): Promise<{ 
     const errors = Array.isArray(json.errors) ? json.errors.filter((e) => e && e.problem) : []
     return { ok: true, errors: json.hasErrors ? errors : [] }
   } catch (err) {
-    console.error('[fact-check] נכשל טכנית:', err instanceof Error ? err.message : err)
+    logError('[fact-check] נכשל טכנית:', err instanceof Error ? err.message : err)
     return { ok: false, errors: [] }
   }
 }
@@ -618,7 +618,7 @@ ${JSON.stringify(texts, null, 0)}`
     const rew = extractJson(out) as Record<string, string>
     if (rew && typeof rew === 'object') applyAddressText(variant, rew)
   } catch (err) {
-    console.error('[personalize] שכתוב הפנייה נכשל:', err instanceof Error ? err.message : err)
+    logError('[personalize] שכתוב הפנייה נכשל:', err instanceof Error ? err.message : err)
   }
   return variant
 }
@@ -833,7 +833,7 @@ ${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפר�
     debug('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
     const out = await callClaude([{ role: 'user', content: user }], cachedSystem)
     const parsed = extractJson(out)
-    if (!Array.isArray(parsed)) { console.error('[variant:puzzles] התגובה אינה מערך'); return }
+    if (!Array.isArray(parsed)) { logError('[variant:puzzles] התגובה אינה מערך'); return }
     let applied = 0
     jobs.forEach((j, n) => {
       const cand = parsed[n]
@@ -847,7 +847,7 @@ ${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפר�
     })
     debug('[variant:puzzles] done', Date.now() - t0, 'ms, applied:', applied, '/', jobs.length)
   } catch (err) {
-    console.error('[variant:puzzles] נכשל:', err instanceof Error ? err.message : err)
+    logError('[variant:puzzles] נכשל:', err instanceof Error ? err.message : err)
   }
 }
 
@@ -889,7 +889,7 @@ ${JSON.stringify(offending, null, 0)}`
     debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
     return keys.length
   } catch (err) {
-    console.error('[phrasing:enforce] נכשל:', err instanceof Error ? err.message : err)
+    logError('[phrasing:enforce] נכשל:', err instanceof Error ? err.message : err)
     return 0
   }
 }
@@ -969,7 +969,7 @@ ${JSON.stringify(batch, null, 0)}`
       }
       debug('[variant:haiku] done', Date.now() - t0, 'ms')
     } catch (err) {
-      console.error('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
+      logError('[variant] שכתוב טקסט נכשל:', err instanceof Error ? err.message : err)
     }
   }
 
@@ -1041,7 +1041,7 @@ async function runInputSafetyCheck(title: string, curriculum: string): Promise<S
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string }
     return { blocked: !!json.blocked, category: json.category as SafetyCategory | undefined }
   } catch (err) {
-    console.error('[safety:input] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
+    logError('[safety:input] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
     return { blocked: false } /* כשל טכני בבדיקה עצמה לא חוסם יצירה לגיטימית */
   }
 }
@@ -1089,7 +1089,7 @@ async function runOutputSafetyCheck(gameData: GameData): Promise<SafetyVerdict &
       excerpt: json.excerpt?.slice(0, 200),
     }
   } catch (err) {
-    console.error('[safety:output] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
+    logError('[safety:output] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
     return { blocked: false }
   }
 }
@@ -1115,7 +1115,7 @@ async function logContentSafety(entry: {
       input_excerpt: entry.excerpt ?? null,
     })
   } catch (err) {
-    console.error('[safety:log] כתיבת לוג נכשלה (לא חוסם):', err instanceof Error ? err.message : err)
+    logError('[safety:log] כתיבת לוג נכשלה (לא חוסם):', err instanceof Error ? err.message : err)
   }
 }
 
@@ -1147,7 +1147,7 @@ async function factCheckInBackground(questId: string, gameData: GameData, baseWa
   try {
     await enforceNarrativePhrasing(gameData, level, form)
   } catch (err) {
-    console.error('[phrasing:enforce] רקע נכשל:', err instanceof Error ? err.message : err)
+    logError('[phrasing:enforce] רקע נכשל:', err instanceof Error ? err.message : err)
   }
   try {
     const fc = await runFactCheck(gameData)
@@ -1164,18 +1164,18 @@ async function factCheckInBackground(questId: string, gameData: GameData, baseWa
         const unfixed = fc.errors.filter((e) => !e.sceneId || !correctedSceneIds.includes(e.sceneId))
         if (unfixed.length > 0) warnings = [...warnings, ...unfixed.map(factWarning)]
       } catch (err) {
-        console.error('[fact-check] תיקון ברקע נכשל:', err instanceof Error ? err.message : err)
+        logError('[fact-check] תיקון ברקע נכשל:', err instanceof Error ? err.message : err)
         warnings = [...warnings, ...fc.errors.map(factWarning)]
       }
     }
     meta.factCheck = { status: 'done', warnings, correctedSceneIds }
-    console.log(`[fact-check] רקע: ${((Date.now() - t) / 1000).toFixed(1)} שניות (${detected} זוהו · ${correctedSceneIds.length} תוקנו · ${warnings.length} אזהרות)`)
+    info(`[fact-check] רקע: ${((Date.now() - t) / 1000).toFixed(1)} שניות (${detected} זוהו · ${correctedSceneIds.length} תוקנו · ${warnings.length} אזהרות)`)
   } catch (err) {
-    console.error('[fact-check] רקע נכשל טכנית:', err instanceof Error ? err.message : err)
+    logError('[fact-check] רקע נכשל טכנית:', err instanceof Error ? err.message : err)
     meta.factCheck = { status: 'done', warnings, correctedSceneIds, error: true }
   }
   const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)
-  if (error) console.error('[fact-check] שמירת תיקוני הרקע נכשלה:', error.message)
+  if (error) logError('[fact-check] שמירת תיקוני הרקע נכשלה:', error.message)
 }
 
 /* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה הכול. */
@@ -1370,7 +1370,7 @@ questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
         { quest_id: questId, student_id: studentId, game_data: variantData, profile_snapshot: snapshot, created_at: new Date().toISOString() },
         { onConflict: 'quest_id,student_id' },
       )
-      if (error) console.error('[variant] שמירה נכשלה:', error.message)
+      if (error) logError('[variant] שמירה נכשלה:', error.message)
     }
 
     res.json({ ok: true, variantGameData: variantData, profileSnapshot: snapshot, persisted: hasTable })
@@ -1742,7 +1742,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
   if (!skel || !Array.isArray(skel.scenes) || skel.scenes.length < 2) throw new Error('שלד לא תקין')
   const ids = skel.scenes.map((s) => s.id)
   if (new Set(ids).size !== ids.length || ids.some((id) => !id)) throw new Error('שלד: מזהי סצנות כפולים/חסרים')
-  console.log(`[gen][מקבול] שלד: ${sx(tSk)}ש׳ · ${skel.scenes.length} סצנות`)
+  info(`[gen][מקבול] שלד: ${sx(tSk)}ש׳ · ${skel.scenes.length} סצנות`)
 
   const lastIdx = skel.scenes.length - 1
 
@@ -1758,7 +1758,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
       return scene
     }),
   )
-  console.log(`[gen][מקבול] מילוי ${filled.length} סצנות במקביל: ${sx(tFill)}ש׳`)
+  info(`[gen][מקבול] מילוי ${filled.length} סצנות במקביל: ${sx(tFill)}ש׳`)
 
   /* 3. שיא + סיומים — אחרון, עם הנרטיבים שנכתבו (למבחן סיכום אינטגרטיבי) */
   const tCl = Date.now()
@@ -1768,7 +1768,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
   cx.climax.id = skel.scenes[lastIdx].id
   cx.climax.nextSceneId = null
   delete cx.climax.choices
-  console.log(`[gen][מקבול] שיא+סיומים: ${sx(tCl)}ש׳`)
+  info(`[gen][מקבול] שיא+סיומים: ${sx(tCl)}ש׳`)
 
   /* 4. הרכבה לפי סדר השלד */
   const assembled = {
@@ -1796,7 +1796,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
   const tStart = Date.now()
   const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
   let retryCount = 0
-  console.log(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length}+${genSystem.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
+  info(`[gen] התחלה (רקע) · אורך פרומפט ${prompt.length}+${genSystem.length} תווים · ${params.questLength} סצנות · מפתחות צפויים ${expectedKeys}`)
 
   try {
     let gameData: GameData | null = null
@@ -1813,9 +1813,9 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       try {
         gameData = await generateLinearParallel(params)
         producedParallel = true
-        console.log(`[gen] ✓ נתיב מקבול לינארי`)
+        info(`[gen] ✓ נתיב מקבול לינארי`)
       } catch (e) {
-        console.warn('[gen] מקבול נכשל → נתיב סדרתי:', e instanceof Error ? e.message : e)
+        warn('[gen] מקבול נכשל → נתיב סדרתי:', e instanceof Error ? e.message : e)
       }
     }
 
@@ -1823,7 +1823,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     /* ── נתיב סדרתי (Hub / fallback): קריאה אחת + ולידציה + retry ── */
     const tMain = Date.now()
     const firstText = await callClaude([{ role: 'user', content: prompt }], genSystem)
-    console.log(`[gen] קריאה ראשית (sonnet): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
+    info(`[gen] קריאה ראשית (sonnet): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
 
     let raw: unknown
     try {
@@ -1885,13 +1885,13 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       /* retry אחד עם הודעת תיקון מדויקת */
       retryCount++
       const tRetry = Date.now()
-      console.log(`[gen] ולידציה נכשלה בניסיון 1 (${first.fatal ?? first.structureErrors?.join('; ') ?? 'מבנה'}) → retry`)
+      info(`[gen] ולידציה נכשלה בניסיון 1 (${first.fatal ?? first.structureErrors?.join('; ') ?? 'מבנה'}) → retry`)
       const retryText = await callClaude([
         { role: 'user', content: prompt },
         { role: 'assistant', content: firstText },
         { role: 'user', content: first.retryMessage! },
       ], genSystem)
-      console.log(`[gen] retry (sonnet): ${secs(tRetry)} שניות`)
+      info(`[gen] retry (sonnet): ${secs(tRetry)} שניות`)
 
       let retryRaw: unknown
       try {
@@ -1948,7 +1948,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     if (level <= 6) {
       const t0 = Date.now()
       const n = await applyNiqqudToGameData(gameData)
-      console.log(`[gen] ניקוד Dicta על ${n} מקטעים: ${secs(t0)} שניות`)
+      info(`[gen] ניקוד Dicta על ${n} מקטעים: ${secs(t0)} שניות`)
     }
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
@@ -1959,17 +1959,17 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)
     if (error) throw new AppError(500, 'שגיאה בשמירת ההדמיה: ' + error.message)
 
-    console.log(`[gen] ━━ ההדמיה מוכנה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
+    info(`[gen] ━━ ההדמיה מוכנה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
 
     /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע (best-effort, לא חוסם) */
     void factCheckInBackground(questId, gameData, warnings, level, params.formOfAddress ?? 'plural')
   } catch (err) {
     const msg = err instanceof AppError ? err.message : err instanceof Error ? err.message : 'יצירת ההדמיה נכשלה'
-    console.error('[gen] יצירה ברקע נכשלה:', msg)
+    logError('[gen] יצירה ברקע נכשלה:', msg)
     await supabaseAdmin.from('quests')
       .update({ game_data: { genError: msg } })
       .eq('id', questId)
-      .then(({ error }) => { if (error) console.error('[gen] שמירת genError נכשלה:', error.message) })
+      .then(({ error }) => { if (error) logError('[gen] שמירת genError נכשלה:', error.message) })
   }
 }
 
