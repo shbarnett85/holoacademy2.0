@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiJson } from '../../shared/lib/api'
+import { apiFetch, apiJson } from '../../shared/lib/api'
 import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import StudioTopBar from './StudioTopBar'
@@ -166,6 +166,8 @@ function ShareModal({ quest, onClose, onDone }: {
   const [classFilter, setClassFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /* אזהרות פתוחות שהשרת החזיר בניסיון שיתוף (409) — דורשות אישור מורה מפורש */
+  const [shareWarnings, setShareWarnings] = useState<string[] | null>(null)
 
   /* ── ייצוא גרסאות ── */
   const [genStudents, setGenStudents] = useState<StudentRow[]>([])
@@ -275,10 +277,17 @@ function ShareModal({ quest, onClose, onDone }: {
     setStep('generating')
   }
 
-  async function shareCommunity() {
+  async function shareCommunity(acknowledge: boolean) {
     setBusy(true); setError(null)
     try {
-      await apiJson(`/api/quests/${quest.id}/share`, { method: 'POST' })
+      const res = await apiFetch(`/api/quests/${quest.id}/share`, {
+        method: 'POST',
+        body: JSON.stringify({ acknowledgeWarnings: acknowledge }),
+      })
+      const body = (await res.json().catch(() => null)) as { error?: string; warnings?: string[]; needsAck?: boolean } | null
+      /* שער האיכות: אזהרות פתוחות — מציגים אותן והמורה מאשר במפורש לפני שיתוף */
+      if (res.status === 409 && body?.needsAck) { setShareWarnings(body.warnings ?? []); return }
+      if (!res.ok) throw new Error(body?.error ?? 'שגיאה')
       onDone('🌐 ההדמיה שותפה לספרייה הציבורית')
       onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
@@ -486,12 +495,21 @@ function ShareModal({ quest, onClose, onDone }: {
                 ✓ ההדמיה כבר משותפת בספרייה הציבורית
               </div>
             )}
-            {error && <div style={{ color: '#ff7099', fontSize: 12 }}>⚠️ {error}</div>}
+            {shareWarnings && (
+              <div style={{ background: 'rgba(255,184,74,.08)', border: '1px solid rgba(255,184,74,.35)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#ffcf7d' }}>⚠ להדמיה יש אזהרות פתוחות — עברו עליהן לפני השיתוף:</div>
+                <ul style={{ margin: 0, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                  {shareWarnings.map((w, i) => <li key={i} style={{ fontSize: 12, color: '#e8d9b8', lineHeight: 1.6 }}>{w}</li>)}
+                </ul>
+                <div style={{ fontSize: 11.5, color: '#c9b58c' }}>אפשר לתקן בעמוד העריכה ולנסות שוב, או לאשר ולשתף כמו שזה.</div>
+              </div>
+            )}
+            {error && <div style={{ color: '#ff7099', fontSize: 12, whiteSpace: 'pre-line' }}>⚠️ {error}</div>}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={onClose} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
-              <button disabled={busy || quest.is_public} onClick={shareCommunity}
-                style={{ ...cardBtn, padding: '8px 20px', color: '#04101c', background: quest.is_public ? 'rgba(120,180,220,.2)' : 'linear-gradient(120deg,#ff45e6,#9b8cff)', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
-                {busy ? 'משתף…' : quest.is_public ? 'כבר משותפת' : 'שתף 🌐'}
+              <button disabled={busy || quest.is_public} onClick={() => shareCommunity(shareWarnings !== null)}
+                style={{ ...cardBtn, padding: '8px 20px', color: '#04101c', background: quest.is_public ? 'rgba(120,180,220,.2)' : shareWarnings ? 'linear-gradient(120deg,#ffb84a,#ff45e6)' : 'linear-gradient(120deg,#ff45e6,#9b8cff)', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
+                {busy ? 'משתף…' : quest.is_public ? 'כבר משותפת' : shareWarnings ? 'בדקתי — שתף בכל זאת' : 'שתף 🌐'}
               </button>
             </div>
           </div>

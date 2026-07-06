@@ -25,6 +25,11 @@ function load(): StaffSession | null {
     const raw = localStorage.getItem(KEY)
     if (!raw) return null
     const s = JSON.parse(raw) as StaffSession
+    /* session פגום/בפורמט ישן (חסר token או staff) → התנתקות נקייה, לא קריסה ל-ErrorBoundary */
+    if (!s?.access_token || !s.staff?.role) {
+      localStorage.removeItem(KEY)
+      return null
+    }
     if (s.expires_at && s.expires_at * 1000 < Date.now()) {
       localStorage.removeItem(KEY)
       return null

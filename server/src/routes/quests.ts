@@ -22,7 +22,7 @@ import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2 } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
-import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
+import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
@@ -379,11 +379,32 @@ questsRouter.post('/:id/share', requireStaff, async (req, res, next) => {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה (נדרשת מיגרציה)')
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, created_by, original_author_id')
+      .select('id, created_by, original_author_id, game_data')
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureOwner(req, quest.created_by)
+
+    /* שער איכות (תיקון 3): תוכן פגום לא נכנס לספרייה שכל המורים מעתיקים ממנה.
+       סתירת תשובה/הסבר חיה (כולל כזו שנוצרה בעריכת מורה) — חסימה קשיחה עד תיקון;
+       אזהרות פתוחות (fact-check/יצירה/עקביות) — שיתוף רק אחרי אישור מפורש של המורה. */
+    const gd = quest.game_data as GameData | null
+    if (gd?.scenes) {
+      const blocking = checkAnswerConsistency(gd).blocking
+      if (blocking.length > 0) {
+        throw new AppError(422, `לא ניתן לשתף — נמצאה סתירה בין התשובה המסומנת להסבר (תלמיד ייכשל על תשובה נכונה). תקנו בעמוד העריכה ונסו שוב:\n${blocking.join('\n')}`)
+      }
+      const open = collectOpenWarnings(gd)
+      if (open.length > 0 && req.body?.acknowledgeWarnings !== true) {
+        res.status(409).json({
+          error: 'להדמיה יש אזהרות פתוחות — יש לעבור עליהן ולאשר לפני השיתוף.',
+          warnings: open,
+          needsAck: true,
+        })
+        return
+      }
+    }
+
     const patch: Record<string, unknown> = {
       is_public: true,
       published_at: new Date().toISOString(),

@@ -428,6 +428,21 @@ export interface FactCheckMeta {
   stale?: boolean
 }
 
+/* ── שער איכות לשיתוף ציבורי (draft-by-default) ──
+   אוסף את כל האזהרות הפתוחות של הדמיה לקראת חשיפה בספרייה הציבורית: מטא היצירה
+   (genMeta.warnings), בדיקת העובדות (warnings, או pending שטרם הסתיים), ואזהרות
+   עקביות **חיות** (checkAnswerConsistency על המצב הנוכחי — תופס גם עריכות-מורה
+   שאחרי היצירה). השיתוף דורש שהמורה יראה ויאשר אותן במפורש. */
+export function collectOpenWarnings(gameData: GameData): string[] {
+  const meta = gameData as unknown as { factCheck?: FactCheckMeta; genMeta?: { warnings?: string[] } }
+  const out: string[] = []
+  if (meta.factCheck?.status === 'pending') out.push('בדיקת העובדות ברקע טרם הסתיימה — מומלץ להמתין לסיומה לפני השיתוף.')
+  for (const w of meta.factCheck?.warnings ?? []) if (typeof w === 'string' && w.trim()) out.push(w)
+  for (const w of meta.genMeta?.warnings ?? []) if (typeof w === 'string' && w.trim()) out.push(w)
+  for (const w of checkAnswerConsistency(gameData).warnings) out.push(w)
+  return [...new Set(out)]
+}
+
 /* watchdog ל-fact-check תקוע: אם השרת מופעל מחדש (deploy/קריסה) באמצע factCheckInBackground,
    הסטטוס נשאר 'pending' לנצח והקליינט מציג "בודק עובדות…" בלי סוף. ריפוי עצלן בקריאה
    (GET /:id, בלי cron): pending בן יותר מ-10 דקות — או ללא startedAt (נכתב לפני שהשדה

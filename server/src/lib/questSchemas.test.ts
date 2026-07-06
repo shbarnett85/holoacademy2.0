@@ -5,6 +5,7 @@ import {
   mcExplanationMismatch,
   checkAnswerConsistency,
   healStaleFactCheck,
+  collectOpenWarnings,
   FACT_CHECK_STALE_MS,
   type FactCheckMeta,
   type GameData,
@@ -118,6 +119,36 @@ describe('checkAnswerConsistency — רב-ברירה + מבחן (אזהרה)', (
 describe('mcExplanationMismatch', () => {
   it('null כשאין תבנית "התשובה הנכונה היא"', () => {
     expect(mcExplanationMismatch([{ text: 'א', isCorrect: true }, { text: 'ב', isCorrect: false }], 'סתם הסבר')).toBeNull()
+  })
+})
+
+describe('collectOpenWarnings — שער האיכות לשיתוף', () => {
+  const withMeta = (gd: GameData, meta: Record<string, unknown>): GameData => Object.assign(gd as object, meta) as GameData
+
+  it('הדמיה נקייה → אין אזהרות', () => {
+    expect(collectOpenWarnings(gdWith(tf(true, undefined, 'התשובה הנכונה היא נכון.')))).toHaveLength(0)
+  })
+  it('fact-check שעדיין רץ → אזהרת "טרם הסתיימה"', () => {
+    const gd = withMeta(gdWith(tf(true)), { factCheck: { status: 'pending', startedAt: new Date().toISOString() } })
+    expect(collectOpenWarnings(gd).some((w) => w.includes('טרם הסתיימה'))).toBe(true)
+  })
+  it('אזהרות fact-check + genMeta נאספות ומאוחדות (dedup)', () => {
+    const gd = withMeta(gdWith(tf(true)), {
+      factCheck: { status: 'done', warnings: ['אזהרה א', 'אזהרה משותפת'] },
+      genMeta: { warnings: ['אזהרה משותפת', 'אזהרה ב'] },
+    })
+    const out = collectOpenWarnings(gd)
+    expect(out).toContain('אזהרה א')
+    expect(out).toContain('אזהרה ב')
+    expect(out.filter((w) => w === 'אזהרה משותפת')).toHaveLength(1)
+  })
+  it('אזהרת עקביות חיה (עריכת מורה שיצרה ציטוט-אפשרות-אחרת) נתפסת בזמן השיתוף', () => {
+    const gd = gdWith({
+      type: 'multipleChoice', question: 'ש?',
+      choices: [{ id: 'a', text: 'ברלין', isCorrect: true }, { id: 'b', text: 'פריז', isCorrect: false }],
+      explanationIncorrect: 'התשובה הנכונה היא פריז.',
+    })
+    expect(collectOpenWarnings(gd).some((w) => w.includes('השונה מהאפשרות המסומנת'))).toBe(true)
   })
 })
 

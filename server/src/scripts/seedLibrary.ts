@@ -158,8 +158,15 @@ async function main() {
     if (metaErr) console.log(`  ⚠ מטא שכבות לא נכתב (${metaErr.message}) — הריצו npm run migrate -- migrations/library_meta.sql`)
 
     if (SHARE) {
-      const sh = await fetch(`${SERVER}/api/quests/${questId}/share`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      console.log(sh.ok ? '  ✓ שותף לספרייה הציבורית' : `  ⚠ שיתוף נכשל (${sh.status})`)
+      /* acknowledgeWarnings — התוכן הרשמי עובר QA אנושי לפני אצווה; סתירת תשובה/הסבר
+         חוסמת (422) עדיין מפילה את השיתוף בקול — וזה הרצוי */
+      const sh = await fetch(`${SERVER}/api/quests/${questId}/share`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acknowledgeWarnings: true }),
+      })
+      if (sh.ok) console.log('  ✓ שותף לספרייה הציבורית')
+      else console.log(`  ⚠ שיתוף נכשל (${sh.status}): ${((await sh.json().catch(() => null)) as { error?: string } | null)?.error ?? ''}`)
     }
 
     produced++
