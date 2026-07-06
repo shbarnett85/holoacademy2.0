@@ -26,7 +26,7 @@ export default function Player() {
   const [quest, setQuest] = useState<QuestPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
-  const { initialState, settled, saveResume, complete, variantGameData } = usePlaySession(questId)
+  const { sessionId, initialState, settled, saveResume, complete, variantGameData } = usePlaySession(questId)
 
   useEffect(() => {
     if (!isDemoSlug) return
@@ -95,6 +95,10 @@ export default function Player() {
 
   const effectiveGameData = (variantGameData as GameData | null) ?? quest.game_data
 
+  /* מבקר אמיתי = בלי session משחק, בלי טוקן תלמיד ובלי session צוות (מורה בתצוגה
+     מקדימה אינו מבקר) — מסך הסיום שלו מקבל פוטר המרה (שיתוף/עוד הדמיות/CTA למורים) */
+  const isVisitor = settled && !sessionId && homePathForRole() === '/'
+
   return (
     <GameScreen
       gameData={effectiveGameData}
@@ -103,6 +107,7 @@ export default function Player() {
       saveResume={saveResume}
       onComplete={complete}
       backPath={homePathForRole()}
+      visitorMode={isVisitor}
     />
   )
 }

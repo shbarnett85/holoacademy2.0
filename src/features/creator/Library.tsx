@@ -277,6 +277,17 @@ function ShareModal({ quest, onClose, onDone }: {
     setStep('generating')
   }
 
+  /* שיתוף קישור משחק ישיר — מעתיק ל-clipboard ופותח וואטסאפ עם הודעה מוכנה.
+     הקישור נפתח אצל הנמען עם תצוגה עשירה (OG) ומשחק בלי הרשמה. */
+  function shareWhatsApp() {
+    const url = `${window.location.origin}/play/${quest.id}`
+    const text = `🎮 "${quest.title}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
+    navigator.clipboard?.writeText(url).catch(() => { /* clipboard לא זמין — הוואטסאפ עדיין נפתח */ })
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+    onDone('🔗 הקישור הועתק ונפתח חלון וואטסאפ לשיתוף')
+    onClose()
+  }
+
   async function shareCommunity(acknowledge: boolean) {
     setBusy(true); setError(null)
     try {
@@ -342,6 +353,11 @@ function ShareModal({ quest, onClose, onDone }: {
               <div style={{ fontSize: 26, marginBottom: 8 }}>🌐</div>
               <div>קהילת המורים</div>
               <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>פרסם לכל המורים במערכת</div>
+            </button>
+            <button onClick={shareWhatsApp} style={selBtn(false, '37,211,102')}>
+              <div style={{ fontSize: 26, marginBottom: 8 }}>💬</div>
+              <div>וואטסאפ / קישור</div>
+              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>שלחו לכל אחד — משחק מיידי</div>
             </button>
           </div>
         )}

@@ -124,6 +124,9 @@ interface Props {
   onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
   backPath?: string
+  /* משחק ללא session (מבקר קר / קישור משותף / מקרן) — מסך הסיום מקבל פוטר המרה:
+     שיתוף וואטסאפ, עוד הדמיות, ו-CTA למורים. לתלמיד אמיתי (יש session) — ללא שינוי. */
+  visitorMode?: boolean
 }
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
@@ -152,7 +155,7 @@ function EyeButton({ active, onToggle }: { active: boolean; onToggle: () => void
   )
 }
 
-export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, backPath = '/creator/library' }: Props) {
+export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, backPath = '/creator/library', visitorMode = false }: Props) {
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
   const [puzzleOpen, setPuzzleOpen] = useState(false)
@@ -446,14 +449,50 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 צא למסע שוב 🔄
               </button>
             )}
-            <button
-              className="holo-button"
-              style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
-              onClick={handleExit}
-            >
-              חזרה למעבדה
-            </button>
+            {visitorMode ? (
+              <>
+                <button
+                  className="holo-button"
+                  onClick={() => {
+                    const url = window.location.href
+                    const text = `🎮 "${questTitle}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
+                    navigator.clipboard?.writeText(url).catch(() => {})
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+                  }}
+                >
+                  שתפו בוואטסאפ 💬
+                </button>
+                <button
+                  className="holo-button"
+                  style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }}
+                  onClick={() => navigate('/')}
+                >
+                  עוד הדמיות 🎮
+                </button>
+              </>
+            ) : (
+              <button
+                className="holo-button"
+                style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
+                onClick={handleExit}
+              >
+                חזרה למעבדה
+              </button>
+            )}
           </div>
+
+          {/* פוטר המרה למבקרים — הרגע חוו את ה-wow; זו נקודת ההצטרפות הטבעית של מורה */}
+          {visitorMode && (
+            <div className="text-start" style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(255,154,46,.09)', border: '1px solid rgba(255,154,46,.35)' }}>
+              <div style={{ fontWeight: 800, fontSize: 14.5, color: '#ffcf7d' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
+              <div style={{ fontSize: 12.5, opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
+                מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה הדמיה שלמה — סצנות, אתגרים ותמונות — תוך דקות.
+              </div>
+              <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => navigate('/staff/login')}>
+                צרו הדמיה משלכם — חינם ✨
+              </button>
+            </div>
+          )}
         </div>
 
         <EyeButton active={eyeMode} onToggle={() => setEyeMode((v) => !v)} />
