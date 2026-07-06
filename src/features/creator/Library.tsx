@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
+import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
@@ -11,6 +12,8 @@ interface QuestSummary {
   created_at: string
   is_published: boolean
   is_public: boolean
+  /* הדמיית חזרה — נוצרה מהמושגים החלשים של מטלה (reviewOf ב-game_data) */
+  is_review?: boolean
   sceneCount: number
   subject?: string | null
 }
@@ -24,6 +27,11 @@ interface PublicQuest {
   puzzleTypes: string[]
   authorName: string
   publishedAt: string
+  /* מטא שכבות (מספר שכבה 1-12, א׳=1) — מזין את פילטר טווח השכבות; null = ללא מטא */
+  gradeMin?: number | null
+  gradeMax?: number | null
+  /* הדמיה רשמית של צוות HoloAcademy — badge ✓ רשמי */
+  isOfficial?: boolean
 }
 
 interface StudentRow {
@@ -75,6 +83,7 @@ function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare, onDelete }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--holo-text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
           {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: '#7ef6ff', background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.4)' }}>🌐 משותפת</span>}
+          {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: '#c9b6ff', background: 'rgba(155,140,255,.12)', border: '1px solid rgba(155,140,255,.45)' }}>🔄 הדמיית חזרה</span>}
           <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? '#7effc9' : '#ffce8a', background: q.is_published ? 'rgba(74,222,128,.12)' : 'rgba(255,184,107,.12)', border: '1px solid ' + (q.is_published ? 'rgba(74,222,128,.4)' : 'rgba(255,184,107,.4)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
@@ -118,10 +127,14 @@ function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boole
     <div style={{ display: 'flex', gap: 14, padding: 14, borderRadius: 14, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(255,120,210,.14)' }}>
       <Thumb rgb={MAGENTA} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--holo-text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: 'var(--holo-text-bright)' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
+          {q.isOfficial && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, color: '#5fffb0', background: 'rgba(95,255,176,.1)', border: '1px solid rgba(95,255,176,.45)' }}>✓ רשמי</span>}
+        </span>
         <div style={{ fontSize: 11.5, color: '#c79adf', marginTop: 3 }}>נוצר במקור על ידי {q.authorName}</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
           {q.subject && <Chip>{q.subject}</Chip>}
+          {q.gradeMin != null && q.gradeMax != null && <Chip>{q.gradeMin === q.gradeMax ? `כיתה ${GRADES[q.gradeMin - 1] ?? q.gradeMin}` : `כיתות ${GRADES[q.gradeMin - 1] ?? q.gradeMin}–${GRADES[q.gradeMax - 1] ?? q.gradeMax}`}</Chip>}
           <Chip>{q.sceneCount} סצנות</Chip>
           {q.puzzleTypes.slice(0, 3).map((t) => <Chip key={t}>{puzzleTypeLabel(t)}</Chip>)}
         </div>
@@ -547,11 +560,24 @@ export default function Library() {
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  /* עוקב חיים — מונע setState אחרי unmount (ניווט מהיר באמצע טעינה).
+     חשוב: מאתחלים ל-true בגוף ה-effect (לא רק בהצהרה) — ב-StrictMode ה-effect רץ
+     mount→unmount→remount, ובלי האיפוס ה-cleanup הראשון היה משאיר false לתמיד. */
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
+
   function loadMine() {
-    apiJson<{ quests: QuestSummary[] }>('/api/quests').then((b) => setQuests(b.quests)).catch((e: Error) => setError(e.message))
+    apiJson<{ quests: QuestSummary[] }>('/api/quests')
+      .then((b) => { if (mountedRef.current) setQuests(b.quests) })
+      .catch((e: Error) => { if (mountedRef.current) setError(e.message) })
   }
   function loadPublic() {
-    apiJson<{ quests: PublicQuest[] }>('/api/library').then((b) => setPublicQuests(b.quests)).catch(() => setPublicQuests([]))
+    apiJson<{ quests: PublicQuest[] }>('/api/library')
+      .then((b) => { if (mountedRef.current) setPublicQuests(b.quests) })
+      .catch(() => { if (mountedRef.current) setPublicQuests([]) })
   }
   useEffect(() => { loadMine(); loadPublic() }, [])
 
@@ -563,7 +589,7 @@ export default function Library() {
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusyId(null) }
   }
   async function doDelete(q: QuestSummary) {
-    if (!window.confirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`)) return
+    if (!(await holoConfirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
     setBusyId(q.id); setError(null)
     try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה במחיקה') } finally { setBusyId(null) }
@@ -603,9 +629,14 @@ export default function Library() {
         const ok = subjOn[sub] || (subjOn['אחר'] && !SUBJECTS.includes(sub))
         if (!ok) return false
       }
+      /* פילטר טווח שכבות — רק כשהמורה צמצם את הטווח ולהדמיה יש מטא שכבה.
+         GRADES[i] = שכבה i+1 (א׳=1); חפיפת טווחים = נכלל. הדמיה בלי מטא תמיד מוצגת. */
+      if ((lo > 0 || hi < GRADES.length - 1) && it.gradeMin != null && it.gradeMax != null) {
+        if (it.gradeMax < lo + 1 || it.gradeMin > hi + 1) return false
+      }
       return true
     })
-  }, [publicQuests, subjKeys.length, subjOn, query])
+  }, [publicQuests, subjKeys.length, subjOn, query, lo, hi])
 
   const panel: React.CSSProperties = { ...glass, padding: 22, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
   const emptyMsg = (text: string) => <div style={{ ...micro, color: 'rgba(140,170,200,.5)', textAlign: 'center', padding: '34px 0', fontSize: 11 }}>{text}</div>

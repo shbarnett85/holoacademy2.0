@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
+import { computeWeakConcepts } from '../lib/weakConcepts.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
 export const analyticsRouter = Router()
@@ -118,6 +119,55 @@ function questChallenges(gameData: unknown): ChallengeMeta[] {
   return scenes.filter((s) => s.puzzle).map((s) => ({ sceneId: s.id, title: s.title ?? s.id, type: s.puzzle!.type ?? 'multipleChoice' }))
 }
 
+/* ── שליטה ביעדי למידה — מיפוי סצנה→יעד מתוך ה-game_data (התיוג נוצר ביצירה) ──
+   אפס תיעוד נוסף בצד התלמיד: ה-events כבר שומרים scene_id; המיפוי נעשה כאן באגרגציה. */
+interface ObjectiveDef { id: string; text: string }
+function questObjectives(gameData: unknown): { objectives: ObjectiveDef[]; sceneToObjective: Map<string, string> } {
+  const gd = gameData as { objectives?: ObjectiveDef[]; scenes?: { id: string; puzzle?: { objectiveId?: string | null } }[] } | null
+  const objectives = Array.isArray(gd?.objectives) ? gd.objectives.filter((o) => o?.id && o?.text) : []
+  const sceneToObjective = new Map<string, string>()
+  if (objectives.length > 0 && Array.isArray(gd?.scenes)) {
+    for (const s of gd.scenes) {
+      if (s.puzzle?.objectiveId) sceneToObjective.set(s.id, s.puzzle.objectiveId)
+    }
+  }
+  return { objectives, sceneToObjective }
+}
+
+/* תוצאות פר-יעד: הצלחה כיתתית + מי מתקשה בכל יעד (שיעור אישי מתחת לסף).
+   נשען על אותם events מסוכמים (puzzle_solved/failed), עם session_id → תלמיד. */
+async function objectiveStats(
+  sessionIds: string[],
+  sessionToStudent: Map<string, string>,
+  sceneToObjective: Map<string, string>,
+): Promise<Map<string, { solved: number; failed: number; perStudent: Map<string, { solved: number; failed: number }> }>> {
+  const map = new Map<string, { solved: number; failed: number; perStudent: Map<string, { solved: number; failed: number }> }>()
+  if (sessionIds.length === 0 || sceneToObjective.size === 0) return map
+  const { data } = await supabaseAdmin
+    .from('events')
+    .select('session_id, scene_id, type')
+    .in('session_id', sessionIds)
+    .in('type', ['puzzle_solved', 'puzzle_failed'])
+  for (const e of (data ?? []) as { session_id: string; scene_id: string | null; type: string }[]) {
+    if (!e.scene_id) continue
+    const objectiveId = sceneToObjective.get(e.scene_id)
+    if (!objectiveId) continue
+    const studentId = sessionToStudent.get(e.session_id)
+    const cur = map.get(objectiveId) ?? { solved: 0, failed: 0, perStudent: new Map() }
+    const solved = e.type === 'puzzle_solved'
+    if (solved) cur.solved++
+    else cur.failed++
+    if (studentId) {
+      const ps = cur.perStudent.get(studentId) ?? { solved: 0, failed: 0 }
+      if (solved) ps.solved++
+      else ps.failed++
+      cur.perStudent.set(studentId, ps)
+    }
+    map.set(objectiveId, cur)
+  }
+  return map
+}
+
 /* ── GET /api/analytics/assignment/:assignmentId — המסך הראשי ── */
 analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
   try {
@@ -135,10 +185,18 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
       activeStudents(asg.class_id),
     ])
     const challenges = questChallenges(questRow?.game_data)
+    const { objectives, sceneToObjective } = questObjectives(questRow?.game_data)
     const studentIds = students.map((s) => s.id)
     const sessions = await latestSessionsByStudent(asg.quest_id, studentIds)
     const sessionIds = [...sessions.values()].map((s) => s.id)
-    const [summaries, chStats] = await Promise.all([completedSummaries(sessionIds), challengeStats(sessionIds)])
+    /* מיפוי session→תלמיד — לזיהוי מתקשים פר-יעד */
+    const sessionToStudent = new Map<string, string>()
+    for (const [studentId, sess] of sessions) sessionToStudent.set(sess.id, studentId)
+    const [summaries, chStats, objStats] = await Promise.all([
+      completedSummaries(sessionIds),
+      challengeStats(sessionIds),
+      objectiveStats(sessionIds, sessionToStudent, sceneToObjective),
+    ])
 
     /* פירוק לפי תלמיד */
     const perStudent = students.map((stu) => {
@@ -187,8 +245,31 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
       return a.successRate - b.successRate
     })
 
+    /* ── שליטה ביעדי הלמידה — ספי 60/80 (עקבי עם מודל הכיול) ──
+       masteryLevel: 'strong' ≥80% · 'partial' 60-80% · 'weak' <60% · null = אין נתונים.
+       weakStudents = תלמידים ששיעורם האישי ביעד מתחת ל-60% (עם ניסיון אחד לפחות). */
+    const nameOf = new Map(students.map((s) => [s.id, s.name]))
+    const perObjective = objectives.map((o) => {
+      const st = objStats.get(o.id)
+      const attempts = (st?.solved ?? 0) + (st?.failed ?? 0)
+      const successRate = attempts > 0 ? (st!.solved / attempts) : null
+      const masteryLevel = successRate === null ? null : successRate >= 0.8 ? 'strong' : successRate >= 0.6 ? 'partial' : 'weak'
+      const weakStudents: { studentId: string; name: string }[] = []
+      if (st) {
+        for (const [studentId, ps] of st.perStudent) {
+          const t = ps.solved + ps.failed
+          if (t > 0 && ps.solved / t < 0.6) weakStudents.push({ studentId, name: nameOf.get(studentId) ?? '' })
+        }
+      }
+      return { id: o.id, text: o.text, attempts, successRate, masteryLevel, weakStudents }
+    })
+
     /* תובנות מנוסחות כפעולה למורה */
     const insights: string[] = []
+    const weakestObjective = [...perObjective].filter((o) => o.masteryLevel === 'weak' && o.attempts >= 2).sort((a, b) => (a.successRate ?? 0) - (b.successRate ?? 0))[0]
+    if (weakestObjective) {
+      insights.push(`היעד "${weakestObjective.text}" טעון חיזוק (${Math.round((weakestObjective.successRate ?? 0) * 100)}% הצלחה) — מומלץ לחזור עליו בכיתה.`)
+    }
     const hardest = perChallenge.find((c) => c.successRate !== null && c.successRate < STRUGGLE_RATE && c.attempts >= 2)
     if (hardest) {
       const strugglers = hardest.failed
@@ -217,6 +298,7 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
       },
       distribution,
       perChallenge,
+      perObjective,
       students: perStudent,
       insights,
     })
@@ -988,6 +1070,64 @@ analyticsRouter.post('/summary', async (req, res, next) => {
       /* לפני המיגרציה — מחזירים את הסיכום החי בלי לשמור (בלי cache) */
       res.json({ summary: { ...row, id: null }, cached: false, notPersisted: true })
     }
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── GET /api/analytics/review-suggestions — "ד"ר הולו מציע" (spaced retrieval, שלב ב׳) ──
+   מטלות בחלון ההיזכרות (5-30 יום, ?minDays= לבדיקות) של הדמיות בבעלות המורה, שעדיין
+   אין להן הדמיית-חזרה ושיש בהן מושגים חלשים → הצעה ליצירת חזרה. מחושב רק כשהמורה
+   פותח את האנליטיקה (אין cron), מוגבל ל-3 הצעות ול-10 מועמדות לבדיקת חולשות. */
+analyticsRouter.get('/review-suggestions', async (req, res, next) => {
+  try {
+    const minDays = req.query.minDays !== undefined ? Math.max(0, Number(req.query.minDays) || 0) : 5
+    const maxDays = 30
+    const now = Date.now()
+    const classes = await accessibleClasses(req)
+    if (classes.length === 0) { res.json({ suggestions: [] }); return }
+    const classNames = new Map(classes.map((c) => [c.id, c.gradeLabel]))
+
+    const { data: asgs } = await supabaseAdmin
+      .from('assignments')
+      .select('id, quest_id, class_id, created_at, quests(title, game_data, created_by)')
+      .in('class_id', classes.map((c) => c.id))
+      .gte('created_at', new Date(now - maxDays * 86_400_000).toISOString())
+      .lte('created_at', new Date(now - minDays * 86_400_000).toISOString())
+      .order('created_at', { ascending: false })
+
+    type AsgRow = { id: string; quest_id: string; class_id: string; created_at: string; quests: { title?: string; game_data?: unknown; created_by?: string | null } | { title?: string; game_data?: unknown; created_by?: string | null }[] | null }
+    const rows = ((asgs ?? []) as unknown as AsgRow[])
+      .map((a) => ({ ...a, quest: Array.isArray(a.quests) ? a.quests[0] : a.quests }))
+      /* רק הדמיות בבעלות המורה (יצירת חזרה דורשת בעלות) — מנהל רואה הכול */
+      .filter((a) => a.quest?.game_data && (req.staff!.role !== 'teacher' || a.quest?.created_by === req.staff!.userId))
+      /* לא מציעים חזרה להדמיה שהיא עצמה חזרה */
+      .filter((a) => !(a.quest!.game_data as { reviewOf?: unknown }).reviewOf)
+      .slice(0, 10)
+    if (rows.length === 0) { res.json({ suggestions: [] }); return }
+
+    /* מטלות שכבר יש להן הדמיית-חזרה — שאילתה אחת על jsonb path */
+    const { data: reviews } = await supabaseAdmin
+      .from('quests')
+      .select('reviewAsg:game_data->reviewOf->>assignmentId')
+      .not('game_data->reviewOf', 'is', null)
+    const reviewedAsgIds = new Set(((reviews ?? []) as { reviewAsg: string | null }[]).map((r) => r.reviewAsg).filter(Boolean))
+
+    const suggestions: { assignmentId: string; questId: string; title: string; className: string; weakCount: number }[] = []
+    for (const a of rows) {
+      if (suggestions.length >= 3) break
+      if (reviewedAsgIds.has(a.id)) continue
+      const concepts = await computeWeakConcepts(a.quest_id, a.class_id, a.quest!.game_data)
+      if (concepts.length === 0) continue
+      suggestions.push({
+        assignmentId: a.id,
+        questId: a.quest_id,
+        title: a.quest!.title ?? '',
+        className: classNames.get(a.class_id) ?? '',
+        weakCount: concepts.length,
+      })
+    }
+    res.json({ suggestions })
   } catch (err) {
     next(err)
   }

@@ -124,6 +124,7 @@ export default function QuestPreview() {
       hub={hub}
       patchScene={patchScene}
       patchEnding={patchEnding}
+      objectives={result.game_data.objectives}
       actions={
         <WorkspaceActions
           onSave={() => { reset(); navigate('/creator/library') }}

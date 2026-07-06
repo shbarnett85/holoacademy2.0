@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
-import { hasPublicQuests, hasQuestReports, hasQuestSubject } from '../lib/activeColumn.js'
+import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestGrade } from '../lib/activeColumn.js'
 
 /* ספרייה ציבורית — כל מורה במערכת רואה הדמיות משותפות, מעתיק אותן לעריכה, ומדווח. */
 export const libraryRouter = Router()
@@ -23,18 +23,20 @@ function puzzleTypes(gd: PublicGameData | null | undefined): string[] {
 libraryRouter.get('/', async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) { res.json({ quests: [] }); return }
-    const withSubject = await hasQuestSubject()
+    const [withSubject, withGrade] = await Promise.all([hasQuestSubject(), hasQuestGrade()])
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
     const subject = typeof req.query.subject === 'string' ? req.query.subject.trim() : ''
 
-    const cols = 'id, title, game_data, created_at, published_at, created_by, original_author_id' + (withSubject ? ', subject' : '')
+    const cols = 'id, title, game_data, created_at, published_at, created_by, original_author_id'
+      + (withSubject ? ', subject' : '')
+      + (withGrade ? ', grade_min, grade_max, is_official' : '')
     let query = supabaseAdmin.from('quests').select(cols).eq('is_public', true).order('published_at', { ascending: false })
     if (q) query = query.ilike('title', `%${q}%`)
     if (subject && withSubject) query = query.eq('subject', subject)
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת הספרייה: ' + error.message)
 
-    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null }
+    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
     const rows = (data ?? []) as unknown as Row[]
 
     /* שמות היוצרים המקוריים (לקרדיט) */
@@ -55,6 +57,10 @@ libraryRouter.get('/', async (req, res, next) => {
         puzzleTypes: puzzleTypes(r.game_data),
         authorName: (authorId && names.get(authorId)) || 'מורה',
         publishedAt: r.published_at ?? r.created_at,
+        /* מטא לפילטר השכבות + badge רשמי (null כשהמיגרציה טרם רצה) */
+        gradeMin: r.grade_min ?? null,
+        gradeMax: r.grade_max ?? null,
+        isOfficial: r.is_official === true,
       }
     })
     res.json({ quests })

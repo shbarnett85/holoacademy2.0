@@ -28,6 +28,11 @@ export interface PuzzlePreferences {
    male = זכר יחיד · female = נקבה יחיד · plural = רבים (הצורה הניטרלית + מצב כיתתי/מקרן). */
 export type FormOfAddress = 'male' | 'female' | 'plural'
 
+export interface LearningObjective {
+  id: string
+  text: string
+}
+
 export interface QuestGenerationParams {
   title: string
   curriculum: string
@@ -39,6 +44,14 @@ export interface QuestGenerationParams {
   questType?: string
   /* ברירת מחדל: plural (ניטרלי/כיתתי). male/female ליצירת וריאציה אישית ממוגדרת. */
   formOfAddress?: FormOfAddress
+  /* יעדי למידה (אופציונלי) — כל אתגר מתויג ביעד שהוא בוחן; מזין את דיווח השליטה */
+  objectives?: LearningObjective[]
+  /* הדמיית חזרה: בלוק המושגים החלשים + כלל "זווית חדשה" (נבנה ב-lib/weakConcepts) */
+  reviewContext?: string
+  /* מטא הדמיית חזרה — מוזרק ל-game_data בסיום היצירה (לא לפרומפט) */
+  reviewOf?: { questId: string; assignmentId?: string; baseTitle?: string }
+  /* מאגר תמונות למחזור מההדמיה המקורית — הדמיית חזרה לא מייצרת תמונות חדשות */
+  imagePool?: { scenes: string[]; endingGood?: string; endingBad?: string }
 }
 
 /* כלל הניסוח הדקדוקי — מוזרק לפרומפט וגם משמש את שכתוב הווריאציה האישית (haiku). */
@@ -429,6 +442,23 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 - **כל "puzzle" — בכל סוג ובכל סצנה, כולל הסצנות האחרונות בקווסט ארוך — חייב לכלול שדה "question" לא-ריק. זו שגיאה נפוצה בסצנות מאוחרות; אל תשמיט אותו.**
 - החזר JSON תקין בלבד.`
 
+/* בלוק יעדי הלמידה — מוזרק רק כשהמורה הגדיר יעדים. כל אתגר מתויג ביעד ("objectiveId"),
+   וכל יעד חייב כיסוי של אתגר אחד לפחות — זה מה שמאפשר דיווח שליטה פר-יעד באנליטיקה. */
+function objectivesInstructions(objectives?: LearningObjective[]): string {
+  if (!objectives || objectives.length === 0) return ''
+  const list = objectives.map((o) => `- "${o.id}": ${o.text}`).join('\n')
+  return `
+## יעדי למידה (דרישה מחייבת!)
+ההדמיה בוחנת את יעדי הלמידה הבאים:
+${list}
+
+כללים:
+1. **כל puzzle חייב לכלול שדה "objectiveId"** עם המזהה של היעד שהאתגר בוחן (אחד מהמזהים למעלה בדיוק, למשל "objectiveId": "${objectives[0].id}").
+2. **כל יעד חייב להיבחן על-ידי אתגר אחד לפחות.** פזר את היעדים על פני האתגרים באופן מאוזן.
+3. במבחן הסיכום (finalQuiz), תייג **כל שאלה בנפרד** ב-"objectiveId" משלה — שאלות המבחן צריכות יחד לכסות את כל היעדים.
+4. תייג לפי מה שהאתגר *בוחן בפועל*, לא לפי הסצנה שבה הוא נמצא.`
+}
+
 export function buildQuestPrompt(params: QuestGenerationParams): { system: string; user: string } {
   const keyCount = requiredKeyCount(params)
   const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
@@ -499,6 +529,8 @@ ${params.difficultySettings ? `- הגדרות קושי: ${JSON.stringify(params.
 
 ${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
 ${narrativeStructureInstructions(params.questType)}
+${params.reviewContext ? `\n## הדמיית חזרה (דרישות ייעודיות!)\n${params.reviewContext}\n` : ''}
+${objectivesInstructions(params.objectives)}
 ${structureInstructions}
 ${params.includeDrHolo ? labStructureInstructions() : ''}
 ${levelBlock(level)}

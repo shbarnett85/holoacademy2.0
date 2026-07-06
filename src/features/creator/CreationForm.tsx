@@ -107,6 +107,33 @@ function Studio() {
     }
   }
 
+  /* חילוץ יעדי למידה מהנושא + תוכן הלימוד (haiku) */
+  const [extractingObj, setExtractingObj] = useState(false)
+  const [objError, setObjError] = useState<string | null>(null)
+
+  async function extractObjectives() {
+    if (extractingObj) return
+    if (!s.title.trim() && !s.curriculum.trim()) { setObjError('כתבו קודם נושא או תוכן לימוד'); return }
+    setExtractingObj(true)
+    setObjError(null)
+    try {
+      const res = await apiFetch('/api/ai/extract-objectives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: s.title, curriculum: s.curriculum }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error)
+      const objectives = (body?.objectives ?? []) as string[]
+      if (objectives.length === 0) throw new Error()
+      s.set({ objectives })
+    } catch (e) {
+      setObjError(e instanceof Error && e.message ? e.message : 'החילוץ נכשל, נסה שוב')
+    } finally {
+      setExtractingObj(false)
+    }
+  }
+
   const canSubmit = s.title.trim().length > 0
   const activePuzzles = PUZZLE_TYPES.filter((p) => s.puzzleTypes[p.key]).length + (s.puzzleTypes.finalQuiz ? 1 : 0)
   const artLabel = ART_STYLES.find((a) => a.key === s.artStyle)?.label
@@ -275,6 +302,37 @@ function Studio() {
                 </div>
               </div>
             )}
+
+            {/* יעדי למידה — כל אתגר יתויג ביעד שהוא בוחן; מזין את דיווח השליטה באנליטיקה */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ ...fieldLabel, margin: 0 }}>🎯 יעדי למידה <span style={{ fontWeight: 400, color: 'rgba(160,200,240,.5)', fontSize: 11 }}>(אופציונלי · מפעיל דיווח שליטה)</span></label>
+                <button type="button" onClick={extractObjectives} disabled={extractingObj} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#d6f6e7', background: 'linear-gradient(135deg, rgba(80,220,160,.22), rgba(47,243,255,.15))', border: '1px solid rgba(80,220,160,.45)', opacity: extractingObj ? 0.6 : 1 }}>
+                  {extractingObj ? <><span style={{ display: 'inline-block', animation: 'cf-spin .8s linear infinite' }}>⟳</span> מחלץ…</> : <>חלץ אוטומטית ✨</>}
+                </button>
+              </div>
+              {objError && <p style={{ fontSize: 13, color: '#ff9bb3', marginBottom: 8 }}>⚠️ {objError}</p>}
+              {s.objectives.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  {s.objectives.map((o, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 11, color: '#7ef6ff', fontWeight: 700, width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <input
+                        className="cf-in"
+                        style={{ ...inputBase, marginBottom: 0, fontSize: 13, padding: '7px 10px' }}
+                        value={o}
+                        onChange={(e) => s.set({ objectives: s.objectives.map((x, j) => (j === i ? e.target.value : x)) })}
+                        placeholder="התלמיד יסביר / יזהה / ישווה…"
+                      />
+                      <button type="button" onClick={() => s.set({ objectives: s.objectives.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: '#ff7099', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {s.objectives.length < 8 && (
+                <button type="button" onClick={() => s.set({ objectives: [...s.objectives, ''] })} style={{ background: 'none', border: 'none', color: 'var(--holo-cyan)', cursor: 'pointer', fontSize: 12.5, padding: 0 }}>+ הוסף יעד</button>
+              )}
+            </div>
 
             <div style={{ paddingTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9 }}>

@@ -25,6 +25,8 @@ interface AssignedQuest {
   sessionStatus: 'completed' | 'in_progress' | null
   crystals: number | null
   maxScore: number | null
+  /* הדמיית חזרה — משימת חיזוק שנוצרה מהמושגים שהכיתה התקשתה בהם */
+  isReview?: boolean
 }
 
 /* ── crystal dots ── */
@@ -88,6 +90,16 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           boxShadow: '0 0 12px rgba(47,243,255,.5)', backdropFilter: 'blur(6px)',
           animation: 'holo-status-pulse 2s ease-in-out infinite',
         }}>✦ חדש</div>
+      )}
+
+      {/* badge: הדמיית חזרה (משימת חיזוק) — מוזז שמאלה כשיש גם "חדש" */}
+      {q.isReview && (
+        <div style={{
+          position: 'absolute', top: 10, right: isNew ? 62 : 10,
+          background: 'rgba(155,140,255,.18)', border: '1px solid rgba(155,140,255,.65)',
+          borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
+          color: '#c9b6ff', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
+        }}>🔄 חיזוק</div>
       )}
 
       {/* badge: הושלם */}
@@ -236,14 +248,18 @@ export default function StudentHome() {
     if (!isLoggedIn) return
     const token = sessionStorage.getItem('holo_token')
     if (!token) { setLoading(false); setDbgError('אין token בסשן — נסה להתחבר מחדש'); return }
+    /* דגל ביטול — ניווט החוצה באמצע הטעינה לא יפעיל setState על קומפוננטה מנותקת */
+    let cancelled = false
     fetch('/api/sessions/assigned', { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
         const body = await r.json()
+        if (cancelled) return
         if (!r.ok) { setDbgError(`שגיאה ${r.status}: ${body.error ?? JSON.stringify(body)}`); return }
         setQuests(body.quests ?? [])
       })
-      .catch((e) => setDbgError(String(e)))
-      .finally(() => setLoading(false))
+      .catch((e) => { if (!cancelled) setDbgError(String(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [isLoggedIn])
 
   const isNew = (q: AssignedQuest) => !!(lastLogin && q.assignedAt && q.assignedAt > lastLogin)

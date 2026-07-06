@@ -13,13 +13,22 @@ import { sessionsRouter } from './routes/sessions.js'
 import { analyticsRouter } from './routes/analytics.js'
 import { libraryRouter } from './routes/library.js'
 import { errorHandler } from './middleware/errors.js'
+import { info } from './lib/log.js'
 
 const app = express()
 
-/* CORS — בפרודקשן הקליינט ב-origin זהה לשרת, אבל מגדירים לדב גם localhost */
+/* מאחורי proxy (Railway) — נדרש כדי ש-req.ip ישקף את ה-IP האמיתי של הלקוח
+   (משמש את הגבלת הקצב על נקודות האימות) */
+app.set('trust proxy', 1)
+
+/* CORS — בפרודקשן הקליינט מוגש same-origin מהשרת עצמו, אז אם CLIENT_URL לא הוגדר
+   אין לפתוח לכל origin (allow-all עם credentials = פרצה); same-origin לא צריך CORS
+   בכלל, לכן origin:false בטוח. ה-fallback הפתוח נשמר לדב בלבד. */
 const allowedOrigins = process.env.CLIENT_URL
   ? [process.env.CLIENT_URL, 'http://localhost:5173']
-  : true // allow all (dev fallback)
+  : process.env.NODE_ENV === 'production'
+    ? false // same-origin בלבד — בלי CORS
+    : true // allow all (dev fallback)
 app.use(cors({ origin: allowedOrigins, credentials: true }))
 app.use(express.json({ limit: '2mb' }))
 
@@ -61,7 +70,7 @@ app.use(errorHandler)
 
 const port = Number(process.env.PORT) || 3001
 const server = app.listen(port, () => {
-  console.log(`✦ HoloAcademy server רץ על http://localhost:${port}`)
+  info(`✦ HoloAcademy server רץ על http://localhost:${port}`)
 })
 
 /* יצירות גדולות יכולות להימשך עד 10 דקות — מסירים את ה-timeout-ים של Node

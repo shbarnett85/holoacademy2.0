@@ -91,3 +91,8 @@ export async function hasQuestSubject(): Promise<boolean> {
 export async function hasQuestVariants(): Promise<boolean> {
   return check('__quest_variants', () => supabaseAdmin.from('quest_variants').select('id').limit(1))
 }
+
+/* האם עמודות המטא של הספרייה (grade_min/grade_max/is_official) קיימות */
+export async function hasQuestGrade(): Promise<boolean> {
+  return check('__quest_grade', () => supabaseAdmin.from('quests').select('grade_min').limit(1))
+}

@@ -1,3 +1,4 @@
+import { error as logError } from '../lib/log.js'
 import type { Request, Response, NextFunction } from 'express'
 
 /* שגיאת אפליקציה עם סטטוס HTTP */
@@ -18,6 +19,6 @@ export function errorHandler(
     res.status(err.status).json({ error: err.message })
     return
   }
-  console.error('שגיאה לא צפויה:', err)
+  logError('שגיאה לא צפויה:', err)
   res.status(500).json({ error: 'שגיאת שרת פנימית' })
 }

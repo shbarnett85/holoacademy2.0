@@ -6,6 +6,7 @@ import StudentDetail from '../analytics/StudentDetail'
 import ManagementSidebar from './ManagementSidebar'
 import { PROFILE_PUZZLE_TYPES, gradeToLevel, type ProfilePuzzleType } from '../../shared/lib/difficultyCalibration'
 import { setNavGuard } from '../../shared/lib/navGuard'
+import { holoConfirm, holoAlert } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 
@@ -406,8 +407,8 @@ export default function Students() {
   /* ── חסום ניווט טאב-פנימי כשיש שינויים לא שמורים ── */
   useEffect(() => {
     if (isDirty) {
-      setNavGuard(() => {
-        if (!window.confirm(`יש שינויים לא שמורים עבור ${pendingStudentName}.\nלבטל את השינויים ולעזוב?`)) return false
+      setNavGuard(async () => {
+        if (!(await holoConfirm(`יש שינויים לא שמורים עבור ${pendingStudentName}.\nלבטל את השינויים ולעזוב?`, 'בטל ועזוב', 'הישאר'))) return false
         cancelAll()
         return true
       })
@@ -418,10 +419,10 @@ export default function Students() {
   }, [isDirty, pendingStudentName, cancelAll])
 
   /* ── Pending profile helpers ── */
-  function ensureProfilePending(student: StudentRow) {
+  async function ensureProfilePending(student: StudentRow): Promise<ProfilePending | null> {
     if (profilePending?.studentId === student.id) return profilePending
     if (isDirty && pendingStudentId !== student.id) {
-      if (!window.confirm(`יש שינויים לא שמורים עבור תלמיד אחר. לבטל אותם ולהמשיך?`)) return null
+      if (!(await holoConfirm(`יש שינויים לא שמורים עבור תלמיד אחר. לבטל אותם ולהמשיך?`, 'בטל והמשך', 'הישאר'))) return null
       cancelAll()
     }
     const next: ProfilePending = { studentId: student.id, origName: student.name, origGender: student.gender, name: profilePending?.studentId === student.id ? profilePending.name : student.name, gender: profilePending?.studentId === student.id ? profilePending.gender : student.gender }
@@ -429,22 +430,22 @@ export default function Students() {
     return next
   }
 
-  function handleNameCommit(student: StudentRow, name: string) {
-    const base = ensureProfilePending(student)
+  async function handleNameCommit(student: StudentRow, name: string) {
+    const base = await ensureProfilePending(student)
     if (!base) return
     setProfilePending({ ...base, name })
   }
 
-  function handleGenderChange(student: StudentRow, gender: 'male' | 'female' | null) {
-    const base = ensureProfilePending(student)
+  async function handleGenderChange(student: StudentRow, gender: 'male' | 'female' | null) {
+    const base = await ensureProfilePending(student)
     if (!base) return
     setProfilePending({ ...base, gender })
   }
 
   /* ── Difficulty modal helpers ── */
-  function openDifficulty(student: StudentRow) {
+  async function openDifficulty(student: StudentRow) {
     if (isDirty && pendingStudentId !== student.id) {
-      if (!window.confirm(`יש שינויים לא שמורים עבור תלמיד אחר. לבטל אותם ולהמשיך?`)) return
+      if (!(await holoConfirm(`יש שינויים לא שמורים עבור תלמיד אחר. לבטל אותם ולהמשיך?`, 'בטל והמשך', 'הישאר'))) return
       cancelAll()
     }
     setDiffModalStudentId(student.id)
@@ -492,7 +493,7 @@ export default function Students() {
       }
       cancelAll()
     } catch (e) {
-      alert((e as Error).message)
+      void holoAlert((e as Error).message)
     } finally {
       setSaving(false)
     }

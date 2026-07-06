@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
+import { warn } from '../lib/log.js'
 import { hasSessionCrystals, hasGradeLabel, hasProgressSnapshots, hasQuestSubject, hasQuestVariants } from '../lib/activeColumn.js'
 import {
   calibrate,
@@ -49,7 +50,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     if (questResult.error) throw new AppError(500, questResult.error.message)
 
     type Scene = { id: string; imageUrl?: string }
-    type GameData = { scenes?: Scene[]; entrySceneId?: string }
+    type GameData = { scenes?: Scene[]; entrySceneId?: string; reviewOf?: unknown }
     type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; created_by?: string | null }
 
     /* שמות מורים לפי created_by */
@@ -94,6 +95,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         id: q.id,
         title: q.title,
         sceneCount: gd?.scenes?.length ?? 0,
+        isReview: !!gd?.reviewOf,
         artStyle: q.art_style,
         subject: subjectMap.get(q.id) ?? null,
         teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
@@ -137,16 +139,10 @@ function countChallenges(gameData: unknown): number {
 
 /* טעינת וריאציה מותאמת-תלמיד (אם קיימת וטבלת quest_variants קיימת) */
 async function loadVariantGameData(questId: string, userId: string): Promise<unknown> {
-  if (!(await hasQuestVariants())) { console.log('[serve:variant] no table'); return null }
-  const { data, error } = await supabaseAdmin
+  if (!(await hasQuestVariants())) return null
+  const { data } = await supabaseAdmin
     .from('quest_variants').select('game_data').eq('quest_id', questId).eq('student_id', userId).maybeSingle()
-  const gd = (data as { game_data?: { scenes?: { narrative?: string }[] } } | null)?.game_data
-  /* ── DIAG: השווה את הנרטיב המוגש מול הבסיס ── */
-  const { data: baseQuest } = await supabaseAdmin.from('quests').select('game_data').eq('id', questId).single()
-  const baseNarr = (baseQuest?.game_data as { scenes?: { narrative?: string }[] } | undefined)?.scenes?.[0]?.narrative
-  const varNarr = gd?.scenes?.[0]?.narrative
-  console.log('[serve:variant]', { found: !!data, error: error?.message, identical: baseNarr === varNarr, base: baseNarr?.slice(0, 45), variant: varNarr?.slice(0, 45) })
-  return gd ?? null
+  return (data as { game_data?: unknown } | null)?.game_data ?? null
 }
 
 /* ── כיול הקושי בשרת (JS) — רץ אחרי כל session שהושלם, מחליף את ה-RPC הישן ──
@@ -424,9 +420,21 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     }
 
     if (rows.length > 0) {
-      await supabaseAdmin.from('events').delete().eq('session_id', session.id)
-      const { error: evErr } = await supabaseAdmin.from('events').insert(rows)
+      /* idempotency בסדר בטוח: קודם insert של הרשומות החדשות (עם החזרת ה-ids),
+         ואז delete של הישנות בלבד (id לא ברשימת החדשים). כך כשל ב-insert משאיר
+         את הנתונים הישנים שלמים (בניגוד ל-delete-קודם, שאיבד הכול אם ה-insert
+         נכשל אחריו); כשל ב-delete משאיר כפילויות — ו-retry הבא מנקה אותן. */
+      const { data: inserted, error: evErr } = await supabaseAdmin.from('events').insert(rows).select('id')
       if (evErr) throw new AppError(500, 'כתיבת סיכום ה-events נכשלה: ' + evErr.message)
+      const newIds = ((inserted ?? []) as { id: string }[]).map((r) => r.id)
+      if (newIds.length > 0) {
+        const { error: delErr } = await supabaseAdmin
+          .from('events')
+          .delete()
+          .eq('session_id', session.id)
+          .not('id', 'in', `(${newIds.join(',')})`)
+        if (delErr) warn('[complete] ניקוי events ישנים נכשל (יתוקן ב-retry הבא):', delErr.message)
+      }
     }
 
     const patch: Record<string, unknown> = { completed_at: new Date().toISOString(), total_score: totalScore }
@@ -458,10 +466,10 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
           success_rates: perTypeSuccess,
           overall_success: overall,
         })
-        if (snapErr) console.warn('[snapshot] כתיבת progress_snapshot נכשלה ל-session', session.id, '—', snapErr.message)
+        if (snapErr) warn('[snapshot] כתיבת progress_snapshot נכשלה ל-session', session.id, '—', snapErr.message)
       }
     } catch (e) {
-      console.warn('[calibrate] כיול הפרופיל נכשל ל-session', session.id, '—', e instanceof Error ? e.message : e)
+      warn('[calibrate] כיול הפרופיל נכשל ל-session', session.id, '—', e instanceof Error ? e.message : e)
     }
     res.json({ ok: true, profileUpdated })
   } catch (err) {

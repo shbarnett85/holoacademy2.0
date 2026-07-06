@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { apiFetch } from '../../shared/lib/api'
+import { useEscToClose } from '../../shared/ui/useModalA11y'
 import type { GeneratedQuest } from './creatorStore'
 
 type Scene = GeneratedQuest['game_data']['scenes'][number]
@@ -12,6 +13,8 @@ interface Props {
   /* יצירה מחדש של התמונה — מנוהל ב-QuestPreview (מעדכן את ה-store) */
   onRegenerateImage: (sceneId: string) => void
   regenerating: boolean
+  /* יעדי הלמידה של ההדמיה — לבורר תיוג האתגר (רק כשהוגדרו יעדים ביצירה) */
+  objectives?: { id: string; text: string }[]
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -41,6 +44,7 @@ export default function SceneEditModal({
   onSaved,
   onRegenerateImage,
   regenerating,
+  objectives = [],
 }: Props) {
   const [narrative, setNarrative] = useState(scene.narrative ?? '')
   const [imagePrompt, setImagePrompt] = useState(scene.imagePrompt ?? '')
@@ -63,6 +67,7 @@ export default function SceneEditModal({
   const [situation, setSituation] = useState(scene.puzzle?.situation ?? '') // moralDilemma
   const [moralChoices, setMoralChoices] = useState(scene.puzzle?.moralChoices ?? [])
   const [quizQuestions, setQuizQuestions] = useState(scene.puzzle?.questions ?? []) // finalQuiz
+  const [objectiveId, setObjectiveId] = useState(scene.puzzle?.objectiveId ?? '')   // תיוג יעד למידה
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,6 +104,7 @@ export default function SceneEditModal({
       if (scene.puzzle?.situation !== undefined) puzzlePayload.situation = situation
       if (scene.puzzle?.moralChoices) puzzlePayload.moralChoices = moralChoices
       if (scene.puzzle?.questions) puzzlePayload.questions = quizQuestions
+      if (objectives.length > 0) puzzlePayload.objectiveId = objectiveId || null
       payload.puzzle = puzzlePayload
     }
     const res = await apiFetch(`/api/quests/${questId}/scene`, {
@@ -141,11 +147,16 @@ export default function SceneEditModal({
     }
   }
 
+  useEscToClose(onClose)
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
       style={{ background: 'rgba(5,5,18,0.7)', backdropFilter: 'blur(4px)', zIndex: 60 }}
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="עריכת סצנה"
     >
       <div
         className="holo-panel w-full"
@@ -196,6 +207,24 @@ export default function SceneEditModal({
               style={fieldStyle}
               placeholder="שאלת החידה…"
             />
+
+            {/* תיוג יעד למידה — מזין את דיווח השליטה באנליטיקה */}
+            {objectives.length > 0 && (
+              <div className="mt-3">
+                <label style={labelStyle}>🎯 יעד הלמידה שהאתגר בוחן</label>
+                <select
+                  value={objectiveId}
+                  onChange={(e) => setObjectiveId(e.target.value)}
+                  style={{ ...fieldStyle, padding: '0.5rem 0.7rem', cursor: 'pointer' }}
+                  dir="rtl"
+                >
+                  <option value="">— ללא תיוג —</option>
+                  {objectives.map((o) => (
+                    <option key={o.id} value={o.id}>{o.text}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {choices.length > 0 && (
               <div className="mt-3 flex flex-col gap-2">

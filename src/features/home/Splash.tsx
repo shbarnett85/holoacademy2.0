@@ -9,6 +9,8 @@ export default function Splash({ onDone }: { onDone: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
+  /* onDone נקרא פעם אחת בלבד — בין אם מהטיימר, מקליק או ממגע (במגע נורים שניים) */
+  const doneRef = useRef(false)
   const [phase, setPhase] = useState<Phase>('entering')
 
   useEffect(() => {
@@ -16,7 +18,7 @@ export default function Splash({ onDone }: { onDone: () => void }) {
       setTimeout(() => setPhase('hold'), 1400),
       setTimeout(() => setPhase('disintegrate'), 2600),
       setTimeout(() => setPhase('out'), 3700),
-      setTimeout(() => onDone(), 4100),
+      setTimeout(() => { if (!doneRef.current) { doneRef.current = true; onDone() } }, 4100),
     ]
     return () => timers.forEach(clearTimeout)
   }, [onDone])
@@ -94,8 +96,13 @@ export default function Splash({ onDone }: { onDone: () => void }) {
      לחלוטין — האנימציות האוטומטיות שרצות מיד אח"כ (חור-תולעת, כניסת הפאנל, הקלדה)
      מנסות להשמיע צליל *לפני* שהייתה הזדמנות למחווה, וה-Web Audio API משתיק אותן
      בשקט (לא ניתן לעקוף בקוד — זו מדיניות דפדפן, לא תקלה). הדילוג-בנגיעה כאן נותן
-     סיכוי מוקדם וטבעי למחווה כזו לפני שהמשחק בכלל עולה. */
-  function skip() { onDone() }
+     סיכוי מוקדם וטבעי למחווה כזו לפני שהמשחק בכלל עולה.
+     במגע נורים גם onTouchStart וגם onClick — doneRef מבטיח ש-onDone נקרא פעם אחת. */
+  function skip() {
+    if (doneRef.current) return
+    doneRef.current = true
+    onDone()
+  }
 
   return (
     <div

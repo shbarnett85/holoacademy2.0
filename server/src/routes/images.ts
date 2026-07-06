@@ -17,6 +17,12 @@ function resolveDrHolo(prompt: string, expression?: string | null): string {
   return prompt.split(DR_HOLO_PLACEHOLDER).join(drHoloWithExpression(expression))
 }
 
+/* סיומת ייחודית ל-public_id בכל יצירה-מחדש → URL חדש לגמרי שלא נמצא במטמון הדפדפן
+   (אחרת אותו URL מוגש מהמטמון עם התמונה הישנה, ובמיוחד חוזר אחרי "שמור") */
+function uniqueSuffix(): string {
+  return Date.now().toString(36)
+}
+
 /* ── שכתוב פרומפטים היסטוריים — מנצח את ההטיה של מודל התמונות להריסות ── */
 
 const REWRITE_INSTRUCTION = `Rewrite this image prompt for a text-to-image model. The scene depicts a historical structure as it appeared when NEWLY BUILT and FULLY INTACT. The image model is heavily biased toward depicting famous landmarks as modern ruins — your rewrite must defeat this bias:
@@ -130,7 +136,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
       const b64 = await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
       /* public_id ייחודי בכל יצירה-מחדש → URL חדש לגמרי שלא נמצא במטמון (אחרת אותו URL
          מוגש מהמטמון של הדפדפן עם התמונה הישנה, ובמיוחד חוזר אחרי "שמור"). */
-      const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}_${Date.now().toString(36)}`)
+      const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}_${uniqueSuffix()}`)
       ending.imageUrl = imageUrl
       const { error: upErr } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
       if (upErr) throw new AppError(500, 'שגיאה בשמירה: ' + upErr.message)
@@ -155,7 +161,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
         : await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
 
     /* public_id ייחודי בכל יצירה-מחדש → URL חדש (לא מהמטמון; לא חוזר לישנה אחרי "שמור") */
-    const uniq = Date.now().toString(36)
+    const uniq = uniqueSuffix()
     const publicId = kind === 'item' ? `item_${scene.collectableItem!.id}_${uniq}` : `scene_${scene.id}_${uniq}`
     const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, publicId)
 
@@ -201,7 +207,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
     const extraNegative = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
 
     /* regenerateAll → path ייחודי לכל תמונה (URL חדש, לא מוגש מהמטמון); אחרת path קבוע */
-    const uniq = regenerateAll ? `_${Date.now().toString(36)}` : ''
+    const uniq = regenerateAll ? `_${uniqueSuffix()}` : ''
 
     /* איסוף המשימות: סצנות וחפצים עם imagePrompt. ברירת מחדל — רק חסרות תמונה;
        regenerateAll — כולן (יצירה-מחדש בסגנון חדש). */

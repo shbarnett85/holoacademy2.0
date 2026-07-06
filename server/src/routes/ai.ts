@@ -2,6 +2,9 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { claude } from '../lib/claude.js'
 import { AppError } from '../middleware/errors.js'
+import { requireStaff } from '../middleware/staffAuth.js'
+import { callHaiku } from '../lib/claudeCalls.js'
+import { extractJson } from '../lib/questSchemas.js'
 
 export const aiRouter = Router()
 
@@ -71,6 +74,46 @@ aiRouter.post('/enhance-content', async (req, res, next) => {
     if (!enhanced) throw new AppError(502, 'תשובה ריקה מ-Claude')
 
     res.json({ enhanced })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* POST /api/ai/extract-objectives — חילוץ 3-5 יעדי למידה מנוסחים ממוקד-תלמיד מתוך
+   הנושא ותוכן הלימוד (haiku — משימת חילוץ זולה). משמש את כפתור "חלץ אוטומטית"
+   בטופס היצירה; המורה עורך את התוצאה לפני היצירה. */
+const extractObjectivesSchema = z.object({
+  title: z.string().optional(),
+  curriculum: z.string().default(''),
+})
+
+aiRouter.post('/extract-objectives', requireStaff, async (req, res, next) => {
+  try {
+    const parsed = extractObjectivesSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    const { title, curriculum } = parsed.data
+    if (!title?.trim() && !curriculum.trim()) throw new AppError(400, 'נדרש נושא או תוכן לימוד')
+
+    const instruction = `אתה יועץ פדגוגי. חלץ מהנושא ותוכן הלימוד הבאים 3-5 יעדי למידה מדידים.
+
+כללים:
+- כל יעד במשפט אחד קצר בעברית, מנוסח כיכולת של התלמיד ("התלמיד יסביר/יזהה/ישווה/ימיין...").
+- יעדים נבדלים זה מזה — לא ניסוחים שונים של אותו רעיון.
+- ברמת הליבה של החומר (לא טריוויה שולית).
+- החזר JSON תקין בלבד: { "objectives": ["יעד 1", "יעד 2", ...] } — ללא טקסט נוסף.
+
+נושא: ${title?.trim() || '(לא סופק)'}
+תוכן הלימוד:
+${curriculum.trim() || '(לא סופק — הסק מהנושא)'}`
+
+    const text = await callHaiku([{ role: 'user', content: instruction }], 800)
+    const json = extractJson(text) as { objectives?: unknown }
+    const objectives = (Array.isArray(json.objectives) ? json.objectives : [])
+      .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+      .map((o) => o.trim())
+      .slice(0, 5)
+    if (objectives.length === 0) throw new AppError(502, 'לא הצלחתי לחלץ יעדים — נסו להרחיב את תוכן הלימוד')
+    res.json({ objectives })
   } catch (err) {
     next(err)
   }

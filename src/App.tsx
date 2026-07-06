@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
+import ErrorBoundary from './shared/ui/ErrorBoundary'
+import { HoloDialogHost } from './shared/ui/dialog'
 import { initSound, installGlobalClickSound } from './shared/lib/sound'
 
 /* טעינה עצלה לכל feature */
@@ -44,6 +46,7 @@ export default function App() {
       {!splashDone && (
         <Splash onDone={() => { sessionStorage.setItem('holo_splash_seen', '1'); setSplashDone(true) }} />
       )}
+      <ErrorBoundary>
       <Suspense fallback={<Loader />}>
         <div className={splashDone ? 'holo-screen-fade' : undefined}>
         <Routes>
@@ -64,6 +67,8 @@ export default function App() {
         </Routes>
         </div>
       </Suspense>
+      <HoloDialogHost />
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }
