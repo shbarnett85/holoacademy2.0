@@ -12,12 +12,18 @@ interface PerStudent {
   flags: string[]
 }
 interface PerChallenge { sceneId: string; title: string; type: string; attempts: number; solved: number; failed: number; successRate: number | null }
+interface PerObjective {
+  id: string; text: string; attempts: number; successRate: number | null
+  masteryLevel: 'strong' | 'partial' | 'weak' | null
+  weakStudents: { studentId: string; name: string }[]
+}
 interface AssignmentAnalytics {
   quest: { id: string; title: string }
   class: { id: string; name: string }
   totals: { students: number; completed: number; inProgress: number; notStarted: number; completionRate: number; avgSuccessRate: number | null; avgCompletionMs: number | null; flaggedCount: number }
   distribution: { low: number; mid: number; high: number }
   perChallenge: PerChallenge[]
+  perObjective?: PerObjective[]
   students: PerStudent[]
   insights: string[]
 }
@@ -37,6 +43,57 @@ function Panel({ title, children, accent }: { title: string; children: React.Rea
       <div style={{ ...micro, fontSize: 9, marginBottom: 14 }}>◇ {title}</div>
       {children}
     </div>
+  )
+}
+
+/* שליטה ביעדי הלמידה — ברים לפי ספי 60/80 + מי מתקשה בכל יעד.
+   מוצג רק בהדמיות שנוצרו עם יעדים (game_data.objectives). */
+const MASTERY_META = {
+  strong: { label: 'שולטים', color: '#5fffb0' },
+  partial: { label: 'שליטה חלקית', color: '#ffce5e' },
+  weak: { label: 'טעון חיזוק', color: '#ff7099' },
+} as const
+
+function ObjectiveMastery({ objectives, onStudent }: { objectives: PerObjective[]; onStudent: (id: string) => void }) {
+  const withData = objectives.filter((o) => o.attempts > 0)
+  if (withData.length === 0) return null
+  return (
+    <Panel title="🎯 שליטה ביעדי הלמידה">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {objectives.map((o) => {
+          const meta = o.masteryLevel ? MASTERY_META[o.masteryLevel] : null
+          const rate = o.successRate ?? 0
+          return (
+            <div key={o.id}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, fontSize: 13, marginBottom: 5 }}>
+                <span style={{ fontWeight: 600, color: 'var(--holo-text-bright)', flex: 1 }}>{o.text}</span>
+                {meta ? (
+                  <span style={{ color: meta.color, whiteSpace: 'nowrap' }}>
+                    {meta.label} · {pct(o.successRate)}
+                  </span>
+                ) : (
+                  <span style={{ color: '#8aa0b8', whiteSpace: 'nowrap' }}>אין נתונים עדיין</span>
+                )}
+              </div>
+              <div style={{ width: '100%', borderRadius: 999, overflow: 'hidden', height: 8, background: 'rgba(255,255,255,0.08)' }} dir="ltr">
+                <div style={{ width: `${rate * 100}%`, height: '100%', background: meta?.color ?? 'transparent', transition: 'width .4s ease' }} />
+              </div>
+              {o.weakStudents.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: '#8aa0b8' }}>מתקשים:</span>
+                  {o.weakStudents.map((s) => (
+                    <button key={s.studentId} onClick={() => onStudent(s.studentId)}
+                      style={{ fontSize: 11.5, padding: '2px 9px', borderRadius: 999, cursor: 'pointer', color: '#ffb3c6', background: 'rgba(255,112,153,.1)', border: '1px solid rgba(255,112,153,.35)' }}>
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </Panel>
   )
 }
 
@@ -130,6 +187,11 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
         <Panel title="סטטוס השלמת המשימה"><DonutChart title="סטטוס" data={completionSlices} /></Panel>
         <Panel title="התפלגות אחוז ההצלחה (יעד 85%)"><DonutChart title="התפלגות" data={distSlices} centerUnit="סיימו" /></Panel>
       </div>
+
+      {/* שליטה ביעדי הלמידה — רק בהדמיות עם יעדים מוגדרים */}
+      {data.perObjective && data.perObjective.length > 0 && (
+        <ObjectiveMastery objectives={data.perObjective} onStudent={onStudent} />
+      )}
 
       {/* סיכום פדגוגי — ד"ר הולו על ביצועי הכיתה בהדמיה */}
       <PedagogicalSummary scope="assignment" id={assignmentId} title={`${data.quest.title} · כיתה ${data.class.name}`} />
