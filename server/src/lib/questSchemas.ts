@@ -417,6 +417,41 @@ export function repairRawPuzzles(raw: unknown): string[] {
 
 export type PuzzleObj = z.infer<typeof puzzleObjectSchema>
 
+/* ── ערבוב מיקומי תשובות ──
+   LLM נוטה לשים את התשובה הנכונה ראשונה (נמדד בספרייה הרשמית: 58% מול ~29% צפוי,
+   וכמעט אף פעם במקום 3+). ערבוב Fisher-Yates אחרי הוולידציה מנטרל את ההטיה:
+   multipleChoice — ערבוב מערך choices (ה-isCorrect נודד עם הבחירה, ההסברים מצטטים
+   טקסט ולא מיקום); finalQuiz — ערבוב options + עדכון correctIndex. לא נוגע
+   ב-trueFalse (סדר נכון/לא-נכון קבוע בממשק) ולא ב-moralDilemma (אין תשובה נכונה).
+   rand ניתן להזרקה לבדיקות דטרמיניסטיות. מחזיר כמה חידות עורבבו. */
+export function shuffleAnswerPositions(gameData: GameData, rand: () => number = Math.random): number {
+  let shuffled = 0
+  const fy = <T,>(arr: T[]) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+  }
+  for (const s of gameData.scenes) {
+    const p = s.puzzle
+    if (!p) continue
+    if (p.type === 'multipleChoice' && Array.isArray(p.choices) && p.choices.length > 1) {
+      fy(p.choices)
+      shuffled++
+    }
+    if (p.type === 'finalQuiz' && Array.isArray(p.questions)) {
+      for (const q of p.questions) {
+        if (!Array.isArray(q.options) || q.options.length < 2 || typeof q.correctIndex !== 'number' || !q.options[q.correctIndex]) continue
+        const correct = q.options[q.correctIndex]
+        fy(q.options)
+        q.correctIndex = q.options.indexOf(correct)
+        shuffled++
+      }
+    }
+  }
+  return shuffled
+}
+
 /* ── מטא בדיקת עובדות (נשמר בתוך game_data, ללא מיגרציה) ── */
 
 export interface FactCheckMeta {

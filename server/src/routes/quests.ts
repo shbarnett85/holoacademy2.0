@@ -22,7 +22,7 @@ import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasQuestGrade } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
-import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
+import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, shuffleAnswerPositions, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
@@ -1023,6 +1023,8 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     /* הזרקת רמת הקושי לכל אתגר — לחישוב פרמטרי תצוגה בקליינט (פאזל/חיפוש מילים) */
     const level = clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined)
     for (const sc of gameData.scenes) if (sc.puzzle) sc.puzzle.difficulty = level
+    /* ערבוב מיקומי התשובות — מנטרל את הטיית "הנכונה ראשונה" של המודל */
+    shuffleAnswerPositions(gameData)
     /* רמת קריאה (1-20) ברמת ה-game_data — קובעת קצב אפקט ההקלדה בקליינט */
     ;(gameData as unknown as { readingScale?: number }).readingScale = level
 

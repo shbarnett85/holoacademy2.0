@@ -6,6 +6,7 @@ import {
   checkAnswerConsistency,
   healStaleFactCheck,
   collectOpenWarnings,
+  shuffleAnswerPositions,
   FACT_CHECK_STALE_MS,
   type FactCheckMeta,
   type GameData,
@@ -149,6 +150,64 @@ describe('collectOpenWarnings — שער האיכות לשיתוף', () => {
       explanationIncorrect: 'התשובה הנכונה היא פריז.',
     })
     expect(collectOpenWarnings(gd).some((w) => w.includes('השונה מהאפשרות המסומנת'))).toBe(true)
+  })
+})
+
+describe('shuffleAnswerPositions — נטרול הטיית "הנכונה ראשונה"', () => {
+  /* rand דטרמיניסטי מסדרה קבועה — הבדיקות יציבות */
+  const seqRand = (seq: number[]) => { let i = 0; return () => seq[i++ % seq.length] }
+
+  it('multipleChoice: הבחירות מעורבבות וה-isCorrect נודד עם הטקסט שלו', () => {
+    const gd = gdWith({
+      type: 'multipleChoice', question: 'ש?',
+      choices: [
+        { id: 'a', text: 'נכונה', isCorrect: true },
+        { id: 'b', text: 'מסיח1', isCorrect: false },
+        { id: 'c', text: 'מסיח2', isCorrect: false },
+      ],
+    })
+    const n = shuffleAnswerPositions(gd, seqRand([0.9, 0.1]))
+    const choices = (gd.scenes[0].puzzle as { choices: { text: string; isCorrect: boolean }[] }).choices
+    expect(n).toBe(1)
+    expect(choices).toHaveLength(3)
+    expect(choices.filter((c) => c.isCorrect)).toHaveLength(1)
+    expect(choices.find((c) => c.isCorrect)!.text).toBe('נכונה')
+    expect(choices[0].isCorrect).toBe(false) /* עם הסדרה הזו הנכונה לא נשארת ראשונה */
+  })
+  it('finalQuiz: options מעורבבות ו-correctIndex מעודכן לטקסט הנכון', () => {
+    const gd = gdWith({
+      type: 'finalQuiz', question: 'מבחן',
+      questions: [{ question: 'ש?', options: ['נכונה', 'א', 'ב', 'ג'], correctIndex: 0 }],
+    })
+    shuffleAnswerPositions(gd, seqRand([0.99, 0.5, 0.2]))
+    const q = (gd.scenes[0].puzzle as { questions: { options: string[]; correctIndex: number }[] }).questions[0]
+    expect(q.options).toHaveLength(4)
+    expect(q.options[q.correctIndex]).toBe('נכונה')
+  })
+  it('trueFalse ו-moralDilemma לא מעורבבים', () => {
+    const tfGd = gdWith(tf(true, undefined, 'התשובה הנכונה היא נכון.'))
+    expect(shuffleAnswerPositions(tfGd, seqRand([0.9]))).toBe(0)
+    const tfChoices = (tfGd.scenes[0].puzzle as { choices: { text: string }[] }).choices
+    expect(tfChoices[0].text).toBe('נכון') /* נכון נשאר ראשון */
+  })
+  it('על פני הרבה הרצות — הנכונה לא ראשונה ברוב המקרים (ההטיה מנוטרלת)', () => {
+    let firstCount = 0
+    for (let i = 0; i < 200; i++) {
+      const gd = gdWith({
+        type: 'multipleChoice', question: 'ש?',
+        choices: [
+          { id: 'a', text: 'נכונה', isCorrect: true },
+          { id: 'b', text: 'ב', isCorrect: false },
+          { id: 'c', text: 'ג', isCorrect: false },
+          { id: 'd', text: 'ד', isCorrect: false },
+        ],
+      })
+      shuffleAnswerPositions(gd)
+      if ((gd.scenes[0].puzzle as { choices: { isCorrect: boolean }[] }).choices[0].isCorrect) firstCount++
+    }
+    /* צפוי ~25% (50/200); גבול רחב נגד flakiness */
+    expect(firstCount).toBeGreaterThan(20)
+    expect(firstCount).toBeLessThan(90)
   })
 })
 
