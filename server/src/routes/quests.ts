@@ -510,9 +510,11 @@ const patchSceneSchema = z.object({
 /* סצנה גנרית בתוך game_data — לעריכה בלבד */
 interface EditableScene {
   id: string
+  title?: string
   narrative?: string
   imagePrompt?: string
   drHoloExpression?: string
+  drHoloDialog?: string
   puzzle?: {
     question?: string
     choices?: { id: string; text: string; isCorrect: boolean }[]
@@ -583,9 +585,11 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
     if (!scene) throw new AppError(404, 'סצנה לא נמצאה')
 
     /* עדכון רק של השדות שנשלחו (partial update) */
+    if (title !== undefined) scene.title = title
     if (narrative !== undefined) scene.narrative = narrative
     if (imagePrompt !== undefined) scene.imagePrompt = imagePrompt
     if (drHoloExpression !== undefined) scene.drHoloExpression = drHoloExpression
+    if (drHoloDialog !== undefined) scene.drHoloDialog = drHoloDialog
     if (puzzle !== undefined) {
       if (!scene.puzzle) throw new AppError(400, 'לסצנה זו אין חידה לעריכה')
       if (puzzle.question !== undefined) scene.puzzle.question = puzzle.question

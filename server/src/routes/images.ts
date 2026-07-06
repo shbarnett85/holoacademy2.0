@@ -95,6 +95,34 @@ interface GameDataRef {
 /* sceneId סינתטי לתמונות הסיום (אינן ב-scenes[]) */
 const ENDING_SCENE_ID = { good: '__endingGood__', bad: '__endingBad__' } as const
 
+/* ── שמירה בטוחה של קישורי תמונות: מיזוג אל game_data *טרי* ──
+   יצירת תמונות אורכת דקות; בזמן הזה כותבים אחרים ל-game_data (בדיקת-העובדות ברקע
+   כותבת factCheck+תיקוני לשון, מורה עורך סצנה). כתיבת ה-game_data שנטען בתחילת
+   הבקשה הייתה דורסת את כולם (lost update — כך כל אצוות הספרייה איבדה את ה-factCheck).
+   לכן: טוענים מחדש את השורה, ממזגים אליה **רק** את קישורי התמונות שנוצרו, ושומרים. */
+interface ProducedImage { sceneId: string; kind: 'scene' | 'item'; ending?: 'good' | 'bad'; url: string }
+
+async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): Promise<string | null> {
+  if (produced.length === 0) return null
+  const { data: fresh, error: fetchErr } = await supabaseAdmin
+    .from('quests').select('game_data').eq('id', questId).single()
+  if (fetchErr || !fresh?.game_data) return 'טעינת game_data טרי נכשלה: ' + (fetchErr?.message ?? '')
+  const gd = fresh.game_data as GameDataRef
+  for (const p of produced) {
+    if (p.ending) {
+      const ending = p.ending === 'good' ? gd.endingGood : gd.endingBad
+      if (ending) ending.imageUrl = p.url
+    } else {
+      const scene = gd.scenes.find((s) => s.id === p.sceneId)
+      if (!scene) continue
+      if (p.kind === 'scene') scene.imageUrl = p.url
+      else if (scene.collectableItem) scene.collectableItem.imageUrl = p.url
+    }
+  }
+  const { error } = await supabaseAdmin.from('quests').update({ game_data: gd }).eq('id', questId)
+  return error ? 'שמירת הקישורים נכשלה: ' + error.message : null
+}
+
 /* הרצת משימות עם מקסימום 2 במקביל */
 async function runPool<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<void> {
   let next = 0
@@ -137,9 +165,9 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
       /* public_id ייחודי בכל יצירה-מחדש → URL חדש לגמרי שלא נמצא במטמון (אחרת אותו URL
          מוגש מהמטמון של הדפדפן עם התמונה הישנה, ובמיוחד חוזר אחרי "שמור"). */
       const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}_${uniqueSuffix()}`)
-      ending.imageUrl = imageUrl
-      const { error: upErr } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
-      if (upErr) throw new AppError(500, 'שגיאה בשמירה: ' + upErr.message)
+      /* מיזוג אל game_data טרי — לא דורסים עריכות/בדיקת-עובדות שנכתבו בזמן היצירה */
+      const upErr = await saveImageUrlsFresh(quest.id, [{ sceneId, kind: 'scene', ending: endingWhich, url: imageUrl }])
+      if (upErr) throw new AppError(500, upErr)
       res.json({ sceneId, kind: 'scene', imageUrl })
       return
     }
@@ -165,14 +193,9 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
     const publicId = kind === 'item' ? `item_${scene.collectableItem!.id}_${uniq}` : `scene_${scene.id}_${uniq}`
     const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, publicId)
 
-    if (kind === 'item' && scene.collectableItem) scene.collectableItem.imageUrl = imageUrl
-    else scene.imageUrl = imageUrl
-
-    const { error: updateError } = await supabaseAdmin
-      .from('quests')
-      .update({ game_data: gameData })
-      .eq('id', quest.id)
-    if (updateError) throw new AppError(500, 'שגיאה בשמירה: ' + updateError.message)
+    /* מיזוג אל game_data טרי — לא דורסים עריכות/בדיקת-עובדות שנכתבו בזמן היצירה */
+    const updateErr = await saveImageUrlsFresh(quest.id, [{ sceneId, kind, url: imageUrl }])
+    if (updateErr) throw new AppError(500, updateErr)
 
     res.json({ sceneId, kind, imageUrl })
   } catch (err) {
@@ -280,6 +303,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
     const folder = `holoacademy/${quest.id}`
 
     /* יצירה במקביל (2 בו-זמנית) — מעבר לכך Together מחזיר 429. כשל בתמונה בודדת לא מפיל את השאר */
+    const produced: ProducedImage[] = []
     await runPool(
       tasks.map((task) => async () => {
         try {
@@ -291,18 +315,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
           const b64 = await generateImage(styledPrompt(base, artStyle), task.width, task.height, extraNegative)
           const url = await uploadBase64Image(b64, folder, task.publicId)
 
-          /* עדכון ה-game_data בזיכרון */
-          if (task.ending) {
-            const ending = task.ending === 'good' ? gameData.endingGood : gameData.endingBad
-            if (ending) ending.imageUrl = url
-          } else {
-            const scene = gameData.scenes.find((s) => s.id === task.sceneId)
-            if (scene) {
-              if (task.kind === 'scene') scene.imageUrl = url
-              else if (scene.collectableItem) scene.collectableItem.imageUrl = url
-            }
-          }
-
+          produced.push({ sceneId: task.sceneId, kind: task.kind, ending: task.ending, url })
           completed++
           send({ sceneId: task.sceneId, kind: task.kind, imageUrl: url, completed, total })
         } catch (err) {
@@ -315,13 +328,10 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
       2,
     )
 
-    /* שמירת ה-game_data המעודכן ב-DB */
-    const { error: updateError } = await supabaseAdmin
-      .from('quests')
-      .update({ game_data: gameData })
-      .eq('id', quest.id)
-
-    if (updateError) warnings.push('שגיאה בשמירת הקישורים ב-DB: ' + updateError.message)
+    /* שמירה בטוחה — מיזוג הקישורים אל game_data טרי (לא דורסים כותבים מקבילים:
+       בדיקת-העובדות ברקע, עריכות מורה) */
+    const saveErr = await saveImageUrlsFresh(quest.id, produced)
+    if (saveErr) warnings.push(saveErr)
 
     send({ done: true, completed, total, warnings })
     res.end()
