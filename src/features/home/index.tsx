@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+import { trackFunnel } from '../../shared/lib/funnel'
 
 /* הדמיה בחלון הראווה — מדף "התנסו עכשיו" ללא הרשמה */
 interface ShowcaseQuest {
@@ -170,7 +171,7 @@ export default function Home() {
               return (
                 <button
                   key={q.id}
-                  onClick={() => navigate(`/play/${q.id}`)}
+                  onClick={() => { trackFunnel('showcase_click', q.id); navigate(`/play/${q.id}`) }}
                   onMouseEnter={() => setHov(q.id)}
                   onMouseLeave={() => setHov(null)}
                   style={{

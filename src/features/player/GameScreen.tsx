@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { trackFunnel } from '../../shared/lib/funnel'
 import BottomHUD from './BottomHUD'
 import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
@@ -321,6 +322,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     completedRef.current = true
     const totalScore = engine.challengeResults.filter((r) => r.correct).length
     onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
+    if (visitorMode) trackFunnel('visitor_finish')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine.finished])
 
@@ -454,6 +456,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 <button
                   className="holo-button"
                   onClick={() => {
+                    trackFunnel('cta_whatsapp')
                     const url = window.location.href
                     const text = `🎮 "${questTitle}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
                     navigator.clipboard?.writeText(url).catch(() => {})
@@ -488,7 +491,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               <div style={{ fontSize: 12.5, opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
                 מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה הדמיה שלמה — סצנות, אתגרים ותמונות — תוך דקות.
               </div>
-              <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => navigate('/staff/login')}>
+              <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => { trackFunnel('cta_create'); navigate('/staff/login') }}>
                 צרו הדמיה משלכם — חינם ✨
               </button>
             </div>

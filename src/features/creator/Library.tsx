@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiJson } from '../../shared/lib/api'
+import { trackFunnel } from '../../shared/lib/funnel'
 import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import StudioTopBar from './StudioTopBar'
@@ -280,6 +281,7 @@ function ShareModal({ quest, onClose, onDone }: {
   /* שיתוף קישור משחק ישיר — מעתיק ל-clipboard ופותח וואטסאפ עם הודעה מוכנה.
      הקישור נפתח אצל הנמען עם תצוגה עשירה (OG) ומשחק בלי הרשמה. */
   function shareWhatsApp() {
+    trackFunnel('teacher_whatsapp', quest.id)
     const url = `${window.location.origin}/play/${quest.id}`
     const text = `🎮 "${quest.title}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
     navigator.clipboard?.writeText(url).catch(() => { /* clipboard לא זמין — הוואטסאפ עדיין נפתח */ })

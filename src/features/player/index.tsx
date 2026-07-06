@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
 import { homePathForRole } from '../../shared/lib/homePath'
+import { trackFunnel } from '../../shared/lib/funnel'
 import { usePlaySession } from './usePlaySession'
 import type { GameData } from './useGameEngine'
 
@@ -64,6 +65,18 @@ export default function Player() {
     return () => { document.title = prev }
   }, [quest?.title])
 
+  /* מבקר אמיתי = בלי session משחק, בלי טוקן תלמיד ובלי session צוות (מורה בתצוגה
+     מקדימה אינו מבקר) — מסך הסיום שלו מקבל פוטר המרה (שיתוף/עוד הדמיות/CTA למורים) */
+  const isVisitor = settled && !sessionId && homePathForRole() === '/'
+
+  /* מדידת משפך: התחלת משחק של מבקר (פעם אחת לכל טעינה; חייב לפני ה-early-returns) */
+  const trackedStartRef = useRef(false)
+  useEffect(() => {
+    if (!isVisitor || !questId || trackedStartRef.current) return
+    trackedStartRef.current = true
+    trackFunnel('visitor_play_start', questId)
+  }, [isVisitor, questId])
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen p-6">
@@ -95,9 +108,6 @@ export default function Player() {
 
   const effectiveGameData = (variantGameData as GameData | null) ?? quest.game_data
 
-  /* מבקר אמיתי = בלי session משחק, בלי טוקן תלמיד ובלי session צוות (מורה בתצוגה
-     מקדימה אינו מבקר) — מסך הסיום שלו מקבל פוטר המרה (שיתוף/עוד הדמיות/CTA למורים) */
-  const isVisitor = settled && !sessionId && homePathForRole() === '/'
 
   return (
     <GameScreen
