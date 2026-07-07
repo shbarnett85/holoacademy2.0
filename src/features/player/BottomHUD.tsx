@@ -56,6 +56,8 @@ function CrystalBar({ progress }: { progress: number; shardEvent: number }) {
         playSound('win') /* צליל הניצחון — ברגע שהקריסטל התמלא לגמרי */
         setJustCompletedIdx(idx)
         setFlashIdx(idx)
+        /* סיום מלא של אנימציית המילוי — משדר לצרכנים (GameScreen → היתוך במסה קריטית) */
+        window.dispatchEvent(new CustomEvent('holo-crystal-filled', { detail: { fullCount: nowFull } }))
         window.setTimeout(() => setJustCompletedIdx(null), 900)
         window.setTimeout(() => setFlashIdx(null), 650)
       }, reduce ? 0 : FILL_MS)

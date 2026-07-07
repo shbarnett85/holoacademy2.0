@@ -343,13 +343,35 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     navigate(homePathForRole() || backPath)
   }
 
-  /* היתוך יהלומים — כשהקריסטל השלישי מתמלא לגמרי (מסה קריטית), פעם אחת */
+  /* היתוך יהלומים — פעם אחת, **רק אחרי שאנימציית המילוי של הקריסטל השלישי הסתיימה
+     במלואה**. המילוי בתצוגה נדחה עד הגעת הרסיסים (BottomHUD), ולכן ה-engine.crystalsFull
+     מקדים את הוויזואל; לכן ממתינים לאירוע 'holo-crystal-filled' (משודר בסיום מעבר-המילוי
+     של כל קריסטל, עם fullCount) ומפעילים כש-fullCount≥3. */
   useEffect(() => {
+    const onFilled = (e: Event) => {
+      const full = (e as CustomEvent<{ fullCount?: number }>).detail?.fullCount ?? 0
+      if (full >= 3 && !fusionFiredRef.current) {
+        fusionFiredRef.current = true
+        setFusion(true)
+      }
+    }
+    window.addEventListener('holo-crystal-filled', onFilled)
+    return () => window.removeEventListener('holo-crystal-filled', onFilled)
+  }, [])
+
+  /* חריג — חידוש משחק שכבר מעבר למסה הקריטית (התצוגה נטענת מלאה, בלי אנימציית מילוי):
+     מפעילים פעם אחת ב-mount כדי שלא נאבד את ההיתוך. אינו יורה בזמן משחק רגיל (crystalsFull
+     מתחיל <3, וה-effect רץ פעם אחת בלבד). */
+  const fusionMountRef = useRef(false)
+  useEffect(() => {
+    if (fusionMountRef.current) return
+    fusionMountRef.current = true
     if (crystalsFull >= 3 && !fusionFiredRef.current) {
       fusionFiredRef.current = true
       setFusion(true)
     }
-  }, [crystalsFull])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /* preload כל תמונות הסצנות והחפצים בכניסה למשחק —
      כך המעבר (point cloud) לעולם לא חושף רקע ריק */
