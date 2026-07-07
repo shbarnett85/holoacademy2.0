@@ -114,15 +114,18 @@ questsRouter.get('/', requireStaff, async (req, res, next) => {
    *לפני* '/:id' אחרת ייתפס כ-id='demo'. */
 questsRouter.get('/demo', async (_req, res, next) => {
   try {
+    const withOfficial = await hasQuestGrade()
     const { data, error } = await supabaseAdmin
       .from('quests')
-      .select('id, title, is_public')
+      .select(`id, title, is_public${withOfficial ? ', is_official' : ''}`)
       .limit(400)
     if (error) throw new AppError(500, error.message)
-    const rows = (data ?? []) as { id: string; title: string; is_public?: boolean }[]
+    const rows = (data ?? []) as unknown as { id: string; title: string; is_public?: boolean; is_official?: boolean }[]
     const isLeonardo = (t: string) => /לאונרדו|וינצ|vinci|da\s*vinci/i.test(t ?? '')
-    /* מעדיפים הדמיה ציבורית; נופלים לכל הדמיה תואמת אם עמודת is_public חסרה/לא מסומנת */
-    const pick = rows.find((r) => r.is_public && isLeonardo(r.title)) ?? rows.find((r) => isLeonardo(r.title))
+    /* סדר העדפה: רשמית+ציבורית → ציבורית → כל תואמת (עמידות לפני מיגרציות) */
+    const pick = rows.find((r) => r.is_official && r.is_public && isLeonardo(r.title))
+      ?? rows.find((r) => r.is_public && isLeonardo(r.title))
+      ?? rows.find((r) => isLeonardo(r.title))
     if (!pick) throw new AppError(404, 'הדמיית הדמו (לאונרדו דה וינצ׳י) לא נמצאה בספרייה הציבורית')
     res.json({ id: pick.id, title: pick.title })
   } catch (err) {
@@ -153,7 +156,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
     /* רשמיות קודם; אם אין עמודת is_official/אין רשמיות — כל הציבוריות */
     const officials = withGrade ? rows.filter((r) => r.is_official) : []
     const pool = officials.length > 0 ? officials : rows
-    const quests = pool.map((r) => {
+    const mapped = pool.map((r) => {
       const gd = r.game_data as { scenes?: { id: string; imageUrl?: string }[]; entrySceneId?: string } | null
       const scenes = gd?.scenes ?? []
       const entry = scenes.find((s) => s.id === gd?.entrySceneId) ?? scenes[0]
@@ -167,7 +170,13 @@ questsRouter.get('/showcase', async (_req, res, next) => {
         thumbUrl: entry?.imageUrl ?? scenes.find((s) => s.imageUrl)?.imageUrl ?? null,
       }
     }).filter((q) => q.sceneCount > 0)
-    const payload = { quests }
+    /* גיוון מקצועות במדף: קודם החדשה-ביותר מכל מקצוע (כל מורה רואה את המקצוע שלו),
+       ואז השאר — כך הקליינט (שחותך 8) מציג את המניפה הרחבה ביותר */
+    const bySubject = new Map<string, typeof mapped[number]>()
+    for (const q of [...mapped].reverse()) if (!bySubject.has(q.subject ?? '')) bySubject.set(q.subject ?? '', q)
+    const firstPerSubject = [...bySubject.values()]
+    const rest = mapped.filter((q) => !firstPerSubject.includes(q))
+    const payload = { quests: [...firstPerSubject, ...rest] }
     showcaseCache = { at: Date.now(), payload }
     res.json(payload)
   } catch (err) {
@@ -898,7 +907,22 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     try {
       raw = extractJson(firstText)
     } catch {
-      throw new AppError(502, 'Claude החזיר JSON לא תקין')
+      /* פלט לא-parseable (JSON קטוע/שבור) — מגיע לו retry אחד בדיוק כמו כשל ולידציה,
+         לא כשל סופי: קווסט ארוך נקטע לפעמים באמצע. ה-retry ממשיך את השיחה. */
+      retryCount++
+      warn('[gen] הפלט הראשון אינו JSON תקין — retry אחד')
+      const tRetry = Date.now()
+      const retryText = await callClaude([
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: firstText.slice(-4000) },
+        { role: 'user', content: 'הפלט שהחזרת אינו JSON תקין (שבור או קטוע). החזר עכשיו את ה-JSON המלא והתקין של ההדמיה, מההתחלה ועד הסוף, ללא שום טקסט נוסף.' },
+      ], genSystem)
+      info(`[gen] retry-parse (sonnet): ${secs(tRetry)} שניות · פלט ${retryText.length} תווים`)
+      try {
+        raw = extractJson(retryText)
+      } catch {
+        throw new AppError(502, 'Claude החזיר JSON לא תקין (גם אחרי ניסיון חוזר)')
+      }
     }
 
     /* ולידציה מלאה לניסיון: סכמה + מפתחות + מבנה Hub. מחזירה הודעת retry אם נכשל */

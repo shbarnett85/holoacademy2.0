@@ -25,7 +25,12 @@ interface Topic {
   artStyle?: string
   curriculum: string
   objectives: string[]
+  /* סוגי חידות לנושא; ברירת המחדל מעדיפה tileSwap על wordSearch (העדפת מוצר —
+     הפאזל מנצל את תמונת הסצנה). נושא שהתפזורת היא הפדגוגיה שלו מגדיר override. */
+  puzzleTypes?: string[]
 }
+
+const DEFAULT_PUZZLE_TYPES = ['multipleChoice', 'trueFalse', 'memory', 'tileSwap']
 
 const SERVER = process.env.SERVER_URL ?? 'http://localhost:3001'
 const EMAIL = process.env.SEED_STAFF_EMAIL ?? 'admin@demo.com'
@@ -125,7 +130,7 @@ async function main() {
         objectives: t.objectives,
         subject: t.subject,
         questLength: t.questLength,
-        puzzlePreferences: { types: { multipleChoice: true, trueFalse: true, memory: true, wordSearch: true } },
+        puzzlePreferences: { types: Object.fromEntries((t.puzzleTypes ?? DEFAULT_PUZZLE_TYPES).map((p) => [p, true])) },
         difficultySettings: { writingLevel: t.writingLevel, puzzleDifficulty: t.writingLevel },
         includeDrHolo: true,
         artStyle: t.artStyle ?? 'digital-painting',
