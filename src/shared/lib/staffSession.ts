@@ -9,6 +9,8 @@ export interface StaffProfile {
   role: StaffRole
   schoolId: string | null
   email: string
+  /* מורה אורח (חשבון הדגמה) — מוגדר ע"י guest-login; פעולות ציבוריות (שיתוף) מנוטרלות */
+  isGuest?: boolean
 }
 
 export interface StaffSession {

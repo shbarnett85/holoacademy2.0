@@ -143,7 +143,7 @@ authRouter.post('/auth/guest-login', rateLimitByIp('guest-login', 10), async (re
         refresh_token: data.session.refresh_token,
         expires_at: data.session.expires_at,
       },
-      staff: { userId: userRow.id, name: 'מורה אורח', role: userRow.role, schoolId: userRow.school_id, email },
+      staff: { userId: userRow.id, name: 'מורה אורח', role: userRow.role, schoolId: userRow.school_id, email, isGuest: true },
     })
   } catch (err) {
     next(err)

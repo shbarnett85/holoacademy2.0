@@ -8,6 +8,7 @@ interface StaffAuth {
   isStaff: boolean
   isAdmin: boolean
   isSuperAdmin: boolean
+  isGuest: boolean
   logout: () => void
 }
 
@@ -22,6 +23,7 @@ export function useStaffAuth(): StaffAuth {
     isStaff: !!session,
     isAdmin: !!session && (session.staff.role === 'admin' || session.staff.role === 'super_admin'),
     isSuperAdmin: !!session && session.staff.role === 'super_admin',
+    isGuest: !!session && session.staff.isGuest === true,
     logout: () => setSession(null),
   }
 }

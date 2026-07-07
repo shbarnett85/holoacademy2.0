@@ -4,6 +4,7 @@ import { apiFetch, apiJson } from '../../shared/lib/api'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
+import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 
@@ -70,8 +71,8 @@ function Chip({ children }: { children: React.ReactNode }) {
 const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#bfe9ff', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(120,200,255,.3)', fontFamily: 'var(--font-display)' }
 
 /* ── כרטיס הדמיה שלי ── */
-function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare, onDelete }: {
-  q: QuestSummary; busy: boolean
+function QuestCard({ q, busy, isGuest, onOpen, onPlay, onShare, onUnshare, onDelete }: {
+  q: QuestSummary; busy: boolean; isGuest: boolean
   onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void; onDelete: () => void
 }) {
   return (
@@ -106,9 +107,11 @@ function QuestCard({ q, busy, onOpen, onPlay, onShare, onUnshare, onDelete }: {
             style={{ ...cardBtn, color: '#ff9bb3', borderColor: 'rgba(255,120,150,.35)', opacity: busy ? 0.5 : 1 }}>
             מחק 🗑️
           </button>
-          {/* שתף — תמיד גלוי, פותח מודאל */}
-          <button disabled={busy} onClick={(e) => { e.stopPropagation(); onShare() }}
-            style={{ ...cardBtn, color: '#c8b8ff', borderColor: 'rgba(155,140,255,.45)', opacity: busy ? 0.5 : 1 }}>
+          {/* שתף — פותח מודאל. מנוטרל למורה אורח (חשבון הדגמה, בלי שיתוף לספרייה) */}
+          <button disabled={busy || isGuest}
+            title={isGuest ? 'שיתוף אינו זמין במצב מורה אורח' : undefined}
+            onClick={(e) => { e.stopPropagation(); if (!isGuest) onShare() }}
+            style={{ ...cardBtn, color: '#c8b8ff', borderColor: 'rgba(155,140,255,.45)', opacity: (busy || isGuest) ? 0.4 : 1, cursor: isGuest ? 'not-allowed' : 'pointer' }}>
             שתף
           </button>
           <button onClick={(e) => { e.stopPropagation(); onOpen() }} style={cardBtn}>ערוך</button>
@@ -582,6 +585,7 @@ function ColHead({ icon, title, kicker, count, rgb }: { icon: React.ReactNode; t
 }
 
 export default function Library() {
+  const { isGuest } = useStaffAuth()
   const [quests, setQuests] = useState<QuestSummary[] | null>(null)
   const [publicQuests, setPublicQuests] = useState<PublicQuest[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -727,7 +731,7 @@ export default function Library() {
                 {!quests && !error && emptyMsg('טוען…')}
                 {quests && mineF.length === 0 && emptyMsg(quests.length === 0 ? 'עדיין אין הדמיות — צרו את הראשונה!' : 'אין תוצאות לחיפוש')}
                 {mineF.map((q) => (
-                  <QuestCard key={q.id} q={q} busy={busyId === q.id}
+                  <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}
                     onPlay={() => navigate(`/play/${q.id}`)}
                     onShare={() => setShareFor(q)}
