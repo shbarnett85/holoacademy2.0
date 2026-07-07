@@ -522,6 +522,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         .gate-glow { animation: gate-open-glow 0.8s ease; }
         @keyframes scene-fade { from { opacity: 0; } to { opacity: 1; } }
         .scene-fade { animation: scene-fade 0.5s ease; }
+        /* Ken Burns — סחיפת זום איטית על תמונת הסצנה החיה: התמונה "נושמת" בין המעברים
+           במקום לקפוא. הלוך-ושוב אינסופי; הכיוון מתחלף פר-סצנה (alternate/alternate-reverse). */
+        @keyframes holo-kenburns {
+          from { transform: scale(1) translate(0, 0); }
+          to   { transform: scale(1.055) translate(0.6%, -0.5%); }
+        }
         /* materialize — הופעת פאנל הטקסט: מטשטש→חד + הבזק זוהר הולוגרפי (opacity בלבד,
            ללא scale/translate). הקופסה כבר בגודלה הסופי, ה"דף" מתגבש ואז מתמלא בהקלדה. */
         @keyframes holo-materialize {
@@ -556,15 +562,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         {scene.imageUrl && (
           /* התמונה מוצגת נקייה וחיה (כמו מצב-עין) — אין עוד שכבת-כהות גלובלית על כל המסך.
              קריאוּת הטקסט מובטחת ע"י הפאנלים הייעודיים (holo-panel) של הנרטיב/הדיאלוג/הכפתורים,
-             ולא ע"י החשכת התמונה כולה. */
-          <img
-            src={scene.imageUrl}
-            alt=""
-            style={{
-              position: 'absolute', inset: 0, width: '100%', height: '100%',
-              objectFit: 'cover', pointerEvents: 'none',
-            }}
-          />
+             ולא ע"י החשכת התמונה כולה. העטיפה (overflow:hidden) כולאת את סחיפת ה-Ken Burns. */
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+            <img
+              src={scene.imageUrl}
+              alt=""
+              style={{
+                position: 'absolute', inset: 0, width: '100%', height: '100%',
+                objectFit: 'cover',
+                animation: prefersReducedMotion()
+                  ? undefined
+                  : `holo-kenburns 18s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
+              }}
+            />
+          </div>
         )}
         {/* רשת נקודות עדינה */}
         <div
