@@ -174,7 +174,10 @@ export function scaleWordSearch(level: number): WordSearchScale {
 /* ── זיכרון (ליניארי): 2 זוגות + 12 פסילות → 14 זוגות + פסילה 1 ── */
 export function scaleMemory(level: number): { pairCount: number; maxMistakes: number; guidance: string } {
   const l = clampLevel(level)
-  const pairCount = Math.round(lerp20(l, 2, 14)) /* 2 → 14 — הרמה משנה רק את מספר הזוגות */
+  const raw = Math.round(lerp20(l, 2, 14)) /* 2 → 14 — הרמה משנה רק את מספר הזוגות */
+  /* הרשת חייבת ליצור מלבן שלם (עמודות ≤ 7): 11 זוגות (22 קלפים) ו-13 (26) הם היחידים
+     שאין להם מחלק מאוזן — מצמידים אותם למספר הזוגי הקרוב מעלה */
+  const pairCount = raw === 11 ? 12 : raw === 13 ? 14 : raw
   const maxMistakes = FAIL_BUDGET.memoryMistakes /* פסילות קבועות */
   const guidance =
     l <= 6

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
+import { playSound } from '../../../shared/lib/sound'
 import { scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
@@ -14,7 +15,10 @@ function norm(s: string): string {
   return s.trim().replace(/\s+/g, ' ').replace(/[.,;:!?"'׳״]+$/g, '')
 }
 
-/* השלמת מילים — משפט עם חלל אחד או יותר (___). הקלדה או בחירה מבנק מילים.
+/* השלמת מילים — משפט עם חלל אחד או יותר (___).
+   **מצב בנק מילים**: לחיצה על מילה היא ניסיון השלמה מיידי על החלל הפעיל (הראשון
+   הריק) — נכונה מתמלאת וננעלת ועוברים לחלל הבא; שגויה מנקבת את מד הניסיונות.
+   אין כפתור בדיקה. **מצב הקלדה** (רמות גבוהות, ללא בנק): נשאר עם שדות + בדיקה.
    מספר החללים, גודל הבנק ומספר הניסיונות נקבעים לפי הרמה (scaleWordCompletion). */
 export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
   const sentence = puzzle.sentence ?? puzzle.question
@@ -25,29 +29,60 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
   const parts = sentence.split('___')
   const blankCount = Math.max(1, parts.length - 1)
   const bank = puzzle.wordBank
+  const bankMode = !!bank && bank.length > 0
 
   const maxAttempts = scaleWordCompletion(puzzle.difficulty ?? 5).maxAttempts
   const [values, setValues] = useState<string[]>(() => Array(blankCount).fill(''))
+  const [usedBankIdx, setUsedBankIdx] = useState<Set<number>>(new Set()) /* מילים שנצרכו (מולאו נכון) */
   const [locked, setLocked] = useState(false)
+  const [failed, setFailed] = useState(false) /* מיצוי ניסיונות → חשיפת התשובות ללמידה */
   const [wrong, setWrong] = useState(0)
   const [shake, setShake] = useState(0)
 
   const remaining = maxAttempts - wrong
   const activeIdx = values.findIndex((v) => !v.trim())
-  const allFilled = values.every((v) => v.trim())
 
   function setBlank(idx: number, value: string) {
     setValues((prev) => prev.map((v, i) => (i === idx ? value : v)))
   }
 
-  /* בחירה מבנק — ממלא את החלל הפעיל (הראשון הריק) */
-  function pickFromBank(word: string) {
-    if (locked) return
-    const idx = activeIdx === -1 ? blankCount - 1 : activeIdx
-    setBlank(idx, word)
+  function fail() {
+    setLocked(true)
+    setFailed(true)
+    /* חשיפת התשובות הנכונות בחללים — התלמיד לומד גם בכישלון */
+    setValues(answers.map((a) => a))
+    setTimeout(() => onResult({ correct: false, score: 0 }), 1600)
   }
 
-  function submit() {
+  /* מצב בנק: לחיצה על מילה = ניסיון השלמה מיידי על החלל הפעיל */
+  function attemptFromBank(word: string, bankIdx: number) {
+    if (locked || usedBankIdx.has(bankIdx)) return
+    const idx = activeIdx
+    if (idx === -1) return
+    if (norm(word) === norm(answers[idx] ?? '')) {
+      /* נכון — החלל מתמלא וננעל, עוברים לחלל הבא */
+      setBlank(idx, word)
+      setUsedBankIdx((prev) => new Set(prev).add(bankIdx))
+      const done = values.filter((v) => v.trim()).length + 1 === blankCount
+      if (done) {
+        setLocked(true)
+        setTimeout(() => onResult({ correct: true, score: 1 }), 450)
+      } else {
+        playSound('good') /* צעד-ביניים — חלל הושלם, ממשיכים לבא */
+      }
+    } else {
+      /* שגוי — ניקוב מד הניסיונות; כישלון רק במיצוי */
+      const w = wrong + 1
+      setWrong(w)
+      setShake((k) => k + 1)
+      triggerErrorFlash()
+      if (w >= maxAttempts) fail()
+    }
+  }
+
+  /* מצב הקלדה (ללא בנק): בדיקה של כל החללים יחד */
+  const allFilled = values.every((v) => v.trim())
+  function submitTyped() {
     if (locked || !allFilled) return
     const correct = values.every((v, i) => norm(v) === norm(answers[i] ?? ''))
     if (correct) {
@@ -55,16 +90,12 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
       setTimeout(() => onResult({ correct: true, score: 1 }), 350)
       return
     }
-    /* תשובה שגויה — ניקוב מד הניסיונות; כישלון רק במיצוי */
     const w = wrong + 1
     setWrong(w)
     setShake((k) => k + 1)
     triggerErrorFlash()
+    if (w >= maxAttempts) { fail(); return }
     setValues(Array(blankCount).fill(''))
-    if (w >= maxAttempts) {
-      setLocked(true)
-      setTimeout(() => onResult({ correct: false, score: 0 }), 600)
-    }
   }
 
   return (
@@ -78,29 +109,30 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
       {/* מד ניסיונות שנותרו */}
       <FailPips remaining={remaining} total={maxAttempts} label="ניסיונות" />
 
+      {failed && (
+        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>💥 נגמרו הניסיונות — אלו התשובות הנכונות</p>
+      )}
       {wrong > 0 && !locked && (
-        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>✗ לא נכון — נסו שוב</p>
+        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>✗ לא נכון — נסו מילה אחרת</p>
       )}
 
-      {/* המשפט עם החללים — לחיצה על חלל מנקה אותו */}
-      <div key={shake} className={`holo-panel text-lg leading-loose ${wrong > 0 ? 'wc-shake' : ''}`} style={{ padding: '1rem', background: 'rgba(0,136,255,0.06)' }}>
+      {/* המשפט עם החללים — החלל הפעיל מודגש; חללים מלאים נעולים (נכונים תמיד) */}
+      <div key={shake} className={`holo-panel text-lg leading-loose ${wrong > 0 && !locked ? 'wc-shake' : ''}`} style={{ padding: '1rem', background: 'rgba(0,136,255,0.06)' }}>
         {parts.map((seg, i) => (
           <span key={i}>
             {seg}
             {i < blankCount && (
               <span
-                onClick={() => { if (!locked && values[i]) setBlank(i, '') }}
                 style={{
                   display: 'inline-block',
                   minWidth: '5rem',
                   margin: '0 0.3rem',
                   padding: '0 0.5rem',
-                  borderBottom: `2px solid ${i === activeIdx ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.4)'}`,
-                  color: 'var(--holo-cyan)',
+                  borderBottom: `2px solid ${failed ? 'rgba(0,255,150,0.6)' : i === activeIdx ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.4)'}`,
+                  color: failed ? '#7dffc4' : values[i] ? '#7dffc4' : 'var(--holo-cyan)',
                   fontWeight: 700,
                   textAlign: 'center',
-                  cursor: !locked && values[i] ? 'pointer' : 'default',
-                  background: i === activeIdx ? 'rgba(0,246,255,0.08)' : 'transparent',
+                  background: i === activeIdx && !locked ? 'rgba(0,246,255,0.08)' : 'transparent',
                 }}
               >
                 {values[i] || ' '}
@@ -110,48 +142,56 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
         ))}
       </div>
 
-      {/* בנק מילים, או הקלדה חופשית לכל חלל */}
-      {bank && bank.length > 0 ? (
+      {/* בנק מילים (לחיצה = ניסיון), או הקלדה חופשית לכל חלל */}
+      {bankMode ? (
         <div className="flex flex-wrap gap-2 justify-center mt-4">
-          {bank.map((w, i) => (
-            <button
-              key={i}
-              className="holo-button"
-              style={{ padding: '0.5rem 1rem', opacity: locked ? 0.5 : 1 }}
-              disabled={locked}
-              onClick={() => pickFromBank(w)}
-            >
-              {w}
-            </button>
-          ))}
+          {bank!.map((w, i) => {
+            const used = usedBankIdx.has(i)
+            return (
+              <button
+                key={i}
+                className="holo-button"
+                style={{
+                  padding: '0.5rem 1rem',
+                  opacity: locked || used ? 0.35 : 1,
+                  ...(used ? { borderColor: 'rgba(0,255,150,0.5)', color: '#7dffc4' } : {}),
+                }}
+                disabled={locked || used}
+                onClick={() => attemptFromBank(w, i)}
+              >
+                {used ? `✓ ${w}` : w}
+              </button>
+            )
+          })}
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2 mt-4 justify-center">
-          {values.map((v, i) => (
-            <input
-              key={i}
-              value={v}
-              onChange={(e) => setBlank(i, e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submit()}
-              disabled={locked}
-              placeholder={blankCount > 1 ? `חלל ${i + 1}` : 'המילה החסרה…'}
-              className="rounded-lg p-2 text-center"
-              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)', minWidth: '9rem' }}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-wrap gap-2 mt-4 justify-center">
+            {values.map((v, i) => (
+              <input
+                key={i}
+                value={v}
+                onChange={(e) => setBlank(i, e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submitTyped()}
+                disabled={locked}
+                placeholder={blankCount > 1 ? `חלל ${i + 1}` : 'המילה החסרה…'}
+                className="rounded-lg p-2 text-center"
+                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)', minWidth: '9rem' }}
+              />
+            ))}
+          </div>
+          <div className="flex justify-center mt-4">
+            <button
+              className="holo-button"
+              style={{ padding: '0.5rem 1.6rem', opacity: locked || !allFilled ? 0.5 : 1 }}
+              disabled={locked || !allFilled}
+              onClick={submitTyped}
+            >
+              בדיקה
+            </button>
+          </div>
+        </>
       )}
-
-      <div className="flex justify-center mt-4">
-        <button
-          className="holo-button"
-          style={{ padding: '0.5rem 1.6rem', opacity: locked || !allFilled ? 0.5 : 1 }}
-          disabled={locked || !allFilled}
-          onClick={submit}
-        >
-          בדיקה
-        </button>
-      </div>
     </div>
   )
 }

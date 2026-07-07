@@ -20,7 +20,9 @@ export function styledPrompt(imagePrompt: string, artStyle?: string): string {
   /* הגנרטור לפעמים מטמיע את שם הסגנון בתוך ה-imagePrompt עצמו ("..., pixar 3d style") —
      מילת מותג בפרומפט חיובי מנוצחת את ה-negative ומצוירת כטקסט. מסירים אותה תמיד. */
   const clean = imagePrompt.replace(/,?\s*pixar[\s-]*(3d)?\s*(style)?/gi, '').trim()
-  return `${clean}, ${style}`
+  /* איסור טקסט גורף — מודל התמונות מג'בר כיתוב (שלטים "PIXIAT", כותרות ג'יבריש).
+     המגן בפרומפט החיובי חזק מה-negative לבדו. */
+  return `${clean}, ${style}, no text, no words, no lettering, no signs, no captions, no labels`
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))

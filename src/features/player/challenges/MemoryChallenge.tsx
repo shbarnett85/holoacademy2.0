@@ -81,8 +81,20 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
     }
   }
 
-  /* יותר עמודות לחפיסות גדולות (עד 12 זוגות = 24 קלפים) כדי לשמור על פריסה קומפקטית */
-  const cols = deck.length <= 6 ? 3 : deck.length <= 16 ? 4 : deck.length <= 24 ? 5 : 6
+  /* עמודות = מחלק של מספר הקלפים → הרשת תמיד מלבן שלם, בלי שורה אחרונה חסרה.
+     בוחרים את זוג (עמודות×שורות) המאוזן ביותר עם עמודות ≥ שורות (רוחבי, מתאים למסך),
+     בתקרת 7 עמודות. מספר הקלפים תמיד זוגי (זוגות) — קיים לפחות המחלק 2. */
+  const cols = (() => {
+    let best = 0
+    for (let c = 2; c <= 7; c++) {
+      if (deck.length % c !== 0) continue
+      const rows = deck.length / c
+      if (c < rows) continue /* מעדיפים רוחב על גובה */
+      if (!best || Math.abs(c - rows) < Math.abs(best - deck.length / best)) best = c
+    }
+    /* אין מחלק מאוזן ≤7 (חפיסה חריגה) → fallback לפריסה הישנה */
+    return best || (deck.length <= 6 ? 3 : deck.length <= 16 ? 4 : deck.length <= 24 ? 5 : 6)
+  })()
   const cardMinHeight = deck.length <= 12 ? '4.5rem' : deck.length <= 20 ? '3.6rem' : '3rem'
 
   return (
