@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import CrystalGauge from './CrystalGauge'
+import { playSound } from '../../shared/lib/sound'
 import { TOTAL_CRYSTALS, type CollectableItem } from './useGameEngine'
 
 const SLOT_COUNT = 5
@@ -16,36 +17,70 @@ interface Props {
 }
 
 /* שורת 5 הקריסטלים + אנימציית רסיס עף */
-function CrystalBar({ progress, shardEvent }: { progress: number; shardEvent: number }) {
-  const [flyingShard, setFlyingShard] = useState(false)
+/* מד הקריסטלים — **המילוי נדחה לרגע הגעת הרסיסים**: ההתקדמות (prop) מתעדכנת ברגע
+   הפתרון, אבל התצוגה (display) מתמלאת רק כשרסיסי ההצלחה מגיעים (אירוע
+   'holo-shards-arrived' מ-successShatter), באנימציית מילוי רכה על הקריסטל הספציפי.
+   קריסטל שהושלם: צליל ניצחון + פעימת crystal-pop (הקיימת) + הבזק אור מהקריסטל. */
+function CrystalBar({ progress }: { progress: number; shardEvent: number }) {
+  const [display, setDisplay] = useState(progress)
+  const displayRef = useRef(progress)
+  const pendingRef = useRef(progress)
   const [justCompletedIdx, setJustCompletedIdx] = useState<number | null>(null)
-  const prevFull = useRef(0)
-  const prevShard = useRef(shardEvent)
+  const [flashIdx, setFlashIdx] = useState<number | null>(null)
 
-  const fullCount = Math.floor(progress * TOTAL_CRYSTALS + 1e-9)
+  pendingRef.current = progress
 
-  /* רסיס עף בכל הצלחה — במקביל לפאנל ההסבר, לא מעכב אותו */
+  /* ירידה בהתקדמות (restart) — סנכרון מיידי, בלי אנימציה */
   useEffect(() => {
-    if (shardEvent === prevShard.current) return
-    prevShard.current = shardEvent
-    setFlyingShard(true)
-    const t = setTimeout(() => setFlyingShard(false), 900)
-    return () => clearTimeout(t)
-  }, [shardEvent])
-
-  /* פעימה כשקריסטל מושלם */
-  useEffect(() => {
-    if (fullCount > prevFull.current) {
-      setJustCompletedIdx(fullCount - 1)
-      const t = setTimeout(() => setJustCompletedIdx(null), 900)
-      prevFull.current = fullCount
-      return () => clearTimeout(t)
+    if (progress < displayRef.current) {
+      displayRef.current = progress
+      setDisplay(progress)
     }
-    prevFull.current = fullCount
-  }, [fullCount])
+  }, [progress])
+
+  /* המילוי אל היעד: קפיצת state יחידה — האנימציה החלקה עצמה היא מעבר CSS בתוך
+     CrystalGauge (חסין ללשוניות רקע; RAF הוכח כמוקפא בסביבות מסוימות).
+     בסיום המעבר, אם קריסטל הושלם: צליל הניצחון + פעימת crystal-pop + הבזק אור. */
+  const FILL_MS = 560
+  const animateTo = useCallback((target: number) => {
+    const from = displayRef.current
+    if (target <= from + 1e-9) return
+    const prevFull = Math.floor(from * TOTAL_CRYSTALS + 1e-9)
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    displayRef.current = target
+    setDisplay(target)
+    const nowFull = Math.floor(target * TOTAL_CRYSTALS + 1e-9)
+    if (nowFull > prevFull) {
+      const idx = nowFull - 1
+      window.setTimeout(() => {
+        playSound('win') /* צליל הניצחון — ברגע שהקריסטל התמלא לגמרי */
+        setJustCompletedIdx(idx)
+        setFlashIdx(idx)
+        window.setTimeout(() => setJustCompletedIdx(null), 900)
+        window.setTimeout(() => setFlashIdx(null), 650)
+      }, reduce ? 0 : FILL_MS)
+    }
+  }, [])
+
+  /* הרסיסים הגיעו אל הקריסטל → מתחילים למלא אותו */
+  useEffect(() => {
+    const onArrive = () => animateTo(pendingRef.current)
+    window.addEventListener('holo-shards-arrived', onArrive)
+    return () => window.removeEventListener('holo-shards-arrived', onArrive)
+  }, [animateTo])
+
+  /* רשת ביטחון: התקדמות שלא לוותה ברסיסים (מסלול חריג) — מסונכרנת בשקט אחרי רגע */
+  useEffect(() => {
+    if (progress <= displayRef.current + 1e-9) return
+    const t = setTimeout(() => animateTo(pendingRef.current), 4000)
+    return () => clearTimeout(t)
+  }, [progress, animateTo])
+
+  /* הקריסטל שמתמלא כרגע — היעד שאליו הרסיסים מכוונים (נגזר מ-display, מתעדכן ברינדור) */
+  const targetIdx = Math.min(TOTAL_CRYSTALS - 1, Math.floor(display * TOTAL_CRYSTALS + 1e-9))
 
   return (
-    /* data-crystal-bar — עוגן ה-DOM שאליו עפים רסיסי ההצלחה (successShatter) */
+    /* data-crystal-bar — עוגן fallback; הרסיסים מכוונים אל [data-crystal-target] הספציפי */
     <div className="relative flex items-end gap-1" dir="ltr" data-crystal-bar>
       <style>{`
         @keyframes crystal-pop-kf {
@@ -54,42 +89,28 @@ function CrystalBar({ progress, shardEvent }: { progress: number; shardEvent: nu
           100% { transform: scale(1); }
         }
         .crystal-pop { animation: crystal-pop-kf 0.7s cubic-bezier(0.3, 1.5, 0.5, 1); }
-        @keyframes shard-fly {
-          0% { transform: translate(40vw, -45vh) scale(1.6) rotate(0deg); opacity: 1; }
-          70% { opacity: 1; }
-          100% { transform: translate(0, 0) scale(0.5) rotate(360deg); opacity: 0; }
+        /* הבזק אור קטן שפורץ מהקריסטל ברגע ההשלמה */
+        @keyframes crystal-flash-kf {
+          0%   { opacity: 0.95; transform: translate(-50%, -50%) scale(0.4); }
+          100% { opacity: 0;    transform: translate(-50%, -50%) scale(2.6); }
         }
-        .shard-flying {
-          animation: shard-fly 0.85s cubic-bezier(0.4, 0, 0.6, 1) forwards;
-          position: absolute; left: 50%; top: 0;
-          pointer-events: none; z-index: 60;
+        .crystal-flash {
+          position: absolute; left: 50%; top: 50%; width: 34px; height: 34px;
+          border-radius: 50%; pointer-events: none; z-index: 61;
+          background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(47,243,255,0.7) 35%, transparent 70%);
+          animation: crystal-flash-kf 0.6s ease-out forwards;
         }
       `}</style>
 
       {Array.from({ length: TOTAL_CRYSTALS }).map((_, i) => {
-        const fillFraction = Math.max(0, Math.min(1, progress * TOTAL_CRYSTALS - i))
+        const fillFraction = Math.max(0, Math.min(1, display * TOTAL_CRYSTALS - i))
         return (
-          <CrystalGauge
-            key={i}
-            fill={fillFraction}
-            justCompleted={justCompletedIdx === i}
-          />
+          <span key={i} className="relative" {...(i === targetIdx ? { 'data-crystal-target': '1' } : {})}>
+            <CrystalGauge fill={fillFraction} justCompleted={justCompletedIdx === i} />
+            {flashIdx === i && <span className="crystal-flash" />}
+          </span>
         )
       })}
-
-      {flyingShard && (
-        <span className="shard-flying" style={{ filter: 'drop-shadow(0 0 6px rgba(47,243,255,0.9))' }}>
-          {/* רסיס עף — צורת קריסטל HoloAcademy (מעוין+H), לא היהלום הישן */}
-          <svg width="16" height="16" viewBox="0 0 340 340">
-            <polygon points="170,0 340,170 170,340 0,170" fill="none" stroke="#2ff3ff" strokeWidth="16" strokeLinejoin="round" />
-            <g stroke="#2ff3ff" strokeWidth="20" strokeLinecap="round">
-              <line x1="85" y1="85" x2="85" y2="255" />
-              <line x1="255" y1="85" x2="255" y2="255" />
-              <line x1="85" y1="170" x2="255" y2="170" />
-            </g>
-          </svg>
-        </span>
-      )}
     </div>
   )
 }

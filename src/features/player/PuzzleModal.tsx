@@ -55,9 +55,10 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   const panelRef = useRef<HTMLDivElement>(null)
   const shatteringRef = useRef(false)
 
-  function continueAfterSuccess(action: () => void) {
+  /* force — לשאלת מוסר, שאינה עוברת דרך result אך תמיד מזכה ברסיסים */
+  function continueAfterSuccess(action: () => void, force = false) {
     if (shatteringRef.current) return
-    if (!result?.correct || !panelRef.current) { action(); return }
+    if ((!force && !result?.correct) || !panelRef.current) { action(); return }
     shatteringRef.current = true
     shatterToCrystals(panelRef.current, action)
   }
@@ -66,7 +67,8 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     if (lockedRef.current) return
     lockedRef.current = true
     const score = r.score ?? (r.correct ? 1 : 0)
-    if (r.correct) playSound('win') /* סיום אתגר בהצלחה — crystal_win (good שמור לצעדי-ביניים) */
+    /* צליל הפתרון עדין — צליל הניצחון (win) שמור לרגע שקריסטל מתמלא לגמרי (CrystalBar) */
+    if (r.correct) playSound('good')
     setResult({ correct: r.correct, score })
     onSolve(r.correct, score)
   }
@@ -195,7 +197,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
-          <MoralDilemmaChallenge puzzle={puzzle} onResolve={() => onSolve(true, 1)} onContinue={onCollect ?? onContinue} />
+          <MoralDilemmaChallenge puzzle={puzzle} onResolve={() => onSolve(true, 1)} onContinue={() => continueAfterSuccess(onCollect ?? onContinue, true)} />
         ) : result === null ? (
           <>
             {renderChallenge()}

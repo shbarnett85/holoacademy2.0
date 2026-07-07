@@ -1,14 +1,19 @@
-/* התפוגגות פאנל ההצלחה לרסיסי תכלת שעפים אל מד הקריסטלים (BottomHUD, [data-crystal-bar]).
-   WAAPI על overlay קבוע — בלי re-render-ים, בלי ספריות. הפאנל דוהה מהר והרסיסים
-   "יורשים" אותו במסלולי קשת מדורגים; בהגעה — פעימת crystal-pop על המד.
-   prefers-reduced-motion → דילוג ישיר ל-onDone. onDone נקרא פעם אחת בדיוק. */
+/* התפוגגות פאנל ההצלחה לרסיסי תכלת שעפים אל **הקריסטל הספציפי שמתמלא**
+   ([data-crystal-target] שמסמן CrystalBar; fallback למרכז המד). WAAPI על overlay
+   קבוע — בלי re-render-ים, בלי ספריות. בהגעת הרסיסים משודר אירוע
+   'holo-shards-arrived' — הסיגנל שמתחיל את אנימציית המילוי של הקריסטל
+   (המילוי בתצוגה נדחה עד אז). prefers-reduced-motion → מילוי מיידי + המשך.
+   onDone נקרא פעם אחת בדיוק. */
 
 const SHARD_COLORS = ['#2ff3ff', '#7ef6ff', '#9b8cff', '#bffcff']
 const SHARD_COUNT = 18
 
+const ARRIVED_EVENT = 'holo-shards-arrived'
+
 export function shatterToCrystals(panel: HTMLElement, onDone: () => void): void {
   const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   if (reduce || !panel.isConnected || typeof panel.animate !== 'function') {
+    window.dispatchEvent(new Event(ARRIVED_EVENT)) /* המילוי מתעדכן גם בלי האנימציה */
     onDone()
     return
   }
@@ -18,20 +23,17 @@ export function shatterToCrystals(panel: HTMLElement, onDone: () => void): void 
     if (called) return
     called = true
     overlay.remove()
-    /* פעימת "קליטה" על מד הקריסטלים */
-    const bar = document.querySelector('[data-crystal-bar]') as HTMLElement | null
-    if (bar) {
-      bar.classList.remove('crystal-pop')
-      void bar.offsetWidth /* איפוס האנימציה */
-      bar.classList.add('crystal-pop')
-    }
+    /* הרסיסים הגיעו — הקריסטל מתחיל להתמלא (CrystalBar מאזין) */
+    window.dispatchEvent(new Event(ARRIVED_EVENT))
     onDone()
   }
 
   const rect = panel.getBoundingClientRect()
-  const barRect = (document.querySelector('[data-crystal-bar]') as HTMLElement | null)?.getBoundingClientRect()
-  const target = barRect
-    ? { x: barRect.left + barRect.width / 2, y: barRect.top + barRect.height / 2 }
+  /* היעד: הקריסטל הספציפי שמתמלא כרגע; fallback למרכז המד כולו */
+  const targetEl = (document.querySelector('[data-crystal-target]') ?? document.querySelector('[data-crystal-bar]')) as HTMLElement | null
+  const tRect = targetEl?.getBoundingClientRect()
+  const target = tRect
+    ? { x: tRect.left + tRect.width / 2, y: tRect.top + tRect.height / 2 }
     : { x: window.innerWidth / 2, y: window.innerHeight - 48 }
 
   const overlay = document.createElement('div')

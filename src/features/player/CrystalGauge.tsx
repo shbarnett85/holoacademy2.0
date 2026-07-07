@@ -2,6 +2,8 @@
    הצורה הריקה: מהקובץ holoacademy-crystal-empty (אפור #2e3647). המילוי חושף מלמטה-למעלה
    את גרסת הצבע (ציאן/מגנטה + פאות לבנות) — זהה ללוגו. */
 
+import { useId } from 'react'
+
 interface Props {
   fill: number /* 0..1 */
   size?: number
@@ -12,7 +14,9 @@ const EMPTY = '#2e3647'
 
 export default function CrystalGauge({ fill, size = 26, justCompleted = false }: Props) {
   const full = fill >= 0.999
-  const uid = `cg-${Math.round(fill * 1000)}-${size}`
+  /* מזהים יציבים פר-מופע (useId) — לא נגזרים מ-fill, כדי שמעבר ה-CSS על מלבן
+     המילוי לא יתאפס בכל שינוי ערך (זה מה שמאפשר אנימציית מילוי חלקה) */
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
   const diaId = `dia-${uid}`
   const fillId = `fill-${uid}`
   const cyId = `cy-${uid}`
@@ -34,8 +38,11 @@ export default function CrystalGauge({ fill, size = 26, justCompleted = false }:
     >
       <defs>
         <clipPath id={diaId}><polygon points="170,0 340,170 170,340 0,170" /></clipPath>
-        {/* מילוי מלמטה-למעלה לפי fill */}
-        <clipPath id={fillId}><rect x="0" y={340 - 340 * fill} width="340" height={340 * fill} /></clipPath>
+        {/* מילוי מלמטה-למעלה לפי fill — מעבר CSS על y/height = אנימציית המילוי עצמה
+           (חסין ללשוניות רקע, בניגוד ל-RAF) */}
+        <clipPath id={fillId}>
+          <rect x="0" y={340 - 340 * fill} width="340" height={340 * fill} style={{ transition: 'y 0.55s cubic-bezier(0.3,0.7,0.3,1), height 0.55s cubic-bezier(0.3,0.7,0.3,1)' }} />
+        </clipPath>
         <linearGradient id={cyId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#2ff3ff" /><stop offset="1" stopColor="#1fd8e6" /></linearGradient>
         <linearGradient id={mgId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f241da" /><stop offset="1" stopColor="#d92fc0" /></linearGradient>
       </defs>
@@ -59,8 +66,9 @@ export default function CrystalGauge({ fill, size = 26, justCompleted = false }:
         <rect x="85" y="-6" width="85" height="12" rx="6" fill={EMPTY} />
       </g>
 
-      {/* ── מילוי צבעוני (נחשף מלמטה-למעלה) ── */}
-      {fill > 0 && (
+      {/* ── מילוי צבעוני (נחשף מלמטה-למעלה) ──
+         מרונדר תמיד (גם ב-fill=0, אז ה-clip מסתיר) — כדי שמעבר ה-CSS ירוץ מ-ריק */}
+      {(
         <g clipPath={`url(#${fillId})`}>
           {/* מילוי ציאן מלא (מסגרת המעוין + פסים + נאבים) */}
           <g transform="translate(170,170)">
