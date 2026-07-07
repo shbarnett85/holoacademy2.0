@@ -92,7 +92,21 @@ function bindUnlock() {
   const unlock = () => {
     initSound()
     const ac = getCtx()
-    if (ac && ac.state === 'suspended') void ac.resume().catch(() => {})
+    if (ac) {
+      const warm = () => {
+        /* ניגון buffer שקט בתוך ה-gesture — מפעיל את פלט האודיו במלואו (חלק מהדפדפנים
+           דורשים ניגון בפועל, לא רק resume) כך שצליל ההקלדה הראשון לא נחסם */
+        try {
+          const b = ac.createBuffer(1, 1, ac.sampleRate)
+          const s = ac.createBufferSource()
+          s.buffer = b
+          s.connect(ac.destination)
+          s.start(0)
+        } catch { /* noop */ }
+      }
+      if (ac.state === 'suspended') void ac.resume().then(warm).catch(() => {})
+      else warm()
+    }
     window.removeEventListener('pointerdown', unlock)
     window.removeEventListener('keydown', unlock)
     window.removeEventListener('touchstart', unlock)
@@ -156,12 +170,10 @@ function synth(name: SoundName) {
   }
 }
 
-export function playSound(name: SoundName) {
-  if (!isBrowser || muted) return
-  const ac = getCtx()
-  if (!ac) return
+/* הניגון בפועל — מניח ש-ac כבר 'running'. buffer אם נטען, אחרת fallback סינתטי. */
+function renderSound(name: SoundName, ac: AudioContext) {
   const buf = buffers[name]
-  if (!buf) { synth(name); return } /* אין buffer (חסר/נכשל/hover) → fallback סינתטי מיידי */
+  if (!buf) { synth(name); return } /* אין buffer (חסר/נכשל/hover) → fallback סינתטי */
   try {
     if (LONG.has(name)) {
       const prev = activeLong[name]
@@ -178,6 +190,21 @@ export function playSound(name: SoundName) {
       src.onended = () => { if (activeLong[name] === src) delete activeLong[name] }
     }
   } catch { /* דילוג שקט */ }
+}
+
+export function playSound(name: SoundName) {
+  if (!isBrowser || muted) return
+  const ac = getCtx()
+  if (!ac) return
+  /* קונטקסט מושהה (autoplay policy, או resume עדיין באוויר) — לנגן על קונטקסט מושהה
+     גורם לדפדפן להשמיט את הצליל בשקט (הבאג של "צליל ההקלדה נעלם בשקופית הראשונה").
+     לכן: מחכים לסיום ה-resume ואז מנגנים. אם אין עדיין user-gesture — resume נדחה
+     והצליל פשוט לא יישמע (התנהגות תקינה), עד שהאינטראקציה הראשונה תשחרר. */
+  if (ac.state !== 'running') {
+    ac.resume().then(() => { if (ac.state === 'running') renderSound(name, ac) }).catch(() => {})
+    return
+  }
+  renderSound(name, ac)
 }
 
 const INTERACTIVE = 'button, [role="button"], a[href], summary, input[type="checkbox"], input[type="radio"]'
