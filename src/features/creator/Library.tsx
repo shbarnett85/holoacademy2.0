@@ -5,6 +5,7 @@ import { trackFunnel } from '../../shared/lib/funnel'
 import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import { getGuestQuestIds, addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 
@@ -631,13 +632,14 @@ export default function Library() {
   async function doDelete(q: QuestSummary) {
     if (!(await holoConfirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
     setBusyId(q.id); setError(null)
-    try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
+    try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); if (isGuest) removeGuestQuestId(q.id); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה במחיקה') } finally { setBusyId(null) }
   }
   async function doCopy(q: PublicQuest) {
     setBusyId(q.id); setError(null)
     try {
       const { quest } = await apiJson<{ quest: { id: string; title: string } }>(`/api/library/${q.id}/copy`, { method: 'POST' })
+      if (isGuest) addGuestQuestId(quest.id) /* מורה אורח: העותק שייך לספרייה המקומית שלו */
       flash('📥 הועתק לספרייה שלך — אפשר לערוך')
       loadMine()
       navigate(`/creator/quest/${quest.id}`)
@@ -658,8 +660,15 @@ export default function Library() {
   const mineF = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!quests) return []
-    return q ? quests.filter((it) => it.title.toLowerCase().includes(q)) : quests
-  }, [quests, query])
+    /* מורה אורח: מסננים לספרייה המקומית של הדפדפן שלו בלבד (בידוד per-browser —
+       כל האורחים חולקים את חשבון הדמו, אז השרת מחזיר את ההדמיות של כולם). */
+    let list = quests
+    if (isGuest) {
+      const own = new Set(getGuestQuestIds())
+      list = list.filter((it) => own.has(it.id))
+    }
+    return q ? list.filter((it) => it.title.toLowerCase().includes(q)) : list
+  }, [quests, query, isGuest])
 
   const commF = useMemo(() => {
     return (publicQuests ?? []).filter((it) => {
@@ -729,7 +738,7 @@ export default function Library() {
               {error && <div style={{ color: '#ff7099', padding: 12, borderRadius: 12, border: '1px solid rgba(255,80,120,.4)', background: 'rgba(255,80,120,.08)', marginBottom: 10 }}>{error}</div>}
               <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 11, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8 }}>
                 {!quests && !error && emptyMsg('טוען…')}
-                {quests && mineF.length === 0 && emptyMsg(quests.length === 0 ? 'עדיין אין הדמיות — צרו את הראשונה!' : 'אין תוצאות לחיפוש')}
+                {quests && mineF.length === 0 && emptyMsg((isGuest ? getGuestQuestIds().length === 0 : quests.length === 0) ? 'עדיין אין הדמיות — צרו את הראשונה!' : 'אין תוצאות לחיפוש')}
                 {mineF.map((q) => (
                   <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}

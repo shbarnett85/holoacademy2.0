@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { apiFetch } from '../../shared/lib/api'
+import { getSession } from '../../shared/lib/staffSession'
+import { addGuestQuestId } from '../../shared/lib/guestLibrary'
 
 /* סוגי החידות הזמינים */
 export const PUZZLE_TYPES = [
@@ -204,6 +206,8 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
          עד שה-game_data מוכן (scenes) או שנכשל (genError). מנתק מ-timeout של proxy. */
       const { quest: stub } = await res.json()
       const questId: string = stub.id
+      /* מורה אורח: רושמים את ההדמיה ל-cache הדפדפן (בידוד per-browser — ראו guestLibrary) */
+      if (getSession()?.staff.isGuest === true) addGuestQuestId(questId)
       const deadline = Date.now() + 600_000
       let lastErr = ''
       while (Date.now() < deadline) {
