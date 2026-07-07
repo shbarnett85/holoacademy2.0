@@ -10,13 +10,17 @@ const STYLE_SUFFIX: Record<string, string> = {
   comic: 'comic book style, bold outlines, dynamic composition',
   storybook: "soft watercolor children's storybook illustration, warm gentle colors, friendly rounded shapes, whimsical hand-painted look, cozy and inviting",
   anime: 'anime and manga art style, cel shaded, expressive characters, vibrant, clean linework, Japanese animation aesthetic',
-  'pixar-3d': '3D animated movie style, Pixar-like, soft rounded forms, warm cinematic lighting, expressive friendly characters, polished render',
+  /* בלי מילת המותג "Pixar" — FLUX מצייר שמות מותג כטקסט בתמונה (נצפה: "PIXAR" בשמיים) */
+  'pixar-3d': '3D animated feature film style, soft rounded forms, warm cinematic lighting, expressive friendly characters, polished render',
 }
 
 /* סגנון לא מוכר (למשל pixel-art ישן שהוסר) → fallback ל-digital-painting, לא נשבר */
 export function styledPrompt(imagePrompt: string, artStyle?: string): string {
   const style = STYLE_SUFFIX[artStyle ?? ''] ?? STYLE_SUFFIX['digital-painting']
-  return `${imagePrompt}, ${style}`
+  /* הגנרטור לפעמים מטמיע את שם הסגנון בתוך ה-imagePrompt עצמו ("..., pixar 3d style") —
+     מילת מותג בפרומפט חיובי מנוצחת את ה-negative ומצוירת כטקסט. מסירים אותה תמיד. */
+  const clean = imagePrompt.replace(/,?\s*pixar[\s-]*(3d)?\s*(style)?/gi, '').trim()
+  return `${clean}, ${style}`
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
