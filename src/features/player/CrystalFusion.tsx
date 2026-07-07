@@ -8,10 +8,14 @@ import { playSound } from '../../shared/lib/sound'
 export default function CrystalFusion({ onDone }: { onDone: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const doneRef = useRef(false)
+  /* onDone ב-ref — כך שה-effect רץ **פעם אחת בלבד** (deps ריקים) ואינו מופעל-מחדש
+     כשההורה מתרנדר (מעבר סצנה וכו'), מה שהיה מאתחל את אנימציית הקנבס באמצע. */
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
 
   useEffect(() => {
     playSound('fusion')
-    const finish = () => { if (!doneRef.current) { doneRef.current = true; onDone() } }
+    const finish = () => { if (!doneRef.current) { doneRef.current = true; onDoneRef.current() } }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const t = window.setTimeout(finish, 500); return () => window.clearTimeout(t)
     }
@@ -169,7 +173,8 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
     }
     raf = requestAnimationFrame(frame)
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize) }
-  }, [onDone])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 90, pointerEvents: 'none', animation: 'holo-screen-fade .3s ease' }}>

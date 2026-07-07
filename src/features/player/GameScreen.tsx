@@ -173,6 +173,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
   const fusionFiredRef = useRef(false)
+  /* מעבר-סצנה שנדחה עד לסיום ההיתוך — כשההמשך מגיע למסה קריטית, הפורטל וההיתוך היו
+     רצים יחד וההיתוך התאפס בסצנה הבאה. שומרים כאן את פעולת המעבר ומריצים ב-onDone. */
+  const pendingAdvanceRef = useRef<null | (() => void)>(null)
   /* טעינת הקריסטל במסך הניצחון — chargeT מטפס 0→1 (≈1.2ש') כך שהקריסטלים מתמלאים
      בסנכרון עם החלקיקים המתכנסים. reduced-motion → קופץ ל-1 (מילוי סטטי). */
   const crystalRowRef = useRef<HTMLDivElement>(null)
@@ -632,8 +635,21 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   const hasItem = !!scene.collectableItem
                   const hasChoices = !!scene.choices?.length
                   const willAdvance = !hasItem && !hasChoices && !engine.gateLocked
-                  if (willAdvance) { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
-                  else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
+                  if (willAdvance) {
+                    const advanceNow = () => { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
+                    /* המשך שמגיע למסה קריטית → ההיתוך עומד להתנגן. מעכבים את מעבר הסצנה
+                       עד שההיתוך יסתיים (onDone), כדי שהפורטל לא ירוץ במקביל ויאפס אותו. */
+                    if (engine.crystalsFull >= 3 && !fusionFiredRef.current) {
+                      pendingAdvanceRef.current = advanceNow
+                      /* רשת ביטחון — אם ההיתוך לא נורה מסיבה כלשהי, מתקדמים בכל זאת */
+                      window.setTimeout(() => {
+                        const p = pendingAdvanceRef.current
+                        if (p) { pendingAdvanceRef.current = null; setFusion(false); p() }
+                      }, 5000)
+                    } else {
+                      advanceNow()
+                    }
+                  } else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
                 }}
                 /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
                    ממשיכה לפעולה הבאה (בחירות/המשך) */
@@ -794,7 +810,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* כפתור העין במשחק נמצא עכשיו בתוך ה-TopHUD (שורה כחולה עליונה) */}
 
       {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
-      {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
+      {fusion && <CrystalFusion onDone={() => {
+        setFusion(false)
+        /* ההיתוך הסתיים — עכשיו מריצים את מעבר-הסצנה שנדחה (אם היה) */
+        const pend = pendingAdvanceRef.current
+        pendingAdvanceRef.current = null
+        pend?.()
+      }} />}
 
       {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
       {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
