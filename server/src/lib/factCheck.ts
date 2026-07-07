@@ -1,7 +1,7 @@
 import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
 import { extractJson, checkAnswerConsistency, type FactCheckMeta, type GameData } from './questSchemas.js'
-import { enforceNarrativePhrasing } from './questVariants.js'
+import { enforceNarrativePhrasing, applyNiqqudToGameData } from './questVariants.js'
 import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { info, error as logError } from './log.js'
 
@@ -146,6 +146,18 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
     await enforceNarrativePhrasing(gameData, level, form)
   } catch (err) {
     logError('[phrasing:enforce] רקע נכשל:', err instanceof Error ? err.message : err)
+  }
+  /* ניקוד Dicta לרמות נמוכות (≤6) — הועבר לכאן מהנתיב החוסם: (1) חוסך את זמן ה-Dicta
+     מ-time-to-teacher; (2) רץ אחרי שכתובי הניסוח, כך שהם לא מוחקים את הניקוד.
+     ה-scopedFactFix בהמשך מונחה לשמר ניקוד. best-effort. */
+  if (level <= 6) {
+    try {
+      const t0 = Date.now()
+      const n = await applyNiqqudToGameData(gameData)
+      info(`[niqqud] רקע: ${n} מקטעים · ${((Date.now() - t0) / 1000).toFixed(1)} שניות`)
+    } catch (err) {
+      logError('[niqqud] רקע נכשל:', err instanceof Error ? err.message : err)
+    }
   }
   try {
     const fc = await runFactCheck(gameData)

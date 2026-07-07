@@ -26,7 +26,7 @@ import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
-import { rephraseForAddress, buildStudentVariant, applyNiqqudToGameData } from '../lib/questVariants.js'
+import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
 import { computeWeakConcepts, reviewContextBlock } from '../lib/weakConcepts.js'
 
 export const questsRouter = Router()
@@ -1055,12 +1055,9 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       if (gameData.endingBad && !gameData.endingBad.imageUrl && params.imagePool.endingBad) gameData.endingBad.imageUrl = params.imagePool.endingBad
     }
 
-    /* ניקוד מלא ומדויק (Dicta) לרמות נמוכות (≤6) — קוראים מתחילים. מחליף את ניקוד המודל. */
-    if (level <= 6) {
-      const t0 = Date.now()
-      const n = await applyNiqqudToGameData(gameData)
-      info(`[gen] ניקוד Dicta על ${n} מקטעים: ${secs(t0)} שניות`)
-    }
+    /* ניקוד Dicta (רמות ≤6) הועבר לשרשרת הרקע (factCheckInBackground) — חוסך את זמן
+       ה-Dicta מ-time-to-teacher, וגם מתקן סדר: הניקוד רץ עכשיו *אחרי* שכתובי הניסוח
+       הרקעיים (enforceNarrativePhrasing) במקום לפניהם, כך שהשכתוב לא מוחק אותו. */
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending', startedAt: new Date().toISOString() }
