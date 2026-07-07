@@ -10,6 +10,7 @@ import HangmanChallenge from './challenges/HangmanChallenge'
 import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
 import { triggerErrorFlash } from './challenges/errorFlash'
+import { shatterToCrystals } from './challenges/successShatter'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { playSound } from '../../shared/lib/sound'
 
@@ -50,6 +51,16 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   const [result, setResult] = useState<Result | null>(null)
   /* הגנה מלחיצה כפולה — ה-state אסינכרוני, ה-ref מיידי */
   const lockedRef = useRef(false)
+  /* התפוגגות לרסיסים בהצלחה — הפאנל כולו מתנפץ לתכלת שעפה אל מד הקריסטלים */
+  const panelRef = useRef<HTMLDivElement>(null)
+  const shatteringRef = useRef(false)
+
+  function continueAfterSuccess(action: () => void) {
+    if (shatteringRef.current) return
+    if (!result?.correct || !panelRef.current) { action(); return }
+    shatteringRef.current = true
+    shatterToCrystals(panelRef.current, action)
+  }
 
   function handleResult(r: { correct: boolean; score?: number }) {
     if (lockedRef.current) return
@@ -109,12 +120,12 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             <button
               className="holo-button text-lg"
               style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
-              onClick={onCollect}
+              onClick={() => continueAfterSuccess(onCollect)}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
             </button>
           ) : (
-            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
+            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={() => continueAfterSuccess(onContinue)}>
               המשך ←
             </button>
           )}
@@ -174,6 +185,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
        כמכל-תיבה אחד — מכסה את כל סוגי האתגרים, בלי לעטוף קלפים/טיילים פנימיים. */
     <DigitalEntrance className="w-full mx-auto">
     <div
+      ref={panelRef}
       className="holo-panel w-full text-center mx-auto"
       style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}
     >

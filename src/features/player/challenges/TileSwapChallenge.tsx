@@ -1,9 +1,13 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { playSound } from '../../../shared/lib/sound'
 import type { Puzzle } from '../useGameEngine'
 import { scaleTileSwap } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+
+const prefersReduced = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
 interface Props {
   puzzle: Puzzle
@@ -36,6 +40,8 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
   const [selected, setSelected] = useState<number | null>(null)
   const [badSwaps, setBadSwaps] = useState(0)
   const [done, setDone] = useState<'win' | 'lose' | null>(null)
+  /* רגע הניצחון: תצוגה גדולה של התמונה השלמה (lightbox) לפני פאנל ההצלחה */
+  const [showcase, setShowcase] = useState(false)
 
   function clickTile(pos: number) {
     if (done) return
@@ -53,7 +59,13 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
     setOrder(next)
     if (next.every((v, i) => v === i)) {
       setDone('win')
-      setTimeout(() => onResult({ correct: true, score: 1 }), 650)
+      if (imageUrl && !prefersReduced()) {
+        /* זוהר קצר על הרשת → תצוגה גדולה של התמונה השלמה → פאנל ההצלחה */
+        setTimeout(() => setShowcase(true), 520)
+        setTimeout(() => { setShowcase(false); onResult({ correct: true, score: 1 }) }, 2500)
+      } else {
+        setTimeout(() => onResult({ correct: true, score: 1 }), 650)
+      }
       return
     }
     /* "החלפה גרועה" — אף אחד משני האריחים שהוחלפו לא נחת במקומו הסופי */
@@ -79,7 +91,41 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
       <style>{`
         @keyframes tileswap-solved { 0%,100%{box-shadow:0 0 12px rgba(0,246,255,0.4);} 50%{box-shadow:0 0 36px rgba(0,246,255,1);} }
         .tileswap-grid.solved { animation: tileswap-solved 0.8s ease; }
+        @keyframes ts-lightbox-in { from{opacity:0;} to{opacity:1;} }
+        @keyframes ts-img-in { from{transform:scale(0.8);opacity:0;} to{transform:scale(1);opacity:1;} }
+        @keyframes ts-caption-in { from{transform:translateY(14px);opacity:0;} to{transform:translateY(0);opacity:1;} }
       `}</style>
+
+      {/* רגע הניצחון — התמונה השלמה בגדול על כל המסך (פורטל: לא כלוא בגבולות הפאנל) */}
+      {showcase && imageUrl && createPortal(
+        <div
+          aria-hidden
+          style={{
+            position: 'fixed', inset: 0, zIndex: 75, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 16,
+            background: 'rgba(2,6,16,0.85)', backdropFilter: 'blur(8px)',
+            animation: 'ts-lightbox-in 0.4s ease',
+          }}
+        >
+          <img
+            src={imageUrl}
+            alt=""
+            style={{
+              maxWidth: '86vw', maxHeight: '66vh', borderRadius: 18,
+              border: '2px solid rgba(47,243,255,0.65)',
+              boxShadow: '0 0 70px rgba(47,243,255,0.45), 0 24px 80px rgba(0,0,0,0.6)',
+              animation: 'ts-img-in 0.55s cubic-bezier(0.2,0.85,0.3,1)',
+            }}
+          />
+          <div style={{
+            fontSize: 21, fontWeight: 800, color: '#bffcff', fontFamily: 'var(--font-display)',
+            textShadow: '0 0 20px rgba(47,243,255,0.85)', animation: 'ts-caption-in 0.5s ease 0.25s both',
+          }}>
+            ✨ הַתְּמוּנָה הוּשְׁלְמָה!
+          </div>
+        </div>,
+        document.body,
+      )}
       <p className="text-sm mb-3" style={{ opacity: 0.75 }}>{puzzle.question}</p>
 
       {/* מד החלפות גרועות שנותרו */}

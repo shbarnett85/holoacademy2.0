@@ -45,7 +45,8 @@ function CrystalBar({ progress, shardEvent }: { progress: number; shardEvent: nu
   }, [fullCount])
 
   return (
-    <div className="relative flex items-end gap-1" dir="ltr">
+    /* data-crystal-bar — עוגן ה-DOM שאליו עפים רסיסי ההצלחה (successShatter) */
+    <div className="relative flex items-end gap-1" dir="ltr" data-crystal-bar>
       <style>{`
         @keyframes crystal-pop-kf {
           0% { transform: scale(1); }

@@ -82,13 +82,17 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
     }
   }, [])
 
+  /* משך סוויפ הסדר: הדגשה מדורגת פריט-אחר-פריט (150ms ביניהם) לפני ההמשך —
+     "זהו הסדר הנכון" במקום מעבר מיידי */
+  const sweepMs = items.length * 150 + 900
+
   function check() {
     if (finished) return
     const ok = order.length === correctOrder.length && order.every((id, i) => id === correctOrder[i])
     if (ok) {
       setResult('correct')
       setFinished('win')
-      setTimeout(() => onResult({ correct: true, score: 1 }), 850)
+      setTimeout(() => onResult({ correct: true, score: 1 }), sweepMs)
       return
     }
     /* הגשה שגויה — ניקוב מד הניסיונות; כישלון רק במיצוי */
@@ -98,8 +102,8 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
     triggerErrorFlash()
     if (w >= maxAttempts) {
       setFinished('lose')
-      setOrder([...correctOrder]) /* חשיפת הסדר הנכון */
-      setTimeout(() => onResult({ correct: false, score: 0 }), 950)
+      setOrder([...correctOrder]) /* חשיפת הסדר הנכון — עם אותו סוויפ מדורג (לומדים ממנו) */
+      setTimeout(() => onResult({ correct: false, score: 0 }), sweepMs + 250)
     } else {
       setTimeout(() => setResult(null), 450) /* ניקוי הרעד, מאפשר ניסיון נוסף */
     }
@@ -112,10 +116,16 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
   return (
     <div className="mt-3">
       <style>{`
-        @keyframes seq-correct { 0%,100%{box-shadow:0 0 10px rgba(0,255,150,0.4);} 50%{box-shadow:0 0 30px rgba(0,255,150,0.95);} }
         @keyframes seq-wrong { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 75%{transform:translateX(7px);} }
-        .seq-correct { animation: seq-correct 0.8s ease; }
         .seq-wrong { animation: seq-wrong 0.4s ease; }
+        /* סוויפ הסדר הנכון — כל פריט נדלק בתורו (delay פר-מיקום), מלמעלה למטה */
+        @keyframes seq-sweep {
+          0%   { box-shadow: none; transform: translateY(0) scale(1); }
+          45%  { box-shadow: 0 0 26px rgba(47,243,255,0.9), inset 0 0 14px rgba(47,243,255,0.25); transform: translateY(-3px) scale(1.02); }
+          100% { box-shadow: 0 0 10px rgba(0,255,150,0.45); transform: translateY(0) scale(1); }
+        }
+        .seq-sweep { animation: seq-sweep 0.6s ease both; }
+        @media (prefers-reduced-motion: reduce) { .seq-sweep { animation: none; box-shadow: 0 0 10px rgba(0,255,150,0.45); } }
       `}</style>
 
       <p className="text-sm mb-1" style={{ opacity: 0.8 }}>{puzzle.question}</p>
@@ -136,8 +146,9 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
               key={id}
               data-seq-id={id}
               onPointerDown={(e) => { if (!finished) { e.preventDefault(); startDrag(id) } }}
-              className={finished === 'win' ? 'seq-correct' : ''}
+              className={finished ? 'seq-sweep' : ''}
               style={{
+                ...(finished ? { animationDelay: `${pos * 0.15}s` } : {}),
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.7rem',
