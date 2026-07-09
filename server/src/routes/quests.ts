@@ -28,6 +28,7 @@ import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLO
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
 import { computeWeakConcepts, reviewContextBlock } from '../lib/weakConcepts.js'
+import { groundCurriculum } from '../lib/factBrief.js'
 
 export const questsRouter = Router()
 
@@ -869,8 +870,11 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
    רצה אחרי שה-route כבר החזיר את ה-id (מנתק את היצירה הארוכה ~130-170ש׳ מ-timeout
    של ה-proxy בפרודקשן). בסיום מעדכן את game_data בשורה; בכשל כותב genError. */
 async function generateQuestInBackground(questId: string, params: QuestGenerationParams, teacherId?: string): Promise<void> {
-  const expectedKeys = requiredKeyCount(params)
-  const { system: genSystem, user: prompt } = buildQuestPrompt(params)
+  /* עיגון עובדתי (best-effort, כבוי כברירת מחדל — GROUNDING=1 + GEMINI_API_KEY). מזריק
+     עובדות מאומתות לתוכנית הלימוד לפני בניית הפרומפט. כשל/כבוי → params ללא שינוי. */
+  const gparams = await groundCurriculum(params)
+  const expectedKeys = requiredKeyCount(gparams)
+  const { system: genSystem, user: prompt } = buildQuestPrompt(gparams)
   const tStart = Date.now()
   const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(1)
   let retryCount = 0
@@ -889,7 +893,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     let producedParallel = false
     if (expectedKeys === 0 && process.env.PARALLEL_GEN === '1') {
       try {
-        gameData = await generateLinearParallel(params)
+        gameData = await generateLinearParallel(gparams)
         producedParallel = true
         info(`[gen] ✓ נתיב מקבול לינארי`)
       } catch (e) {
