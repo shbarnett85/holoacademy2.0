@@ -5,6 +5,8 @@ import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 import { callHaiku } from '../lib/claudeCalls.js'
 import { extractJson } from '../lib/questSchemas.js'
+import { useGeminiForFacts, callGeminiText } from '../lib/gemini.js'
+import { warn } from '../lib/log.js'
 
 export const aiRouter = Router()
 
@@ -62,16 +64,27 @@ aiRouter.post('/enhance-content', async (req, res, next) => {
   try {
     const parsed = enhanceSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    const prompt = buildEnhancePrompt(parsed.data)
 
-    const response = await claude.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: buildEnhancePrompt(parsed.data) }],
-    })
-
-    const block = response.content.find((b) => b.type === 'text')
-    const enhanced = block && block.type === 'text' ? block.text.trim() : ''
-    if (!enhanced) throw new AppError(502, 'תשובה ריקה מ-Claude')
+    /* "שפר עם AI" מבקש "עובדות מסקרנות" על הנושא — ולכן על נושא אזוטרי Claude יבדה
+       (כמו ביצירה). כשהעיגון מופעל (GROUNDING=1) — Gemini מעשיר (כיסוי זנב-ארוך);
+       כבוי/כשל → Claude Sonnet כרגיל (fallback graceful, לא שובר את הפיצ'ר). */
+    let enhanced = ''
+    if (useGeminiForFacts()) {
+      try { enhanced = (await callGeminiText(prompt, 1500)).trim() } catch (e) {
+        warn('[enhance] Gemini נכשל → Claude:', e instanceof Error ? e.message : e)
+      }
+    }
+    if (!enhanced) {
+      const response = await claude.messages.create({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      })
+      const block = response.content.find((b) => b.type === 'text')
+      enhanced = block && block.type === 'text' ? block.text.trim() : ''
+    }
+    if (!enhanced) throw new AppError(502, 'תשובה ריקה')
 
     res.json({ enhanced })
   } catch (err) {
