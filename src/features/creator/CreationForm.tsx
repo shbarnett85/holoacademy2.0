@@ -253,7 +253,8 @@ function Studio() {
               <div style={{ flex: '1 1 220px', minWidth: 180 }}>
                 <label style={fieldLabel}>נושא ההדמיה</label>
                 <Tooltip text={TT.title} block>
-                  <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value })} placeholder="למשל: מסע אל מערכת השמש" />
+                  {/* שינוי הנושא מנקה את תוכן הלימוד — כדי שתוכן (מועשר) על נושא ישן לא יישאר ויבלבל */}
+                  <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value, curriculum: '' })} placeholder="למשל: מסע אל מערכת השמש" />
                 </Tooltip>
               </div>
               <div style={{ flex: '0 0 170px', position: 'relative' }}>
