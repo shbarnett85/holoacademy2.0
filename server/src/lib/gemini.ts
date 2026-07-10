@@ -12,7 +12,10 @@ export function hasGeminiKey(): boolean {
 /* השער המשותף: Gemini-לעובדות מופעל רק כאשר GROUNDING=1 **וגם** יש מפתח (כמו PARALLEL_GEN).
    כבוי כברירת מחדל → כל הזרימות נשארות על Claude, בלי צורך במפתח. */
 export function useGeminiForFacts(): boolean {
-  return process.env.GROUNDING === '1' && hasGeminiKey()
+  /* סובלני לערך ה-flag: "1"/"true"/"on"/"yes" (trim + case-insensitive) — מונע footgun
+     של `GROUNDING=true`/רווח נסתר שלא תפס עם `=== '1'` נוקשה. */
+  const flag = (process.env.GROUNDING ?? '').trim().toLowerCase()
+  return (flag === '1' || flag === 'true' || flag === 'on' || flag === 'yes') && hasGeminiKey()
 }
 
 /* קריאת טקסט פשוטה ל-Gemini: prompt יחיד → טקסט. זורק בכשל (הקורא אחראי ל-fallback). */
