@@ -21,7 +21,9 @@ export function useGeminiForFacts(): boolean {
 /* קריאת טקסט פשוטה ל-Gemini: prompt יחיד → טקסט. זורק בכשל (הקורא אחראי ל-fallback).
    retry על שגיאות חולפות (429/5xx — flash נוטה ל-503 בעומס) כדי שלא ליפול לחינם
    חזרה ל-Claude הלא-מעוגן. עד 3 ניסיונות עם backoff לינארי; 4xx אחר → כשל מיידי. */
-export async function callGeminiText(prompt: string, maxTokens = 3000): Promise<string> {
+/* maxTokens נדיב כברירת מחדל: ל-Gemini 2.5 (במיוחד Pro) יש "thinking" שצורך מתוך
+   maxOutputTokens לפני הפלט — תקציב קטן מדי חותך את התשובה לאמצע. */
+export async function callGeminiText(prompt: string, maxTokens = 8000): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY חסר ב-env')
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`

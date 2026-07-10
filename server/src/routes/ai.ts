@@ -71,7 +71,7 @@ aiRouter.post('/enhance-content', async (req, res, next) => {
        כבוי/כשל → Claude Sonnet כרגיל (fallback graceful, לא שובר את הפיצ'ר). */
     let enhanced = ''
     if (useGeminiForFacts()) {
-      try { enhanced = (await callGeminiText(prompt, 1500)).trim() } catch (e) {
+      try { enhanced = (await callGeminiText(prompt, 8000)).trim() } catch (e) {
         warn('[enhance] Gemini נכשל → Claude:', e instanceof Error ? e.message : e)
       }
     }
