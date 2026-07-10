@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { createHash } from 'node:crypto'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { claude } from '../lib/claude.js'
+import { callGeminiText } from '../lib/gemini.js'
+import { engineFor } from '../lib/modelRouter.js'
 import { generateImage, styledPrompt, HISTORICAL_NEGATIVE } from '../lib/together.js'
 import { uploadBase64Image } from '../lib/storage.js'
 import { AppError } from '../middleware/errors.js'
@@ -41,13 +43,19 @@ async function enhanceHistoricalPrompt(imagePrompt: string): Promise<string> {
   if (cached) return cached
 
   try {
-    const response = await claude.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: `${REWRITE_INSTRUCTION}\n\nPrompt: ${imagePrompt}` }],
-    })
-    const block = response.content.find((b) => b.type === 'text')
-    const rewritten = block && block.type === 'text' ? block.text.trim() : ''
+    const uc = `${REWRITE_INSTRUCTION}\n\nPrompt: ${imagePrompt}`
+    let rewritten = ''
+    if (engineFor('imageprompt') === 'gemini') {
+      rewritten = (await callGeminiText(uc, 600)).trim()
+    } else {
+      const response = await claude.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: uc }],
+      })
+      const block = response.content.find((b) => b.type === 'text')
+      rewritten = block && block.type === 'text' ? block.text.trim() : ''
+    }
     if (rewritten) {
       rewriteCache.set(key, rewritten)
       return rewritten

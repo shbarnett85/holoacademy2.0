@@ -1,4 +1,6 @@
 import { callClaude, callHaiku } from './claudeCalls.js'
+import { callGeminiText, callGeminiJSON } from './gemini.js'
+import { engineFor } from './modelRouter.js'
 import { extractJson, puzzleObjectSchema, type GameData, type PuzzleObj } from './questSchemas.js'
 import { nakdan } from './dicta.js'
 import { clampLevel, scaleHangman, scaleFinalQuiz, narrativeStyleSpec, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
@@ -97,7 +99,7 @@ export async function rephraseForAddress(base: GameData, form: FormOfAddress): P
 
 ${JSON.stringify(texts, null, 0)}`
   try {
-    const out = await callHaiku([{ role: 'user', content: instruction }], 8000)
+    const out = engineFor('rephrase') === 'gemini' ? await callGeminiText(instruction, 8000) : await callHaiku([{ role: 'user', content: instruction }], 8000)
     const rew = extractJson(out) as Record<string, string>
     if (rew && typeof rew === 'object') applyAddressText(variant, rew)
   } catch (err) {
@@ -313,7 +315,7 @@ ${jobs.map((j, n) => `### אתגר ${n} → רמת יעד ${j.level}/20. מפר�
   try {
     const t0 = Date.now()
     debug('[variant:puzzles] calling sonnet, jobs:', jobs.length, 'levels:', jobs.map((j) => `${j.type}:${j.level}`).join(','))
-    const out = await callClaude([{ role: 'user', content: user }], cachedSystem)
+    const out = engineFor('variantPuzzles') === 'gemini' ? await callGeminiJSON(cachedSystem ?? '', user, 12000) : await callClaude([{ role: 'user', content: user }], cachedSystem)
     const parsed = extractJson(out)
     if (!Array.isArray(parsed)) { logError('[variant:puzzles] התגובה אינה מערך'); return }
     let applied = 0
@@ -365,7 +367,7 @@ ${genderLine}
 
 ${JSON.stringify(offending, null, 0)}`
   try {
-    const out = await callHaiku([{ role: 'user', content: instruction }], 8000)
+    const out = engineFor('phrasing') === 'gemini' ? await callGeminiText(instruction, 8000) : await callHaiku([{ role: 'user', content: instruction }], 8000)
     const rew = extractJson(out)
     if (rew && typeof rew === 'object') applyVariantText(gd, rew as Record<string, string>)
     debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
@@ -418,7 +420,7 @@ export async function buildStudentVariant(
 החזר JSON תקין עם **כל ${Object.keys(batch).length} ה-keys בדיוק** (אל תשמיט אף אחד). ללא טקסט נוסף.
 
 ${JSON.stringify(batch, null, 0)}`
-      const out = await callHaiku([{ role: 'user', content: instruction }], 12000)
+      const out = engineFor('variantText') === 'gemini' ? await callGeminiText(instruction, 12000) : await callHaiku([{ role: 'user', content: instruction }], 12000)
       const rew = extractJson(out)
       return rew && typeof rew === 'object' ? (rew as Record<string, string>) : {}
     }
