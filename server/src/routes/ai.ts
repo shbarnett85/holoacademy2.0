@@ -6,6 +6,7 @@ import { requireStaff } from '../middleware/staffAuth.js'
 import { callHaiku } from '../lib/claudeCalls.js'
 import { extractJson } from '../lib/questSchemas.js'
 import { useGeminiForFacts, callGeminiText } from '../lib/gemini.js'
+import { engineFor } from '../lib/modelRouter.js'
 import { warn } from '../lib/log.js'
 
 export const aiRouter = Router()
@@ -122,7 +123,7 @@ aiRouter.post('/extract-objectives', requireStaff, async (req, res, next) => {
 תוכן הלימוד:
 ${curriculum.trim() || '(לא סופק — הסק מהנושא)'}`
 
-    const text = await callHaiku([{ role: 'user', content: instruction }], 800)
+    const text = engineFor('objectives') === 'gemini' ? await callGeminiText(instruction, 4000) : await callHaiku([{ role: 'user', content: instruction }], 800)
     const json = extractJson(text) as { objectives?: unknown }
     const objectives = (Array.isArray(json.objectives) ? json.objectives : [])
       .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)

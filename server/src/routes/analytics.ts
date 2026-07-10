@@ -5,6 +5,8 @@ import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
+import { callGeminiText } from '../lib/gemini.js'
+import { engineFor } from '../lib/modelRouter.js'
 import { computeWeakConcepts } from '../lib/weakConcepts.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
@@ -986,6 +988,13 @@ ${JSON.stringify(data, null, 2)}
 }
 
 async function callSonnetSummary(prompt: string): Promise<string> {
+  /* הסיכום הפדגוגי — Gemini תחת CONTENT_GEMINI (אנליטיקס פנימי למורה; מודל אחד לכל
+     התוכן), אחרת Sonnet (הנתיב המקורי נשמר לנסיגה דרך CONTENT_CLAUDE_ROLES=summary). */
+  if (engineFor('summary') === 'gemini') {
+    const text = (await callGeminiText(prompt, 6000)).trim()
+    if (!text) throw new AppError(502, 'תשובה ריקה מ-Gemini')
+    return text
+  }
   const response = await claude.messages.create({
     model: 'claude-sonnet-4-5',
     max_tokens: 1200,
