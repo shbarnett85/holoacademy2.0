@@ -811,6 +811,15 @@ questsRouter.post('/:id/refine', requireStaff, async (req, res, next) => {
    generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
 interface GenMeta { warnings?: string[]; hub?: HubInfo | null }
 
+/* ניתוב היצירה הראשית: Gemini (CONTENT_GEMINI) או Sonnet (callClaude, ברירת מחדל).
+   ל-Gemini מקפלים שיחת-retry רב-הודעתית להודעת-user אחת (systemInstruction נפרד),
+   תקציב פלט גדול (JSON ארוך + thinking של 2.5). הפלט עובר את **אותה ולידציית schema**. */
+async function genModelCall(messages: { role: 'user' | 'assistant'; content: string }[], system?: string): Promise<string> {
+  if (engineFor('generation') !== 'gemini') return callClaude(messages, system)
+  const folded = messages.map((m) => (m.role === 'assistant' ? `\n[הפלט הקודם שהחזרת]:\n${m.content}` : m.content)).join('\n\n')
+  return callGeminiJSON(system ?? '', folded, 40000)
+}
+
 /* ── מקבול יצירה לינארית: שלד סדרתי קצר → מילוי סצנות במקביל → שיא+סיומים אחרון ──
    רק להדמיות לינאריות (ללא מפתחות/Hub). מחזיר GameData מורכב ומאומת; כל כשל זורק
    ונופל לנתיב הסדרתי. הרווח: זמן הסצנה האיטית במקום סכום כל הסצנות. */
@@ -819,7 +828,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
 
   /* 1. שלד — קריאה קצרה סדרתית */
   const tSk = Date.now()
-  const skel = extractJson(await callClaude([{ role: 'user', content: buildSkeletonPrompt(params) }])) as QuestSkeleton
+  const skel = extractJson(await genModelCall([{ role: 'user', content: buildSkeletonPrompt(params) }])) as QuestSkeleton
   if (!skel || !Array.isArray(skel.scenes) || skel.scenes.length < 2) throw new Error('שלד לא תקין')
   const ids = skel.scenes.map((s) => s.id)
   if (new Set(ids).size !== ids.length || ids.some((id) => !id)) throw new Error('שלד: מזהי סצנות כפולים/חסרים')
@@ -831,7 +840,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
   const tFill = Date.now()
   const filled = await Promise.all(
     skel.scenes.slice(0, lastIdx).map(async (s, i) => {
-      const scene = extractJson(await callClaude([{ role: 'user', content: buildScenePrompt(params, skel, i) }])) as Record<string, unknown>
+      const scene = extractJson(await genModelCall([{ role: 'user', content: buildScenePrompt(params, skel, i) }])) as Record<string, unknown>
       if (!scene || typeof scene !== 'object' || !scene.title) throw new Error(`סצנה ${s.id} לא נכתבה`)
       scene.id = s.id
       scene.nextSceneId = skel.scenes[i + 1].id /* נעילת השרשור לשלד */
@@ -844,7 +853,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
   /* 3. שיא + סיומים — אחרון, עם הנרטיבים שנכתבו (למבחן סיכום אינטגרטיבי) */
   const tCl = Date.now()
   const summaries = filled.map((s) => ({ id: String(s.id), title: String(s.title ?? ''), narrative: String(s.narrative ?? '') }))
-  const cx = extractJson(await callClaude([{ role: 'user', content: buildClimaxPrompt(params, skel, summaries) }])) as Record<string, any>
+  const cx = extractJson(await genModelCall([{ role: 'user', content: buildClimaxPrompt(params, skel, summaries) }])) as Record<string, any>
   if (!cx?.climax?.id && !cx?.climax?.title) throw new Error('שיא לא נכתב')
   cx.climax.id = skel.scenes[lastIdx].id
   cx.climax.nextSceneId = null
@@ -906,8 +915,8 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     if (!producedParallel) {
     /* ── נתיב סדרתי (Hub / fallback): קריאה אחת + ולידציה + retry ── */
     const tMain = Date.now()
-    const firstText = await callClaude([{ role: 'user', content: prompt }], genSystem)
-    info(`[gen] קריאה ראשית (sonnet): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
+    const firstText = await genModelCall([{ role: 'user', content: prompt }], genSystem)
+    info(`[gen] קריאה ראשית (${engineFor('generation')}): ${secs(tMain)} שניות · פלט ${firstText.length} תווים`)
 
     let raw: unknown
     try {
@@ -918,7 +927,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       retryCount++
       warn('[gen] הפלט הראשון אינו JSON תקין — retry אחד')
       const tRetry = Date.now()
-      const retryText = await callClaude([
+      const retryText = await genModelCall([
         { role: 'user', content: prompt },
         { role: 'assistant', content: firstText.slice(-4000) },
         { role: 'user', content: 'הפלט שהחזרת אינו JSON תקין (שבור או קטוע). החזר עכשיו את ה-JSON המלא והתקין של ההדמיה, מההתחלה ועד הסוף, ללא שום טקסט נוסף.' },
@@ -997,7 +1006,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       retryCount++
       const tRetry = Date.now()
       info(`[gen] ולידציה נכשלה בניסיון 1 (${first.fatal ?? first.structureErrors?.join('; ') ?? 'מבנה'}) → retry`)
-      const retryText = await callClaude([
+      const retryText = await genModelCall([
         { role: 'user', content: prompt },
         { role: 'assistant', content: firstText },
         { role: 'user', content: first.retryMessage! },
