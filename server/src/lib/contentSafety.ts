@@ -1,5 +1,7 @@
 import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
+import { callGeminiJSON } from './gemini.js'
+import { engineFor } from './modelRouter.js'
 import type { GameData } from './questSchemas.js'
 import { hasContentSafetyLog } from './activeColumn.js'
 import { error as logError } from './log.js'
@@ -13,7 +15,9 @@ type SafetyCategory =
   | 'sexual_content' | 'csam' | 'graphic_violence' | 'hateful_extremism'
   | 'terrorism_radicalization' | 'fraud_instructions' | 'manipulative_persona'
 
-interface SafetyVerdict { blocked: boolean; category?: SafetyCategory }
+/* technical=true → הבדיקה עצמה נכשלה טכנית (API/timeout/פלט לא-תקין) ו**חסמנו fail-closed**
+   (לא verdict אמיתי). הצרכן חייב להראות הודעה שונה למורה (זמנית, נסה שוב) ולא הודעת-בטיחות. */
+interface SafetyVerdict { blocked: boolean; category?: SafetyCategory; technical?: boolean }
 
 /* העיקרון המנחה: ההבחנה היא בין *דיון* בנושא קשה (לגיטימי — שואה, מלחמה, גזענות
    היסטורית, נזקי סמים כבעיה חברתית, דילמות מוסריות) לבין *ייצור בפועל* של תוכן
@@ -56,12 +60,14 @@ export async function runInputSafetyCheck(title: string, curriculum: string): Pr
 החזר JSON תקין בלבד: { "blocked": boolean, "category"?: "אחת מ: weapons|drugs|suicide_method|self_harm_nonlethal|sexual_content|csam|graphic_violence|hateful_extremism|terrorism_radicalization|fraud_instructions|manipulative_persona" }`
   const user = `נושא ההדמיה: ${title}\n\nתוכן הלימוד שהמורה תיאר:\n${curriculum || '(לא סופק)'}`
   try {
-    const text = await callHaiku([{ role: 'user', content: user }], 200, system)
+    const text = engineFor('safety') === 'gemini' ? await callGeminiJSON(system, user, 2000) : await callHaiku([{ role: 'user', content: user }], 200, system)
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string }
     return { blocked: !!json.blocked, category: json.category as SafetyCategory | undefined }
   } catch (err) {
-    logError('[safety:input] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
-    return { blocked: false } /* כשל טכני בבדיקה עצמה לא חוסם יצירה לגיטימית */
+    /* **fail-CLOSED**: כשל בבדיקה עצמה (API/timeout/פלט לא-תקין) → חוסם, לא מעביר תוכן
+       לא-מאומת. technical=true כדי שהמורה יראה "נסה שוב" ולא הודעת-בטיחות. */
+    logError('[safety:input] נכשל טכנית — fail-closed (חוסם זמנית):', err instanceof Error ? err.message : err)
+    return { blocked: true, technical: true }
   }
 }
 
@@ -100,7 +106,7 @@ export async function runOutputSafetyCheck(gameData: GameData): Promise<SafetyVe
 
 חשוב מאוד: השורה הראשונה בתשובתך היא ה-JSON, ותו לא — ללא הסבר/הנמקה לפני או אחרי.`
   try {
-    const text = await callHaiku([{ role: 'user', content }], 400, system)
+    const text = engineFor('safety') === 'gemini' ? await callGeminiJSON(system, content, 2000) : await callHaiku([{ role: 'user', content }], 400, system)
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string; excerpt?: string }
     return {
       blocked: !!json.blocked,
@@ -108,8 +114,9 @@ export async function runOutputSafetyCheck(gameData: GameData): Promise<SafetyVe
       excerpt: json.excerpt?.slice(0, 200),
     }
   } catch (err) {
-    logError('[safety:output] נכשל טכנית — לא חוסמים על כשל טכני:', err instanceof Error ? err.message : err)
-    return { blocked: false }
+    /* **fail-CLOSED** — ראו runInputSafetyCheck */
+    logError('[safety:output] נכשל טכנית — fail-closed (חוסם זמנית):', err instanceof Error ? err.message : err)
+    return { blocked: true, technical: true }
   }
 }
 
@@ -140,3 +147,5 @@ export async function logContentSafety(entry: {
 
 /* הודעה כללית למורה — לא טכנית, לא חושפת את מנגנון הבדיקה או הקטגוריה שזוהתה */
 export const SAFETY_BLOCK_MESSAGE = 'לא ניתן היה ליצור הדמיה עבור הבקשה הזו. נסו לנסח את נושא ההדמיה או תוכן הלימוד באופן אחר.'
+/* הודעת כשל טכני (fail-closed) — שונה מהודעת החסימה, כדי שהמורה יבין שזו תקלה זמנית ולא חסימת-תוכן. */
+export const SAFETY_TECH_MESSAGE = 'אירעה תקלה זמנית בבדיקת התוכן. נסו שוב בעוד רגע.'

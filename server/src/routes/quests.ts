@@ -24,7 +24,7 @@ import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
 import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, shuffleAnswerPositions, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
-import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE } from '../lib/contentSafety.js'
+import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE, SAFETY_TECH_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
 import { computeWeakConcepts, reviewContextBlock } from '../lib/weakConcepts.js'
@@ -1043,6 +1043,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
        למטה — לא ברקע כמו fact-check; תוכן חסום אסור שהמורה יראה אפילו לרגע) */
     const outputSafety = await runOutputSafetyCheck(gameData)
     if (outputSafety.blocked) {
+      if (outputSafety.technical) throw new AppError(503, SAFETY_TECH_MESSAGE) /* fail-closed טכני — לא חסימת-תוכן */
       void logContentSafety({
         teacherId, questId, stage: 'output',
         category: outputSafety.category, title: params.title, excerpt: outputSafety.excerpt,
@@ -1129,6 +1130,7 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     /* שכבת בטיחות — בדיקת קלט (חוסמת, לפני יצירת ה-stub וקריאת Sonnet) */
     const inputSafety = await runInputSafetyCheck(params.title, params.curriculum)
     if (inputSafety.blocked) {
+      if (inputSafety.technical) throw new AppError(503, SAFETY_TECH_MESSAGE) /* fail-closed טכני — לא חסימת-תוכן */
       void logContentSafety({ teacherId: req.staff!.userId, stage: 'input', category: inputSafety.category, title: params.title })
       throw new AppError(422, SAFETY_BLOCK_MESSAGE)
     }
