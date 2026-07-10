@@ -99,7 +99,7 @@ export async function rephraseForAddress(base: GameData, form: FormOfAddress): P
 
 ${JSON.stringify(texts, null, 0)}`
   try {
-    const out = engineFor('rephrase') === 'gemini' ? await callGeminiText(instruction, 8000) : await callHaiku([{ role: 'user', content: instruction }], 8000)
+    const out = engineFor('rephrase') === 'gemini' ? await callGeminiText(instruction, 8000, true) : await callHaiku([{ role: 'user', content: instruction }], 8000)
     const rew = extractJson(out) as Record<string, string>
     if (rew && typeof rew === 'object') applyAddressText(variant, rew)
   } catch (err) {
@@ -367,7 +367,7 @@ ${genderLine}
 
 ${JSON.stringify(offending, null, 0)}`
   try {
-    const out = engineFor('phrasing') === 'gemini' ? await callGeminiText(instruction, 8000) : await callHaiku([{ role: 'user', content: instruction }], 8000)
+    const out = engineFor('phrasing') === 'gemini' ? await callGeminiText(instruction, 8000, true) : await callHaiku([{ role: 'user', content: instruction }], 8000)
     const rew = extractJson(out)
     if (rew && typeof rew === 'object') applyVariantText(gd, rew as Record<string, string>)
     debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, 'fixed', keys.length, '/', Object.keys(all).length)
@@ -420,7 +420,7 @@ export async function buildStudentVariant(
 החזר JSON תקין עם **כל ${Object.keys(batch).length} ה-keys בדיוק** (אל תשמיט אף אחד). ללא טקסט נוסף.
 
 ${JSON.stringify(batch, null, 0)}`
-      const out = engineFor('variantText') === 'gemini' ? await callGeminiText(instruction, 12000) : await callHaiku([{ role: 'user', content: instruction }], 12000)
+      const out = engineFor('variantText') === 'gemini' ? await callGeminiText(instruction, 12000, true) : await callHaiku([{ role: 'user', content: instruction }], 12000)
       const rew = extractJson(out)
       return rew && typeof rew === 'object' ? (rew as Record<string, string>) : {}
     }

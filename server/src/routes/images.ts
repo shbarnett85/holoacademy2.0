@@ -46,7 +46,7 @@ async function enhanceHistoricalPrompt(imagePrompt: string): Promise<string> {
     const uc = `${REWRITE_INSTRUCTION}\n\nPrompt: ${imagePrompt}`
     let rewritten = ''
     if (engineFor('imageprompt') === 'gemini') {
-      rewritten = (await callGeminiText(uc, 600)).trim()
+      rewritten = (await callGeminiText(uc, 3000)).trim() /* thinking נצרך מהתקציב */
     } else {
       const response = await claude.messages.create({
         model: 'claude-haiku-4-5',

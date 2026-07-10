@@ -123,7 +123,7 @@ aiRouter.post('/extract-objectives', requireStaff, async (req, res, next) => {
 תוכן הלימוד:
 ${curriculum.trim() || '(לא סופק — הסק מהנושא)'}`
 
-    const text = engineFor('objectives') === 'gemini' ? await callGeminiText(instruction, 4000) : await callHaiku([{ role: 'user', content: instruction }], 800)
+    const text = engineFor('objectives') === 'gemini' ? await callGeminiText(instruction, 4000, true) : await callHaiku([{ role: 'user', content: instruction }], 800)
     const json = extractJson(text) as { objectives?: unknown }
     const objectives = (Array.isArray(json.objectives) ? json.objectives : [])
       .filter((o): o is string => typeof o === 'string' && o.trim().length > 0)

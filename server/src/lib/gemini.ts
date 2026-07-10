@@ -13,13 +13,14 @@ export function hasGeminiKey(): boolean {
 
 /* ליבת הקריאה ל-Gemini: model + system אופציונלי + user → טקסט. retry על 429/5xx
    (עד 3, backoff לינארי), 4xx → כשל מיידי. זורק בכשל (הקורא אחראי לנסיגה/כשל-סגור). */
-async function geminiCall(model: string, system: string | undefined, user: string, maxTokens: number): Promise<string> {
+async function geminiCall(model: string, system: string | undefined, user: string, maxTokens: number, json = false): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY חסר ב-env')
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
   const body: Record<string, unknown> = {
     contents: [{ role: 'user', parts: [{ text: user }] }],
-    generationConfig: { maxOutputTokens: maxTokens },
+    /* json=true → responseMimeType כופה JSON נקי (בלי פתיחים/פטפוט שמבזבזים תקציב) */
+    generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
   }
   if (system) body.systemInstruction = { parts: [{ text: system }] }
   let lastErr = 'Gemini failed'
@@ -38,7 +39,7 @@ async function geminiCall(model: string, system: string | undefined, user: strin
 
 /* קריאת JSON (system+user) — ליצירה/ולידציה/בטיחות. תקציב פלט גדול (thinking של 2.5). */
 export async function callGeminiJSON(system: string, user: string, maxTokens = 32000): Promise<string> {
-  return geminiCall(CONTENT_MODEL, system, user, maxTokens)
+  return geminiCall(CONTENT_MODEL, system, user, maxTokens, true)
 }
 
 /* השער המשותף: Gemini-לעובדות מופעל רק כאשר GROUNDING=1 **וגם** יש מפתח (כמו PARALLEL_GEN).
@@ -55,6 +56,6 @@ export function useGeminiForFacts(): boolean {
    חזרה ל-Claude הלא-מעוגן. עד 3 ניסיונות עם backoff לינארי; 4xx אחר → כשל מיידי. */
 /* maxTokens נדיב כברירת מחדל: ל-Gemini 2.5 (במיוחד Pro) יש "thinking" שצורך מתוך
    maxOutputTokens לפני הפלט — תקציב קטן מדי חותך את התשובה לאמצע. */
-export async function callGeminiText(prompt: string, maxTokens = 8000): Promise<string> {
-  return geminiCall(FACTS_MODEL, undefined, prompt, maxTokens)
+export async function callGeminiText(prompt: string, maxTokens = 8000, json = false): Promise<string> {
+  return geminiCall(FACTS_MODEL, undefined, prompt, maxTokens, json)
 }

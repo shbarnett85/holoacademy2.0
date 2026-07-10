@@ -60,7 +60,8 @@ export async function runFactCheck(gameData: GameData, sceneIds?: string[]): Pro
 אם אין שגיאות עובדתיות החזר { "hasErrors": false, "errors": [] }.`
   try {
     const uc = `${instruction}\n\nהתוכן לבדיקה:\n${content}`
-    const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(uc, 2000) : await callHaiku([{ role: 'user', content: uc }], 2000)
+    /* תקציב Gemini גדול מ-maxTokens של haiku: ה-thinking של 2.5 נצרך מתוך maxOutputTokens */
+    const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(uc, 16000, true) : await callHaiku([{ role: 'user', content: uc }], 2000)
     const json = extractJson(text) as { hasErrors?: boolean; errors?: FactError[] }
     const errors = Array.isArray(json.errors) ? json.errors.filter((e) => e && e.problem) : []
     return { ok: true, errors: json.hasErrors ? errors : [] }
@@ -96,7 +97,7 @@ export async function scopedFactFix(gameData: GameData, errors: FactError[]): Pr
 
 ${blocks}`
 
-  const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(instruction, 4000) : await callHaiku([{ role: 'user', content: instruction }], 4000)
+  const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(instruction, 16000, true) : await callHaiku([{ role: 'user', content: instruction }], 4000)
   const fixes = extractJson(text) as Record<string, Record<string, unknown>>
   const corrected: string[] = []
   const reverted: string[] = []

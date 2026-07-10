@@ -64,7 +64,7 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
   }).join('\n\n')
   const instruction = `לכל אחת מהחידות הבאות חסר השדה "question". כתוב שאלה בעברית טבעית ותקנית שמתאימה לתשובות ולנרטיב — כך שהתשובה הנכונה המסומנת אכן תהיה התשובה הנכונה לשאלתך. אל תשנה את התשובות. החזר JSON תקין בלבד במבנה { "questions": ["שאלה לחידה 0", "שאלה לחידה 1", ...] } באורך **${jobs.length} בדיוק** (באותו סדר).\n\n${blocks}`
   try {
-    const text = engineFor('recover') === 'gemini' ? await callGeminiText(instruction, 1500) : await callHaiku([{ role: 'user', content: instruction }], 1500)
+    const text = engineFor('recover') === 'gemini' ? await callGeminiText(instruction, 5000, true) : await callHaiku([{ role: 'user', content: instruction }], 1500)
     const parsed = extractJson(text) as { questions?: unknown }
     const qs = Array.isArray(parsed.questions) ? parsed.questions : []
     jobs.forEach((j, n) => {
