@@ -39,10 +39,15 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
 
 /* בדיקת עובדות על haiku (משימת זיהוי פשוטה — מהיר פי כמה מ-sonnet). מחזיר ok=false אם נכשלה טכנית.
    sceneIds? — לבדוק רק סצנות מסוימות (לבדיקה החוזרת אחרי תיקון). */
-export async function runFactCheck(gameData: GameData, sceneIds?: string[]): Promise<{ ok: boolean; errors: FactError[] }> {
+export async function runFactCheck(gameData: GameData, sceneIds?: string[], factBrief?: string): Promise<{ ok: boolean; errors: FactError[] }> {
   const content = factCheckContent(gameData, sceneIds)
   if (!content.trim()) return { ok: true, errors: [] }
-  const instruction = `אתה בודק עובדות **ותקניות-לשון** בכלי חינוכי לילדי בית ספר יסודי. עבור על התוכן הבא וזהה שמונה סוגי בעיות (בעברית עכשווית, לא סגנון ספרותי):
+  /* קטגוריה 9 — אימות מול המקור המאוחזר (grounding brief), לא מול זיכרון המודל:
+     טענה ביוגרפית/עובדתית על הדמות האמיתית שאינה נתמכת במקור → דגל להסרה/הכללה. */
+  const briefBlock = factBrief
+    ? `\n9. **טענה ביוגרפית שאינה נתמכת במקור (קישוט-הזיה)** — מצורף למטה "מקור עובדתי מאומת" על הדמות/הנושא. השווה **כל טענה עובדתית על הדמות האמיתית** (עיר, שפות, השכלה, תאריכים, שמות, קשרים, ציטוטים מפיה, כישורים) אל המקור: טענה שאינה מופיעה בו — דגל אותה, גם אם היא נשמעת סבירה או שאתה "יודע" אותה ממקום אחר (בדוק מול המקור בלבד, לא מול הידע שלך). ב-correction הצע ניסוח כללי יותר או הסרה. **אל תדגל** את העטיפה הדמיונית (ד"ר הולו, פורטלים, הסצנה המומצאת) — רק טענות על הדמות/האירוע האמיתיים.\n\n[המקור העובדתי המאומת]:\n${factBrief}\n`
+    : ''
+  const instruction = `אתה בודק עובדות **ותקניות-לשון** בכלי חינוכי לילדי בית ספר יסודי. עבור על התוכן הבא וזהה ${factBrief ? 'תשעה' : 'שמונה'} סוגי בעיות (בעברית עכשווית, לא סגנון ספרותי):
 
 1. **שגיאות עובדתיות/היסטוריות/אנכרוניזמים** — דמות בתקופה הלא נכונה, מבנה שטרם נבנה או כבר נהרס, טכנולוגיה שטרם הומצאה, נתון/תאריך/קשר שגוי.
 2. **ביטויים מדעיים/לוגיים חסרי-משמעות או מטעים** — ניסוח שנשמע "מדעי" אך אין לו פשר אמיתי או שמטעה תפיסתית (למשל "גביש של אוויר", "אנרגיה שלילית של חום"), **גם אם הרעיון הכללי מאחוריו נכון**. דגל את הביטוי והצע ניסוח מדעי תקין.
@@ -52,7 +57,7 @@ export async function runFactCheck(gameData: GameData, sceneIds?: string[]): Pro
 6. **משפטים שבורים או חסרי נושא** — משפט שנראה כתוצר של דחיסה/עריכה חלקית: חסר נושא ברור, פועל תלוי-באוויר, או צירוף מילים שלא מרכיב משפט תקין דקדוקית. אם אי-אפשר לזהות "מי עושה מה" בקריאה ראשונה — דגל.
 7. **בחירת-מילה שגויה סמנטית וצירוף מתורגם-מילולית** — (א) פועל/שם-עצם שלא מתאים סמנטית להקשר גם אם דקדוקית תקין (למשל "דגם לו לאיזה כיוון ללכת" — "דגם"=יצר-דגם, הכוונה "הצביע/רמז"). (ב) צירוף מתורגם-מילולית מאנגלית שאינו עברית טבעית (למשל "סביב אתכם"=around you, התקני "סְבִיבְכֶם"). (ג) עברית "מתורגמת"/גבוהה-מדי שמרגישה מאולצת בפי ילד — העדף "ה-X של Y" על סמיכות ספרותית ומשפטים קצרים (עד כ-15 מילה) על פסוקיות מרובות. **התעלם מהניקוד** — הוא תקין; בדוק בחירת-מילה ותחביר בלבד.
 8. **תשובה שגויה בחידת נכון/לא-נכון (חמור)** — כשמופיעה שורת "התשובה המסומנת כנכונה", הערך בעצמך אם ההיגד שבשאלה הוא **אמת או שקר במציאות**, והשווה לתשובה המסומנת. אם היגד **נכון עובדתית** מסומן "לא נכון", או היגד **שקרי** מסומן "נכון" — זו שגיאה חמורה (התלמיד נכשל על תשובה נכונה, או לומד עובדה שגויה). דגל רק כשאתה **בטוח לחלוטין** בערך-האמת של ההיגד (עובדה מוכרת וחד-משמעית), לא בהיגד מעורפל/שנוי-במחלוקת. ב-correction ציין את ערך-האמת הנכון של ההיגד.
-
+${briefBlock}
 אל תדגל סגנון, ניסוח ספרותי תקין, העדפה אישית או מילים נדירות-אך-תקינות — רק שגיאות מהסוגים למעלה, חד-משמעיות ובטוחות.
 **סף ביטחון גבוה (קריטי)**: אם יש לך ספק כלשהו אם משהו הוא באמת שגיאה — **אל תדגל**. עדיף להחמיץ טעות מלדגל טעות-שווא, כי כל דיגול גורר שכתוב אוטומטי שעלול לשבש טקסט תקין. דגל רק כשאתה בטוח לחלוטין שזו שגיאה אמיתית.
 החזר JSON תקין בלבד, ללא טקסט נוסף, במבנה:
@@ -148,7 +153,7 @@ export type { FactCheckMeta } from './questSchemas.js'
 
 /* בדיקת העובדות המלאה (זיהוי → תיקון ממוקד → בדיקה חוזרת) — רצה ברקע ומעדכנת את ה-DB.
    best-effort: כל כשל נבלע, ה-status תמיד מסומן 'done' בסוף כדי שהקליינט יפסיק לחכות. */
-export async function factCheckInBackground(questId: string, gameData: GameData, baseWarnings: string[], level: number, form: FormOfAddress): Promise<void> {
+export async function factCheckInBackground(questId: string, gameData: GameData, baseWarnings: string[], level: number, form: FormOfAddress, factBrief?: string): Promise<void> {
   const t = Date.now()
   const meta = gameData as unknown as { factCheck?: FactCheckMeta }
   let warnings = [...baseWarnings]
@@ -173,7 +178,7 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
     }
   }
   try {
-    const fc = await runFactCheck(gameData)
+    const fc = await runFactCheck(gameData, undefined, factBrief)
     detected = fc.errors.length
     if (fc.ok && fc.errors.length > 0) {
       try {
@@ -181,7 +186,7 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
         correctedSceneIds = fix.corrected
         /* בדיקה חוזרת רק על הסצנות שתוקנו */
         if (fix.corrected.length > 0) {
-          const recheck = await runFactCheck(gameData, fix.corrected)
+          const recheck = await runFactCheck(gameData, fix.corrected, factBrief)
           if (recheck.ok && recheck.errors.length > 0) warnings = [...warnings, ...recheck.errors.map(factWarning)]
         }
         /* שגיאות בסצנות שלא תוקנו אוטומטית (חידות, או תיקון ששוחזר) → אזהרה למורה לבדיקה ידנית */

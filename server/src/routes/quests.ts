@@ -1110,7 +1110,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     info(`[gen] ━━ ההדמיה מוכנה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
 
     /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע (best-effort, לא חוסם) */
-    void factCheckInBackground(questId, gameData, warnings, level, params.formOfAddress ?? 'plural')
+    void factCheckInBackground(questId, gameData, warnings, level, params.formOfAddress ?? 'plural', gparams.factBrief)
   } catch (err) {
     const msg = err instanceof AppError ? err.message : err instanceof Error ? err.message : 'יצירת ההדמיה נכשלה'
     logError('[gen] יצירה ברקע נכשלה:', msg)

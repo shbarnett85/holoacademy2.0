@@ -52,6 +52,9 @@ export interface QuestGenerationParams {
   reviewOf?: { questId: string; assignmentId?: string; baseTitle?: string }
   /* מאגר תמונות למחזור מההדמיה המקורית — הדמיית חזרה לא מייצרת תמונות חדשות */
   imagePool?: { scenes: string[]; endingGood?: string; endingBad?: string }
+  /* תדריך העובדות של ה-grounding (lib/factBrief) — מצונרר ל-fact-check לאימות
+     טענות ביוגרפיות מול המקור המאוחזר (לא מול זיכרון המודל). לא חלק מהפרומפט עצמו. */
+  factBrief?: string
 }
 
 /* כלל הניסוח הדקדוקי — מוזרק לפרומפט וגם משמש את שכתוב הווריאציה האישית (haiku). */
