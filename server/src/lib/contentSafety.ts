@@ -1,6 +1,6 @@
 import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
-import { callGeminiJSON } from './gemini.js'
+import { callGeminiSafety } from './gemini.js'
 import { engineFor } from './modelRouter.js'
 import type { GameData } from './questSchemas.js'
 import { hasContentSafetyLog } from './activeColumn.js'
@@ -60,7 +60,7 @@ export async function runInputSafetyCheck(title: string, curriculum: string): Pr
 החזר JSON תקין בלבד: { "blocked": boolean, "category"?: "אחת מ: weapons|drugs|suicide_method|self_harm_nonlethal|sexual_content|csam|graphic_violence|hateful_extremism|terrorism_radicalization|fraud_instructions|manipulative_persona" }`
   const user = `נושא ההדמיה: ${title}\n\nתוכן הלימוד שהמורה תיאר:\n${curriculum || '(לא סופק)'}`
   try {
-    const text = engineFor('safety') === 'gemini' ? await callGeminiJSON(system, user, 6000) : await callHaiku([{ role: 'user', content: user }], 200, system)
+    const text = engineFor('safety') === 'gemini' ? await callGeminiSafety(system, user) : await callHaiku([{ role: 'user', content: user }], 200, system)
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string }
     return { blocked: !!json.blocked, category: json.category as SafetyCategory | undefined }
   } catch (err) {
@@ -106,7 +106,7 @@ export async function runOutputSafetyCheck(gameData: GameData): Promise<SafetyVe
 
 חשוב מאוד: השורה הראשונה בתשובתך היא ה-JSON, ותו לא — ללא הסבר/הנמקה לפני או אחרי.`
   try {
-    const text = engineFor('safety') === 'gemini' ? await callGeminiJSON(system, content, 6000) : await callHaiku([{ role: 'user', content }], 400, system)
+    const text = engineFor('safety') === 'gemini' ? await callGeminiSafety(system, content) : await callHaiku([{ role: 'user', content }], 400, system)
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string; excerpt?: string }
     return {
       blocked: !!json.blocked,

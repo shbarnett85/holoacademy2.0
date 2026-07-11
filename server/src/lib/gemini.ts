@@ -37,9 +37,40 @@ async function geminiCall(model: string, system: string | undefined, user: strin
   throw new Error(lastErr)
 }
 
-/* קריאת JSON (system+user) — ליצירה/ולידציה/בטיחות. תקציב פלט גדול (thinking של 2.5). */
+/* קריאת JSON (system+user) — ליצירה/ולידציה. תקציב פלט גדול (thinking של 2.5). */
 export async function callGeminiJSON(system: string, user: string, maxTokens = 32000): Promise<string> {
   return geminiCall(CONTENT_MODEL, system, user, maxTokens, true)
+}
+
+/* קריאת בטיחות ייעודית: **thinking כבוי** (thinkingBudget=0 — סיווג לא צריך חשיבה, וה-thinking
+   של flash זלל את תקציב-הפלט → תגובה ריקה → "לא נמצא JSON" ~50% מהזמן). json-mode + retry
+   על תגובה ריקה/שגיאה חולפת (עד 4). flash תמיד (thinkingBudget=0 לא נתמך ב-pro). זורק בכשל
+   → הקורא חוסם fail-closed. */
+const SAFETY_MODEL = process.env.GEMINI_SAFETY_MODEL || 'gemini-2.5-flash'
+export async function callGeminiSafety(system: string, user: string): Promise<string> {
+  const key = process.env.GEMINI_API_KEY
+  if (!key) throw new Error('GEMINI_API_KEY חסר ב-env')
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${SAFETY_MODEL}:generateContent?key=${key}`
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: 'user', parts: [{ text: user }] }],
+    generationConfig: { maxOutputTokens: 1500, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
+  }
+  let lastErr = 'תגובה ריקה'
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 700 * attempt))
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    if (!res.ok) {
+      lastErr = `Gemini ${res.status}: ${(await res.text().catch(() => '')).slice(0, 100)}`
+      if (res.status !== 429 && res.status < 500) break /* 4xx — לא לחזור */
+      continue
+    }
+    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[] }
+    const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim()
+    if (text) return text
+    lastErr = `תגובה ריקה (finish=${data.candidates?.[0]?.finishReason ?? '?'})` /* retry */
+  }
+  throw new Error(lastErr)
 }
 
 /* השער המשותף: Gemini-לעובדות מופעל רק כאשר GROUNDING=1 **וגם** יש מפתח (כמו PARALLEL_GEN).
