@@ -63,17 +63,25 @@ ${briefBlock}
 החזר JSON תקין בלבד, ללא טקסט נוסף, במבנה:
 { "hasErrors": boolean, "errors": [{ "sceneId": "מזהה הסצנה", "problem": "תיאור השגיאה בעברית", "correction": "התיקון הנכון בעברית" }] }
 אם אין שגיאות עובדתיות החזר { "hasErrors": false, "errors": [] }.`
-  try {
-    const uc = `${instruction}\n\nהתוכן לבדיקה:\n${content}`
-    /* תקציב Gemini גדול מ-maxTokens של haiku: ה-thinking של 2.5 נצרך מתוך maxOutputTokens */
-    const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(uc, 16000, true) : await callHaiku([{ role: 'user', content: uc }], 2000)
-    const json = extractJson(text) as { hasErrors?: boolean; errors?: FactError[] }
-    const errors = Array.isArray(json.errors) ? json.errors.filter((e) => e && e.problem) : []
-    return { ok: true, errors: json.hasErrors ? errors : [] }
-  } catch (err) {
-    logError('[fact-check] נכשל טכנית:', err instanceof Error ? err.message : err)
-    return { ok: false, errors: [] }
+  const uc = `${instruction}\n\nהתוכן לבדיקה:\n${content}`
+  const gemini = engineFor('factcheck') === 'gemini'
+  /* retry על JSON שבור/קטוע — Gemini 2.5 חתך לפעמים את ה-JSON (thinking נצרך מהתקציב).
+     model-agnostic: עד 2 ניסיונות, תקציב נדיב. haiku יציב → ניסיון יחיד. */
+  const attempts = gemini ? 2 : 1
+  let lastErr: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const text = gemini ? await callGeminiText(uc, 20000, true) : await callHaiku([{ role: 'user', content: uc }], 2000)
+      const json = extractJson(text) as { hasErrors?: boolean; errors?: FactError[] }
+      const errors = Array.isArray(json.errors) ? json.errors.filter((e) => e && e.problem) : []
+      return { ok: true, errors: json.hasErrors ? errors : [] }
+    } catch (err) {
+      lastErr = err
+      if (i + 1 < attempts) info(`[fact-check] JSON לא תקין (ניסיון ${i + 1}) → retry`)
+    }
   }
+  logError('[fact-check] נכשל טכנית:', lastErr instanceof Error ? lastErr.message : lastErr)
+  return { ok: false, errors: [] }
 }
 
 /* תיקון ממוקד על haiku — מתקן רק את שדות הטקסט של הסצנות שבהן זוהו שגיאות (כותרת/נרטיב/שאלה/הסברים),

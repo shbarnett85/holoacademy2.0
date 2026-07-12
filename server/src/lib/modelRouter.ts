@@ -24,10 +24,10 @@ export function engineFor(role: Role): 'gemini' | 'claude' {
   if (!hasGeminiKey()) return 'claude'
   if (role === 'safety') return on(process.env.SAFETY_GEMINI) ? 'gemini' : 'claude'
   if (!on(process.env.CONTENT_GEMINI)) return 'claude'
-  /* ברירת מחדל כשה-env לא מוגדר: fact-check נשאר Claude/Haiku — Gemini החזיר JSON שבור
-     ב-~50% מריצות הבדיקה (אימות-מול-המקור, קטגוריה 9, עובד על שני המנועים). לדרוס:
-     CONTENT_CLAUDE_ROLES=none (או כל רשימה בלי factcheck) → הכול Gemini. */
-  const keep = (process.env.CONTENT_CLAUDE_ROLES ?? 'factcheck').split(',').map((s) => s.trim()).filter(Boolean)
+  /* ברירת מחדל: כל התוכן → Gemini (קורת גג אחת). ה-fact-check יוצב עם retry-על-JSON-שבור
+     (runFactCheck), כך שאין צורך יותר להשאירו Claude. נסיגה פר-תפקיד עדיין זמינה:
+     CONTENT_CLAUDE_ROLES=factcheck,summary → אותם תפקידים חוזרים ל-Claude. */
+  const keep = (process.env.CONTENT_CLAUDE_ROLES ?? '').split(',').map((s) => s.trim()).filter(Boolean)
   return keep.includes(role) ? 'claude' : 'gemini'
 }
 
