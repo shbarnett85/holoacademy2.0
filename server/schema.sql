@@ -139,6 +139,9 @@ CREATE TABLE IF NOT EXISTS quest_reports (
 );
 CREATE INDEX IF NOT EXISTS idx_quest_reports_status ON quest_reports(status);
 CREATE INDEX IF NOT EXISTS idx_quest_reports_quest  ON quest_reports(quest_id);
+-- RLS: גישה דרך השרת בלבד (service_role עוקף). default-deny לכל anon/authenticated.
+-- ראו migrations/rls_enable_exposed.sql. אין policies — כמו שאר הטבלאות מוכוונות-שרת.
+ALTER TABLE quest_reports ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 10) מחנך כיתה (homeroom) — דגל על קשר מורה-כיתה, *לא* רול חדש
@@ -315,6 +318,9 @@ CREATE TABLE IF NOT EXISTS quest_variants (
   UNIQUE(quest_id, student_id)
 );
 CREATE INDEX IF NOT EXISTS idx_quest_variants_lookup ON quest_variants(quest_id, student_id);
+-- RLS: מכילה student_id + מגדר + פרופיל קושי (PII של קטינים). גישה דרך השרת בלבד
+-- (service_role עוקף). default-deny. ראו migrations/rls_enable_exposed.sql.
+ALTER TABLE quest_variants ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
 -- 13) לוג בטיחות תוכן — חסימות ברמת קלט ופלט ביצירת הדמיות (Haiku, נפרד מ-fact-check)
@@ -334,3 +340,6 @@ CREATE TABLE IF NOT EXISTS content_safety_log (
 );
 CREATE INDEX IF NOT EXISTS idx_content_safety_teacher ON content_safety_log(teacher_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_content_safety_stage    ON content_safety_log(stage);
+-- RLS: יומן אבטחה פנימי, גישה דרך השרת בלבד (service_role עוקף). default-deny.
+-- ראו migrations/rls_enable_exposed.sql.
+ALTER TABLE content_safety_log ENABLE ROW LEVEL SECURITY;
