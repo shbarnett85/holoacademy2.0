@@ -270,6 +270,44 @@ function labStructureInstructions(): string {
    - מבנה כל סיום: { "title": "...", "narrative": "...", "drHoloDialog": "דברי הדוקטור בעברית", "imagePrompt": "English prompt containing ${`{DR_HOLO}`}", "drHoloExpression": "English facial expression matching the ending tone" }`
 }
 
+/* ── ספר-הניסוח של ד"ר הולו (signature phrases) ──
+   ביטויי-חתימה פדגוגיים שמגבירים את ההשפעה על התלמיד: כל אחד ממלא תפקיד למידה
+   מובחן (פישוט, הדמיה, ניסוח-מחדש, רלוונטיות, הזדהות, תמצות, עיגון-זיכרון).
+   מוטים לפי צורת הפנייה — הפרומפט אוכף עקביות מוחלטת, ולכן אסור להזריק ניסוח
+   בלשון רבים להדמיה בלשון יחיד. */
+type VoicePhrase = { fn: string; male: string; female: string; plural: string }
+const DR_HOLO_PHRASES: VoicePhrase[] = [
+  { fn: 'פישוט מונח מקצועי — מיד אחרי הופעת מושג חדש או קשה',
+    male: 'תן לי להסביר את זה בעברית פשוטה', female: 'תני לי להסביר את זה בעברית פשוטה', plural: 'תנו לי להסביר את זה בעברית פשוטה' },
+  { fn: 'הדמיה — לפני תיאור תהליך/גודל/תופעה מופשטת',
+    male: 'דמיין את זה', female: 'דמייני את זה', plural: 'דמיינו את זה' },
+  { fn: 'ניסוח-מחדש במילים שלו (הלמידה החזקה ביותר) — אחרי תובנה מרכזית',
+    male: 'ספר לכיתה מה לקחת מזה', female: 'ספרי לכיתה מה לקחת מזה', plural: 'ספרו לכיתה מה לקחתם מזה' },
+  { fn: 'רלוונטיות אישית — קישור החומר לחיי התלמיד',
+    male: 'הנה למה זה חשוב לך', female: 'הנה למה זה חשוב לך', plural: 'הנה למה זה חשוב לכם' },
+  { fn: 'הזדהות ושיקול דעת — לפני דילמה/הכרעה היסטורית או ערכית',
+    male: 'מה היית עושה?', female: 'מה היית עושה?', plural: 'מה אתם הייתם עושים?' },
+  { fn: 'תמצות — כיווץ הסבר ארוך למסקנה אחת חדה',
+    male: 'השורה התחתונה היא', female: 'השורה התחתונה היא', plural: 'השורה התחתונה היא' },
+  { fn: 'עיגון זיכרון — הנקודה שחייבת להישאר, בסצנת שיא/סיום',
+    male: 'הנה מה שאני רוצה שתזכור', female: 'הנה מה שאני רוצה שתזכרי', plural: 'הנה מה שאני רוצה שתזכרו' },
+]
+
+function drHoloVoiceInstructions(form: FormOfAddress): string {
+  const pick = (p: VoicePhrase) => (form === 'male' ? p.male : form === 'female' ? p.female : p.plural)
+  const list = DR_HOLO_PHRASES.map((p) => `- **"${pick(p)}"** — ${p.fn}`).join('\n')
+  return `
+## קולו של ד"ר הולו — ביטויי חתימה (חשוב לאפקטיביות הפדגוגית!)
+לד"ר הולו יש ביטויי-חתימה קבועים שהתלמידים לומדים לזהות. כל ביטוי ממלא תפקיד למידה מובחן — **שלב אותם ב-"drHoloDialog" במקום שבו התפקיד הפדגוגי מתאים**:
+${list}
+
+כללי שימוש:
+- **טבעיות לפני כמות**: 1-2 ביטויים לכל היותר בסצנה, במקום שבו הם באמת משרתים את ההסבר. אל תדחוס את כולם, ואל תפתח כל סצנה באותו ביטוי.
+- **פזר לאורך ההדמיה** — ביטוי שונה בכל סצנה; "הנה מה שאני רוצה ש..." ו"השורה התחתונה היא" שמורים לסצנת השיא ולסצנות הסיום (שם הם החזקים ביותר).
+- הביטוי הוא **פתיח למשפט אמיתי בעל תוכן**, לא סיסמה ריקה: אחרי "דמיינו את זה" חייבת לבוא תמונה מילולית קונקרטית; אחרי "השורה התחתונה היא" — מסקנה חדה במשפט אחד.
+- שמור על הניסוח **בדיוק בצורת הפנייה** שנקבעה למעלה. אל תמציא וריאציות בצורה אחרת.`
+}
+
 /* ── מגוון מסגורי פתיחה — שובר את תבנית "קריאת חירום" ──
    המודל מעתיק את מסגור הפתיחה של הדוגמה שבפרומפט (few-shot anchoring): כל 14
    הדמיות הספרייה נפתחו במילים "מעבדת ד\"ר הולו — קריאת חירום". השרת מגריל מסגור
@@ -347,6 +385,7 @@ function narrativeStructureInstructions(questType?: string): string {
       "narrative": "בפתח המעבדה עומד גבר בגלימה יוונית, נושם בכבדות. 'ד״ר הולו שלח לקרוא לך,' הוא אומר. 'בעוד שעה תתכנס האקלסיה להצביע על גורל העיר — ויש שמועה שמישהו זייף את אסימוני ההצבעה. עליך לרדת לאתונה, להבין איך עובדת ההצבעה, ולחשוף את המזייף לפני שהקולות ייספרו!'",
       "imagePrompt": "futuristic holographic laboratory, {DR_HOLO} standing before a large glowing circular portal, through the portal a vivid view of ancient athens agora, cyan and blue holographic interfaces floating around, cinematic lighting",
       "drHoloExpression": "a worried, urgent expression",
+      "drHoloDialog": "תן לי להסביר את זה בעברית פשוטה: האקלסיה היא אסיפת האזרחים — שם, בהרמת יד, הוכרע גורל העיר כולה. אם מישהו זייף אסימונים, הוא גנב את ההחלטה מכל אתונה.",
       "nextSceneId": "scene_agora"
     },
     {
@@ -354,6 +393,7 @@ function narrativeStructureInstructions(questType?: string): string {
       "title": "האגורה — איסוף קצה חוט",
       "narrative": "אתה יוצא מהפורטל אל האגורה ההומה. סוחר לוחש לך שראה מישהו מחלק אסימונים מחוץ לבית המטבעה. כדי להבין אם הם מזויפים, עליך לדעת איך נראה אסימון אמיתי.",
       "imagePrompt": "a bustling ancient Greek agora marketplace, citizens in togas, stalls with pottery, 5th century BC, historically accurate, in its original pristine state",
+      "drHoloDialog": "דמיין את זה: כיכר עמוסה, אלפי קולות, ואין אף מכונת הצבעה אחת. הכול נשען על אמון — ועל כך שכל אזרח יודע איך נראה אסימון אמיתי.",
       "puzzle": {
         "type": "multipleChoice",
         "question": "כיצד הצביעו אזרחי אתונה באקלסיה?",
@@ -371,13 +411,15 @@ function narrativeStructureInstructions(questType?: string): string {
       "title": "בית המטבעה — הראיה המכרעת",
       "narrative": "בבית המטבעה אתה מוצא ערימת חרסים. אחד מהם נושא סימן חריטה שונה מכל השאר — סימן המזייף. זו הראיה שתפיל אותו.",
       "imagePrompt": "an ancient Greek mint workshop with clay ostraca shards, oil lamps, 5th century BC, historically accurate, in its original pristine state",
+      "drHoloDialog": "מה היית עושה? להראות את החרס עכשיו, מול כולם — או לחכות ולאסוף עוד ראיות? לפעמים תזמון הוא ההבדל בין חשיפה לבין מבוכה.",
       "nextSceneId": "scene_climax"
     },
     {
       "id": "scene_climax",
       "title": "האקלסיה — רגע ההכרעה",
       "narrative": "אתה מזנק אל גבעת הפניקס רגע לפני הספירה. מול אלפי אזרחים אתה מרים את החרס המזויף ומצביע על סימן החריטה החריג. ההמון משתתק — המזייף מחוויר ונמלט. ההצבעה ניצלה, והרפורמה תעבור ביושר.",
-      "imagePrompt": "the Pnyx hill assembly of ancient Athens, thousands of citizens gathered, a speaker on the bema holding up a clay shard, dramatic, 5th century BC, historically accurate, in its original pristine state"
+      "imagePrompt": "the Pnyx hill assembly of ancient Athens, thousands of citizens gathered, a speaker on the bema holding up a clay shard, dramatic, 5th century BC, historically accurate, in its original pristine state",
+      "drHoloDialog": "הנה מה שאני רוצה שתזכור: דמוקרטיה איננה רק הזכות להצביע — היא המנגנון שמוודא שההצבעה נספרת ביושר. בלי זה, ההצבעה היא הצגה."
     }
   ],
   "entrySceneId": "scene_lab",
@@ -445,6 +487,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
       "narrative": "טקסט סיפורי בעברית",
       "imagePrompt": "English visual description of the scene environment for image generation",
       "drHoloExpression": "facial expression matching the scene tone — only when imagePrompt contains {DR_HOLO}",
+      "drHoloDialog": "דברי ד\\"ר הולו בעברית — הקול המלווה שמסביר, מכוון ומעודד (ראו \\"קולו של ד\\"ר הולו\\")",
       "puzzle": {
         "type": "multipleChoice",
         "question": "שאלה בעברית",
@@ -477,6 +520,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 - **אסור לכלול ב-imagePrompt שמות סגנון אמנותי** (pixar / anime / comic / storybook / watercolor וכו') או הוראות סגנון — הסגנון שבחר המורה מוזרק אוטומטית בשרת. מודל התמונות מצייר שמות מותג כטקסט בתוך התמונה.
 - **אסור לבקש טקסט בתמונות**: אל תכלול ב-imagePrompt שלטים, תוויות, כיתובים, כרזות עם מלל, לוחות כתובים, אותיות או מילים ("a sign reading...", "name label", "text saying..."). מודל התמונות מג'בר טקסט. תאר סצנות ויזואליות בלבד — המידע המילולי חי בנרטיב, לא בתמונה.
 - "collectableItem" רק בסצנות מפתח (אם הוגדרו), אחרת השמט את השדה.
+- **"drHoloDialog" בכל סצנה** (כשד"ר הולו פעיל) — קולו המלווה של הדוקטור: 1-3 משפטים שמפשטים, ממקדים או מעודדים, **בנוסף** לנרטיב ולא במקומו. שם משובצים ביטויי-החתימה (ראו "קולו של ד"ר הולו"). זהו הערוץ הפדגוגי החזק ביותר בהדמיה — אל תשמיט אותו.
 - בסצנה עם "choices" אין צורך ב-"nextSceneId".
 - **כל "puzzle" — בכל סוג ובכל סצנה, כולל הסצנות האחרונות בקווסט ארוך — חייב לכלול שדה "question" לא-ריק. זו שגיאה נפוצה בסצנות מאוחרות; אל תשמיט אותו.**
 - החזר JSON תקין בלבד.`
@@ -573,6 +617,7 @@ ${params.reviewContext ? `\n## הדמיית חזרה (דרישות ייעודי�
 ${objectivesInstructions(params.objectives)}
 ${structureInstructions}
 ${params.includeDrHolo ? labStructureInstructions() : ''}
+${params.includeDrHolo ? drHoloVoiceInstructions(params.formOfAddress ?? 'plural') : ''}
 ${levelBlock(level)}
 ${niqqudBlock(level)}
 ${puzzleListText(params.puzzlePreferences, level)}
@@ -712,7 +757,7 @@ ${sceneImageRules()}
 - לכל סיום: title, narrative, drHoloDialog, imagePrompt (עם {DR_HOLO}), drHoloExpression.
 
 ## פלט — JSON בלבד
-{ "climax": { "id": "${climax.id}", "title": "...", "narrative": "...", "imagePrompt": "...", "drHoloExpression": "...", ${ptype ? '"puzzle": {...}, ' : ''}"nextSceneId": null },
+{ "climax": { "id": "${climax.id}", "title": "...", "narrative": "...", "imagePrompt": "...", "drHoloExpression": "...", "drHoloDialog": "דברי ד\\"ר הולו בעברית — עיגון התובנה המרכזית", ${ptype ? '"puzzle": {...}, ' : ''}"nextSceneId": null },
   "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." },
   "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." } }
 החזר JSON תקין בלבד.`
