@@ -396,6 +396,13 @@ function SaveBar({ studentName, saving, onSave, onCancel }: { studentName: strin
 /* ════════════════════════════════════════════════════════════════════════ */
 
 export default function Students() {
+  /* שני ספים נפרדים, כי שני הדברים נשברים ברוחב שונה:
+     · cardView (900px) — הטבלה עצמה. נמדד: ב-900px כל השמות נחתכים (הגרוע קיבל
+       38% מהרוחב הדרוש), ב-1000px רק אחד וב-92%. כלומר כבר ברוחב טאבלט
+       (768/810/834) הטבלה בלתי-שמישה, הרבה לפני סף המובייל.
+     · isMobile (480px) — הערמת הפאנלים והריפוד. ברוחב טאבלט הפיצול עדיין מרווח
+       (הרוסטר מקבל ~625px), ולכן אין סיבה לערום שם. */
+  const cardView = useIsMobile(900)
   const isMobile = useIsMobile()
   const [students, setStudents] = useState<StudentRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -617,7 +624,7 @@ export default function Students() {
                 <div style={{ ...glass, flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <div className="holo-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
                     {/* שורת כותרות העמודות — לא רלוונטית בתצוגת הכרטיסים (לכל ערך תווית משלו) */}
-                    {!isMobile && (
+                    {!cardView && (
                       <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'grid', gridTemplateColumns: COLS, columnGap: COL_GAP, alignItems: 'center', padding: '12px 26px 10px', borderBottom: '1px solid rgba(47,243,255,.08)', background: 'rgba(4,9,20,.92)', backdropFilter: 'blur(8px)' }}>
                         <div style={colHdr}>שם תלמיד · מגדר</div>
                         <div style={colHdr}>כיתה</div>
@@ -635,7 +642,7 @@ export default function Students() {
                       const isPending = pendingStudentId === st.id
                       return (
                         <Row key={st.id + st.class} st={st} i={i}
-                          isMobile={isMobile}
+                          isMobile={cardView}
                           effectiveName={effectiveName}
                           effectiveGender={effectiveGender}
                           isPending={isPending}
