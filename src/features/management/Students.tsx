@@ -9,6 +9,7 @@ import { setNavGuard } from '../../shared/lib/navGuard'
 import { holoConfirm, holoAlert } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
+import { useIsMobile } from '../../shared/lib/useIsMobile'
 
 interface StudentRow {
   id: string
@@ -106,10 +107,10 @@ function GenderBadge({ gender, onChange }: { gender: 'male' | 'female' | null; o
 function Row({
   st, i, effectiveName, effectiveGender, isPending,
   onNameCommit, onGenderChange,
-  onOpenDifficulty, onOpenProgress, onOpenSummary,
+  onOpenDifficulty, onOpenProgress, onOpenSummary, isMobile,
 }: {
   st: StudentRow; i: number
-  effectiveName: string; effectiveGender: 'male' | 'female' | null; isPending: boolean
+  effectiveName: string; effectiveGender: 'male' | 'female' | null; isPending: boolean; isMobile: boolean
   onNameCommit: (name: string) => void
   onGenderChange: (g: 'male' | 'female' | null) => void
   onOpenDifficulty: () => void; onOpenProgress: () => void; onOpenSummary: () => void
@@ -138,11 +139,8 @@ function Row({
     setDraft(effectiveName)
   }
 
-  return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: 'grid', gridTemplateColumns: COLS, columnGap: COL_GAP, alignItems: 'center', padding: '9px 26px', opacity: st.isActive ? 1 : 0.45, background: isPending ? 'rgba(255,220,100,.03)' : hov ? 'rgba(47,243,255,.04)' : (i % 2 === 0 ? 'transparent' : 'rgba(4,9,18,.3)'), borderBottom: isPending ? '1px solid rgba(255,220,100,.14)' : '1px solid rgba(47,243,255,.05)', transition: 'background .15s' }}>
-
-      {/* שם + אווטאר + מגדר */}
+  /* אשכול השם (אווטאר + שם בר-עריכה + מגדר) — זהה בטבלה ובכרטיס */
+  const nameCluster = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <div style={{ width: 30, height: 30, borderRadius: '50%', background: isPending ? 'linear-gradient(135deg,rgba(255,220,100,.25),rgba(255,69,230,.15))' : 'linear-gradient(135deg,rgba(47,243,255,.2),rgba(255,69,230,.15))', border: `1px solid ${isPending ? 'rgba(255,220,100,.35)' : 'rgba(47,243,255,.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: isPending ? '#ffe580' : '#7ef6ff', flexShrink: 0 }}>
           {(effectiveName[0] || '?').toUpperCase()}
@@ -165,21 +163,64 @@ function Row({
             {effectiveName}
           </span>
         )}
-        <GenderBadge gender={effectiveGender} onChange={onGenderChange} />
-        {isPending && !editing && <span style={{ fontSize: 9, color: '#ffe044', lineHeight: 1 }}>●</span>}
+      <GenderBadge gender={effectiveGender} onChange={onGenderChange} />
+      {isPending && !editing && <span style={{ fontSize: 9, color: '#ffe044', lineHeight: 1 }}>●</span>}
+    </div>
+  )
+
+  const actions = (
+    <>
+      <ActionBtn label="הגדרות קושי" color="#ff45e6" rgb="255,69,230" onClick={onOpenDifficulty} />
+      <ActionBtn label="התקדמות"    color="#ff9a2e" rgb="255,154,46"  onClick={onOpenProgress} />
+      <ActionBtn label="סיכום פדגוגי" color="#b18bff" rgb="177,139,255" onClick={onOpenSummary} />
+    </>
+  )
+
+  const rowBg = isPending ? 'rgba(255,220,100,.03)' : hov ? 'rgba(47,243,255,.04)' : (i % 2 === 0 ? 'transparent' : 'rgba(4,9,18,.3)')
+  const rowBorder = isPending ? '1px solid rgba(255,220,100,.14)' : '1px solid rgba(47,243,255,.05)'
+
+  /* ── מובייל: כרטיס במקום שורת-טבלה ──────────────────────────────────────
+     6 עמודות על 375px הצטמצמו ל-22-36px כל אחת, ושמות התלמידים קיבלו 8px
+     (מתוך 31-39 שנדרשו) תחת overflowX:hidden — כלומר התוכן אבד, לא רק הוסתר.
+     כרטיס עם תוויות מפורשות קריא ביד אחת ושומר על כל הפעולות. */
+  if (isMobile) {
+    return (
+      <div style={{ padding: '12px 14px', opacity: st.isActive ? 1 : 0.45, background: rowBg, borderBottom: rowBorder }}>
+        {nameCluster}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', margin: '9px 0 10px', fontSize: 12 }}>
+          <Field label="כיתה"><span style={{ color: '#7ab0d0', fontWeight: 600 }}>{st.class}</span></Field>
+          <Field label="קוד כיתה"><span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#2ff3ff', letterSpacing: '.06em' }} dir="ltr">{st.classCode}</span></Field>
+          <Field label="קוד סודי"><span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'rgba(255,69,230,.8)', letterSpacing: '.08em' }} dir="ltr">{st.secret ?? '—'}</span></Field>
+          <Field label="פעילות"><span style={{ color: '#7ab0d0' }}>{lastActiveLabel(st.lastActive)}</span></Field>
+        </div>
+        <div style={{ display: 'flex', gap: BTN_GAP, flexWrap: 'wrap' }}>{actions}</div>
       </div>
+    )
+  }
+
+  return (
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ display: 'grid', gridTemplateColumns: COLS, columnGap: COL_GAP, alignItems: 'center', padding: '9px 26px', opacity: st.isActive ? 1 : 0.45, background: rowBg, borderBottom: rowBorder, transition: 'background .15s' }}>
+
+      {nameCluster}
 
       <div style={{ fontSize: 13, color: '#7ab0d0', fontWeight: 600 }}>{st.class}</div>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 700, color: '#2ff3ff', letterSpacing: '.06em', overflow: 'hidden', textOverflow: 'ellipsis' }} dir="ltr">{st.classCode}</div>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, fontWeight: 700, color: 'rgba(255,69,230,.8)', letterSpacing: '.08em' }} dir="ltr">{st.secret ?? '—'}</div>
       <div style={{ fontSize: 12, color: '#7ab0d0' }}>{lastActiveLabel(st.lastActive)}</div>
 
-      <div style={{ display: 'flex', gap: BTN_GAP, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
-        <ActionBtn label="הגדרות קושי" color="#ff45e6" rgb="255,69,230" onClick={onOpenDifficulty} />
-        <ActionBtn label="התקדמות"    color="#ff9a2e" rgb="255,154,46"  onClick={onOpenProgress} />
-        <ActionBtn label="סיכום פדגוגי" color="#b18bff" rgb="177,139,255" onClick={onOpenSummary} />
-      </div>
+      <div style={{ display: 'flex', gap: BTN_GAP, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>{actions}</div>
     </div>
+  )
+}
+
+/* זוג תווית-ערך לכרטיס המובייל — התווית נדרשת כי אין שורת כותרות עמודות */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, minWidth: 0 }}>
+      <span style={{ fontSize: 10, color: 'rgba(120,180,220,.6)', fontWeight: 600 }}>{label}</span>
+      {children}
+    </span>
   )
 }
 
@@ -355,6 +396,7 @@ function SaveBar({ studentName, saving, onSave, onCancel }: { studentName: strin
 /* ════════════════════════════════════════════════════════════════════════ */
 
 export default function Students() {
+  const isMobile = useIsMobile()
   const [students, setStudents] = useState<StudentRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -520,8 +562,11 @@ export default function Students() {
   const clearAll = () => { setQuery(''); setLayer(''); setKlass('') }
   const colHdr: React.CSSProperties = { ...micro, fontSize: 9.5, color: 'rgba(47,243,255,.55)', padding: '0 0 10px', textAlign: 'right' }
 
-  const pane: React.CSSProperties = { flex: '3 1 0', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
-  const sidePane: React.CSSProperties = { flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
+  /* במובייל שני הפאנלים נערמים לרוחב מלא (basis 0 לעולם לא מפעיל wrap — הוא רק
+     מכווץ, ולכן הרוסטר נדחס ל-232px לצד הסרגל). הרוסטר עולה ראשון (order) כי הוא
+     התוכן העיקרי של הדף. בדסקטופ היחס 3:1 המקורי נשמר במדויק. */
+  const pane: React.CSSProperties = { flex: isMobile ? '1 1 100%' : '3 1 0', order: isMobile ? 1 : undefined, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
+  const sidePane: React.CSSProperties = { flex: isMobile ? '1 1 100%' : '1 1 0', order: isMobile ? 2 : undefined, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
 
   /* the student whose difficulty modal is open */
   const diffModalStudent = diffModalStudentId ? all.find((s) => s.id === diffModalStudentId) ?? null : null
@@ -538,7 +583,7 @@ export default function Students() {
 
       <StudioTopBar active="students" />
 
-      <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '12px 24px 26px', width: '100%' }}>
+      <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: isMobile ? '12px 10px 26px' : '12px 24px 26px', width: '100%' }}>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
 
           {/* ימין — ניהול */}
@@ -571,14 +616,17 @@ export default function Students() {
                 {/* טבלה */}
                 <div style={{ ...glass, flex: 1, minHeight: 0, overflow: 'hidden' }}>
                   <div className="holo-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-                    <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'grid', gridTemplateColumns: COLS, columnGap: COL_GAP, alignItems: 'center', padding: '12px 26px 10px', borderBottom: '1px solid rgba(47,243,255,.08)', background: 'rgba(4,9,20,.92)', backdropFilter: 'blur(8px)' }}>
-                      <div style={colHdr}>שם תלמיד · מגדר</div>
-                      <div style={colHdr}>כיתה</div>
-                      <div style={colHdr}>קוד כיתה</div>
-                      <div style={colHdr}>קוד סודי</div>
-                      <div style={colHdr}>פעילות אחרונה</div>
-                      <div style={{ ...colHdr, textAlign: 'left' }}>פעולות</div>
-                    </div>
+                    {/* שורת כותרות העמודות — לא רלוונטית בתצוגת הכרטיסים (לכל ערך תווית משלו) */}
+                    {!isMobile && (
+                      <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'grid', gridTemplateColumns: COLS, columnGap: COL_GAP, alignItems: 'center', padding: '12px 26px 10px', borderBottom: '1px solid rgba(47,243,255,.08)', background: 'rgba(4,9,20,.92)', backdropFilter: 'blur(8px)' }}>
+                        <div style={colHdr}>שם תלמיד · מגדר</div>
+                        <div style={colHdr}>כיתה</div>
+                        <div style={colHdr}>קוד כיתה</div>
+                        <div style={colHdr}>קוד סודי</div>
+                        <div style={colHdr}>פעילות אחרונה</div>
+                        <div style={{ ...colHdr, textAlign: 'left' }}>פעולות</div>
+                      </div>
+                    )}
                     {!students && !error && <div style={{ textAlign: 'center', padding: '50px 0', color: '#4a6a88', fontSize: 14 }}>טוען…</div>}
                     {students && filtered.length === 0 && <div style={{ textAlign: 'center', padding: '60px 0', color: '#4a6a88', fontSize: 14 }}>{all.length === 0 ? 'אין עדיין תלמידים בכיתות שלך.' : 'לא נמצאו תלמידים תואמים'}</div>}
                     {filtered.map((st, i) => {
@@ -587,6 +635,7 @@ export default function Students() {
                       const isPending = pendingStudentId === st.id
                       return (
                         <Row key={st.id + st.class} st={st} i={i}
+                          isMobile={isMobile}
                           effectiveName={effectiveName}
                           effectiveGender={effectiveGender}
                           isPending={isPending}
