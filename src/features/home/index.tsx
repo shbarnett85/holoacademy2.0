@@ -105,7 +105,9 @@ export default function Home() {
           style={{ width: 116, height: 116, margin: '0 auto 22px', display: 'block', filter: 'drop-shadow(0 0 26px rgba(47,243,255,.35))' }}
         />
         <h1 style={{
-          margin: 0, fontSize: 58, fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1,
+          /* 58px קבוע גלש מעבר למסך צר (405px על viewport 375). clamp מקטין רק
+             כשאין מקום — מעל ~483px רוחב מסך התוצאה היא 58px, כלומר דסקטופ ללא שינוי. */
+          margin: 0, fontSize: 'clamp(2.2rem, 12vw, 58px)', fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1,
           background: 'linear-gradient(135deg, #ffffff 30%, #7ef6ff 65%, #ff45e6 100%)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
           filter: 'drop-shadow(0 0 32px rgba(47,243,255,.35))',

@@ -44,7 +44,10 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
         {/* כותרת הסצנה — ממורכזת */}
         <h1
           className="holo-text-glow text-xl font-black truncate"
-          style={{ maxWidth: 'calc(100% - 9rem)', textShadow: '0 0 14px rgba(0,246,255,0.5)' }}
+          /* המקום השמור לכפתורים (יציאה+סאונד, שניהם בצד ימין ב-RTL). הכותרת ממורכזת,
+             ולכן הרזרבה נספרת פעמיים — במובייל היא גדלה כדי שהכותרת לא תיגלוש מתחת
+             לכפתור הסאונד (ראו --tophud-reserve ב-index.css). */
+          style={{ maxWidth: 'calc(100% - var(--tophud-reserve, 9rem))', textShadow: '0 0 14px rgba(0,246,255,0.5)' }}
         >
           {title}
         </h1>
@@ -57,7 +60,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           aria-pressed={muted}
           className="cursor-pointer rounded-md flex items-center justify-center"
           style={{
-            position: 'absolute', right: '5rem', top: '50%', transform: 'translateY(-50%)',
+            position: 'absolute', right: 'var(--tophud-sound-right, 5rem)', top: '50%', transform: 'translateY(-50%)',
             width: '2.1rem', height: '2.1rem', fontSize: '1.05rem',
             background: 'transparent', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)',
           }}

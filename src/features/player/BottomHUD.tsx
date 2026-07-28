@@ -83,7 +83,7 @@ function CrystalBar({ progress }: { progress: number; shardEvent: number }) {
 
   return (
     /* data-crystal-bar — עוגן fallback; הרסיסים מכוונים אל [data-crystal-target] הספציפי */
-    <div className="relative flex items-end gap-1" dir="ltr" data-crystal-bar>
+    <div className="relative flex items-end gap-1 holo-hud-crystals" dir="ltr" data-crystal-bar>
       <style>{`
         @keyframes crystal-pop-kf {
           0% { transform: scale(1); }
@@ -135,8 +135,11 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
       `}</style>
 
       <div
-        className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 py-2"
+        className="fixed bottom-0 left-0 right-0 flex items-center justify-between py-2"
         style={{
+          /* px-4 הועבר לכאן כדי שהמובייל יוכל לצמצם אותו (ראו --hud-pad-x ב-index.css) */
+          paddingInline: 'var(--hud-pad-x, 1rem)',
+          gap: 'var(--hud-slot-gap, 0.5rem)',
           background: 'rgba(10,10,31,0.85)',
           borderTop: '1px solid rgba(0,246,255,0.25)',
           backdropFilter: 'blur(10px)',
@@ -152,7 +155,7 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
         <CrystalBar progress={crystalProgress} shardEvent={shardEvent} />
 
         {/* מרכז: slots של חפצים */}
-        <div className="flex gap-2" dir="ltr">
+        <div className="flex" style={{ gap: 'var(--hud-slot-gap, 0.5rem)' }} dir="ltr">
           {Array.from({ length: SLOT_COUNT }).map((_, i) => {
             const item = inventory[i]
             const isNew = item && justCollected?.id === item.id
@@ -163,11 +166,12 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
                 title={item?.name ?? ''}
                 className={isNew ? 'item-new' : ''}
                 style={{
-                  width: '2.8rem',
-                  height: '2.8rem',
+                  width: 'var(--hud-slot, 2.8rem)',
+                  height: 'var(--hud-slot, 2.8rem)',
+                  flexShrink: 0,
                   borderRadius: '50%',
                   cursor: item ? 'pointer' : 'default',
-                  fontSize: '1.4rem',
+                  fontSize: 'var(--hud-slot-font, 1.4rem)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -199,8 +203,11 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
         </div>
 
         {/* שמאל: שם התלמיד (כפתור היציאה עבר לפס העליון TopHUD) */}
-        <div className="flex items-center gap-3">
-          <span className="text-sm" style={{ color: 'var(--holo-text)', opacity: 0.7 }}>
+        <div className="flex items-center gap-3" style={{ minWidth: 0 }}>
+          <span
+            className="text-sm truncate"
+            style={{ color: 'var(--holo-text)', opacity: 0.7, fontSize: 'var(--hud-name, 0.875rem)' }}
+          >
             🧑‍🚀 {studentName}
           </span>
         </div>
