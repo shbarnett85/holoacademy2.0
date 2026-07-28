@@ -42,7 +42,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
   }
 
   return (
-    <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '20px 30px 8px', flexWrap: 'wrap' }}>
+    <div data-studio-shell style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '20px 30px 8px', flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
         <span style={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 12, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.35)', color: '#7ef6ff', boxShadow: '0 0 18px rgba(47,243,255,.3)' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>

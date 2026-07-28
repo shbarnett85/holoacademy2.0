@@ -154,6 +154,25 @@ html.holo-playing { font-size: 144%; }
 
   /* הקריסטלים מוגדרים ב-px קבועים (לא rem) ולכן לא הצטמצמו עם הגופן */
   .holo-hud-crystals svg { width: 19px; height: 19px; }
+
+  /* מטרות מגע ≥44px (WCAG 2.5.5 / Apple HIG). מוגבל בכוונה למסכי הצוות
+     (סטודיו/ניהול/אנליטיקה) — נגן המשחק מוחרג: תאי ה-HUD וכפתורי האתגרים
+     מכוילים לגדלים משלהם, וכפייה עליהם הייתה שוברת את פריסת ה-HUD. */
+  [data-studio-shell] button,
+  [data-studio-content] button,
+  [data-studio-content] select,
+  [data-studio-content] input:not([type='checkbox']):not([type='radio']):not([type='range']) { min-height: 44px; }
+
+  /* סליידרים: הפס עצמו 3px ולכן אזור המגע היה 3px בלבד. מגדילים את הקופסה
+     ל-44px ומצמצמים את הגרדיאנט לפס 3px ממורכז — המראה זהה, אזור המגע פי 14. */
+  .cf input[type=range] {
+    height: 44px;
+    background-color: transparent;
+    background-size: 100% 3px;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .cf input[type=range]::-webkit-slider-thumb { margin-top: 0; }
 }
 
 html {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiJson } from '../../shared/lib/api'
 import { glass, micro } from '../creator/studioStyles'
 import StudentDetail from './StudentDetail'
+import { useIsMobile } from '../../shared/lib/useIsMobile'
 
 /* עדשת "התקדמות" — סדרת-זמן מ-progress_snapshots. גרף קווי רב-סדרתי
    (צבע + דאש + סמן — לא צבע-בלבד), בורר מטריקה, טוגל טווח, צ'יפים של ישויות,
@@ -34,8 +35,18 @@ function Marker({ shape, cx, cy, color }: { shape: number; cx: number; cy: numbe
   return <circle cx={cx} cy={cy} r={s} fill="#05101f" stroke={color} strokeWidth="1.6" />
 }
 
-function LineChart({ labels, series, metric }: { labels: string[]; series: Series[]; metric: Metric }) {
-  const W = 720, H = 300, padL = 44, padR = 16, padT = 16, padB = 34
+function LineChart({ labels, series, metric, isMobile }: { labels: string[]; series: Series[]; metric: Metric; isMobile: boolean }) {
+  /* ה-SVG נמתח ל-width:100%, כך שכל יחידות ה-viewBox מוקטנות ביחס
+     (רוחב-מוצג / W). בדסקטופ היחס ~1 ; במובייל 720 יחידות נדחסו ל-~285px
+     (יחס 0.4) והתוויות בגודל 9 הוצגו כ-~4px — בלתי קריא. במובייל מצמצמים את
+     ה-viewBox (היחס מתקרב ל-1) ומגדילים את הגופנים. */
+  const W = isMobile ? 380 : 720, H = isMobile ? 250 : 300
+  const padL = isMobile ? 34 : 44, padR = isMobile ? 10 : 16, padT = 16, padB = isMobile ? 30 : 34
+  /* הגופן ב-viewBox מוצג כ-fs*scale. במובייל scale≈0.75, ולכן 14 יחידות ≈ 10.5px
+     בפועל — קריא. (לפני התיקון: 9 יחידות בסקייל 0.4 = 3.6px.) */
+  const fsY = isMobile ? 14 : 9, fsX = isMobile ? 14 : 9.5
+  /* 12 חודשים על מסך צר מתנגשים — מציגים כל תווית שנייה (הראשונה והאחרונה תמיד) */
+  const xStride = isMobile && labels.length > 6 ? 2 : 1
   const innerW = W - padL - padR, innerH = H - padT - padB
   const allVals = series.flatMap((s) => s.points).filter((v): v is number => v != null)
   if (allVals.length === 0) return null
@@ -53,11 +64,12 @@ function LineChart({ labels, series, metric }: { labels: string[]; series: Serie
       {gridY.map((gv, i) => (
         <g key={i}>
           <line x1={padL} y1={y(gv)} x2={W - padR} y2={y(gv)} stroke="rgba(120,200,255,.1)" />
-          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" fill="rgba(180,220,255,.55)" fontSize="9" fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
+          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" fill="rgba(180,220,255,.55)" fontSize={fsY} fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
         </g>
       ))}
       {labels.map((lb, i) => (
-        <text key={i} x={x(i)} y={H - 12} textAnchor="middle" fill="rgba(180,220,255,.6)" fontSize="9.5" fontFamily="Rubik">{lb}</text>
+        (i % xStride === 0 || i === labels.length - 1) &&
+        <text key={i} x={x(i)} y={H - 12} textAnchor="middle" fill="rgba(180,220,255,.6)" fontSize={fsX} fontFamily="Rubik">{lb}</text>
       ))}
       {series.map((s, si) => {
         const color = COLORS[si % COLORS.length]
@@ -82,6 +94,7 @@ function LineChart({ labels, series, metric }: { labels: string[]; series: Serie
 }
 
 export default function ProgressLens() {
+  const isMobile = useIsMobile()
   const [students, setStudents] = useState<StudentOpt[]>([])
   const [classes, setClasses] = useState<ClassOpt[]>([])
   const [metric, setMetric] = useState<Metric>('text_level')
@@ -160,7 +173,7 @@ export default function ProgressLens() {
         {!data && <p style={{ ...micro, color: 'rgba(140,170,200,.6)', textAlign: 'center', padding: 30 }}>טוען…</p>}
         {data?.notReady && <p style={{ ...micro, color: 'rgba(255,206,94,.7)', textAlign: 'center', padding: 30, fontSize: 11 }}>טבלת ההתקדמות (progress_snapshots) עדיין לא הוקמה — הרץ את המיגרציה ואת ה-seed.</p>}
         {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'rgba(140,170,200,.6)', textAlign: 'center', padding: 30, fontSize: 11 }}>אין עדיין נתוני התקדמות לישויות שנבחרו.</p>}
-        {hasData && <LineChart labels={data!.labels} series={data!.series} metric={metric} />}
+        {hasData && <LineChart labels={data!.labels} series={data!.series} metric={metric} isMobile={isMobile} />}
         {/* מקרא */}
         {hasData && (
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
