@@ -123,7 +123,7 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
     <>
       <style>{`
         @keyframes item-land {
-          0% { transform: translateY(-60vh) scale(2); opacity: 0; }
+          0% { transform: translateY(-60dvh) scale(2); opacity: 0; }
           60% { transform: translateY(0) scale(1.3); opacity: 1; }
           100% { transform: translateY(0) scale(1); }
         }
@@ -135,7 +135,7 @@ export default function BottomHUD({ crystalProgress, shardEvent, inventory, just
       `}</style>
 
       <div
-        className="fixed bottom-0 left-0 right-0 flex items-center justify-between py-2"
+        className="fixed bottom-0 left-0 right-0 flex items-center justify-between py-2 holo-hud-bottom"
         style={{
           /* px-4 הועבר לכאן כדי שהמובייל יוכל לצמצם אותו (ראו --hud-pad-x ב-index.css) */
           paddingInline: 'var(--hud-pad-x, 1rem)',

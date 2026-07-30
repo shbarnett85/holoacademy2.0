@@ -189,7 +189,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     <div
       ref={panelRef}
       className="holo-panel w-full text-center mx-auto"
-      style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100vh - 12rem)', overflowY: 'auto' }}
+      style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100dvh - var(--puzzle-vgutter, 12rem))', overflowY: 'auto' }}
     >
         <span className="text-xs rounded-full px-3 py-1" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
           {type === 'finalQuiz' ? '📝' : '🧩'} {puzzleTypeLabel(type)}

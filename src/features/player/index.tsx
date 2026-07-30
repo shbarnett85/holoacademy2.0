@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
+import RotateGate from './RotateGate'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { usePlaySession } from './usePlaySession'
 import type { GameData } from './useGameEngine'
+import { useIsPhonePortrait } from '../../shared/lib/useIsMobile'
 
 interface QuestPayload {
   id: string
@@ -18,6 +20,7 @@ const DEMO_SLUGS: Record<string, true> = { leonardo: true }
 
 /* כניסה למשחק — טעינת ה-quest לפי id (או slug ציבורי) והפעלת המנוע */
 export default function Player() {
+  const phonePortrait = useIsPhonePortrait()
   const { questId: rawId } = useParams<{ questId: string }>()
   const isDemoSlug = !!rawId && DEMO_SLUGS[rawId]
   /* עד שה-slug מתורגם ל-id אמיתי — questId נשאר undefined, כך ש-usePlaySession
@@ -110,14 +113,21 @@ export default function Player() {
 
 
   return (
-    <GameScreen
-      gameData={effectiveGameData}
-      questTitle={quest.title}
-      initialState={initialState}
-      saveResume={saveResume}
-      onComplete={complete}
-      backPath={homePathForRole()}
-      visitorMode={isVisitor}
-    />
+    <>
+      {/* שער הסיבוב מרובד **מעל** המשחק ולא מחליף אותו: כך ה-state נשמר כשתלמיד
+          מסובב לאורך באמצע סצנה (unmount היה מאבד קריסטלים/התקדמות תוך-סצנה).
+          הטיימר היחיד שיכול להישבר מאחורי השער (Countdown של חיפוש המילים)
+          מושהה בעצמו כל עוד השער פתוח — ראו challenges/failUi.tsx. */}
+      {phonePortrait && <RotateGate />}
+      <GameScreen
+        gameData={effectiveGameData}
+        questTitle={quest.title}
+        initialState={initialState}
+        saveResume={saveResume}
+        onComplete={complete}
+        backPath={homePathForRole()}
+        visitorMode={isVisitor}
+      />
+    </>
   )
 }

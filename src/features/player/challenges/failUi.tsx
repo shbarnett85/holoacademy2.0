@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useIsPhonePortrait } from '../../../shared/lib/useIsMobile'
 
 /* ──────────────────────────────────────────────────────────────────────────
    מדי כישלון הולוגרפיים משותפים לכל סוגי האתגרים — שפה ויזואלית אחידה:
@@ -46,9 +47,13 @@ export function Countdown({ seconds, running, onExpire }: { seconds: number; run
   const expiredRef = useRef(false)
   const onExpireRef = useRef(onExpire)
   onExpireRef.current = onExpire
+  /* השהיה כששער הסיבוב פתוח (טלפון לאורך): השער מכסה את המסך, והתלמיד לא יכול
+     לשחק — ספירה שממשיכה מאחוריו הייתה מכשילה אותו בלי שיראה דבר. זה הטיימר
+     היחיד במשחק, ולכן ההשהיה כאן מכסה את כל התרחיש בלי לגעת בלוגיקת האתגרים. */
+  const gated = useIsPhonePortrait()
 
   useEffect(() => {
-    if (!running) return
+    if (!running || gated) return
     const id = window.setInterval(() => {
       setLeft((prev) => {
         if (prev <= 1) {
@@ -60,7 +65,7 @@ export function Countdown({ seconds, running, onExpire }: { seconds: number; run
       })
     }, 1000)
     return () => window.clearInterval(id)
-  }, [running])
+  }, [running, gated])
 
   const frac = seconds > 0 ? left / seconds : 0
   const low = frac <= 0.2

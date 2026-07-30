@@ -408,12 +408,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           : `האתגר${failed.length > 1 ? 'ים' : ''} על ${failed.map((f) => `"${f.sceneTitle}"`).join(', ')} ${failed.length > 1 ? 'היו קשים' : 'היה קשה'} — שווה לחזור עליו במסע הבא!`
 
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6 p-6 relative">
+      <div className="flex flex-col items-center justify-center min-h-dvh gap-6 p-6 relative">
         {/* מעבר חור-תולעת (חלקיקים) אל מסך הסיום — חזרה "מההדמיה לתפריט" */}
         <WormholeTransition trigger={engine.transitionKey} />
         {endImage && (
           <>
-            <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+            {/* אותו מיקוד כמו תמונות הסצנה — ד"ר הולו במרכז הפריים, מוטה מעט למעלה */}
+            <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 45%' }} />
             {/* שכבת ה-overlay לקריאות הטקסט — נעלמת במצב עין לחשיפת התמונה הנקייה.
                סיום טוב: גוון חמים ובהיר יותר; סיום קודר: כהה ומלנכולי. */}
             <div style={{ position: 'absolute', inset: 0, background: good ? 'linear-gradient(180deg, rgba(10,14,40,0.55), rgba(20,8,40,0.7))' : 'rgba(8,8,20,0.82)', opacity: eyeMode ? 0 : 1, transition: 'opacity 0.5s ease' }} />
@@ -529,7 +530,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <ErrorFlashOverlay />
       <style>{`
         @keyframes gate-shake {
@@ -595,6 +596,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               style={{
                 position: 'absolute', inset: 0, width: '100%', height: '100%',
                 objectFit: 'cover',
+                /* התמונות נוצרות ב-1280×720 (16:9). cover מתאים את הצלע הצרה וחותך
+                   את השנייה, וכמות החיתוך תלויה ביחס המסך: טלפון לרוחב 667×375 הוא
+                   16:9 בדיוק → **אפס חיתוך**; 844×390 (19.5:9) חותך 17.9% מהגובה;
+                   דסקטופ/טאבלט חותכים 25-29% מהרוחב. המיקוד מוטה מעט למעלה (45%)
+                   ולא 50% — בחיתוך אנכי זה שומר על ראשי הדמויות ועל קו הרקיע, שהם
+                   מרכז העניין בסצנה, במקום לחתוך אותם באופן סימטרי. */
+                objectPosition: 'center 45%',
                 animation: prefersReducedMotion()
                   ? undefined
                   : `holo-kenburns 18s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,

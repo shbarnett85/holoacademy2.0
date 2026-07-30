@@ -29,7 +29,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
 
       {/* הפס עצמו — מחליק כלפי מעלה במצב-עין */}
       <div
-        className="fixed top-0 left-0 right-0 flex items-center justify-center px-4 py-2"
+        className="fixed top-0 left-0 right-0 flex items-center justify-center px-4 py-2 holo-hud-top"
         style={{
           background: 'rgba(10,10,31,0.85)',
           borderBottom: '1px solid rgba(0,246,255,0.25)',

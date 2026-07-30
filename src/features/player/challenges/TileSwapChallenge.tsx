@@ -111,7 +111,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
             src={imageUrl}
             alt=""
             style={{
-              maxWidth: '86vw', maxHeight: '66vh', borderRadius: 18,
+              maxWidth: '86vw', maxHeight: 'var(--tile-maxh, 66dvh)', borderRadius: 18,
               border: '2px solid rgba(47,243,255,0.65)',
               boxShadow: '0 0 70px rgba(47,243,255,0.45), 0 24px 80px rgba(0,0,0,0.6)',
               animation: 'ts-img-in 0.55s cubic-bezier(0.2,0.85,0.3,1)',

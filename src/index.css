@@ -155,6 +155,10 @@ html.holo-playing { font-size: 144%; }
   /* הקריסטלים מוגדרים ב-px קבועים (לא rem) ולכן לא הצטמצמו עם הגופן */
   .holo-hud-crystals svg { width: 19px; height: 19px; }
 
+  /* safe-area — בטלפון לאורך ה-notch למעלה וסרגל-הבית למטה */
+  .holo-hud-top    { padding-top: env(safe-area-inset-top); }
+  .holo-hud-bottom { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+
   /* מטרות מגע ≥44px (WCAG 2.5.5 / Apple HIG). מוגבל בכוונה למסכי הצוות
      (סטודיו/ניהול/אנליטיקה) — נגן המשחק מוחרג: תאי ה-HUD וכפתורי האתגרים
      מכוילים לגדלים משלהם, וכפייה עליהם הייתה שוברת את פריסת ה-HUD. */
@@ -173,6 +177,37 @@ html.holo-playing { font-size: 144%; }
     background-repeat: no-repeat;
   }
   .cf input[type=range]::-webkit-slider-thumb { margin-top: 0; }
+}
+
+/* ── מסך נמוך (≤500px גובה) — טלפון לרוחב ─────────────────────────────────
+   קריטי: ברוחב ה**רוחב** הוא 667-844px, כלומר גדול מ-480 — הבלוק שלמעלה
+   *אינו* חל, וה-144% היה חוזר לתוקפו על גובה של 375px בלבד. כאן הגובה הוא
+   המשאב הנדיר, ולכן הסינון הוא על height ולא על width.
+   דסקטופ בגודל רגיל (688px+ גובה) אינו מושפע; חלון דסקטופ שהונמך במיוחד כן
+   יקבל את ההתאמה — וזו התנהגות רצויה, אותה בעיה בדיוק. */
+@media (max-height: 500px) {
+  html.holo-playing { font-size: 100%; }
+
+  :root {
+    /* HUD דחוס אנכית: יש שפע רוחב (667px+) אך הגובה יקר */
+    --hud-slot: 2rem;
+    --hud-slot-font: 1rem;
+    --hud-pad-x: 0.75rem;
+    --hud-name: 0.7rem;
+    /* הפאזל מקבל יותר גובה — הרזרבה לפס העליון ול-HUD קטנה יותר */
+    --puzzle-vgutter: 7rem;
+    --tile-maxh: 52dvh;
+  }
+  .holo-hud-crystals svg { width: 20px; height: 20px; }
+
+  /* פאנל הנרטיב — פחות ריפוד אנכי, כדי שהטקסט ייכנס ל-~270px הפנויים */
+  .holo-playing .holo-panel { padding-block: 0.75rem; }
+
+  /* safe-area — ברוחב ה-notch עובר ל**צדדים** ועלול לחתוך את קצות ה-HUD */
+  .holo-hud-top,
+  .holo-hud-bottom {
+    padding-inline: max(var(--hud-pad-x, 1rem), env(safe-area-inset-left), env(safe-area-inset-right));
+  }
 }
 
 html {
