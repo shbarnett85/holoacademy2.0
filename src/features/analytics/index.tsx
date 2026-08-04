@@ -11,11 +11,11 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
   return (
     <div style={{ position: 'relative', flex: '0 0 auto' }}>
       <select value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ appearance: 'none', WebkitAppearance: 'none', background: 'rgba(4,9,18,.6)', border: '1px solid rgba(47,243,255,.22)', borderRadius: 9, color: value ? 'var(--holo-text-bright)' : '#5a7a99', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '8px 30px 8px 14px', cursor: 'pointer', outline: 'none', minWidth: 110 }}>
+        style={{ appearance: 'none', WebkitAppearance: 'none', background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 9, color: value ? 'var(--t68)' : 'var(--t82)', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '8px 30px 8px 14px', cursor: 'pointer', outline: 'none', minWidth: 110 }}>
         <option value="">{placeholder}</option>
         {options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
-      <div style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#2ff3ff', fontSize: 10 }}>▾</div>
+      <div style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--t15)', fontSize: 10 }}>▾</div>
     </div>
   )
 }
@@ -26,10 +26,10 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
 export default function AnalyticsPanel() {
   const pane: React.CSSProperties = { flex: '1 1 380px', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--holo-bg-deep)' }}>
-      <style>{`select option { background: #070a18; color: #eaf6ff; }`}</style>
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,69,230,.12), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, rgba(47,243,255,.12), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
+      <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
+      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
 
       <StudioTopBar active="analytics" />
 
@@ -40,7 +40,7 @@ export default function AnalyticsPanel() {
           <div style={pane}><LessonsPane /></div>
           {/* שמאל — התקדמות */}
           <div style={pane}>
-            <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.6)', flex: '0 0 auto' }}>📈 התקדמות</div>
+            <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', flex: '0 0 auto' }}>📈 התקדמות</div>
             <ProgressLens />
           </div>
         </div>

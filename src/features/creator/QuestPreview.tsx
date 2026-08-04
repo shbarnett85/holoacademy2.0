@@ -111,7 +111,7 @@ export default function QuestPreview() {
         <>
           {`ההדמיה נוצרה! · ${scenes.length} סצנות · ${artStyleLabel(artStyle)}`}
           {factStatus === 'pending' && (
-            <span style={{ display: 'block', marginTop: '0.3rem', color: 'var(--holo-cyan)' }}>
+            <span style={{ display: 'block', marginTop: '0.3rem', color: 'var(--t300)' }}>
               🔍 בודק עובדות ברקע…
             </span>
           )}

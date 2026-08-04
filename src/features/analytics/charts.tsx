@@ -35,21 +35,21 @@ export default function DonutChart({ title, data, centerUnit }: { title: string;
           <filter id="donut-glow"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         </defs>
         {slices.map((s, i) => (
-          <path key={i} d={s.path} fill={s.color} opacity={hov === null || hov === i ? 0.9 : 0.35} stroke="#070a18" strokeWidth="1.2"
+          <path key={i} d={s.path} fill={s.color} opacity={hov === null || hov === i ? 0.9 : 0.35} strokeWidth="1.2"
             filter={hov === i ? 'url(#donut-glow)' : undefined}
-            style={{ cursor: 'pointer', transition: 'opacity .15s' }}
+            style={{ cursor: 'pointer', transition: 'opacity .15s', stroke: 'var(--t75)' }}
             transform={hov === i ? `translate(${(Math.cos(s.mid) * 4).toFixed(1)},${(Math.sin(s.mid) * 4).toFixed(1)})` : undefined}
             onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} />
         ))}
         {active ? (
           <>
             <text x={CX} y={CY - 4} textAnchor="middle" fill={active.color} fontSize="20" fontFamily="Rubik" fontWeight="800">{active.pct}%</text>
-            <text x={CX} y={CY + 12} textAnchor="middle" fill="rgba(180,220,255,.7)" fontSize="8" fontFamily="Rubik">{active.label}</text>
+            <text x={CX} y={CY + 12} textAnchor="middle" style={{ fill: 'var(--t76)' }} fontSize="8" fontFamily="Rubik">{active.label}</text>
           </>
         ) : (
           <>
-            <text x={CX} y={CY - 2} textAnchor="middle" fill="#7ef6ff" fontSize="20" fontFamily="Rubik" fontWeight="800">{total}</text>
-            <text x={CX} y={CY + 13} textAnchor="middle" fill="rgba(47,243,255,.5)" fontSize="7.5" fontFamily="'Space Mono',monospace">{centerUnit ?? 'סה״כ'}</text>
+            <text x={CX} y={CY - 2} textAnchor="middle" style={{ fill: 'var(--t1)' }} fontSize="20" fontFamily="Rubik" fontWeight="800">{total}</text>
+            <text x={CX} y={CY + 13} textAnchor="middle" style={{ fill: 'var(--t77)' }} fontSize="7.5" fontFamily="'Space Mono',monospace">{centerUnit ?? 'סה״כ'}</text>
           </>
         )}
       </svg>
@@ -58,8 +58,8 @@ export default function DonutChart({ title, data, centerUnit }: { title: string;
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: hov === null || hov === i ? 1 : 0.45, transition: 'opacity .15s', cursor: 'pointer' }}
             onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}>
             <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0, boxShadow: `0 0 5px ${s.color}` }} />
-            <span style={{ fontSize: 11.5, color: '#b0cce0', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#cfe1f2', flexShrink: 0 }}>{s.value}</span>
+            <span style={{ fontSize: 11.5, color: 'var(--t78)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--t12)', flexShrink: 0 }}>{s.value}</span>
             <span style={{ fontSize: 11, fontWeight: 700, color: s.color, flexShrink: 0, width: 34, textAlign: 'left' }} dir="ltr">{s.pct}%</span>
           </div>
         ))}

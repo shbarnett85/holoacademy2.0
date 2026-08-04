@@ -108,8 +108,8 @@ export default function QuestView() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen p-6">
-        <div className="holo-panel max-w-sm w-full text-center" style={{ borderColor: 'rgba(255,80,120,0.4)' }}>
-          <p style={{ color: '#ff7099' }}>{error}</p>
+        <div className="holo-panel max-w-sm w-full text-center" style={{ borderColor: 'var(--t205)' }}>
+          <p style={{ color: 'var(--t5)' }}>{error}</p>
           <button className="holo-button mt-4" onClick={() => navigate('/creator/library')}>
             חזרה לספרייה
           </button>

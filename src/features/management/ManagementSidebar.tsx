@@ -9,27 +9,27 @@ import type { ClassRow } from './index'
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(47,243,255,.22)',
-  borderRadius: 8, color: 'var(--holo-text-bright)', padding: '7px 11px',
+  background: 'var(--t253)', border: '1px solid var(--t81)',
+  borderRadius: 8, color: 'var(--t68)', padding: '7px 11px',
   fontFamily: 'var(--font-display)', fontSize: 13, outline: 'none', width: '100%',
 }
 
 function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-      <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.6)' }}>◇ {children}</div>
+      <div style={{ ...micro, fontSize: 9, color: 'var(--t28)' }}>◇ {children}</div>
       {action}
     </div>
   )
 }
 
-function SmallBtn({ label, color = '#2ff3ff', onClick, danger }: { label: string; color?: string; onClick: () => void; danger?: boolean }) {
+function SmallBtn({ label, color = 'var(--t15)', onClick, danger }: { label: string; color?: string; onClick: () => void; danger?: boolean }) {
   const [hov, setHov] = useState(false)
-  const c = danger ? '#ff7099' : color
+  const c = danger ? 'var(--t5)' : color
   const rgb = danger ? '255,112,153' : '47,243,255'
   return (
     <button onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onClick={onClick}
-      style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap', background: hov ? `rgba(${rgb},.18)` : `rgba(${rgb},.06)`, border: `1px solid ${hov ? c : `rgba(${rgb},.3)`}`, color: c, transition: 'all .14s', fontFamily: 'var(--font-display)' }}>
+      style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap', background: hov ? `${window.HoloTint(rgb, .18)}` : `${window.HoloTint(rgb, .06)}`, border: `1px solid ${hov ? c : `${window.HoloTint(rgb, .3)}`}`, color: c, transition: 'all .14s', fontFamily: 'var(--font-display)' }}>
       {label}
     </button>
   )
@@ -99,7 +99,7 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
     return (
       <div style={{ ...glass, padding: 18, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <button onClick={() => { setView(null); load(); onClassStudentsChange?.() }}
-          style={{ background: 'none', border: 'none', color: 'var(--holo-cyan-bright)', cursor: 'pointer', fontSize: 13, fontWeight: 600, alignSelf: 'flex-start' }}>← כיתות</button>
+          style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600, alignSelf: 'flex-start' }}>← כיתות</button>
         <ClassManage cls={view} onBack={() => { setView(null); load(); onClassStudentsChange?.() }} />
       </div>
     )
@@ -107,7 +107,7 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-      {error && <p style={{ color: '#ff9bb3', fontSize: 12 }}>⚠️ {error}</p>}
+      {error && <p style={{ color: 'var(--t18)', fontSize: 12 }}>⚠️ {error}</p>}
 
       {/* סטטיסטיקות — admin בלבד */}
       {isAdmin && (
@@ -115,8 +115,8 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
           <SectionTitle>סטטיסטיקות</SectionTitle>
           <div style={{ display: 'flex', gap: 10 }}>
             {[['מורים', teachers.length], ['כיתות', classes.length], ['תלמידים', totalStudents]].map(([l, v]) => (
-              <div key={String(l)} style={{ flex: 1, textAlign: 'center', padding: '8px 4px', borderRadius: 9, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(47,243,255,.1)' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: '#7ef6ff' }}>{v}</div>
+              <div key={String(l)} style={{ flex: 1, textAlign: 'center', padding: '8px 4px', borderRadius: 9, background: 'var(--t25)', border: '1px solid var(--t69)' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--t1)' }}>{v}</div>
                 <div style={{ ...micro, fontSize: 8.5, marginTop: 4 }}>{l}</div>
               </div>
             ))}
@@ -136,19 +136,19 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
               <input dir="ltr" placeholder="email" value={tForm.email} onChange={(e) => setTForm({ ...tForm, email: e.target.value })} style={inputStyle} />
               <input dir="ltr" type="password" placeholder="סיסמה (6+ תווים)" value={tForm.password} onChange={(e) => setTForm({ ...tForm, password: e.target.value })} style={inputStyle} />
               <button onClick={createTeacher} disabled={busy}
-                style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'rgba(47,243,255,.14)', border: '1px solid rgba(47,243,255,.35)', color: '#2ff3ff', opacity: busy ? 0.5 : 1 }}>
+                style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'var(--t183)', border: '1px solid var(--t23)', color: 'var(--t15)', opacity: busy ? 0.5 : 1 }}>
                 {busy ? 'יוצר…' : 'צור מורה'}
               </button>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {teachers.map((t) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderRadius: 9, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(120,200,255,.1)', opacity: t.is_active ? 1 : 0.5 }}>
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderRadius: 9, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: t.is_active ? 1 : 0.5 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#ddeeff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
                   <div style={{ ...micro, fontSize: 8.5, marginTop: 2 }}>{t.classCount} כיתות</div>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, ...(t.is_active ? { color: '#5fffb0', border: '1px solid rgba(0,255,150,.4)' } : { color: '#ff9bb3', border: '1px solid rgba(255,120,150,.4)' }) }}>
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, ...(t.is_active ? { color: 'var(--t3)', border: '1px solid var(--t254)' } : { color: 'var(--t18)', border: '1px solid var(--t255)' }) }}>
                   {t.is_active ? '● פעיל' : '○ מושבת'}
                 </span>
                 {t.is_active
@@ -156,7 +156,7 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
                   : <SmallBtn label="הפעל" onClick={() => toggle('teacher', t.id, true)} />}
               </div>
             ))}
-            {isAdmin && teachers.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'rgba(140,170,200,.5)', textAlign: 'center', padding: 12 }}>אין מורים עדיין.</p>}
+            {isAdmin && teachers.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--t37)', textAlign: 'center', padding: 12 }}>אין מורים עדיין.</p>}
           </div>
         </div>
       )}
@@ -170,23 +170,23 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
             <input placeholder='שכבה (למשל ז׳3)' value={cForm.gradeLabel} onChange={(e) => setCForm({ ...cForm, gradeLabel: e.target.value, name: e.target.value })} style={inputStyle} />
             <input dir="ltr" placeholder="slug יציב (למשל 7c)" value={cForm.slug} onChange={(e) => setCForm({ ...cForm, slug: e.target.value })} style={inputStyle} />
-            <p style={{ ...micro, fontSize: 8.5, color: 'rgba(180,200,220,.5)', margin: 0 }}>ℹ️ ה-slug יציב לאורך השנים; השכבה מתעדכנת.</p>
+            <p style={{ ...micro, fontSize: 8.5, color: 'var(--t256)', margin: 0 }}>ℹ️ ה-slug יציב לאורך השנים; השכבה מתעדכנת.</p>
             <button onClick={createClass} disabled={busy}
-              style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'rgba(47,243,255,.14)', border: '1px solid rgba(47,243,255,.35)', color: '#2ff3ff', opacity: busy ? 0.5 : 1 }}>
+              style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'var(--t183)', border: '1px solid var(--t23)', color: 'var(--t15)', opacity: busy ? 0.5 : 1 }}>
               {busy ? 'יוצר…' : 'צור כיתה'}
             </button>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {classes.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'rgba(140,170,200,.5)', textAlign: 'center', padding: 12 }}>אין כיתות עדיין.</p>}
+          {classes.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--t37)', textAlign: 'center', padding: 12 }}>אין כיתות עדיין.</p>}
           {classes.map((c) => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(120,200,255,.1)', opacity: c.is_active ? 1 : 0.5 }}>
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: c.is_active ? 1 : 0.5 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#ddeeff' }}>{c.gradeLabel}</div>
-                <div style={{ ...micro, fontSize: 8.5, marginTop: 2, color: 'rgba(140,170,200,.7)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)' }}>{c.gradeLabel}</div>
+                <div style={{ ...micro, fontSize: 8.5, marginTop: 2, color: 'var(--t257)' }}>
                   {c.studentCount} תלמידים
                   {c.teachers.length > 0 && ` · ${c.teachers.map((t) => t.name).join(', ')}`}
-                  {!c.is_active && <span style={{ color: '#ff9bb3' }}> · מושבת</span>}
+                  {!c.is_active && <span style={{ color: 'var(--t18)' }}> · מושבת</span>}
                 </div>
               </div>
               <SmallBtn label="ניהול ←" onClick={() => setView(c)} />

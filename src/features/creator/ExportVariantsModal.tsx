@@ -17,7 +17,7 @@ interface Props {
 const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
 
 const statusColor = (s: Status) =>
-  s === 'done' ? '#7ef6ff' : s === 'error' ? '#ff7099' : s === 'working' ? '#ffe484' : 'rgba(255,255,255,.28)'
+  s === 'done' ? 'var(--t1)' : s === 'error' ? 'var(--t5)' : s === 'working' ? 'var(--t132)' : 'var(--t133)'
 
 const genderLabel = (g: string | null | undefined) =>
   g === 'male' ? '♂' : g === 'female' ? '♀' : null
@@ -111,7 +111,7 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
   const currentStudent = currentIdx >= 0 ? students[currentIdx] : null
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(2,6,14,.82)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'var(--t134)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
       onClick={handleOverlayClick}>
       <div onClick={e => e.stopPropagation()}
         style={{ ...glass, maxWidth: 500, width: '100%', padding: 28, borderRadius: 18, maxHeight: '88vh', display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -119,11 +119,11 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
         {/* כותרת */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div>
-            <div style={{ ...micro, fontSize: 9.5, color: 'rgba(47,243,255,.55)', marginBottom: 5 }}>ייצוא גרסאות אישיות</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--holo-text-bright)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{questTitle}</div>
+            <div style={{ ...micro, fontSize: 9.5, color: 'var(--t135)', marginBottom: 5 }}>ייצוא גרסאות אישיות</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t68)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{questTitle}</div>
           </div>
           {phase !== 'running' && (
-            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,.35)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>×</button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--t136)', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}>×</button>
           )}
         </div>
 
@@ -131,9 +131,9 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
         {phase === 'select' && (
           <>
             <div>
-              <label style={{ ...micro, fontSize: 10, color: 'rgba(47,243,255,.55)', display: 'block', marginBottom: 8 }}>בחר כיתה</label>
+              <label style={{ ...micro, fontSize: 10, color: 'var(--t135)', display: 'block', marginBottom: 8 }}>בחר כיתה</label>
               <select value={classId} onChange={e => setClassId(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: 'rgba(4,9,18,.8)', border: '1px solid rgba(47,243,255,.25)', color: 'var(--holo-text-bright)', fontSize: 14, outline: 'none', direction: 'rtl' }}>
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, background: 'var(--t137)', border: '1px solid var(--t41)', color: 'var(--t68)', fontSize: 14, outline: 'none', direction: 'rtl' }}>
                 <option value="">— בחר כיתה —</option>
                 {classes.map(c => <option key={c.id} value={c.id}>{c.gradeLabel}</option>)}
               </select>
@@ -142,16 +142,16 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
             {classId && (
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 60, maxHeight: 300 }}>
                 {loadingStudents ? (
-                  <div style={{ color: 'rgba(47,243,255,.5)', fontSize: 13, textAlign: 'center', padding: 16 }}>טוען תלמידים…</div>
+                  <div style={{ color: 'var(--t77)', fontSize: 13, textAlign: 'center', padding: 16 }}>טוען תלמידים…</div>
                 ) : students.length === 0 ? (
-                  <div style={{ color: 'rgba(255,255,255,.35)', fontSize: 13, textAlign: 'center', padding: 16 }}>אין תלמידים פעילים בכיתה זו</div>
+                  <div style={{ color: 'var(--t136)', fontSize: 13, textAlign: 'center', padding: 16 }}>אין תלמידים פעילים בכיתה זו</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {students.map(s => (
-                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, background: 'rgba(47,243,255,.03)', border: '1px solid rgba(47,243,255,.09)' }}>
-                        <span style={{ fontSize: 15, color: 'rgba(255,255,255,.18)' }}>○</span>
-                        <span style={{ fontSize: 13.5, color: 'var(--holo-text-bright)' }}>{s.name}</span>
-                        {genderLabel(s.gender) && <span style={{ fontSize: 10.5, color: s.gender === 'male' ? '#7ab8ff' : '#ff9bd6', marginRight: 'auto' }}>{genderLabel(s.gender)}</span>}
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, background: 'var(--t138)', border: '1px solid var(--t97)' }}>
+                        <span style={{ fontSize: 15, color: 'var(--t139)' }}>○</span>
+                        <span style={{ fontSize: 13.5, color: 'var(--t68)' }}>{s.name}</span>
+                        {genderLabel(s.gender) && <span style={{ fontSize: 10.5, color: s.gender === 'male' ? 'var(--t140)' : 'var(--t120)', marginRight: 'auto' }}>{genderLabel(s.gender)}</span>}
                       </div>
                     ))}
                   </div>
@@ -160,9 +160,9 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
             )}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.45)', cursor: 'pointer', fontSize: 13 }}>ביטול</button>
+              <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 9, background: 'transparent', border: '1px solid var(--t141)', color: 'var(--t142)', cursor: 'pointer', fontSize: 13 }}>ביטול</button>
               <button onClick={startExport} disabled={!classId || !students.length || loadingStudents}
-                style={{ padding: '9px 20px', borderRadius: 9, background: (!classId || !students.length || loadingStudents) ? 'rgba(47,243,255,.13)' : 'linear-gradient(120deg,#2ff3ff,#9b8cff)', border: 'none', color: '#04101c', fontWeight: 700, cursor: (!classId || !students.length || loadingStudents) ? 'not-allowed' : 'pointer', fontSize: 13.5 }}>
+                style={{ padding: '9px 20px', borderRadius: 9, background: (!classId || !students.length || loadingStudents) ? 'var(--t33)' : 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', color: 'var(--t17)', fontWeight: 700, cursor: (!classId || !students.length || loadingStudents) ? 'not-allowed' : 'pointer', fontSize: 13.5 }}>
                 ✨ התחל ייצוא ({students.length} תלמידים)
               </button>
             </div>
@@ -175,30 +175,30 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
             {/* progress bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: phase === 'done' ? (errorCount > 0 ? '#ffb37a' : '#7ef6ff') : 'rgba(47,243,255,.8)' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: phase === 'done' ? (errorCount > 0 ? 'var(--t143)' : 'var(--t1)') : 'var(--t144)' }}>
                   {phase === 'done'
                     ? errorCount > 0
                       ? `${doneCount} מוכנים ✓  •  ${errorCount} נכשל${errorCount > 1 ? 'ו' : ''} ✗`
                       : `✓ כל ${doneCount} הגרסאות מוכנות`
                     : `מכין הדמיות מותאמות… ${processed + 1}/${total}`}
                 </span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,.38)' }}>{pct}%</span>
+                <span style={{ fontSize: 12, color: 'var(--t145)' }}>{pct}%</span>
               </div>
-              <div style={{ height: 5, borderRadius: 4, background: 'rgba(47,243,255,.09)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 4, transition: 'width .45s ease', width: `${pct}%`, background: errorCount > 0 && phase === 'done' ? 'linear-gradient(90deg,#2ff3ff,#ffb37a)' : 'linear-gradient(90deg,#2ff3ff,#9b8cff)' }} />
+              <div style={{ height: 5, borderRadius: 4, background: 'var(--t97)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 4, transition: 'width .45s ease', width: `${pct}%`, background: errorCount > 0 && phase === 'done' ? 'linear-gradient(90deg,var(--t15),var(--t143))' : 'linear-gradient(90deg,var(--t15),var(--t14))' }} />
               </div>
             </div>
 
             {/* תלמיד נוכחי */}
             {phase === 'running' && currentStudent && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', borderRadius: 12, background: 'rgba(255,228,132,.06)', border: '1px solid rgba(255,228,132,.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', borderRadius: 12, background: 'var(--t146)', border: '1px solid var(--t147)' }}>
                 <span style={{ fontSize: 20, animation: 'holo-dot-pulse 1s infinite' }}>⚙</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 700, color: '#ffe484' }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--t132)' }}>
                     מכין ל{currentStudent.name}
-                    <span style={{ fontWeight: 400, fontSize: 12, color: 'rgba(255,255,255,.4)', marginRight: 6 }}>— תלמיד {(currentIdx + 1)}/{total}</span>
+                    <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--t148)', marginRight: 6 }}>— תלמיד {(currentIdx + 1)}/{total}</span>
                   </div>
-                  <div style={{ fontSize: 11.5, color: 'rgba(255,228,132,.6)', marginTop: 3 }}>{WORK_MSGS[workMsgIdx]}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--t149)', marginTop: 3 }}>{WORK_MSGS[workMsgIdx]}</div>
                 </div>
               </div>
             )}
@@ -213,8 +213,8 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
                   <div key={s.id} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '8px 13px', borderRadius: 9,
-                    background: isCurrent ? 'rgba(255,228,132,.05)' : st === 'done' ? 'rgba(47,243,255,.03)' : st === 'error' ? 'rgba(255,112,153,.04)' : 'rgba(4,9,18,.35)',
-                    border: `1px solid ${isCurrent ? 'rgba(255,228,132,.28)' : st === 'done' ? 'rgba(47,243,255,.15)' : st === 'error' ? 'rgba(255,112,153,.25)' : 'rgba(255,255,255,.06)'}`,
+                    background: isCurrent ? 'var(--t150)' : st === 'done' ? 'var(--t138)' : st === 'error' ? 'var(--t151)' : 'var(--t152)',
+                    border: `1px solid ${isCurrent ? 'var(--t153)' : st === 'done' ? 'var(--t116)' : st === 'error' ? 'var(--t154)' : 'var(--t155)'}`,
                     transition: 'all .22s ease',
                   }}>
                     {/* אייקון */}
@@ -222,13 +222,13 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
                       {st === 'done' ? '✓' : st === 'error' ? '✗' : st === 'working' ? '⚙' : '○'}
                     </span>
                     {/* שם */}
-                    <span style={{ fontSize: 13, color: isCurrent ? '#ffe484' : st === 'pending' ? 'rgba(255,255,255,.35)' : 'var(--holo-text-bright)', fontWeight: isCurrent ? 700 : 400, minWidth: 0 }}>
+                    <span style={{ fontSize: 13, color: isCurrent ? 'var(--t132)' : st === 'pending' ? 'var(--t136)' : 'var(--t68)', fontWeight: isCurrent ? 700 : 400, minWidth: 0 }}>
                       {s.name}
                     </span>
                     {/* גנדר */}
-                    {genderLabel(s.gender) && <span style={{ fontSize: 10, color: s.gender === 'male' ? '#7ab8ff' : '#ff9bd6' }}>{genderLabel(s.gender)}</span>}
+                    {genderLabel(s.gender) && <span style={{ fontSize: 10, color: s.gender === 'male' ? 'var(--t140)' : 'var(--t120)' }}>{genderLabel(s.gender)}</span>}
                     {/* פרטי snapshot / שגיאה */}
-                    <span style={{ marginRight: 'auto', fontSize: 11, color: st === 'error' ? '#ff7099' : 'rgba(47,243,255,.45)', whiteSpace: 'nowrap' }}>
+                    <span style={{ marginRight: 'auto', fontSize: 11, color: st === 'error' ? 'var(--t5)' : 'var(--t36)', whiteSpace: 'nowrap' }}>
                       {st === 'done' && snap ? `רמה ${snap.textLevel}${snap.gender === 'male' ? ' · זכר' : snap.gender === 'female' ? ' · נקבה' : ''}` : ''}
                       {st === 'error' ? 'שגיאה' : ''}
                       {st === 'working' ? WORK_MSGS[workMsgIdx] : ''}
@@ -243,7 +243,7 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => { cancelledRef.current = true }}
-                  style={{ padding: '7px 16px', borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,255,255,.15)', color: 'rgba(255,255,255,.4)', cursor: 'pointer', fontSize: 13 }}>
+                  style={{ padding: '7px 16px', borderRadius: 9, background: 'transparent', border: '1px solid var(--t141)', color: 'var(--t148)', cursor: 'pointer', fontSize: 13 }}>
                   עצור
                 </button>
               </div>
@@ -254,12 +254,12 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
                 {errorCount > 0 && (
                   <button onClick={retryFailed}
-                    style={{ padding: '9px 18px', borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,112,153,.5)', color: '#ff9bb3', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                    style={{ padding: '9px 18px', borderRadius: 9, background: 'transparent', border: '1px solid var(--t156)', color: 'var(--t18)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
                     ↻ נסה שוב ({errorCount} נכשל{errorCount > 1 ? 'ו' : ''})
                   </button>
                 )}
                 <button onClick={onClose}
-                  style={{ padding: '9px 22px', borderRadius: 9, background: 'linear-gradient(120deg,#2ff3ff,#9b8cff)', border: 'none', color: '#04101c', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+                  style={{ padding: '9px 22px', borderRadius: 9, background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', color: 'var(--t17)', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
                   סגור
                 </button>
               </div>

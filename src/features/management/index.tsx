@@ -10,8 +10,8 @@ export interface ClassTeacher { teacherId: string; name: string; subject: string
 export interface ClassRow { id: string; name: string; slug: string; url_code: string; gradeLabel: string; teachers: ClassTeacher[]; studentCount: number; is_active: boolean }
 
 const inputStyle: React.CSSProperties = {
-  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,246,255,0.3)',
-  borderRadius: '0.5rem', color: 'var(--holo-text)', padding: '0.5rem 0.7rem',
+  background: 'var(--t253)', border: '1px solid var(--t219)',
+  borderRadius: '0.5rem', color: 'var(--t301)', padding: '0.5rem 0.7rem',
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
@@ -88,8 +88,8 @@ export default function ManagementPanel() {
         <div className="flex items-center justify-between">
           <span className="text-sm" style={{ opacity: 0.6 }}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
           <div className="flex gap-3">
-            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,246,255,0.3)', background: 'transparent', color: 'var(--holo-text)' }} onClick={() => navigate('/analytics')}>📊 אנליטיקה</button>
-            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,246,255,0.3)', background: 'transparent', color: 'var(--holo-text)' }} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
+            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => navigate('/analytics')}>📊 אנליטיקה</button>
+            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
           </div>
         </div>
         <h1 className="holo-text-glow text-3xl font-black mt-2 text-center">ניהול בית הספר</h1>
@@ -98,7 +98,7 @@ export default function ManagementPanel() {
         </div>
       </header>
 
-      {error && <p className="text-sm" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
+      {error && <p className="text-sm" style={{ color: 'var(--t18)' }}>⚠️ {error}</p>}
 
       {isAdmin && (
         <>
@@ -127,10 +127,10 @@ export default function ManagementPanel() {
               <div key={t.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.6rem 1rem', opacity: t.is_active ? 1 : 0.45 }}>
                 <span className="font-bold">{t.name} <span className="text-xs" style={{ opacity: 0.6 }}>· {t.classCount} כיתות</span></span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs rounded-full px-2 py-0.5" style={t.is_active ? { color: '#5fffb0', border: '1px solid rgba(0,255,150,0.5)' } : { color: '#ff9bb3', border: '1px solid rgba(255,120,150,0.5)' }}>{t.is_active ? '● פעיל' : '○ מושבת'}</span>
+                  <span className="text-xs rounded-full px-2 py-0.5" style={t.is_active ? { color: 'var(--t3)', border: '1px solid var(--t297)' } : { color: 'var(--t18)', border: '1px solid var(--t298)' }}>{t.is_active ? '● פעיל' : '○ מושבת'}</span>
                   {t.is_active
-                    ? <button className="text-sm cursor-pointer" style={{ color: '#ff9bb3' }} onClick={() => setConfirm({ kind: 'teacher', id: t.id, name: t.name })}>השבתה</button>
-                    : <button className="text-sm cursor-pointer" style={{ color: '#5fffb0' }} onClick={() => toggle('teacher', t.id, true)}>הפעלה</button>}
+                    ? <button className="text-sm cursor-pointer" style={{ color: 'var(--t18)' }} onClick={() => setConfirm({ kind: 'teacher', id: t.id, name: t.name })}>השבתה</button>
+                    : <button className="text-sm cursor-pointer" style={{ color: 'var(--t3)' }} onClick={() => toggle('teacher', t.id, true)}>הפעלה</button>}
                 </div>
               </div>
             ))}
@@ -158,13 +158,13 @@ export default function ManagementPanel() {
             <div>
               <span className="font-bold">{c.gradeLabel}</span>
               <span className="text-xs mr-2" style={{ opacity: 0.6 }}>· {c.studentCount} תלמידים{c.teachers.length ? ` · ${c.teachers.map((t) => t.name).join(', ')}` : ''}</span>
-              {!c.is_active && <span className="text-xs mr-2" style={{ color: '#ff9bb3' }}>○ מושבת</span>}
+              {!c.is_active && <span className="text-xs mr-2" style={{ color: 'var(--t18)' }}>○ מושבת</span>}
             </div>
             <div className="flex gap-2">
-              <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,246,255,0.4)', background: 'transparent', color: 'var(--holo-text)' }} onClick={() => setView(c)}>ניהול ←</button>
+              <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t299)', background: 'transparent', color: 'var(--t301)' }} onClick={() => setView(c)}>ניהול ←</button>
               {isAdmin && (c.is_active
-                ? <button className="text-sm cursor-pointer" style={{ color: '#ff9bb3' }} onClick={() => setConfirm({ kind: 'class', id: c.id, name: c.name })}>השבתה</button>
-                : <button className="text-sm cursor-pointer" style={{ color: '#5fffb0' }} onClick={() => toggle('class', c.id, true)}>הפעלה</button>)}
+                ? <button className="text-sm cursor-pointer" style={{ color: 'var(--t18)' }} onClick={() => setConfirm({ kind: 'class', id: c.id, name: c.name })}>השבתה</button>
+                : <button className="text-sm cursor-pointer" style={{ color: 'var(--t3)' }} onClick={() => toggle('class', c.id, true)}>הפעלה</button>)}
             </div>
           </div>
         ))}

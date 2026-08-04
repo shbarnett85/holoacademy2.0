@@ -107,25 +107,25 @@ export default function LessonsPane() {
 
   return (
     <>
-      {error && <p style={{ color: '#ff9bb3', fontSize: 14 }}>⚠️ {error}</p>}
-      <div style={{ ...micro, fontSize: 9, color: 'rgba(47,243,255,.6)', flex: '0 0 auto' }}>📚 סיכום שיעורים</div>
+      {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
+      <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', flex: '0 0 auto' }}>📚 סיכום שיעורים</div>
 
       {/* ד"ר הולו מציע — הדמיות חזרה למטלות בחלון ההיזכרות */}
       {suggestions.length > 0 && !suggestionsDismissed && (
-        <div style={{ ...glass, padding: '12px 16px', borderColor: 'rgba(155,140,255,.5)', flex: '0 0 auto' }}>
+        <div style={{ ...glass, padding: '12px 16px', borderColor: 'var(--t29)', flex: '0 0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ ...micro, fontSize: 9, color: '#c9b6ff' }}>🔄 ד"ר הולו מציע</div>
+            <div style={{ ...micro, fontSize: 9, color: 'var(--t16)' }}>🔄 ד"ר הולו מציע</div>
             <button onClick={() => { setSuggestionsDismissed(true); sessionStorage.setItem('holo_review_sugg_dismissed', '1') }}
-              style={{ background: 'none', border: 'none', color: 'rgba(200,190,255,.5)', cursor: 'pointer', fontSize: 13 }} title="סגור">✕</button>
+              style={{ background: 'none', border: 'none', color: 'var(--t30)', cursor: 'pointer', fontSize: 13 }} title="סגור">✕</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
             {suggestions.map((s) => (
               <div key={s.assignmentId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, color: '#cfe1f2' }}>
-                  ב"<b>{s.title}</b>" (כיתה {s.className}) נותרו <b style={{ color: '#ffce5e' }}>{s.weakCount}</b> מושגים חלשים — זה הזמן להדמיית חזרה.
+                <span style={{ fontSize: 13, color: 'var(--t12)' }}>
+                  ב"<b>{s.title}</b>" (כיתה {s.className}) נותרו <b style={{ color: 'var(--t4)' }}>{s.weakCount}</b> מושגים חלשים — זה הזמן להדמיית חזרה.
                 </span>
                 <button onClick={() => setAssignmentId(s.assignmentId)}
-                  style={{ padding: '5px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: '#e7d6ff', background: 'rgba(155,140,255,.14)', border: '1px solid rgba(155,140,255,.5)', whiteSpace: 'nowrap' }}>
+                  style={{ padding: '5px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: 'var(--t31)', background: 'var(--t32)', border: '1px solid var(--t29)', whiteSpace: 'nowrap' }}>
                   פתח ←
                 </button>
               </div>
@@ -136,44 +136,44 @@ export default function LessonsPane() {
 
       {/* שורת סינון */}
       <div style={{ ...glass, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: '0 0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(4,9,18,.5)', border: '1px solid rgba(47,243,255,.13)', borderRadius: 10, padding: '7px 14px', flex: '1 1 160px', minWidth: 140 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7ef6ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש שיעור…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'var(--holo-text-bright)', fontSize: 13, fontFamily: 'var(--font-display)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 10, padding: '7px 14px', flex: '1 1 160px', minWidth: 140 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t1)' }} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש שיעור…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'var(--t68)', fontSize: 13, fontFamily: 'var(--font-display)' }} />
         </div>
         <HoloSelect value={layer} onChange={(v) => { setLayer(v); setKlass('') }} options={layers.map((l) => ({ v: l, label: 'שכבה ' + l }))} placeholder="שכבה" />
         <HoloSelect value={klass} onChange={setKlass} options={classOptions.map((c) => ({ v: c, label: 'כיתה ' + c }))} placeholder="כיתה" />
         {subjectOptions.length > 0 && <HoloSelect value={subject} onChange={setSubject} options={subjectOptions.map((sub) => ({ v: sub, label: sub }))} placeholder="מקצוע" />}
         <HoloSelect value={since === 'all' ? '' : since} onChange={pickSince} options={SINCE.filter((s) => s.key !== 'all').map((s) => ({ v: s.key, label: s.label }))} placeholder="ממתי" />
         <HoloSelect value={sort === 'newest' ? '' : sort} onChange={(v) => setSort((v || 'newest') as SortKey)} options={SORTS.filter((s) => s.key !== 'newest').map((s) => ({ v: s.key, label: s.label }))} placeholder="מיון" />
-        {dirty && <button onClick={clearAll} style={{ fontSize: 12, fontWeight: 600, color: '#ff8af0', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(255,69,230,.4)', whiteSpace: 'nowrap' }}>נקה</button>}
-        <div style={{ ...micro, fontSize: 9.5, color: 'rgba(47,243,255,.45)', marginRight: 'auto' }}>{filtered.length} שיעורים</div>
+        {dirty && <button onClick={clearAll} style={{ fontSize: 12, fontWeight: 600, color: 'var(--t34)', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t35)', whiteSpace: 'nowrap' }}>נקה</button>}
+        <div style={{ ...micro, fontSize: 9.5, color: 'var(--t36)', marginRight: 'auto' }}>{filtered.length} שיעורים</div>
       </div>
 
       {/* רשימת השיעורים */}
       <div style={{ ...glass, padding: 16, display: 'flex', flexDirection: 'column', flex: '0 0 auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {!assignments && !error && <p style={{ ...micro, color: 'rgba(140,170,200,.6)', textAlign: 'center', padding: 28 }}>טוען…</p>}
-          {assignments && filtered.length === 0 && <p style={{ ...micro, color: 'rgba(140,170,200,.5)', textAlign: 'center', padding: 28, fontSize: 11 }}>{all.length === 0 ? 'אין עדיין שיעורים מוקצים.' : 'אין שיעורים התואמים לסינון.'}</p>}
+          {!assignments && !error && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 28 }}>טוען…</p>}
+          {assignments && filtered.length === 0 && <p style={{ ...micro, color: 'var(--t37)', textAlign: 'center', padding: 28, fontSize: 11 }}>{all.length === 0 ? 'אין עדיין שיעורים מוקצים.' : 'אין שיעורים התואמים לסינון.'}</p>}
           {filtered.map((a) => {
             const sr = a.avgSuccessRate
-            const srColor = sr === null ? '#8aa0b8' : sr < 0.6 ? '#ff7099' : sr < 0.85 ? '#ffce5e' : '#5fffb0'
+            const srColor = sr === null ? 'var(--t6)' : sr < 0.6 ? 'var(--t5)' : sr < 0.85 ? 'var(--t4)' : 'var(--t3)'
             const hr = a.homeroom
-            const baseBorder = hr ? '1px dashed rgba(255,206,94,.5)' : '1px solid rgba(120,200,255,.12)'
+            const baseBorder = hr ? '1px dashed var(--t38)' : '1px solid var(--t26)'
             return (
               <button key={a.id} onClick={() => setAssignmentId(a.id)}
-                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'right', background: 'rgba(4,9,18,.5)', border: baseBorder, borderRight: hr ? '3px solid rgba(255,206,94,.7)' : baseBorder, transition: 'all .15s' }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(47,243,255,.06)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(4,9,18,.5)' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', borderRadius: 14, cursor: 'pointer', textAlign: 'right', background: 'var(--t25)', border: baseBorder, borderRight: hr ? '3px solid var(--t39)' : baseBorder, transition: 'all .15s' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--t40)' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--t25)' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {hr && <span title="הוקצה לכיתת-החינוך שלך ע״י מורה אחר" style={{ fontSize: 14, flexShrink: 0 }}>🎓</span>}
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--holo-text-bright)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title || '(ללא שם)'}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t68)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title || '(ללא שם)'}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#bfe9ff', padding: '3px 9px', borderRadius: 20, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)' }}>כיתה {a.classGradeLabel}</span>
-                    {hr && <span style={{ fontSize: 11, fontWeight: 700, color: '#ffce5e', padding: '3px 9px', borderRadius: 20, background: 'rgba(255,206,94,.1)', border: '1px solid rgba(255,206,94,.4)' }}>כיתתי{a.subject ? ` · ${a.subject}` : ''}{a.teacherName ? ` · ${a.teacherName}` : ''}</span>}
-                    <span style={{ fontSize: 12, color: '#8aa0b8' }}>{a.completed}/{a.students} השלימו</span>
-                    {a.createdAt && <span style={{ fontSize: 11.5, color: '#6b7f99' }}>· {new Date(a.createdAt).toLocaleDateString('he-IL')}</span>}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t19)', padding: '3px 9px', borderRadius: 20, background: 'var(--t20)', border: '1px solid var(--t41)' }}>כיתה {a.classGradeLabel}</span>
+                    {hr && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t4)', padding: '3px 9px', borderRadius: 20, background: 'var(--t42)', border: '1px solid var(--t43)' }}>כיתתי{a.subject ? ` · ${a.subject}` : ''}{a.teacherName ? ` · ${a.teacherName}` : ''}</span>}
+                    <span style={{ fontSize: 12, color: 'var(--t6)' }}>{a.completed}/{a.students} השלימו</span>
+                    {a.createdAt && <span style={{ fontSize: 11.5, color: 'var(--t44)' }}>· {new Date(a.createdAt).toLocaleDateString('he-IL')}</span>}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flexShrink: 0, width: 66 }}>
@@ -181,7 +181,7 @@ export default function LessonsPane() {
                   <div style={{ ...micro, fontSize: 8 }}>הצלחה</div>
                 </div>
                 <div style={{ textAlign: 'center', flexShrink: 0, width: 66 }}>
-                  <div style={{ fontSize: 19, fontWeight: 800, color: a.completionRate >= 0.85 ? '#5fffb0' : '#7ef6ff' }}>{pct(a.completionRate)}</div>
+                  <div style={{ fontSize: 19, fontWeight: 800, color: a.completionRate >= 0.85 ? 'var(--t3)' : 'var(--t1)' }}>{pct(a.completionRate)}</div>
                   <div style={{ ...micro, fontSize: 8 }}>השלמה</div>
                 </div>
               </button>
