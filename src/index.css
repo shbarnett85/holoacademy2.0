@@ -157,15 +157,22 @@ html.holo-playing { font-size: 144%; }
 }
 
 /* ── הפאנל: תצוגה הולוגרפית של ד"ר הולו, לא רכיב UI גנרי ── */
+/* ── עמוד הטקסט: מלבן סגור לצד עמוד התמונה ──
+   ~33% מהרוחב, אך לא צר מ-19rem — מתחת לזה אורך השורה בעברית יורד מתחת
+   ל-45 תווים והקריאה נשברת לגלילה מתמדת בגובה שאין. */
 .holo-side-panel {
-  flex: 0 1 34rem;
+  flex: 0 1 33%;
+  min-width: min(19rem, 100%);
   max-width: 34rem;
   min-width: 0;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
   text-align: center;
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 /* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
    (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
@@ -176,13 +183,36 @@ html.holo-playing { font-size: 144%; }
   backdrop-filter: blur(7px);
 }
 
-/* ── הבמה: מרחב המניפולציה ── */
-.holo-stage {
-  flex: 1 1 auto;
+/* ── עמוד התמונה: מלבן סגור ─────────────────────────────────────────────
+   התמונה חיה **רק כאן** ואינה גולשת מאחורי עמוד הטקסט. overflow:hidden כולא
+   את החיתוך, את סחיפת ה-Ken Burns ואת מעבר-הסצנה בתוך המלבן. */
+.holo-image-page {
+  flex: 1 1 67%;
   min-width: 0;
+  align-self: stretch;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(47, 243, 255, 0.22);
+  background: #050b18;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.holo-image-fill { position: absolute; inset: 0; pointer-events: none; transition: opacity .35s ease; }
+.holo-image-fill img { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ── הבמה: מרחב המניפולציה, בתוך עמוד התמונה ── */
+.holo-stage {
+  position: relative;
+  z-index: 2;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
 }
 .holo-stage .holo-panel {
   background-color: rgba(7, 13, 28, 0.88);
@@ -278,12 +308,11 @@ html.holo-playing { font-size: 144%; }
      אתגר לא נדחף מתחת ל-HUD. */
   .holo-scene-band { gap: 0.7rem; align-items: stretch; }
   .holo-side-panel {
-    flex: 0 1 clamp(11rem, 34%, 17rem);
-    max-width: 17rem;
-    display: flex; flex-direction: column; justify-content: center;
-    overflow-y: auto;
+    flex: 0 1 33%;
+    min-width: 0;          /* ברוחב מובייל 33% מ-844 = 278px, עדיין קריא */
+    max-width: 20rem;
   }
-  .holo-stage { align-items: center; }
+  .holo-image-page { border-radius: 0.75rem; }
   .holo-stage .holo-panel { max-height: 100%; overflow-y: auto; }
   .holo-stage-instruction { font-size: 0.92rem; margin: 0.45rem 0 0.35rem; }
 

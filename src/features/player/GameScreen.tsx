@@ -626,31 +626,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
         }}
       >
-        {scene.imageUrl && (
-          /* התמונה מוצגת נקייה וחיה (כמו מצב-עין) — אין עוד שכבת-כהות גלובלית על כל המסך.
-             קריאוּת הטקסט מובטחת ע"י הפאנלים הייעודיים (holo-panel) של הנרטיב/הדיאלוג/הכפתורים,
-             ולא ע"י החשכת התמונה כולה. העטיפה (overflow:hidden) כולאת את סחיפת ה-Ken Burns. */
-          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-            <img
-              src={scene.imageUrl}
-              alt=""
-              style={{
-                position: 'absolute', inset: 0, width: '100%', height: '100%',
-                objectFit: 'cover',
-                /* התמונות נוצרות ב-1280×720 (16:9). cover מתאים את הצלע הצרה וחותך
-                   את השנייה, וכמות החיתוך תלויה ביחס המסך: טלפון לרוחב 667×375 הוא
-                   16:9 בדיוק → **אפס חיתוך**; 844×390 (19.5:9) חותך 17.9% מהגובה;
-                   דסקטופ/טאבלט חותכים 25-29% מהרוחב. המיקוד מוטה מעט למעלה (45%)
-                   ולא 50% — בחיתוך אנכי זה שומר על ראשי הדמויות ועל קו הרקיע, שהם
-                   מרכז העניין בסצנה, במקום לחתוך אותם באופן סימטרי. */
-                objectPosition: 'center 45%',
-                animation: prefersReducedMotion()
-                  ? undefined
-                  : `holo-kenburns 18s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
-              }}
-            />
-          </div>
-        )}
+        {/* התמונה עברה אל **עמוד התמונה** (מלבן סגור בתוך הפס) — היא לא
+            גולשת יותר מאחורי עמוד הטקסט. ראו .holo-image-page. */}
         {/* רשת נקודות עדינה */}
         <div
           style={{
@@ -812,7 +789,36 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         {/* הבמה — אחרי הפאנל ב-DOM, כדי שב-RTL הפאנל יישאר תמיד בצד ההתחלה
             (ימין) והבמה במרכז/שמאל. סדר הפוך היה מקפיץ את הפאנל בין הצדדים
             לפי סוג האתגר — בדיוק מה שהעקביות המרחבית באה למנוע. */}
-        {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
+        {/* ── עמוד התמונה: מלבן סגור ── התמונה ממלאת אותו ב-cover (חותכים אם צריך,
+            בלי פסים ובלי עיוות), ו-overflow:hidden כולא גם אותה וגם את סחיפת ה-Ken
+            Burns וגם את מעבר-הסצנה בתוך המלבן — כך עמוד הטקסט לא מושפע. */}
+        <div className="holo-image-page">
+          {scene.imageUrl && (
+            <div className="holo-image-fill" style={{ opacity: onStage ? 0.32 : 1 }}>
+              <img
+                src={scene.imageUrl}
+                alt=""
+                style={{
+                  position: 'absolute', inset: 0, width: '100%', height: '100%',
+                  objectFit: 'cover',
+                  /* התמונות נוצרות ב-1280×720 (16:9). cover מתאים את הצלע הצרה וחותך
+                     את השנייה, וכמות החיתוך תלויה ביחס המסך: טלפון לרוחב 667×375 הוא
+                     16:9 בדיוק → **אפס חיתוך**; 844×390 (19.5:9) חותך 17.9% מהגובה;
+                     דסקטופ/טאבלט חותכים 25-29% מהרוחב. המיקוד מוטה מעט למעלה (45%)
+                     ולא 50% — בחיתוך אנכי זה שומר על ראשי הדמויות ועל קו הרקיע, שהם
+                     מרכז העניין בסצנה, במקום לחתוך אותם באופן סימטרי. */
+                  objectPosition: 'center 45%',
+                  animation: prefersReducedMotion()
+                    ? undefined
+                    : `holo-kenburns 18s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
+                }}
+              />
+            </div>
+          )}
+          {/* אתגר מניפולציה משתלט על עמוד התמונה בלבד (אפשרות א') — עמוד הטקסט
+              נשאר במקומו ומתעמעם, כך שהעקביות המרחבית נשמרת. */}
+          {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
+        </div>
         </div>{/* holo-scene-band */}
 
         {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons'), כך שאינה בולעת קליקים
