@@ -148,7 +148,7 @@ export default function PortalTransition({ trigger, oldImageUrl, newImageUrl, on
     <div
       aria-hidden
       onPointerDown={finish}
-      style={{ position: 'fixed', inset: 0, zIndex: 65, background: '#000', overflow: 'hidden', cursor: 'pointer' }}
+      style={{ position: 'absolute', inset: 0, zIndex: 65, background: '#000', overflow: 'hidden', cursor: 'pointer' }}
     >
       {/* reduced-motion → cross-fade פשוט בלבד (ללא scale/frame) */}
       {reduce ? (

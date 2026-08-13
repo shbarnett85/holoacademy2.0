@@ -815,6 +815,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               />
             </div>
           )}
+          {/* ── מעבר הסצנה, כלוא במלבן ──
+              הרכיבים היו position:fixed (מלוא המסך) ולכן המעבר "בלע" גם את עמוד
+              הטקסט. עכשיו הם absolute בתוך עמוד התמונה, וה-overflow:hidden שלו
+              כולא אותם — התמונה מתחלפת בתוך המלבן בזמן שהטקסט נמחק ונכתב מחדש
+              בעמוד שלו, בלי שהעמוד יזוז או יהבהב. */}
+      {engine.transitionType === 'wormhole'
+            ? <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
+            : <PortalTransition
+                trigger={engine.transitionKey}
+                oldImageUrl={prevImg}
+                newImageUrl={scene.imageUrl}
+                onComplete={onTransitionDone}
+              />}
+
           {/* אתגר מניפולציה משתלט על עמוד התמונה בלבד (אפשרות א') — עמוד הטקסט
               נשאר במקומו ומתעמעם, כך שהעקביות המרחבית נשמרת. */}
           {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
@@ -864,14 +878,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
       {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
           שקופית לשקופית (fade). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
-      {engine.transitionType === 'wormhole'
-        ? <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
-        : <PortalTransition
-            trigger={engine.transitionKey}
-            oldImageUrl={prevImg}
-            newImageUrl={scene.imageUrl}
-            onComplete={onTransitionDone}
-          />}
+      {/* המעבר עבר אל תוך עמוד התמונה — ראו .holo-image-page */}
 
       <TopHUD
         title={scene.title}

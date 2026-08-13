@@ -125,7 +125,7 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 50 }}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 50 }}
     />
   )
 }
