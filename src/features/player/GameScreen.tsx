@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
-import BottomHUD from './BottomHUD'
+import { CrystalBar, ItemSlots } from './BottomHUD'
 import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
@@ -169,7 +169,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   const [eyeMode, setEyeMode] = useState(false)
-  const studentName = sessionStorage.getItem('holo_student_name') ?? 'אורח/ת'
   const preloadedRef = useRef(false)
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
@@ -621,7 +620,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           zIndex: 1,
           /* התמונה (absolute inset:0) ממלאת את כל ה-viewport; ה-padding התחתון שומר על התוכן
              מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
-          paddingBottom: '5.5rem',
+          paddingBottom: '1rem', /* אין יותר פס תחתון — הגובה מוחזר לבמה */
           paddingTop: '4rem', /* מרווח מתחת לפס העליון (TopHUD) כדי שהתוכן לא ייחתך */
           background:
             'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
@@ -868,17 +867,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             onComplete={onTransitionDone}
           />}
 
-      <TopHUD title={scene.title} onExit={handleExit} hidden={eyeMode} eyeActive={eyeMode} onToggleEye={() => setEyeMode((v) => !v)} />
-
-      <BottomHUD
-        crystalProgress={engine.crystalProgress}
-        shardEvent={engine.shardEvent}
-        inventory={engine.inventory}
-        justCollected={engine.justCollected}
-        studentName={studentName}
-        onUseItem={engine.useItem}
+      <TopHUD
+        title={scene.title}
+        onExit={handleExit}
         hidden={eyeMode}
+        eyeActive={eyeMode}
+        onToggleEye={() => setEyeMode((v) => !v)}
+        hudSlot={<>
+          <CrystalBar progress={engine.crystalProgress} shardEvent={engine.shardEvent} />
+          <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
+        </>}
       />
+
+      {/* הפס התחתון בוטל: הגבישים עלו לרצועה העליונה (hudSlot). במצב רוחבי
+          במובייל הגובה הוא המשאב הנדיר, ורצועה שנייה גזלה ~50px. */}
     </div>
   )
 }

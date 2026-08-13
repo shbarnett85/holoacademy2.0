@@ -3,8 +3,11 @@ import { useSoundSettings } from '../../shared/lib/sound'
 /* פס עליון — תואם ויזואלית ל-BottomHUD (אותו רקע/blur/border-glow), בראש המסך.
    מכיל: כפתור עין (שמאל), כותרת הסצנה (מרכז), כפתור השתקה + יציאה (ימין — RTL).
    הפס מחליק כלפי מעלה במצב-עין; כפתור העין נשאר תמיד גלוי (אחרת אי-אפשר לצאת ממצב-עין). */
-export default function TopHUD({ title, onExit, hidden = false, eyeActive, onToggleEye }: {
+export default function TopHUD({ title, onExit, hidden = false, eyeActive, onToggleEye, hudSlot }: {
   title: string; onExit: () => void; hidden?: boolean; eyeActive: boolean; onToggleEye: () => void
+  /* גבישים + תאי חפצים. הם חיים ברצועה **העליונה** ולא בפס תחתון נפרד:
+     במצב רוחבי במובייל הגובה הוא המשאב הנדיר, ורצועה שנייה גוזלת ~50px יקרים. */
+  hudSlot?: React.ReactNode
 }) {
   const { muted, toggleMuted } = useSoundSettings()
   return (
@@ -29,7 +32,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
 
       {/* הפס עצמו — מחליק כלפי מעלה במצב-עין */}
       <div
-        className="fixed top-0 left-0 right-0 flex items-center justify-center px-4 py-2 holo-hud-top"
+        className="fixed top-0 left-0 right-0 flex items-center gap-3 px-4 py-2 holo-hud-top"
         style={{
           background: 'rgba(10,10,31,0.85)',
           borderBottom: '1px solid rgba(0,246,255,0.25)',
@@ -41,13 +44,13 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           pointerEvents: hidden ? 'none' : 'auto',
         }}
       >
-        {/* כותרת הסצנה — ממורכזת */}
+        {/* התחלה (ימין ב-RTL): כותרת + כפתורי הבקרה. סוף (שמאל): גבישים וחפצים. */}
         <h1
           className="holo-text-glow text-xl font-black truncate"
           /* המקום השמור לכפתורים (יציאה+סאונד, שניהם בצד ימין ב-RTL). הכותרת ממורכזת,
              ולכן הרזרבה נספרת פעמיים — במובייל היא גדלה כדי שהכותרת לא תיגלוש מתחת
              לכפתור הסאונד (ראו --tophud-reserve ב-index.css). */
-          style={{ maxWidth: 'calc(100% - var(--tophud-reserve, 9rem))', textShadow: '0 0 14px rgba(0,246,255,0.5)' }}
+          style={{ flex: '0 1 auto', minWidth: 0, textShadow: '0 0 14px rgba(0,246,255,0.5)' }}
         >
           {title}
         </h1>
@@ -60,7 +63,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           aria-pressed={muted}
           className="cursor-pointer rounded-md flex items-center justify-center"
           style={{
-            position: 'absolute', right: 'var(--tophud-sound-right, 5rem)', top: '50%', transform: 'translateY(-50%)',
+            flexShrink: 0,
             width: '2.1rem', height: '2.1rem', fontSize: '1.05rem',
             background: 'transparent', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)',
           }}
@@ -73,12 +76,15 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           onClick={onExit}
           className="text-sm cursor-pointer rounded-md px-3 py-1"
           style={{
-            position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)',
+            flexShrink: 0,
             background: 'transparent', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)',
           }}
         >
           יציאה
         </button>
+
+        {/* דוחף את הגבישים/החפצים אל הקצה הנגדי — מקום קבוע, לא זז בין סוגי אתגרים */}
+        {hudSlot && <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--hud-slot-gap, 0.5rem)', minWidth: 0 }}>{hudSlot}</div>}
       </div>
     </>
   )
