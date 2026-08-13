@@ -5,6 +5,7 @@ import BottomHUD from './BottomHUD'
 import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
+import { isStagePuzzle, type Placement } from './stageRouting'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
@@ -529,6 +530,47 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     )
   }
 
+
+  /* אותו אתגר, שני מקומות אפשריים: פאנל (תשובת טקסט/בחירה) או במה (מניפולציה).
+     ראו stageRouting.ts — הניתוב לפי סוג האינטראקציה, לא לפי סוג האתגר. */
+  /* אתגר מניפולציה עולה לבמה; אתגר תשובה נשאר בפאנל, כהמשך ישיר של דברי הדוקטור. */
+  const onStage = puzzleOpen && !!scene.puzzle && isStagePuzzle(scene.puzzle.type)
+  const inPanel = puzzleOpen && !!scene.puzzle && !onStage
+
+  const puzzleEl = (placement: Placement) => (
+    <PuzzleModal
+      placement={placement}
+        puzzle={scene.puzzle!}
+        imageUrl={scene.imageUrl}
+        onSolve={engine.solvePuzzle}
+        onClose={() => fadeSwap(() => setPuzzleOpen(false))}
+        onContinue={() => {
+          const hasItem = !!scene.collectableItem
+          const hasChoices = !!scene.choices?.length
+          const willAdvance = !hasItem && !hasChoices && !engine.gateLocked
+          if (willAdvance) {
+            const advanceNow = () => { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
+            /* המשך שמגיע למסה קריטית → ההיתוך עומד להתנגן. מעכבים את מעבר הסצנה
+               עד שההיתוך יסתיים (onDone), כדי שהפורטל לא ירוץ במקביל ויאפס אותו. */
+            if (engine.crystalsFull >= 3 && !fusionFiredRef.current) {
+              pendingAdvanceRef.current = advanceNow
+              /* רשת ביטחון — אם ההיתוך לא נורה מסיבה כלשהי, מתקדמים בכל זאת */
+              window.setTimeout(() => {
+                const p = pendingAdvanceRef.current
+                if (p) { pendingAdvanceRef.current = null; setFusion(false); p() }
+              }, 5000)
+            } else {
+              advanceNow()
+            }
+          } else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
+        }}
+        /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
+           ממשיכה לפעולה הבאה (בחירות/המשך) */
+        onCollect={engine.canCollect ? collectAndAdvance : undefined}
+        collectLabel={scene.collectableItem ? `${scene.collectableItem.icon} אספו את ${scene.collectableItem.name}` : undefined}
+      />
+  )
+
   return (
     <div className="min-h-dvh flex flex-col">
       <ErrorFlashOverlay />
@@ -620,50 +662,33 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           }}
         />
 
+        {/* פס התוכן: פאנל צדדי קבוע + במה מרכזית. שניהם שכבות **מעל** תמונת הרקע
+            (שממלאת inset:0), ולכן הרקע נשאר full-bleed ואינו מתכווץ. */}
         <div
-          className="max-w-2xl w-full text-center z-10"
+          className="holo-scene-band z-10"
           style={{
             opacity: eyeMode ? 0 : 1,
             pointerEvents: eyeMode ? 'none' : 'auto',
             transition: 'opacity 0.45s ease',
           }}
         >
+        {/* הפאנל — תמיד באותו צד (התחלה ב-RTL). מתעמעם כשהבמה פעילה כדי שהתלמיד
+            ירגיש שהסיפור מושהה, ולא שהוא עבר למסך אחר. */}
+        <div
+          className="holo-side-panel"
+          style={{
+            opacity: onStage ? 0.62 : 1,
+            filter: onStage ? 'saturate(.85)' : 'none',
+            transition: 'opacity .35s ease, filter .35s ease, flex-basis .35s ease',
+          }}
+        >
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה */}
           {/* עטיפת fade — מעבר fade-out→fade-in בין הטקסט לאתגר (החלפת inline) */}
           <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
-          {puzzleOpen && scene.puzzle ? (
+          {inPanel ? (
             <div className="mt-6">
-              <PuzzleModal
-                puzzle={scene.puzzle}
-                imageUrl={scene.imageUrl}
-                onSolve={engine.solvePuzzle}
-                onClose={() => fadeSwap(() => setPuzzleOpen(false))}
-                onContinue={() => {
-                  const hasItem = !!scene.collectableItem
-                  const hasChoices = !!scene.choices?.length
-                  const willAdvance = !hasItem && !hasChoices && !engine.gateLocked
-                  if (willAdvance) {
-                    const advanceNow = () => { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
-                    /* המשך שמגיע למסה קריטית → ההיתוך עומד להתנגן. מעכבים את מעבר הסצנה
-                       עד שההיתוך יסתיים (onDone), כדי שהפורטל לא ירוץ במקביל ויאפס אותו. */
-                    if (engine.crystalsFull >= 3 && !fusionFiredRef.current) {
-                      pendingAdvanceRef.current = advanceNow
-                      /* רשת ביטחון — אם ההיתוך לא נורה מסיבה כלשהי, מתקדמים בכל זאת */
-                      window.setTimeout(() => {
-                        const p = pendingAdvanceRef.current
-                        if (p) { pendingAdvanceRef.current = null; setFusion(false); p() }
-                      }, 5000)
-                    } else {
-                      advanceNow()
-                    }
-                  } else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
-                }}
-                /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
-                   ממשיכה לפעולה הבאה (בחירות/המשך) */
-                onCollect={engine.canCollect ? collectAndAdvance : undefined}
-                collectLabel={scene.collectableItem ? `${scene.collectableItem.icon} אספו את ${scene.collectableItem.name}` : undefined}
-              />
+              {puzzleEl('panel')}
             </div>
           ) : (
           <>
@@ -785,6 +810,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           )}
           </div>
         </div>
+        {/* הבמה — אחרי הפאנל ב-DOM, כדי שב-RTL הפאנל יישאר תמיד בצד ההתחלה
+            (ימין) והבמה במרכז/שמאל. סדר הפוך היה מקפיץ את הפאנל בין הצדדים
+            לפי סוג האתגר — בדיוק מה שהעקביות המרחבית באה למנוע. */}
+        {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
+        </div>{/* holo-scene-band */}
 
         {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons'), כך שאינה בולעת קליקים
             על הכפתורים אחרי שהופיעו. לחיצה/טאץ' מקפיצים לסוף הרצף. */}

@@ -130,6 +130,75 @@ body {
    ל-<html> רק כש-GameScreen מורכב ומוסר ביציאה. */
 html.holo-playing { font-size: 144%; }
 
+/* ══ פריסת מסך המשחק: פאנל צדדי + במה מרכזית ══════════════════════════════
+   תמונת הרקע (absolute inset:0) ממלאת את המסך; הפס הזה הוא **שכבה מעליה**
+   ולא חלוקה שמכווצת אותה. הפאנל תמיד באותו צד (התחלה ב-RTL) והבמה תמיד
+   במרכז — כך התלמיד יודע איפה להסתכל כבר אחרי שיעור אחד. */
+/* גובה מוגדר לשרשרת: בלעדיו הפאנל גדל עם התוכן ונרטיב ארוך נחתך ע"י ה-HUD
+   (נמדד בדסקטופ: פאנל עד 742px על viewport 598). עם גובה ממש, העודף נגלל
+   בתוך הפאנל במקום להיעלם מתחת לסרגל. */
+.holo-playing .min-h-dvh { height: 100dvh; }
+.holo-playing .scene-fade { min-height: 0; }
+
+.holo-scene-band {
+  width: 100%;
+  /* חייב להיות מסוגל להתכווץ בתוך העמודה של הסצנה, אחרת התוכן דוחף את הפס
+     מעבר לגובה הפנוי והוא נדחף אל מתחת ל-HUD (נמדד: 691px על viewport 390). */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  /* התחלה = ימין ב-RTL. הפאנל תמיד באותו צד גם כשאין במה — העקביות המרחבית
+     חשובה יותר ממילוי הרוחב, והשטח הפנוי מראה את התמונה, שהיא הנקודה. */
+  justify-content: flex-start;
+  gap: 1.25rem;
+  /* safe-area — במצב רוחבי ה-notch בצדדים ועלול לחתוך את הפאנל */
+  padding-inline: max(0px, env(safe-area-inset-left), env(safe-area-inset-right));
+}
+
+/* ── הפאנל: תצוגה הולוגרפית של ד"ר הולו, לא רכיב UI גנרי ── */
+.holo-side-panel {
+  flex: 0 1 34rem;
+  max-width: 34rem;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  text-align: center;
+  align-self: center;
+}
+/* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
+   (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
+.holo-side-panel .holo-panel {
+  border-color: rgba(47, 243, 255, 0.42);
+  box-shadow: 0 0 26px rgba(47, 243, 255, 0.18), inset 0 0 40px rgba(4, 12, 26, 0.55);
+  background-color: rgba(9, 16, 34, 0.9);
+  backdrop-filter: blur(7px);
+}
+
+/* ── הבמה: מרחב המניפולציה ── */
+.holo-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.holo-stage .holo-panel {
+  background-color: rgba(7, 13, 28, 0.88);
+  border-color: rgba(47, 243, 255, 0.45);
+  backdrop-filter: blur(7px);
+}
+/* ההוראה שנוסעת עם האתגר — קומפקטית, קריאה, צמודה למה שהידיים עושות */
+.holo-stage-instruction {
+  margin: 0.65rem 0 0.5rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #eaf9ff;
+  text-shadow: 0 0 12px rgba(47, 243, 255, 0.35);
+}
+
 /* ── מובייל (≤480px) — התאמות רוחב-צר בלבד ────────────────────────────────
    כל הכללים כאן חיים בתוך media query, והרכיבים צורכים אותם כ-var(--x, <ערך-דסקטופ>).
    מעל 480px המשתנים אינם מוגדרים → ה-fallback נכנס → הדסקטופ זהה בתו אחד. */
@@ -202,6 +271,21 @@ html.holo-playing { font-size: 144%; }
 
   /* פאנל הנרטיב — פחות ריפוד אנכי, כדי שהטקסט ייכנס ל-~270px הפנויים */
   .holo-playing .holo-panel { padding-block: 0.75rem; }
+
+  /* ── רוחב במובייל: הגובה נדיר, הרוחב יש בשפע ──
+     הפאנל מצטמצם לרצועה צדדית והבמה מקבלת את רוב הרוחב. שניהם ממלאים את
+     מלוא הגובה הפנוי בין הסרגלים, ומה שגולש נגלל בתוך האלמנט עצמו — כך אף
+     אתגר לא נדחף מתחת ל-HUD. */
+  .holo-scene-band { gap: 0.7rem; align-items: stretch; }
+  .holo-side-panel {
+    flex: 0 1 clamp(11rem, 34%, 17rem);
+    max-width: 17rem;
+    display: flex; flex-direction: column; justify-content: center;
+    overflow-y: auto;
+  }
+  .holo-stage { align-items: center; }
+  .holo-stage .holo-panel { max-height: 100%; overflow-y: auto; }
+  .holo-stage-instruction { font-size: 0.92rem; margin: 0.45rem 0 0.35rem; }
 
   /* safe-area — ברוחב ה-notch עובר ל**צדדים** ועלול לחתוך את קצות ה-HUD */
   .holo-hud-top,

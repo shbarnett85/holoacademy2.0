@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import type { Placement } from '../player/stageRouting'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import type { Puzzle } from './useGameEngine'
 import TileSwapChallenge from './challenges/TileSwapChallenge'
@@ -25,6 +26,9 @@ interface Props {
   /* אם האתגר מסתיים באיסוף מפתח — מחליפים את "המשך" בכפתור איסוף ישיר (פישוט התהליך) */
   onCollect?: () => void
   collectLabel?: string
+  /* 'panel' = תשובת טקסט/בחירה, בתוך הפאנל הצדדי (המשך דברי הדוקטור).
+     'stage'  = אתגר מניפולציה, במרכז הבמה. ראו stageRouting.ts */
+  placement?: Placement
 }
 
 interface Result { correct: boolean; score: number }
@@ -47,7 +51,7 @@ function maxWidthFor(type?: string): string {
 }
 
 /* מודאל אתגר הולוגרפי — אתגר אינטראקטיבי → פאנל תוצאה/הסבר → המשך */
-export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel }: Props) {
+export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel'}: Props) {
   const [result, setResult] = useState<Result | null>(null)
   /* הגנה מלחיצה כפולה — ה-state אסינכרוני, ה-ref מיידי */
   const lockedRef = useRef(false)
@@ -189,11 +193,20 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     <div
       ref={panelRef}
       className="holo-panel w-full text-center mx-auto"
-      style={{ maxWidth: maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100dvh - var(--puzzle-vgutter, 12rem))', overflowY: 'auto' }}
+      style={{ maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: 'calc(100dvh - var(--puzzle-vgutter, 12rem))', overflowY: 'auto' }}
     >
         <span className="text-xs rounded-full px-3 py-1" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
           {type === 'finalQuiz' ? '📝' : '🧩'} {puzzleTypeLabel(type)}
         </span>
+
+        {/* ── ההוראה נוסעת עם האתגר ────────────────────────────────────────
+            כשהאתגר עולה לבמה, הפאנל עם דברי הדוקטור מתעמעם בצד. אם ההוראה
+            נשארת שם בלבד, התלמיד מתחיל לגרור ושוכח מה ביקשו — הוא נאלץ
+            להחזיק את השאלה בזיכרון העבודה תוך כדי מניפולציה (קשב מפוצל).
+            לכן ההוראה מוצגת כאן, צמודה למה שהידיים עושות. */}
+        {placement === 'stage' && puzzle.question && (
+          <h3 className="holo-stage-instruction">{puzzle.question}</h3>
+        )}
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
