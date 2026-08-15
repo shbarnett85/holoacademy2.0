@@ -263,7 +263,9 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     }
     setTransitionType('wormhole')
     setTransitionKey((k) => k + 1)
-    setTimeout(() => setFinished(true), 450)
+    /* 830ms = אמצע הפלטו הלבן של ההבזק (delay 720 + כניסה 77 לתוך פלטו 77) —
+       הסיכום מחליף את הסצנה כשהמסך כולו לבן, וההחלפה בלתי-נראית. */
+    setTimeout(() => setFinished(true), 830)
   }, [track, currentSceneId])
 
   /* איסוף חפץ מהסצנה הנוכחית (לאחר חידה אם יש) */

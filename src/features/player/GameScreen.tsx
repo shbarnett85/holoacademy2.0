@@ -420,8 +420,20 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh gap-6 p-6 relative">
-        {/* מעבר חור-תולעת (חלקיקים) אל מסך הסיום — חזרה "מההדמיה לתפריט" */}
-        <WormholeTransition trigger={engine.transitionKey} />
+        {/* ההגעה לכאן קורית באמצע הפריים הלבן (המנוע חושף finished ב-830ms).
+            חור-התולעת של הסצנה נעלם עם ההחלפה, ולכן **אין** כאן מופע נוסף שלו —
+            מופע חדש היה מריץ שוב קנבס+הבזק+סאונד. במקומו: שכבת לבן שמתחילה
+            אטומה (ממשיכה את הפריים הלבן ברציפות מושלמת) ונפתחת אל הסיכום. */}
+        <div className="holo-summary-whiteout" aria-hidden />
+        <style>{`
+          @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
+          .holo-summary-whiteout {
+            position: fixed; inset: 0; z-index: 81; pointer-events: none;
+            background: radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 55%, #eafcff 100%);
+            animation: holo-whiteout 0.45s ease-out both;
+          }
+          @media (prefers-reduced-motion: reduce) { .holo-summary-whiteout { animation: none; opacity: 0; } }
+        `}</style>
         {endImage && (
           <>
             {/* אותו מיקוד כמו תמונות הסצנה — ד"ר הולו במרכז הפריים, מוטה מעט למעלה */}
