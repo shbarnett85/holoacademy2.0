@@ -202,7 +202,17 @@ html.holo-playing { font-size: 144%; }
 .holo-image-fill { position: absolute; inset: 0; pointer-events: none; transition: opacity .35s ease; }
 .holo-image-fill img { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-/* ── הבמה: מרחב המניפולציה, בתוך עמוד התמונה ── */
+/* שכבת כהיה מקומית — רק בתוך מלבן התמונה, לא על כל המסך. האתגר קריא
+   והתמונה נשארת נוכחת מאחוריו כהקשר. */
+.holo-stage-scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 50%, rgba(4,10,22,.72), rgba(4,10,22,.88));
+  animation: holo-scrim-in .3s ease both;
+}
+@keyframes holo-scrim-in { from { opacity: 0 } to { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .holo-stage-scrim { animation: none } }
+
+/* ── האתגר: תמיד במרכז עמוד התמונה, לכל הסוגים ── */
 .holo-stage {
   position: relative;
   z-index: 2;
@@ -313,6 +323,12 @@ html.holo-playing { font-size: 144%; }
     max-width: 20rem;
   }
   .holo-image-page { border-radius: 0.75rem; }
+
+  /* בחירה מרובה במרכז על גובה ~390px: רשימה אנכית של 4 תשובות בעברית לא
+     נכנסת בלי גלילה. פריסת 2×2 מנצלת את הרוחב שיש במקום הגובה שאין. */
+  .holo-stage .holo-answers { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .holo-stage .holo-answers > * { margin: 0 !important; min-height: 44px; }
+  .holo-stage-instruction { font-size: .9rem; margin: .35rem 0 .3rem; }
   .holo-stage .holo-panel { max-height: 100%; overflow-y: auto; }
   .holo-stage-instruction { font-size: 0.92rem; margin: 0.45rem 0 0.35rem; }
 

@@ -5,7 +5,7 @@ import { CrystalBar, ItemSlots } from './BottomHUD'
 import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
-import { isStagePuzzle, type Placement } from './stageRouting'
+import { type Placement } from './stageRouting'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
@@ -532,9 +532,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
   /* אותו אתגר, שני מקומות אפשריים: פאנל (תשובת טקסט/בחירה) או במה (מניפולציה).
      ראו stageRouting.ts — הניתוב לפי סוג האינטראקציה, לא לפי סוג האתגר. */
-  /* אתגר מניפולציה עולה לבמה; אתגר תשובה נשאר בפאנל, כהמשך ישיר של דברי הדוקטור. */
-  const onStage = puzzleOpen && !!scene.puzzle && isStagePuzzle(scene.puzzle.type)
-  const inPanel = puzzleOpen && !!scene.puzzle && !onStage
+  /* כלל אחד, בלי יוצא מן הכלל: **כל** אתגר מופיע במרכז עמוד התמונה — בחירה
+     מרובה, דילמה, גרירה, סידור, התאמה, פענוח. התלמיד לומד כלל מרחבי יחיד
+     ("אתגרים קורים במרכז") במקום למפות סוג-אתגר למקום. */
+  const onStage = puzzleOpen && !!scene.puzzle
 
   const puzzleEl = (placement: Placement) => (
     <PuzzleModal
@@ -662,11 +663,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* עטיפת fade — מעבר fade-out→fade-in בין הטקסט לאתגר (החלפת inline) */}
           <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
-          {inPanel ? (
-            <div className="mt-6">
-              {puzzleEl('panel')}
-            </div>
-          ) : (
+          {/* עמוד הטקסט מחזיק נרטיב בלבד ואינו נמחק כשאתגר פעיל — התלמיד יכול
+              לחזור ולקרוא את ההקשר תוך כדי פתרון. */}
+          {(
           <>
           {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט.
              מופיע רק אחרי שהסצנה "נחה" (reveal !== 'scene'), ב-materialize מרשים. */}
@@ -794,7 +793,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             Burns וגם את מעבר-הסצנה בתוך המלבן — כך עמוד הטקסט לא מושפע. */}
         <div className="holo-image-page">
           {scene.imageUrl && (
-            <div className="holo-image-fill" style={{ opacity: onStage ? 0.32 : 1 }}>
+            <div className="holo-image-fill">
               <img
                 src={scene.imageUrl}
                 alt=""
@@ -829,8 +828,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 onComplete={onTransitionDone}
               />}
 
-          {/* אתגר מניפולציה משתלט על עמוד התמונה בלבד (אפשרות א') — עמוד הטקסט
-              נשאר במקומו ומתעמעם, כך שהעקביות המרחבית נשמרת. */}
+          {/* שכבת כהיה **מקומית** למלבן — האתגר קריא, והתמונה נשארת נוכחת מאחוריו */}
+          {onStage && <div className="holo-stage-scrim" />}
           {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
         </div>
         </div>{/* holo-scene-band */}

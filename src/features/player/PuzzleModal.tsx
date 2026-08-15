@@ -164,7 +164,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
           return (
             <>
               <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
-              <div className="flex flex-col gap-3 mt-5">
+              <div className="flex flex-col gap-3 mt-5 holo-answers">
                 {puzzle.choices.map((c) => (
                   <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => { if (!c.isCorrect) triggerErrorFlash(); handleResult({ correct: c.isCorrect }) }}>
                     {c.text}
@@ -204,7 +204,10 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             נשארת שם בלבד, התלמיד מתחיל לגרור ושוכח מה ביקשו — הוא נאלץ
             להחזיק את השאלה בזיכרון העבודה תוך כדי מניפולציה (קשב מפוצל).
             לכן ההוראה מוצגת כאן, צמודה למה שהידיים עושות. */}
-        {placement === 'stage' && puzzle.question && (
+        {/* ההוראה/השאלה מוצגת **יחד עם התשובות** במרכז, לכל סוגי האתגרים —
+            לא מפוצלת בין עמוד הטקסט לאתגר. רב-ברירה ונכון/לא-נכון מציגים את
+            השאלה בעצמם למטה, ולכן שם הכותרת הזו מושמטת כדי לא לכפול אותה. */}
+        {placement === 'stage' && puzzle.question && type !== 'multipleChoice' && type !== 'trueFalse' && (
           <h3 className="holo-stage-instruction">{puzzle.question}</h3>
         )}
 
