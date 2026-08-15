@@ -2,7 +2,7 @@ import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
 import { callGeminiText } from './gemini.js'
 import { engineFor } from './modelRouter.js'
-import { extractJson, checkAnswerConsistency, type FactCheckMeta, type GameData } from './questSchemas.js'
+import { extractJson, checkAnswerConsistency, lintDetachedClitics, type FactCheckMeta, type GameData } from './questSchemas.js'
 import { enforceNarrativePhrasing, applyNiqqudToGameData } from './questVariants.js'
 import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { info, error as logError } from './log.js'
@@ -34,6 +34,17 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
     }
     for (const q of s.puzzle?.questions ?? []) lines.push(`  שאלת מבחן: ${q.question}`)
   }
+  /* הסיומים היו שטח מת של הבדיקה — "שתחוסכו" ישב ב-endingGood ואיש לא בדק
+     אותו. מזהים פסאודו (__endingGood__/__endingBad__), כמו אצל התמונות. */
+  const gd = gameData as unknown as { endingGood?: { title?: string; narrative?: string; drHoloDialog?: string }; endingBad?: { title?: string; narrative?: string; drHoloDialog?: string } }
+  for (const [eid, e] of [['__endingGood__', gd.endingGood], ['__endingBad__', gd.endingBad]] as const) {
+    if (!e) continue
+    if (sceneIds && !sceneIds.includes(eid)) continue
+    lines.push(`[${eid}] כותרת: ${e.title ?? ''}`)
+    if (e.narrative) lines.push(`  נרטיב: ${e.narrative}`)
+    if (e.drHoloDialog) lines.push(`  דיאלוג ד"ר הולו: ${e.drHoloDialog}`)
+  }
+
   return lines.join('\n')
 }
 
@@ -53,7 +64,7 @@ export async function runFactCheck(gameData: GameData, sceneIds?: string[], fact
 2. **ביטויים מדעיים/לוגיים חסרי-משמעות או מטעים** — ניסוח שנשמע "מדעי" אך אין לו פשר אמיתי או שמטעה תפיסתית (למשל "גביש של אוויר", "אנרגיה שלילית של חום"), **גם אם הרעיון הכללי מאחוריו נכון**. דגל את הביטוי והצע ניסוח מדעי תקין.
 3. **כפל-תרגום בשם לועזי** — מילת-תפקיד עברית לפני שם לועזי שכבר מכיל אותה (למשל "כנסיית ווסטמינסטר אביי" = כנסייה+Abbey, "נהר התמזה ריבר", "מדבר הסהרה" = מדבר+صحراء). דגל והצע את השם המקובל בעברית.
 4. **בלבולי מילים דומות-צליל (החמורה שבטעויות הלשון)** — מילה שנשמעת דומה אך שונה לגמרי במשמעות, "נשמעת נכון" לילד שרוכש קריאה. דוגמאות (חפש גם דפוסים דומים שלא ברשימה): חשוב/קשוב, ניכר/ניגר, מסוגל/מסוגר, נדמה/נרדם, מְשַׁדֵּךְ (=matchmaking)/מְשַׁגֵּר-מְשַׁנֵּעַ-מַעֲבִיר, **צָדוּ** (=hunted, מ"לצוד")/**צִיְּידוּ** (=equipped, מ"לצייד") — במיוחד בהקשר ציד ("יצאו לציד ואז _ צבי" → צָדוּ). כל מקרה שמילה נשמעת "כמעט נכון" בהקשר אך משמעותה שונה — דגל.
-5. **התאמות דקדוקיות שגויות** — (א) **מין**: שם עצם נקבה/זכר עם פועל-תואר-מילת-שאלה בגוף הלא-נכון (למשל "כמה שוקל הגלקסיה"→"שוקלת", "איזו אור"→"איזה", "המים זורמת"→"זורמים"), במיוחד בשמות עצם לא-אינטואיטיביים (שמיים=זכר רבים, דלת=נקבה, שולחן=זכר). (ב) **מספר**: יחיד/רבים (למשל "הילדים הולך"→"הולכים"), במיוחד שמות עצם שנראים יחיד אך הם רבים (מים, שמיים, חיים) ולהפך. (ג) **זמן פועל**: קפיצה לא-מוסברת בין עבר להווה בתוך אותה פסקה/משפט. (ד) **סמיכות מאולצת**: "לב ביסקוויט" במקום "הלב של ביסקוויט" — סמיכות ספרותית לא-טבעית לילדים. (ה) **צורת פועל מומצאת/שגויה**, במיוחד בגוף שני רבים בעבר — למשל "תודיתם" (לא מילה; הנכון "הודיתם" מהפועל להודות), "ברכתם" שמנוקד כשם עצם. דגל רק אי-התאמה **חד-משמעית ובטוחה** (לא שם עצם דו-מיני/צורת-רבים חריגה שנויה-במחלוקת).
+5. **התאמות דקדוקיות שגויות** — (א) **מין**: שם עצם נקבה/זכר עם פועל-תואר-מילת-שאלה בגוף הלא-נכון (למשל "כמה שוקל הגלקסיה"→"שוקלת", "איזו אור"→"איזה", "המים זורמת"→"זורמים"), במיוחד בשמות עצם לא-אינטואיטיביים (שמיים=זכר רבים, דלת=נקבה, שולחן=זכר). (ב) **מספר**: יחיד/רבים (למשל "הילדים הולך"→"הולכים"), במיוחד שמות עצם שנראים יחיד אך הם רבים (מים, שמיים, חיים) ולהפך. (ג) **זמן פועל**: קפיצה לא-מוסברת בין עבר להווה בתוך אותה פסקה/משפט. (ד) **סמיכות מאולצת**: "לב ביסקוויט" במקום "הלב של ביסקוויט" — סמיכות ספרותית לא-טבעית לילדים. (ה0) **סיומת חבורה תלושה** — סיומת שנכתבה כמילה נפרדת ("ליד כם"→"לידכם", "אצל כם"→"אצלכם"); "כם" איננה מילה עברית לעולם — דגל תמיד. (ה) **צורת פועל מומצאת/שגויה**, במיוחד בגוף שני רבים בעבר — למשל "תודיתם" (לא מילה; הנכון "הודיתם" מהפועל להודות), "ברכתם" שמנוקד כשם עצם. דגל רק אי-התאמה **חד-משמעית ובטוחה** (לא שם עצם דו-מיני/צורת-רבים חריגה שנויה-במחלוקת).
 6. **משפטים שבורים או חסרי נושא** — משפט שנראה כתוצר של דחיסה/עריכה חלקית: חסר נושא ברור, פועל תלוי-באוויר, או צירוף מילים שלא מרכיב משפט תקין דקדוקית. אם אי-אפשר לזהות "מי עושה מה" בקריאה ראשונה — דגל.
 7. **בחירת-מילה שגויה סמנטית וצירוף מתורגם-מילולית** — (א) פועל/שם-עצם שלא מתאים סמנטית להקשר גם אם דקדוקית תקין (למשל "דגם לו לאיזה כיוון ללכת" — "דגם"=יצר-דגם, הכוונה "הצביע/רמז"). (ב) צירוף מתורגם-מילולית מאנגלית שאינו עברית טבעית (למשל "סביב אתכם"=around you, התקני "סְבִיבְכֶם"). (ג) עברית "מתורגמת"/גבוהה-מדי שמרגישה מאולצת בפי ילד — העדף "ה-X של Y" על סמיכות ספרותית ומשפטים קצרים (עד כ-15 מילה) על פסוקיות מרובות. **התעלם מהניקוד** — הוא תקין; בדוק בחירת-מילה ותחביר בלבד.
 8. **תשובה שגויה בחידת נכון/לא-נכון (חמור)** — כשמופיעה שורת "התשובה המסומנת כנכונה", הערך בעצמך אם ההיגד שבשאלה הוא **אמת או שקר במציאות**, והשווה לתשובה המסומנת. אם היגד **נכון עובדתית** מסומן "לא נכון", או היגד **שקרי** מסומן "נכון" — זו שגיאה חמורה (התלמיד נכשל על תשובה נכונה, או לומד עובדה שגויה). דגל רק כשאתה **בטוח לחלוטין** בערך-האמת של ההיגד (עובדה מוכרת וחד-משמעית), לא בהיגד מעורפל/שנוי-במחלוקת. ב-correction ציין את ערך-האמת הנכון של ההיגד.
@@ -92,7 +103,10 @@ ${briefBlock}
 export async function scopedFactFix(gameData: GameData, errors: FactError[]): Promise<{ corrected: string[]; reverted: string[] }> {
   const ids = [...new Set(errors.map((e) => e.sceneId).filter((x): x is string => !!x))]
   const scenes = gameData.scenes.filter((s) => ids.includes(s.id))
-  if (scenes.length === 0) return { corrected: [], reverted: [] }
+  /* סיומים — מזהים פסאודו; מתוקנים באותה קריאת AI (title/narrative/drHoloDialog) */
+  const gdE = gameData as unknown as { endingGood?: { title?: string; narrative?: string; drHoloDialog?: string }; endingBad?: { title?: string; narrative?: string; drHoloDialog?: string } }
+  const endingIds = (['__endingGood__', '__endingBad__'] as const).filter((eid) => ids.includes(eid) && (eid === '__endingGood__' ? gdE.endingGood : gdE.endingBad))
+  if (scenes.length === 0 && endingIds.length === 0) return { corrected: [], reverted: [] }
 
   const blocks = scenes.map((s) => {
     const errs = errors.filter((e) => e.sceneId === s.id)
@@ -105,10 +119,21 @@ export async function scopedFactFix(gameData: GameData, errors: FactError[]): Pr
     return `סצנה "${s.id}":\n${fields.join('\n')}\nשגיאות לתיקון:\n${errs.map((e) => `- ${e.problem}${e.correction ? ` → ${e.correction}` : ''}`).join('\n')}`
   }).join('\n\n')
 
+  const endingBlocks = endingIds.map((eid) => {
+    const e = eid === '__endingGood__' ? gdE.endingGood! : gdE.endingBad!
+    const errs = errors.filter((x) => x.sceneId === eid)
+    const fields: string[] = [`title: ${e.title ?? ''}`]
+    if (e.narrative) fields.push(`narrative: ${e.narrative}`)
+    if (e.drHoloDialog) fields.push(`drHoloDialog: ${e.drHoloDialog}`)
+    return `סצנה "${eid}":\n${fields.join('\n')}\nשגיאות לתיקון:\n${errs.map((x) => `- ${x.problem}${x.correction ? ` → ${x.correction}` : ''}`).join('\n')}`
+  }).join('\n\n')
+  const allBlocks = [blocks, endingBlocks].filter(Boolean).join('\n\n')
+
+
   const instruction = `תקן אך ורק את השגיאות העובדתיות והלשוניות שסומנו (בלבול מילים דומות-צליל / אי-התאמת מין-מספר-זמן / סמיכות מאולצת / משפט שבור-חסר-נושא / בחירת-מילה שגויה / צירוף מתורגם-מילולית) בשדות הטקסט של הסצנות הבאות. **המטרה: הטקסט המתוקן חייב להביע בדיוק את מה שהטקסט המקורי ניסה להביע — רק בעברית תקינה** — שנה אך ורק את מקור הטעות עצמה, אל תשנה את המשמעות, העלילה, האורך או הסגנון. **שמר על הניקוד אם קיים** (הוא תקין). אל תיגע במבנה, בחידות, בתשובות או במזהים.
 החזר JSON תקין בלבד במבנה: { "<sceneId>": { "title"?, "narrative"?, "drHoloDialog"?, "question"?, "explanationCorrect"?, "explanationIncorrect"? } } — כלול אך ורק שדות שבאמת השתנו.
 
-${blocks}`
+${allBlocks}`
 
   const text = engineFor('factcheck') === 'gemini' ? await callGeminiText(instruction, 16000, true) : await callHaiku([{ role: 'user', content: instruction }], 4000)
   const fixes = extractJson(text) as Record<string, Record<string, unknown>>
@@ -147,6 +172,19 @@ ${blocks}`
       corrected.push(s.id)
     }
   }
+  /* החלת תיקוני הסיומים (אין בהם חידות — אין צורך בבדיקת עקביות תשובה/הסבר) */
+  for (const eid of endingIds) {
+    const fix = fixes?.[eid]
+    if (!fix || typeof fix !== 'object') continue
+    const e = eid === '__endingGood__' ? gdE.endingGood! : gdE.endingBad!
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
+    let changed = false
+    const t = str(fix.title); if (t) { e.title = t; changed = true }
+    const n = str(fix.narrative); if (n && e.narrative !== undefined) { e.narrative = n; changed = true }
+    const d = str(fix.drHoloDialog); if (d && e.drHoloDialog !== undefined) { e.drHoloDialog = d; changed = true }
+    if (changed) corrected.push(eid)
+  }
+
   return { corrected, reverted }
 }
 
@@ -187,6 +225,14 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
   }
   try {
     const fc = await runFactCheck(gameData, undefined, factBrief)
+    /* לינט דטרמיניסטי (סיומות תלושות) — ודאות מוחלטת, נכנס תמיד לתיקון גם אם
+       הבודק-AI החמיץ (סף-הביטחון-הגבוה שלו מפספס טעויות ש"נשמעות נכון") */
+    const lint = lintDetachedClitics(gameData)
+    if (lint.length) {
+      info(`[fact-check] lint: ${lint.length} סיומות תלושות`)
+      fc.errors = [...lint, ...fc.errors.filter((e) => !lint.some((l) => l.sceneId === e.sceneId && e.problem.includes('כם')))]
+      fc.ok = true
+    }
     detected = fc.errors.length
     if (fc.ok && fc.errors.length > 0) {
       try {

@@ -498,3 +498,36 @@ export function healStaleFactCheck(gameData: GameData, now: number = Date.now())
   }
   return true
 }
+
+/* ── לינט סיומות חבורות תלושות (דטרמיניסטי, אפס-AI) ──────────────────────
+   "לידכם"→"ליד כם" הופיע בשתי הדמיות שונות — טוקניזציית BPE חלשה בסיומות
+   עבריות חבורות, והבודק-AI (סף-ביטחון-גבוה) החמיץ כי זה "נשמע נכון".
+   "כם" איננה מילה עברית לעולם, ולכן דיגול שלה ודאי (בניגוד ל"כן"/"הם"
+   שהן מילים). סובלני לניקוד בין האותיות. מכסה סצנות + סיומים. */
+const DETACHED_CLITIC = /(?<![א-ת֑-ׇ])כ[֑-ׇ]*ם(?![א-ת֑-ׇ])/
+
+export function lintDetachedClitics(gameData: GameData): { sceneId: string; problem: string }[] {
+  const out: { sceneId: string; problem: string }[] = []
+  const check = (sceneId: string, label: string, text?: string) => {
+    if (!text) return
+    const m = DETACHED_CLITIC.exec(text)
+    if (!m) return
+    const i = m.index
+    const ctx = text.slice(Math.max(0, i - 25), i + 12)
+    out.push({ sceneId, problem: `סיומת חבורה תלושה ("…${ctx}…") — "כם" איננה מילה; חבר אותה למילה שלפניה (למשל "ליד כם"→"לידכם")` })
+  }
+  for (const sc of gameData.scenes) {
+    check(sc.id, 'narrative', sc.narrative)
+    check(sc.id, 'dialog', sc.drHoloDialog)
+    check(sc.id, 'question', sc.puzzle?.question)
+    check(sc.id, 'explanationCorrect', sc.puzzle?.explanationCorrect)
+    check(sc.id, 'explanationIncorrect', sc.puzzle?.explanationIncorrect)
+    for (const q of sc.puzzle?.questions ?? []) check(sc.id, 'quiz', q.question)
+  }
+  const gd = gameData as unknown as { endingGood?: { narrative?: string; drHoloDialog?: string }; endingBad?: { narrative?: string; drHoloDialog?: string } }
+  check('__endingGood__', 'narrative', gd.endingGood?.narrative)
+  check('__endingGood__', 'dialog', gd.endingGood?.drHoloDialog)
+  check('__endingBad__', 'narrative', gd.endingBad?.narrative)
+  check('__endingBad__', 'dialog', gd.endingBad?.drHoloDialog)
+  return out
+}
