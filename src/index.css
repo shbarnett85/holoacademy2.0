@@ -175,16 +175,53 @@ html.holo-playing { font-size: 144%; }
      הדפדפן חותך את **החלק העליון** והוא בלתי נגיש לגלילה (אי-אפשר לגלול לערך
      שלילי). flex-start + margin-block:auto על הילד נותן את אותו מירכוז כשיש
      מקום, ומאפשר להגיע לראש הטקסט כשאין. */
-  justify-content: flex-start;
+  /* החלון קבוע: תופס את מלוא גובה עמוד התמונה שלצידו ואינו זז לעולם.
+     רק התוכן שבתוכו מתחלף בין שקופיות. */
+  justify-content: stretch;
+  height: 100%;
+  /* חייב hidden ולא visible: בלי תקרה החלון גדל עם התוכן (נמדד 787px מול
+     תמונה בגובה 310) ומשך איתו את כל שרשרת ה-flex. הגלילה עצמה חיה בקופסת
+     הטקסט הפנימית, ולכן שום תוכן לא אובד. */
+  overflow: hidden;
 }
-.holo-side-panel > * { margin-block: auto; width: 100%; }
+/* ── החלון עצמו הוא המסגרת ──
+   ניסיון קודם נתן ל-.holo-panel הפנימי גובה מלא דרך flex, אבל DigitalEntrance
+   יושב ביניהם ושובר את שרשרת ה-flex — הקופסה גדלה ל-787px וגלשה כלפי מעלה
+   מחוץ למסך. לכן הכרום (מסגרת ציאן, זוהר, רקע) עבר לחלון עצמו, שגובהו קבוע,
+   והתוכן פשוט גולל בתוכו. */
+.holo-side-panel > * { width: 100%; }
+/* אזור התוכן הגליל — כל מה שמעל אזור הכפתורים */
+.holo-side-panel > *:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* הקופסה הפנימית מאבדת כרום כפול — המסגרת היא כבר החלון */
+.holo-side-panel .holo-panel {
+  background: none;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  margin: 0;
+  padding: 0.9rem 0.2rem;
+}
+/* אזור הכפתורים — גובה שמור קבוע, כדי שאזור הטקסט לא ישנה גודל כשהם מופיעים */
+.holo-panel-actions {
+  flex: 0 0 auto;
+  min-height: 4.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 /* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
    (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
-.holo-side-panel .holo-panel {
-  border-color: rgba(47, 243, 255, 0.42);
+.holo-side-panel {
+  border: 1px solid rgba(47, 243, 255, 0.42);
+  border-radius: 1rem;
   box-shadow: 0 0 26px rgba(47, 243, 255, 0.18), inset 0 0 40px rgba(4, 12, 26, 0.55);
   background-color: rgba(9, 16, 34, 0.9);
   backdrop-filter: blur(7px);
+  padding: 0.5rem 0.7rem;
 }
 
 /* ── עמוד התמונה: מלבן סגור ─────────────────────────────────────────────

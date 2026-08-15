@@ -682,6 +682,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
              קודם הן היו תמיד ב-DOM עם visibility:hidden כדי "לשמור מקום", אבל
              בפריסה החדשה עמוד הטקסט בגובה קבוע עם גלילה פנימית — אין מה לשמור,
              והקופסה השמורה דחפה את "פתרו את האתגר" לראש העמוד עוד לפני הטקסט. */}
+          {/* אזור הכפתורים שמור תמיד בתחתית החלון, כך שקופסת הטקסט שמעליו לא
+              משנה גודל כשהם מופיעים. התוכן עצמו נכנס רק בשלב 'buttons' — כלומר
+              אחרי סיום ההקלדה — ולכן הוא גם לא מקדים את הטקסט. */}
+          <div className="holo-panel-actions">
           {reveal === 'buttons' && !advancing && (
           <div>
           <DigitalEntrance
@@ -752,6 +756,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           </DigitalEntrance>
           </div>
           )}
+          </div>
 
           {/* הודעות מערכת */}
           {engine.message && (

@@ -37,10 +37,11 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot }: {
           {title}
         </h1>
 
-        {hudSlot && <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--hud-slot-gap, 0.5rem)', minWidth: 0 }}>{hudSlot}</div>}
-
         {/* בקרות — נדחפות אל הקצה הנגדי, במקום שבו ישב כפתור העין שהוסר */}
         <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+        {/* גבישים + מפתחות — צמודים לקצה שמאל, ליד כפתור האודיו */}
+        {hudSlot && <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--hud-slot-gap, 0.5rem)', minWidth: 0 }}>{hudSlot}</div>}
+
         {/* כפתור השתקה גלובלי — שמאלית לכפתור היציאה (RTL); המצב נשמר ב-localStorage */}
         <button
           onClick={toggleMuted}
