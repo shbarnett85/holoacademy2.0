@@ -19,7 +19,7 @@ const FILES: Partial<Record<SoundName, string>> = {
   error: '/sounds/digital_error.mp3',
   fusion: '/sounds/3fusion.mp3',
   portal: '/sounds/portal_neon.wav',
-  wormhole: '/sounds/wormhole.wav',
+  wormhole: '/sounds/wormhole.mp3',
   type: '/sounds/type.wav',
 }
 
