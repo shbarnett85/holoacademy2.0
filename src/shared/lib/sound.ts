@@ -166,8 +166,8 @@ function synth(name: SoundName) {
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
     case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
     case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
-    /* שאיבה עולה + בום צונח — תואם לקובץ */
-    case 'wormhole': beep(140, 0.5, 'sine', 0.28, 900); noise(0.5, 0.15); beep(110, 0.9, 'sine', 0.42, 38); noise(0.8, 0.22); break
+    /* רעם נמוך + בום תת-צונח — בלי סוויפ גבוה (שריקה) */
+    case 'wormhole': beep(55, 0.5, 'sine', 0.26, 62); noise(0.5, 0.2); beep(90, 1.0, 'sine', 0.45, 34); noise(0.9, 0.26); break
     default: beep(440, 0.05, 'triangle', 0.28)
   }
 }
