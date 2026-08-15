@@ -3,8 +3,8 @@ import { useSoundSettings } from '../../shared/lib/sound'
 /* פס עליון — תואם ויזואלית ל-BottomHUD (אותו רקע/blur/border-glow), בראש המסך.
    מכיל: כפתור עין (שמאל), כותרת הסצנה (מרכז), כפתור השתקה + יציאה (ימין — RTL).
    הפס מחליק כלפי מעלה במצב-עין; כפתור העין נשאר תמיד גלוי (אחרת אי-אפשר לצאת ממצב-עין). */
-export default function TopHUD({ title, onExit, hidden = false, eyeActive, onToggleEye, hudSlot }: {
-  title: string; onExit: () => void; hidden?: boolean; eyeActive: boolean; onToggleEye: () => void
+export default function TopHUD({ title, onExit, hidden = false, hudSlot }: {
+  title: string; onExit: () => void; hidden?: boolean
   /* גבישים + תאי חפצים. הם חיים ברצועה **העליונה** ולא בפס תחתון נפרד:
      במצב רוחבי במובייל הגובה הוא המשאב הנדיר, ורצועה שנייה גוזלת ~50px יקרים. */
   hudSlot?: React.ReactNode
@@ -12,24 +12,6 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
   const { muted, toggleMuted } = useSoundSettings()
   return (
     <>
-      {/* כפתור עין — תמיד גלוי, יושב בשורת הפס משמאל (גם כשהפס מוסתר) */}
-      <button
-        onClick={onToggleEye}
-        title={eyeActive ? 'הצג ממשק' : 'הסתר ממשק וצפה בתמונה'}
-        aria-label="מצב עין"
-        className="fixed cursor-pointer flex items-center justify-center"
-        style={{
-          top: '0.35rem', left: '0.7rem', zIndex: 71,
-          width: '2.2rem', height: '2.2rem', borderRadius: '50%', fontSize: '1.05rem',
-          background: 'rgba(0,20,40,0.6)', border: '1px solid rgba(0,246,255,0.35)', backdropFilter: 'blur(4px)',
-          opacity: eyeActive ? 0.9 : 0.7, transition: 'opacity 0.3s ease',
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = eyeActive ? '0.9' : '0.7')}
-      >
-        {eyeActive ? '🙈' : '👁️'}
-      </button>
-
       {/* הפס עצמו — מחליק כלפי מעלה במצב-עין */}
       <div
         className="fixed top-0 left-0 right-0 flex items-center gap-3 px-4 py-2 holo-hud-top"
@@ -55,6 +37,10 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           {title}
         </h1>
 
+        {hudSlot && <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--hud-slot-gap, 0.5rem)', minWidth: 0 }}>{hudSlot}</div>}
+
+        {/* בקרות — נדחפות אל הקצה הנגדי, במקום שבו ישב כפתור העין שהוסר */}
+        <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
         {/* כפתור השתקה גלובלי — שמאלית לכפתור היציאה (RTL); המצב נשמר ב-localStorage */}
         <button
           onClick={toggleMuted}
@@ -83,8 +69,7 @@ export default function TopHUD({ title, onExit, hidden = false, eyeActive, onTog
           יציאה
         </button>
 
-        {/* דוחף את הגבישים/החפצים אל הקצה הנגדי — מקום קבוע, לא זז בין סוגי אתגרים */}
-        {hudSlot && <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--hud-slot-gap, 0.5rem)', minWidth: 0 }}>{hudSlot}</div>}
+        </div>
       </div>
     </>
   )

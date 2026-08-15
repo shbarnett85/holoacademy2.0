@@ -132,30 +132,6 @@ interface Props {
 }
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
-function EyeButton({ active, onToggle }: { active: boolean; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      title={active ? 'הצג ממשק' : 'הסתר ממשק וצפה בתמונה'}
-      aria-label="מצב עין"
-      className="fixed cursor-pointer flex items-center justify-center"
-      style={{
-        top: '0.75rem', left: '0.75rem', zIndex: 55,
-        width: '2.6rem', height: '2.6rem', borderRadius: '50%',
-        fontSize: '1.2rem',
-        background: 'rgba(10,10,31,0.55)',
-        border: '1px solid rgba(0,246,255,0.3)',
-        backdropFilter: 'blur(4px)',
-        opacity: active ? 0.85 : 0.45,
-        transition: 'opacity 0.3s ease, transform 0.15s ease',
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
-      onMouseLeave={(e) => (e.currentTarget.style.opacity = active ? '0.85' : '0.45')}
-    >
-      {active ? '🙈' : '👁️'}
-    </button>
-  )
-}
 
 export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, backPath = '/creator/library', visitorMode = false }: Props) {
   const engine = useGameEngine(gameData, { initialState })
@@ -168,7 +144,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   )
   const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
-  const [eyeMode, setEyeMode] = useState(false)
+  /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
+     חיה במלבן משלה ולא מוסתרת בכלל, ולכן הכפתור איבד את תפקידו. */
+  const eyeMode = false
   const preloadedRef = useRef(false)
   /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
   const [fusion, setFusion] = useState(false)
@@ -524,7 +502,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           )}
         </div>
 
-        <EyeButton active={eyeMode} onToggle={() => setEyeMode((v) => !v)} />
       </div>
     )
   }
@@ -701,9 +678,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             </DigitalEntrance>
           )}
 
-          {/* פעולות — מרונדרות תמיד (שומרות את מקומן מראש כך שקופסת הטקסט לא זזה כשהן מופיעות),
-             אך גלויות רק בשלב 'buttons' — אז fade-in באותו materialize הולוגרפי. */}
-          <div style={{ visibility: reveal === 'buttons' && !advancing ? 'visible' : 'hidden' }}>
+          {/* פעולות — מרונדרות **רק** בשלב 'buttons', כלומר אחרי שההקלדה הסתיימה.
+             קודם הן היו תמיד ב-DOM עם visibility:hidden כדי "לשמור מקום", אבל
+             בפריסה החדשה עמוד הטקסט בגובה קבוע עם גלילה פנימית — אין מה לשמור,
+             והקופסה השמורה דחפה את "פתרו את האתגר" לראש העמוד עוד לפני הטקסט. */}
+          {reveal === 'buttons' && !advancing && (
+          <div>
           <DigitalEntrance
             key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
             instant={stageInstant || reveal !== 'buttons'}
@@ -771,6 +751,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             )}
           </DigitalEntrance>
           </div>
+          )}
 
           {/* הודעות מערכת */}
           {engine.message && (
@@ -882,9 +863,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       <TopHUD
         title={scene.title}
         onExit={handleExit}
-        hidden={eyeMode}
-        eyeActive={eyeMode}
-        onToggleEye={() => setEyeMode((v) => !v)}
         hudSlot={<>
           <CrystalBar progress={engine.crystalProgress} shardEvent={engine.shardEvent} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
