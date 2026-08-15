@@ -151,7 +151,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ולכן הכפתור הבזיק בראש הסצנה החדשה עד שה-effect הספיק לאפס. הגזירה כאן
      סינכרונית, כך שאין פריים ביניים. */
   const [doneSceneId, setDoneSceneId] = useState<string | null>(null)
-  const [skipped, setSkipped] = useState(false)
+  /* דילוג הוא **פר-סצנה** (מזהה, לא בוליאני): בוליאני דלף לסצנה הבאה — הדילוג
+     מתאפס רק ב-effect שרץ אחרי סיום הפורטל, ובינתיים הסצנה החדשה עלתה עם
+     instant=true, ה-Typewriter נולד "גמור", onDone ירה מיד, והכפתור הופיע על
+     חלון ריק לפני שההקלדה התחילה. הצמדה ל-scene.id הופכת ערך ישן לחסר-תוקף
+     באופן סינכרוני — אותו דפוס שתיקן את doneSceneId. */
+  const [skipSceneId, setSkipSceneId] = useState<string | null>(null)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
      חיה במלבן משלה ולא מוסתרת בכלל, ולכן הכפתור איבד את תפקידו. */
@@ -270,7 +275,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ההקלדה מדווחת onDone → buttons. ביקור חוזר/reduced-motion → מיד buttons.
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
-    setSkipped(false)
+    setSkipSceneId(null)
     if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
     /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
     if (revealTick === 0) { setReveal('scene'); return }
@@ -285,8 +290,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [revealTick])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
-  const skipReveal = useCallback(() => { setSkipped(true); setDoneSceneId(scene.id); setReveal('buttons') }, [scene.id])
+  const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setDoneSceneId(scene.id); setReveal('buttons') }, [scene.id])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
+  const skipped = skipSceneId === scene.id
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
 
   /* מילוי הקריסטל בסיום — ramp רך 0→1 (או קפיצה ב-reduced-motion) */
