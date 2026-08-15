@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import cors from 'cors'
 import { supabaseAdmin } from './lib/supabase.js'
+import { engineFor } from './lib/modelRouter.js'
 import { injectPlayMeta, questToPlayMeta } from './lib/playMeta.js'
 import { authRouter } from './routes/auth.js'
 import { questsRouter } from './routes/quests.js'
@@ -46,6 +47,8 @@ app.get('/api/health', (_req, res) => {
     supabaseConfigured: !!(process.env.SUPABASE_URL?.trim()),
     togetherConfigured: !!(process.env.TOGETHER_API_KEY?.trim()),
     anthropicConfigured: !!(process.env.ANTHROPIC_API_KEY?.trim()),
+    /* איזה מנוע מריץ את יצירת התוכן בפועל (flags+key) — לאימות תפעולי מרחוק */
+    contentEngine: engineFor('generation'),
   })
 })
 

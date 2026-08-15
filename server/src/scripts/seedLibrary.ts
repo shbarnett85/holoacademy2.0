@@ -40,6 +40,11 @@ const args = process.argv.slice(2)
 const limitIdx = args.indexOf('--limit')
 const LIMIT = limitIdx !== -1 ? Number(args[limitIdx + 1]) || Infinity : Infinity
 const SHARE = args.includes('--share')
+/* --rewrite: יצירה מחדש של נושאים קיימים (למשל אחרי מעבר מנוע-תוכן).
+   בטיחות: ההדמיה הישנה נשארת שלמה (אנליטיקה/סשנים לא נפגעים) ורק **אחרי**
+   שהחדשה הצליחה במלואה (תוכן+תמונות+מטא) היא מודחת — is_public/is_official
+   כבויים — כך שה-showcase לעולם לא נשאר בלי הדמיה תקינה לנושא. */
+const REWRITE = args.includes('--rewrite')
 
 const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(0)
 
@@ -110,13 +115,15 @@ async function main() {
   for (const t of topics) {
     if (produced >= LIMIT) break
 
-    /* idempotent — דילוג על נושא שכבר נוצר */
+    /* idempotent — דילוג על נושא שכבר נוצר (אלא אם --rewrite) */
     const { data: existing } = await supabaseAdmin.from('quests').select('id').eq('title', t.title).limit(1)
-    if (existing && existing.length > 0) {
+    const oldId = existing && existing.length > 0 ? (existing[0] as { id: string }).id : null
+    if (oldId && !REWRITE) {
       console.log(`↷ קיים, מדלג: ${t.title}`)
       results.push({ title: t.title, status: 'קיים (דולג)', secs: '-' })
       continue
     }
+    if (oldId) console.log(`↻ rewrite: ${t.title} — הישנה (${oldId.slice(0, 8)}) תודח רק אם החדשה תצליח`)
 
     const t0 = Date.now()
     console.log(`\n▶ יוצר: ${t.title} (${t.subject} · כיתות ${t.gradeMin}-${t.gradeMax})`)
@@ -172,6 +179,17 @@ async function main() {
       })
       if (sh.ok) console.log('  ✓ שותף לספרייה הציבורית')
       else console.log(`  ⚠ שיתוף נכשל (${sh.status}): ${((await sh.json().catch(() => null)) as { error?: string } | null)?.error ?? ''}`)
+    }
+
+    /* --rewrite: החדשה הצליחה במלואה — מדיחים את הישנה מה-showcase ומהספרייה.
+       לא מוחקים: sessions/events מפנים אליה והאנליטיקה ההיסטורית נשמרת. */
+    if (oldId) {
+      const { error: demoteErr } = await supabaseAdmin
+        .from('quests')
+        .update({ is_public: false, is_official: false })
+        .eq('id', oldId)
+      if (demoteErr) console.log(`  ⚠ הדחת הישנה נכשלה: ${demoteErr.message}`)
+      else console.log(`  ✓ הישנה (${oldId.slice(0, 8)}) הודחה — החדשה היא הרשמית`)
     }
 
     produced++
