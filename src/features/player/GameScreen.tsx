@@ -6,6 +6,7 @@ import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import { type Placement } from './stageRouting'
+import { useTypingScroll } from './useTypingScroll'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
@@ -139,6 +140,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [puzzleOpen, setPuzzleOpen] = useState(false)
   /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
      ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
+  /* גלילה שנצמדת לנקודת הכתיבה כל עוד ההקלדה רצה */
   const [reveal, setReveal] = useState<'scene' | 'panel' | 'typing' | 'buttons'>(
     () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene'),
   )
@@ -512,6 +514,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* כלל אחד, בלי יוצא מן הכלל: **כל** אתגר מופיע במרכז עמוד התמונה — בחירה
      מרובה, דילמה, גרירה, סידור, התאמה, פענוח. התלמיד לומד כלל מרחבי יחיד
      ("אתגרים קורים במרכז") במקום למפות סוג-אתגר למקום. */
+  const typingScrollRef = useTypingScroll(reveal === 'typing')
   const onStage = puzzleOpen && !!scene.puzzle
 
   const puzzleEl = (placement: Placement) => (
@@ -638,7 +641,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         >
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה */}
           {/* עטיפת fade — מעבר fade-out→fade-in בין הטקסט לאתגר (החלפת inline) */}
-          <div style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          <div ref={typingScrollRef} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
           {/* עמוד הטקסט מחזיק נרטיב בלבד ואינו נמחק כשאתגר פעיל — התלמיד יכול
               לחזור ולקרוא את ההקשר תוך כדי פתרון. */}
