@@ -162,9 +162,8 @@ html.holo-playing { font-size: 144%; }
    ל-45 תווים והקריאה נשברת לגלילה מתמדת בגובה שאין. */
 .holo-side-panel {
   flex: 0 1 33%;
-  min-width: min(19rem, 100%);
-  max-width: 34rem;
   min-width: 0;
+  max-width: 34rem;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
@@ -172,8 +171,13 @@ html.holo-playing { font-size: 144%; }
   align-self: stretch;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* ⚠️ לא justify-content:center ביחד עם overflow-y:auto — כשהתוכן גבוה מהמיכל
+     הדפדפן חותך את **החלק העליון** והוא בלתי נגיש לגלילה (אי-אפשר לגלול לערך
+     שלילי). flex-start + margin-block:auto על הילד נותן את אותו מירכוז כשיש
+     מקום, ומאפשר להגיע לראש הטקסט כשאין. */
+  justify-content: flex-start;
 }
+.holo-side-panel > * { margin-block: auto; width: 100%; }
 /* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
    (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
 .holo-side-panel .holo-panel {
