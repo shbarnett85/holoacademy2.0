@@ -821,19 +821,18 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               />
             </div>
           )}
-          {/* ── מעבר הסצנה, כלוא במלבן ──
-              הרכיבים היו position:fixed (מלוא המסך) ולכן המעבר "בלע" גם את עמוד
-              הטקסט. עכשיו הם absolute בתוך עמוד התמונה, וה-overflow:hidden שלו
-              כולא אותם — התמונה מתחלפת בתוך המלבן בזמן שהטקסט נמחק ונכתב מחדש
-              בעמוד שלו, בלי שהעמוד יזוז או יהבהב. */}
-      {engine.transitionType === 'wormhole'
-            ? <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
-            : <PortalTransition
-                trigger={engine.transitionKey}
-                oldImageUrl={prevImg}
-                newImageUrl={scene.imageUrl}
-                onComplete={onTransitionDone}
-              />}
+          {/* ── מעבר סצנה רגיל (פורטל) — כלוא במלבן התמונה ──
+              absolute בתוך העמוד; ה-overflow:hidden כולא את ה-crossfade, ועמוד
+              הטקסט לא מושפע. חור-התולעת (כניסה/יציאה מהמעבדה) הוא רגע קולנועי
+              של המסך כולו ולכן מרונדר בשורש — ראו למטה. */}
+          {engine.transitionType !== 'wormhole' && (
+            <PortalTransition
+              trigger={engine.transitionKey}
+              oldImageUrl={prevImg}
+              newImageUrl={scene.imageUrl}
+              onComplete={onTransitionDone}
+            />
+          )}
 
           {/* שכבת כהיה **מקומית** למלבן — האתגר קריא, והתמונה נשארת נוכחת מאחוריו */}
           {onStage && <div className="holo-stage-scrim" />}
@@ -885,6 +884,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
           שקופית לשקופית (fade). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
       {/* המעבר עבר אל תוך עמוד התמונה — ראו .holo-image-page */}
+
+      {/* חור-התולעת — מלוא המסך (fixed), מעל שני העמודים וה-HUD */}
+      {engine.transitionType === 'wormhole' && (
+        <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
+      )}
 
       <TopHUD
         title={scene.title}
