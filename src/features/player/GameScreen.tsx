@@ -98,6 +98,7 @@ function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: {
         {showCaret && (
           <span
             aria-hidden
+            data-typing-caret
             className={done ? '' : 'typewriter-caret'}
             style={{
               display: 'inline-block',
@@ -144,6 +145,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [reveal, setReveal] = useState<'scene' | 'panel' | 'typing' | 'buttons'>(
     () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene'),
   )
+  /* הכפתורים תלויים בהשלמת הטקסט בפועל, ולא בשלב ה-reveal: reveal מאותחל
+     ל-'buttons' תחת prefers-reduced-motion (ובחזרה אחורה), ואז הם הופיעו לפני
+     שנכתבה מילה. */
+  const [textDone, setTextDone] = useState(false)
   const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
@@ -264,6 +269,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
     setSkipped(false)
+    setTextDone(!(scene.narrative || scene.drHoloDialog)) /* סצנה בלי טקסט — אין על מה לחכות */
     if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
     /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
     if (revealTick === 0) { setReveal('scene'); return }
@@ -278,7 +284,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [revealTick])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
-  const skipReveal = useCallback(() => { setSkipped(true); setReveal('buttons') }, [])
+  const skipReveal = useCallback(() => { setSkipped(true); setTextDone(true); setReveal('buttons') }, [])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
 
@@ -666,7 +672,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 scale={gameData.readingScale ?? 6}
                 /* ההקלדה מתחילה רק אחרי ה-materialize של הקופסה (שלב 'typing'); בסיומה → 'buttons' */
                 start={reveal === 'typing' || reveal === 'buttons'}
-                onDone={() => setReveal('buttons')}
+                onDone={() => { setTextDone(true); setReveal('buttons') }}
                 /* ביקור חוזר/דילוג → הטקסט במלואו מיד, בלי הקלדה */
                 instant={engine.transitionDir === 'back' || skipped}
                 /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
@@ -689,7 +695,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               משנה גודל כשהם מופיעים. התוכן עצמו נכנס רק בשלב 'buttons' — כלומר
               אחרי סיום ההקלדה — ולכן הוא גם לא מקדים את הטקסט. */}
           <div className="holo-panel-actions">
-          {reveal === 'buttons' && !advancing && (
+          {textDone && !advancing && (
           <div>
           <DigitalEntrance
             key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
