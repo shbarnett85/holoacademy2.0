@@ -19,7 +19,7 @@ const FILES: Partial<Record<SoundName, string>> = {
   error: '/sounds/digital_error.mp3',
   fusion: '/sounds/3fusion.mp3',
   portal: '/sounds/portal_neon.wav',
-  wormhole: '/sounds/wormhole.mp3',
+  wormhole: '/sounds/wormhole.wav',
   type: '/sounds/type.wav',
 }
 
@@ -166,7 +166,8 @@ function synth(name: SoundName) {
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
     case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
     case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
-    case 'wormhole': beep(120, 0.8, 'sine', 0.3, 600); noise(0.6, 0.18); break
+    /* שאיבה עולה + בום צונח — תואם לקובץ */
+    case 'wormhole': beep(140, 0.5, 'sine', 0.28, 900); noise(0.5, 0.15); beep(110, 0.9, 'sine', 0.42, 38); noise(0.8, 0.22); break
     default: beep(440, 0.05, 'triangle', 0.28)
   }
 }
