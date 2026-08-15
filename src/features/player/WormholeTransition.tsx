@@ -123,9 +123,30 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
   }, [trigger])
 
   return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 80 }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 80 }}
+      />
+      {/* הבזק אור לבן ברגע ה"קפיצה" — מסונכרן לשיא (~0.8s מתוך 1.1s), מעל החלקיקים.
+          key={trigger} מאתחל את האנימציה בכל מעבר. */}
+      <div
+        key={trigger}
+        style={{
+          position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 81,
+          background: 'radial-gradient(circle at 50% 50%, #fff 0%, rgba(255,255,255,0.85) 30%, rgba(190,240,255,0.45) 60%, transparent 80%)',
+          opacity: 0,
+          animation: trigger > 0 ? 'wormhole-flash 0.55s ease-out 0.72s 1 both' : 'none',
+        }}
+      />
+      <style>{`
+        @keyframes wormhole-flash {
+          0% { opacity: 0; }
+          18% { opacity: 0.95; }
+          100% { opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) { @keyframes wormhole-flash { 0%,100% { opacity: 0; } } }
+      `}</style>
+    </>
   )
 }
