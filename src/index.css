@@ -219,7 +219,23 @@ html.holo-playing { font-size: 144%; }
 }
 /* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
    (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
+/* שכבות הצבע של DigitalEntrance חיות בתוך תוכן הגלילה, והגלילה האוטומטית
+   שעוקבת אחרי ההקלדה גוררת אותן למעלה ברציפות — "צבעים עולים" מאחורי הטקסט.
+   בתוך חלון הטקסט מסתירים אותן ומציירים scanline **סטטי** על המסגרת הקבועה
+   עצמה, שאינה גוללת. מחוץ לחלון (PuzzleModal) הן נשארות כרגיל. */
+.holo-side-panel .de-holo-layer { display: none; }
+.holo-side-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(rgba(18,16,50,0) 0%, rgba(0,246,255,0.06) 50%, rgba(18,16,50,0) 100%);
+  background-size: 100% 4px;
+}
+
 .holo-side-panel {
+  position: relative;
   border: 1px solid rgba(47, 243, 255, 0.42);
   border-radius: 1rem;
   box-shadow: 0 0 26px rgba(47, 243, 255, 0.18), inset 0 0 40px rgba(4, 12, 26, 0.55);

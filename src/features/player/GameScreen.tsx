@@ -698,7 +698,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               משנה גודל כשהם מופיעים. התוכן עצמו נכנס רק בשלב 'buttons' — כלומר
               אחרי סיום ההקלדה — ולכן הוא גם לא מקדים את הטקסט. */}
           <div className="holo-panel-actions">
-          {textDone && !advancing && (
+          {/* שער כפול: גם הטקסט הושלם **וגם** רצף החשיפה הגיע לשלב הכפתורים —
+              כך שום נתיב (reduced-motion / ביקור-חוזר / onDone מוקדם) לא יכול
+              להציג כפתור לפני שהטקסט נגמר בפועל. */}
+          {textDone && reveal === 'buttons' && !advancing && (
           <div>
           <DigitalEntrance
             key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
