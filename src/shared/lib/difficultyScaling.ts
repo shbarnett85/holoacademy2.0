@@ -59,11 +59,11 @@ export function maxSentenceWords(level: number): number {
 
 /* ── קצב אפקט ההקלדה (typewriter) לפי רמת הקריאה (1–20) ──
    נמוך = איטי, גבוה = מהיר. רצפה/תקרה כדי שאף קצה לא יהיה קיצוני. */
-/* השהיה **לתו** — ולכן מספר גדול יותר = הקלדה איטית יותר. שני הקצוות הוכפלו
-   (45→90, 12→24) כדי לחצות את הקצב; כל הרמות שביניהן נגזרות מהם ב-lerp, ולכן
-   הן מתכווננות אוטומטית לאותו baseline חדש ויחסי המהירות בין הרמות נשמרים. */
-export const TYPING_MS_SLOW = 90 /* רמה 1 — האיטי ביותר */
-export const TYPING_MS_FAST = 24 /* רמה 20 — המהיר ביותר */
+/* השהיה **לתו** — ולכן מספר גדול יותר = הקלדה איטית יותר. הקצוות הם ה-baseline
+   היחיד: כל הרמות שביניהן נגזרות מהם ב-lerp ומתכווננות איתם אוטומטית.
+   כוונון אחרון: חצי מהמקור (45→90) ואז החשה של 15% (90→78, 24→21). */
+export const TYPING_MS_SLOW = 78 /* רמה 1 — האיטי ביותר */
+export const TYPING_MS_FAST = 21 /* רמה 20 — המהיר ביותר */
 export function typingDelayMs(scale: number): number {
   return Math.round(lerp20(scale, TYPING_MS_SLOW, TYPING_MS_FAST))
 }
