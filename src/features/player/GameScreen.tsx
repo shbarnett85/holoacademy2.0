@@ -157,6 +157,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      חלון ריק לפני שההקלדה התחילה. הצמדה ל-scene.id הופכת ערך ישן לחסר-תוקף
      באופן סינכרוני — אותו דפוס שתיקן את doneSceneId. */
   const [skipSceneId, setSkipSceneId] = useState<string | null>(null)
+  /* ⚠️ חייב לפני ה-early-return של עמוד הסיכום (engine.finished): hook שמופיע
+     אחרי return מותנה מדלג על עצמו ברגע הסיום — "Rendered fewer hooks than
+     expected" — וכל ההדמיה קרסה ל-ErrorBoundary בדיוק במעבר לסיכום. */
+  const typingScrollRef = useTypingScroll(reveal === 'typing')
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
      חיה במלבן משלה ולא מוסתרת בכלל, ולכן הכפתור איבד את תפקידו. */
@@ -529,7 +533,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ("אתגרים קורים במרכז") במקום למפות סוג-אתגר למקום. */
   /* סצנה בלי טקסט — אין על מה לחכות; אחרת ממתינים לסיום ההקלדה של **הסצנה הזו** */
   const textDone = !(scene.narrative || scene.drHoloDialog) || doneSceneId === scene.id
-  const typingScrollRef = useTypingScroll(reveal === 'typing')
   const onStage = puzzleOpen && !!scene.puzzle
 
   const puzzleEl = (placement: Placement) => (
@@ -567,7 +570,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   )
 
   return (
-    <div className="min-h-dvh flex flex-col">
+    <div className="min-h-dvh holo-scene-root flex flex-col">
       <ErrorFlashOverlay />
       <style>{`
         @keyframes gate-shake {
