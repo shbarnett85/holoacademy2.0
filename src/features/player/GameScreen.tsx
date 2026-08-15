@@ -145,10 +145,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [reveal, setReveal] = useState<'scene' | 'panel' | 'typing' | 'buttons'>(
     () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene'),
   )
-  /* הכפתורים תלויים בהשלמת הטקסט בפועל, ולא בשלב ה-reveal: reveal מאותחל
-     ל-'buttons' תחת prefers-reduced-motion (ובחזרה אחורה), ואז הם הופיעו לפני
-     שנכתבה מילה. */
-  const [textDone, setTextDone] = useState(false)
+  /* הכפתורים תלויים בהשלמת הטקסט בפועל ולא בשלב ה-reveal (שמאותחל ל-'buttons'
+     תחת prefers-reduced-motion). שומרים את **מזהה הסצנה** שבה הטקסט הושלם ולא
+     בוליאני: בוליאני נשאר true מהסצנה הקודמת — GameScreen אינו מתמאונט מחדש —
+     ולכן הכפתור הבזיק בראש הסצנה החדשה עד שה-effect הספיק לאפס. הגזירה כאן
+     סינכרונית, כך שאין פריים ביניים. */
+  const [doneSceneId, setDoneSceneId] = useState<string | null>(null)
   const [skipped, setSkipped] = useState(false)
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
@@ -269,7 +271,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
     setSkipped(false)
-    setTextDone(!(scene.narrative || scene.drHoloDialog)) /* סצנה בלי טקסט — אין על מה לחכות */
     if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
     /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
     if (revealTick === 0) { setReveal('scene'); return }
@@ -284,7 +285,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [revealTick])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
-  const skipReveal = useCallback(() => { setSkipped(true); setTextDone(true); setReveal('buttons') }, [])
+  const skipReveal = useCallback(() => { setSkipped(true); setDoneSceneId(scene.id); setReveal('buttons') }, [scene.id])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
 
@@ -520,6 +521,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* כלל אחד, בלי יוצא מן הכלל: **כל** אתגר מופיע במרכז עמוד התמונה — בחירה
      מרובה, דילמה, גרירה, סידור, התאמה, פענוח. התלמיד לומד כלל מרחבי יחיד
      ("אתגרים קורים במרכז") במקום למפות סוג-אתגר למקום. */
+  /* סצנה בלי טקסט — אין על מה לחכות; אחרת ממתינים לסיום ההקלדה של **הסצנה הזו** */
+  const textDone = !(scene.narrative || scene.drHoloDialog) || doneSceneId === scene.id
   const typingScrollRef = useTypingScroll(reveal === 'typing')
   const onStage = puzzleOpen && !!scene.puzzle
 
@@ -672,7 +675,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 scale={gameData.readingScale ?? 6}
                 /* ההקלדה מתחילה רק אחרי ה-materialize של הקופסה (שלב 'typing'); בסיומה → 'buttons' */
                 start={reveal === 'typing' || reveal === 'buttons'}
-                onDone={() => { setTextDone(true); setReveal('buttons') }}
+                onDone={() => { setDoneSceneId(scene.id); setReveal('buttons') }}
                 /* ביקור חוזר/דילוג → הטקסט במלואו מיד, בלי הקלדה */
                 instant={engine.transitionDir === 'back' || skipped}
                 /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
