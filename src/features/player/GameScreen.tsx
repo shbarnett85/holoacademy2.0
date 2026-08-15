@@ -605,10 +605,18 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
         /* caret ה-typewriter — נקודת אור פועמת שרצה בקצה הטקסט תוך כדי ההקלדה */
         @keyframes typewriter-caret-pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.55; transform: scale(0.8); }
+          0%, 100% {
+            opacity: 1; transform: scale(1);
+            box-shadow: 0 0 6px #2ff3ff, 0 0 14px rgba(47,243,255,0.55);
+          }
+          50% {
+            opacity: 0.7; transform: scale(0.82);
+            /* שיא ההבהוב — הילה רחבה ובוהקת סביב הנקודה */
+            box-shadow: 0 0 12px #2ff3ff, 0 0 26px rgba(47,243,255,0.95), 0 0 40px rgba(47,243,255,0.4);
+          }
         }
         .typewriter-caret { animation: typewriter-caret-pulse 0.9s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .typewriter-caret { animation: none; } }
       `}</style>
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
