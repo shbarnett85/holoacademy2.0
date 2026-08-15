@@ -157,7 +157,7 @@ function synth(name: SoundName) {
   switch (name) {
     case 'click': beep(420, 0.05, 'triangle', 0.32, 620); break
     /* fallback סינתטי תואם לקובץ החדש — סינוס רך עם גלישה, לא square נוקשה */
-    case 'type': beep(840, 0.05, 'sine', 0.10, 560, 0.004); break
+    case 'type': beep(520, 0.05, 'sine', 0.06, 340, 0.004); break
     case 'hover': beep(2100, 0.05, 'sine', 0.025, undefined, 0.001); break
     /* צליל "חומריאליזציה" עדין מאוד — מלווה את אנימציית פתיחת החלונות (DigitalEntrance) */
     case 'reveal': beep(950, 0.16, 'sine', 0.045, 1500, 0.02); break
