@@ -717,7 +717,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
-                {scene.puzzle.type === 'finalQuiz' ? '📝 התחילו את מבחן הסיכום' : '🧩 פתרו את האתגר'}
+                {scene.puzzle.type === 'finalQuiz' ? 'התחילו את מבחן הסיכום' : 'פתרו את האתגר'}
               </button>
             )}
 
