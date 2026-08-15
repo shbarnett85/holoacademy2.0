@@ -51,7 +51,7 @@ export default function LoadingQuest({ overlay = false }: { overlay?: boolean })
 
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eaf9ff', textShadow: '0 0 16px rgba(47,243,255,.45)' }}>
-          טוען הדמיה
+          טוען
           <span className="lq-a" style={{ animation: 'lq-dots 1.2s ease-in-out infinite' }}>…</span>
         </div>
         <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: '.6rem', letterSpacing: '.24em', textTransform: 'uppercase', color: 'rgba(47,243,255,.35)' }}>
