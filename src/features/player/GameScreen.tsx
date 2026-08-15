@@ -7,6 +7,7 @@ import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import { type Placement } from './stageRouting'
 import { useTypingScroll } from './useTypingScroll'
+import LoadingQuest from './LoadingQuest'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
 import CrystalFusion from './CrystalFusion'
@@ -157,10 +158,23 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      חלון ריק לפני שההקלדה התחילה. הצמדה ל-scene.id הופכת ערך ישן לחסר-תוקף
      באופן סינכרוני — אותו דפוס שתיקן את doneSceneId. */
   const [skipSceneId, setSkipSceneId] = useState<string | null>(null)
+  /* ── רצף הכניסה: "טוען הדמיה" → חור-תולעת → פריים לבן מלא → הסצנה ──
+     מסך הטעינה (שהוצג ב-Player בזמן ה-fetch) נשאר כאן כשכבת-על (z 79, מתחת
+     לקנבס ולהבזק) עד אמצע הפלטו הלבן של ההבזק (~830ms: delay 720 + עליית 77
+     אל תוך פלטו 77). ההסרה מתרחשת כשהמסך כולו לבן — ולכן ההחלפה בלתי-נראית,
+     והלבן "נפתח" ישר אל השקופית הראשונה. */
+  const [entered, setEntered] = useState(false)
   /* ⚠️ חייב לפני ה-early-return של עמוד הסיכום (engine.finished): hook שמופיע
      אחרי return מותנה מדלג על עצמו ברגע הסיום — "Rendered fewer hooks than
      expected" — וכל ההדמיה קרסה ל-ErrorBoundary בדיוק במעבר לסיכום. */
   const typingScrollRef = useTypingScroll(reveal === 'typing')
+  useEffect(() => {
+    /* בלי חור-תולעת בכניסה (reduced-motion מקצר/משטח את ההבזק) — נכנסים מיד */
+    if (prefersReducedMotion() || engine.transitionType !== 'wormhole') { setEntered(true); return }
+    const t = window.setTimeout(() => setEntered(true), 830)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   /* מצב עין — הסתרת ה-UI כדי לצפות בתמונת הרקע נקייה */
   /* מצב-עין הוסר: הוא נועד לנקות את הממשק מעל תמונה מלוא-מסך. עכשיו התמונה
      חיה במלבן משלה ולא מוסתרת בכלל, ולכן הכפתור איבד את תפקידו. */
@@ -571,6 +585,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
   return (
     <div className="min-h-dvh holo-scene-root flex flex-col">
+      {/* מסך הטעינה נשאר מעל הסצנה עד הפריים הלבן המלא — ראו entered למעלה */}
+      {!entered && <LoadingQuest overlay />}
       <ErrorFlashOverlay />
       <style>{`
         @keyframes gate-shake {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
 import RotateGate from './RotateGate'
+import LoadingQuest from './LoadingQuest'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { usePlaySession } from './usePlaySession'
@@ -92,11 +93,7 @@ export default function Player() {
 
   /* ממתינים גם לטעינת ההדמיה וגם לסיום ניסיון ה-session (כדי להחיל resume לפני אתחול המנוע) */
   if (!quest || !settled) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <span className="holo-text-glow text-xl">טוען את ההרפתקה…</span>
-      </div>
-    )
+    return <LoadingQuest />
   }
 
   if (!quest.game_data?.scenes?.length) {
