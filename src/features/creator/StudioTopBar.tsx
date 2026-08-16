@@ -65,7 +65,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
         {TABS.map((t) => {
           const isActive = t.id === active
           return (
-            <button key={t.id} onClick={() => !isActive && navTab(t.to)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 11, cursor: isActive ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 13.5, fontWeight: 600, transition: 'all .18s', whiteSpace: 'nowrap', background: isActive ? 'linear-gradient(120deg, var(--t88), var(--t96))' : 'transparent', border: '1px solid ' + (isActive ? 'var(--t77)' : 'transparent'), color: isActive ? 'var(--t-on-accent)' : 'var(--t6)', boxShadow: isActive ? '0 0 18px var(--t88)' : 'none' }}>
+            <button key={t.id} onClick={() => !isActive && navTab(t.to)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 11, cursor: isActive ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 13.5, fontWeight: 600, transition: 'all .18s', whiteSpace: 'nowrap', background: isActive ? 'linear-gradient(120deg, var(--t88), var(--t96))' : 'transparent', border: '1px solid ' + (isActive ? 'var(--t77)' : 'transparent'), color: isActive ? 'var(--t13)' : 'var(--t6)', boxShadow: isActive ? '0 0 18px var(--t88)' : 'none' }}>
               {t.label}
             </button>
           )

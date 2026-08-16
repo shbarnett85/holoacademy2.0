@@ -142,7 +142,7 @@ function Row({
   /* אשכול השם (אווטאר + שם בר-עריכה + מגדר) — זהה בטבלה ובכרטיס */
   const nameCluster = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: isPending ? 'linear-gradient(135deg,var(--t259),var(--t260))' : 'linear-gradient(135deg,var(--t88),var(--t260))', border: `1px solid ${isPending ? 'var(--t261)' : 'var(--t88)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--t-on-accent)', flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: isPending ? 'linear-gradient(135deg,var(--t259),var(--t260))' : 'linear-gradient(135deg,var(--t88),var(--t260))', border: `1px solid ${isPending ? 'var(--t261)' : 'var(--t88)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: isPending ? 'var(--t262)' : 'var(--t1)', flexShrink: 0 }}>
           {(effectiveName[0] || '?').toUpperCase()}
         </div>
         {editing ? (
