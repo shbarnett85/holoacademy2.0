@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../../shared/lib/sound'
 
 type Phase = 'entering' | 'hold' | 'disintegrate' | 'out'
 
@@ -25,6 +26,9 @@ export default function Splash({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     if (phase !== 'disintegrate') return
+    /* הבום של ההתפוררות. הערה: בביקור הראשון בלשונית ייתכן שטרם היה קליק —
+       ה-AudioContext עוד suspended ומדיניות הדפדפן תשתיק (best-effort מובנה). */
+    playSound('burst')
     const canvas = canvasRef.current
     if (!canvas) return
     const W = (canvas.width = window.innerWidth)

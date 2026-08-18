@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { playSound } from '../lib/sound'
 
 /* מעבר חגיגי בכניסה (d-*) — מתוך home-screen: בזק רשת, קווי סריקה, טבעות פעימה,
    התפרצות פיקסלים, אייקון וי ו"ברוכים הבאים" עם glitch. מסתיים מעצמו (~2.2ש׳). */
@@ -10,6 +11,9 @@ const BRAND = ['#2ff3ff', '#9b8cff', '#ff45e6']
 export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?: string; role?: 'teacher' | 'admin' | 'super_admin'; onDone: () => void }) {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    /* צליל קבלת-הפנים — נורה מיד; ההתחברות עצמה היא ה-user-gesture, אז אין
+       בעיית autoplay */
+    playSound('welcome')
     const t = window.setTimeout(onDone, reduce ? 400 : 2200)
     return () => window.clearTimeout(t)
   }, [onDone])
