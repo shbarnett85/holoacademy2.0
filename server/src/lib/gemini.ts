@@ -4,8 +4,11 @@
    המפתח נקרא מ-env בלבד (GEMINI_API_KEY), לעולם לא בקוד. */
 
 const FACTS_MODEL = process.env.GEMINI_FACTS_MODEL || 'gemini-2.5-flash'
-/* מודל התוכן (יצירה/ולידציה/בטיחות) — ניתן להגדרה נפרדת מ-FACTS_MODEL. */
-const CONTENT_MODEL = process.env.GEMINI_CONTENT_MODEL || 'gemini-2.5-flash'
+/* מודל התוכן (יצירה/ולידציה) — ברירת מחדל pro: יצירת ההדמיות היא המשימה
+   הכבדה והאיכות-קריטית ביותר, ו-pro חושב לעומק (זהירות: ה-thinking נצרך
+   מ-maxOutputTokens, ולכן תקציבי היצירה נדיבים — 40K). הבטיחות נשארת flash
+   בנפרד (thinkingBudget:0 לא נתמך ב-pro). */
+const CONTENT_MODEL = process.env.GEMINI_CONTENT_MODEL || 'gemini-2.5-pro'
 
 export function hasGeminiKey(): boolean {
   return !!process.env.GEMINI_API_KEY?.trim()
