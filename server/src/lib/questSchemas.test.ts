@@ -7,6 +7,7 @@ import {
   healStaleFactCheck,
   collectOpenWarnings,
   shuffleAnswerPositions,
+  lintHighRegister,
   FACT_CHECK_STALE_MS,
   type FactCheckMeta,
   type GameData,
@@ -249,5 +250,43 @@ describe('healStaleFactCheck — watchdog ל-pending תקוע', () => {
     healStaleFactCheck(gd, NOW)
     expect(metaOf(gd)?.warnings?.[0]).toBe('אזהרת יצירה קודמת')
     expect(metaOf(gd)?.warnings).toHaveLength(2)
+  })
+})
+
+describe('lintHighRegister — משלב ספרותי עם חלופה יומיומית', () => {
+  const gdNarr = (narrative: string): GameData =>
+    ({ scenes: [{ id: 's1', title: 'בדיקה', narrative }], entrySceneId: 's1' }) as unknown as GameData
+
+  it('תופס את המילים המדווחות, כולל הטיות ותחיליות', () => {
+    const hits = lintHighRegister(gdNarr('המעבדה שוקטת. ד"ר הולו מביט במסך ומביטים בו כולם. שומר ניצב בפתח, והחל לצעוד. הדברים הללו חשובים.'))
+    const words = hits.map((h) => h.problem.match(/"([^"]+)"/)?.[1]).sort()
+    expect(words).toEqual(['שוקטת', 'מביט', 'מביטים', 'ניצב', 'החל', 'הללו'].sort())
+    expect(hits[0].problem).toContain('שקט/שקטה')
+  })
+
+  it('סובלני לניקוד (רץ אחרי Dicta ברמות נמוכות)', () => {
+    expect(lintHighRegister(gdNarr('הוא נִצַּב שם.'))).toHaveLength(0) /* ניצב חסר = נִצב? כתיב חסר לא ברשימה */
+    expect(lintHighRegister(gdNarr('הוא נִיצָּב שם.'))).toHaveLength(1)
+  })
+
+  it('לא מדגל מילים מכילות או צירופים לגיטימיים', () => {
+    const clean = 'הבהלה גדולה. הנטל כבד. ההחלטה קשה. החל מ-1948. הוא נבהל. במאחז רחוק. שחר עולה. משחק שח-מט אינו כאן.'
+    expect(lintHighRegister(gdNarr(clean))).toHaveLength(0)
+  })
+
+  it('ברמה 14+ נשארות רק המובהקות-ספרותיות', () => {
+    const t = 'המעבדה שוקטת. הוא מביט במסך וניצב ליד הדלת.'
+    expect(lintHighRegister(gdNarr(t), 15).map((h) => h.problem.match(/"([^"]+)"/)?.[1])).toEqual(['שוקטת'])
+    expect(lintHighRegister(gdNarr(t), 10)).toHaveLength(3)
+  })
+
+  it('סורק גם דיאלוג, חידות וסיומים', () => {
+    const gd = {
+      scenes: [{ id: 's1', title: 'ב', drHoloDialog: 'הוא נטל את הכד.', puzzle: { type: 'multipleChoice', question: 'מי הרהר בתשובה?' } }],
+      entrySceneId: 's1',
+      endingGood: { narrative: 'הזקן פסע החוצה.' },
+    } as unknown as GameData
+    const hits = lintHighRegister(gd)
+    expect(hits.map((h) => h.sceneId)).toEqual(['s1', 's1', '__endingGood__'])
   })
 })

@@ -531,3 +531,74 @@ export function lintDetachedClitics(gameData: GameData): { sceneId: string; prob
   check('__endingBad__', 'dialog', gd.endingBad?.drHoloDialog)
   return out
 }
+
+/* ── לינט משלב ספרותי (דטרמיניסטי, אפס-AI) ────────────────────────────────
+   המודל מכוון למשלב פרוזה למבוגרים בתיאורי סצנה ("המעבדה שוקטת" במקום "שקטה") —
+   מילים תקינות אך ספרותיות שילד לא משתמש בהן. נמדד ב-DB: 224 מופעים ב-168
+   הדמיות, 72% בנרטיב (מביט/ניצב/הללו/החל בראש). הבודק-AI מוחרג במפורש
+   ממילים "נדירות-אך-תקינות" (למניעת style-creep), ולכן הרשימה כאן דטרמיניסטית:
+   רק מילים עם חלופה יומיומית חד-משמעית, ללא אובדן משמעות.
+   התאמה לגיל: הרשימה המלאה עד רמה 13 (חטיבה); ברמות 14+ רק המובהקות-ספרותיות
+   (highOnly) — בתיכון "הביט" לגיטימי, "שוקטת"/"גחן" עדיין לא.
+   דיוק: גבולות-מילה עבריים (JS \b לא חל על א-ת), תחיליות ו/ש/כש בלבד (לא ה/ב —
+   מונע "הַנֵּטֶל"/"בֶּהָלָה"), סובלני לניקוד (רץ אחרי Dicta ברמות נמוכות). */
+const NIQ = '[֑-ׇ]*'
+const REGISTER_WORDS: { core: string; alt: string; high?: boolean }[] = [
+  { core: 'שוקט(?:ת|ים|ות)?', alt: 'שקט/שקטה', high: true },
+  { core: 'הביט(?:ה|ו)?|מביט(?:ה|ים|ות)?', alt: 'הסתכל/מסתכל' },
+  { core: 'החל(?:ה|ו)?', alt: 'התחיל/התחילה' },
+  { core: 'ניצב(?:ת|ה|ו|ים|ות)?', alt: 'עמד/עומד' },
+  { core: 'הרהר(?:ה|ו)?|מהרהר(?:ת|ים)?', alt: 'חשב/חושב' },
+  { core: 'גחן(?:ה|ו)?', alt: 'התכופף', high: true },
+  { core: 'פסע(?:ה|ו)?|פוסע(?:ת|ים)?', alt: 'צעד/הלך', high: true },
+  { core: 'נטל(?:ה|ו)?', alt: 'לקח' },
+  { core: 'אחז(?:ה|ו)?', alt: 'החזיק/תפס' },
+  { core: 'שח(?![-־])', alt: 'אמר', high: true } /* לא שח-מט */,
+  { core: 'לפיכך', alt: 'לכן' },
+  { core: 'הללו', alt: 'האלה' },
+  { core: 'הלה', alt: 'הוא/האיש', high: true },
+]
+const registerRegex = (core: string) =>
+  new RegExp(
+    `(?<![א-ת])(?:[וש]${NIQ}|כ${NIQ}ש${NIQ}|ו${NIQ}כ${NIQ}ש${NIQ})?(${core.replace(/(?<=[א-ת])(?=[א-ת])/g, NIQ)})(?![א-ת])`,
+    'g'
+  )
+const REGISTER_PATTERNS = REGISTER_WORDS.map((w) => ({ ...w, re: registerRegex(w.core) }))
+const stripNiqqud = (s: string) => s.replace(/[֑-ׇ]/g, '')
+
+export function lintHighRegister(gameData: GameData, level = 10): { sceneId: string; problem: string; correction?: string }[] {
+  const patterns = level >= 14 ? REGISTER_PATTERNS.filter((p) => p.high) : REGISTER_PATTERNS
+  const out: { sceneId: string; problem: string; correction?: string }[] = []
+  const check = (sceneId: string, text?: string) => {
+    if (!text) return
+    for (const p of patterns) {
+      p.re.lastIndex = 0
+      let m: RegExpExecArray | null
+      while ((m = p.re.exec(text))) {
+        const word = stripNiqqud(m[1])
+        /* "החל מ" = "starting from" — צירוף לגיטימי, לא הפועל הספרותי */
+        if (word === 'החל' && /^\s*מ/.test(text.slice(m.index + m[0].length))) continue
+        const ctx = stripNiqqud(text.slice(Math.max(0, m.index - 25), m.index + m[0].length + 15)).replace(/\n/g, ' ')
+        out.push({
+          sceneId,
+          problem: `מילה במשלב ספרותי גבוה מדי לגיל היעד: "${word}" ("…${ctx}…") — החלף בחלופה היומיומית "${p.alt}" (בהטיה המתאימה), בלי לשנות דבר מעבר למילה עצמה`,
+          correction: p.alt,
+        })
+      }
+    }
+  }
+  for (const sc of gameData.scenes) {
+    check(sc.id, sc.narrative)
+    check(sc.id, sc.drHoloDialog)
+    check(sc.id, sc.puzzle?.question)
+    check(sc.id, sc.puzzle?.explanationCorrect)
+    check(sc.id, sc.puzzle?.explanationIncorrect)
+    for (const q of sc.puzzle?.questions ?? []) check(sc.id, q.question)
+  }
+  const gd = gameData as unknown as { endingGood?: { narrative?: string; drHoloDialog?: string }; endingBad?: { narrative?: string; drHoloDialog?: string } }
+  check('__endingGood__', gd.endingGood?.narrative)
+  check('__endingGood__', gd.endingGood?.drHoloDialog)
+  check('__endingBad__', gd.endingBad?.narrative)
+  check('__endingBad__', gd.endingBad?.drHoloDialog)
+  return out
+}

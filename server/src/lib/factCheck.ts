@@ -2,7 +2,7 @@ import { supabaseAdmin } from './supabase.js'
 import { callHaiku } from './claudeCalls.js'
 import { callGeminiText } from './gemini.js'
 import { engineFor } from './modelRouter.js'
-import { extractJson, checkAnswerConsistency, lintDetachedClitics, type FactCheckMeta, type GameData } from './questSchemas.js'
+import { extractJson, checkAnswerConsistency, lintDetachedClitics, lintHighRegister, type FactCheckMeta, type GameData } from './questSchemas.js'
 import { enforceNarrativePhrasing, applyNiqqudToGameData } from './questVariants.js'
 import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { info, error as logError } from './log.js'
@@ -130,7 +130,7 @@ export async function scopedFactFix(gameData: GameData, errors: FactError[]): Pr
   const allBlocks = [blocks, endingBlocks].filter(Boolean).join('\n\n')
 
 
-  const instruction = `תקן אך ורק את השגיאות העובדתיות והלשוניות שסומנו (בלבול מילים דומות-צליל / אי-התאמת מין-מספר-זמן / סמיכות מאולצת / משפט שבור-חסר-נושא / בחירת-מילה שגויה / צירוף מתורגם-מילולית) בשדות הטקסט של הסצנות הבאות. **המטרה: הטקסט המתוקן חייב להביע בדיוק את מה שהטקסט המקורי ניסה להביע — רק בעברית תקינה** — שנה אך ורק את מקור הטעות עצמה, אל תשנה את המשמעות, העלילה, האורך או הסגנון. **שמר על הניקוד אם קיים** (הוא תקין). אל תיגע במבנה, בחידות, בתשובות או במזהים.
+  const instruction = `תקן אך ורק את השגיאות העובדתיות והלשוניות שסומנו (בלבול מילים דומות-צליל / אי-התאמת מין-מספר-זמן / סמיכות מאולצת / משפט שבור-חסר-נושא / בחירת-מילה שגויה / צירוף מתורגם-מילולית / **מילה במשלב ספרותי** — בזו החלף אך ורק את המילה שסומנה בחלופה היומיומית שצוינה, בהטיה הדקדוקית המתאימה למשפט) בשדות הטקסט של הסצנות הבאות. **המטרה: הטקסט המתוקן חייב להביע בדיוק את מה שהטקסט המקורי ניסה להביע — רק בעברית תקינה** — שנה אך ורק את מקור הטעות עצמה, אל תשנה את המשמעות, העלילה, האורך או הסגנון. **שמר על הניקוד אם קיים** (הוא תקין). אל תיגע במבנה, בחידות, בתשובות או במזהים.
 החזר JSON תקין בלבד במבנה: { "<sceneId>": { "title"?, "narrative"?, "drHoloDialog"?, "question"?, "explanationCorrect"?, "explanationIncorrect"? } } — כלול אך ורק שדות שבאמת השתנו.
 
 ${allBlocks}`
@@ -231,6 +231,15 @@ export async function factCheckInBackground(questId: string, gameData: GameData,
     if (lint.length) {
       info(`[fact-check] lint: ${lint.length} סיומות תלושות`)
       fc.errors = [...lint, ...fc.errors.filter((e) => !lint.some((l) => l.sceneId === e.sceneId && e.problem.includes('כם')))]
+      fc.ok = true
+    }
+    /* לינט משלב ספרותי — הבודק-AI מוחרג ממילים "נדירות-אך-תקינות" (מניעת
+       style-creep), אז המשלב נאכף דטרמיניסטית: רשימת מילים ספרותיות עם חלופה
+       יומיומית חד-משמעית, מותאמת לרמת הכתיבה. נכנס לאותו צינור תיקון. */
+    const regLint = lintHighRegister(gameData, level)
+    if (regLint.length) {
+      info(`[fact-check] lint: ${regLint.length} מילים במשלב ספרותי (רמה ${level})`)
+      fc.errors = [...fc.errors, ...regLint]
       fc.ok = true
     }
     detected = fc.errors.length
