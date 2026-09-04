@@ -431,7 +431,7 @@ export default function CreationForm() {
   const title = useCreatorStore((st) => st.title)
   const result = useCreatorStore((st) => st.result)
 
-  if (status === 'generating') return <GeneratingScreen title={title} />
+  if (status === 'generating') return <GeneratingScreen title={title} onCancel={useCreatorStore.getState().cancelGeneration} />
   if (status === 'done' && result) return <QuestPreview />
   return <Studio />
 }

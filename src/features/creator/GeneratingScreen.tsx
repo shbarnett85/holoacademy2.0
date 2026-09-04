@@ -145,11 +145,24 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
 
 /* מסך טעינת יצירת ההדמיה — אנימציית Claude Design + הודעות מתחלפות + מונה זמן.
    פעיל לכל אורך ההמתנה ל-Claude; ההורה מחליף ל-QuestPreview כשהיצירה מסתיימת. */
-export default function GeneratingScreen({ title }: { title?: string }) {
+export default function GeneratingScreen({ title, onCancel }: { title?: string; onCancel?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [idx, setIdx] = useState(0)
   const [elapsed, setElapsed] = useState(0)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   useParticleCanvas(canvasRef)
+
+  /* Escape = אותה פעולה כמו כפתור ה-X (פתיחת האישור); Escape שני סוגר וממשיך */
+  useEffect(() => {
+    if (!onCancel) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      setConfirmOpen((open) => !open)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
 
   /* החלפת הודעות — ממשיכה ללא הגבלה כל עוד היצירה רצה */
   useEffect(() => {
@@ -178,6 +191,56 @@ export default function GeneratingScreen({ title }: { title?: string }) {
 
       {/* קו סריקה */}
       <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,transparent,rgba(47,243,255,.5),transparent)', animation: 'ld-scanline 2.4s linear infinite', pointerEvents: 'none' }} />
+
+      {/* X לביטול — פינה שמאלית-עליונה (מוסכמת הסגירה ב-RTL); מטרת מגע 44px */}
+      {onCancel && (
+        <button
+          aria-label="ביטול יצירה"
+          onClick={() => setConfirmOpen(true)}
+          style={{
+            position: 'absolute', top: 14, left: 14, zIndex: 4,
+            width: 44, height: 44, borderRadius: '50%',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(10,16,34,.55)', border: '1px solid rgba(47,243,255,.3)',
+            color: 'rgba(220,245,255,.85)', fontSize: 18, lineHeight: 1, cursor: 'pointer',
+            backdropFilter: 'blur(4px)', transition: 'border-color .2s ease, color .2s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(47,243,255,.7)'; e.currentTarget.style.color = '#fff' }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(47,243,255,.3)'; e.currentTarget.style.color = 'rgba(220,245,255,.85)' }}
+        >✕</button>
+      )}
+
+      {/* דיאלוג אישור הביטול — לחיצה בטעות מאבדת דקה וחצי של יצירה */}
+      {confirmOpen && onCancel && (
+        <div
+          role="alertdialog"
+          aria-label="אישור ביטול יצירה"
+          style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,14,.7)', backdropFilter: 'blur(3px)' }}
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 340, maxWidth: '86vw', padding: '1.4rem 1.5rem', borderRadius: 14, textAlign: 'center',
+              background: 'rgba(12,18,38,.95)', border: '1px solid rgba(47,243,255,.35)',
+              boxShadow: '0 0 40px rgba(47,243,255,.15)',
+            }}
+          >
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', marginBottom: 6 }}>לבטל את היצירה?</div>
+            <div style={{ fontSize: 13, color: 'rgba(180,220,255,.65)', marginBottom: 18 }}>ההתקדמות תאבד.</div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={onCancel}
+                style={{ minHeight: 44, padding: '0 1.1rem', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, background: 'rgba(255,69,120,.12)', border: '1px solid rgba(255,69,120,.5)', color: '#ff9db8' }}
+              >ביטול יצירה</button>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                style={{ minHeight: 44, padding: '0 1.4rem', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.45)', color: 'var(--holo-cyan-bright)' }}
+              >המשך</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* קנבס החלקיקים */}
       <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />

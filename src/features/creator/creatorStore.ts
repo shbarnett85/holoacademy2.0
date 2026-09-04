@@ -1,7 +1,25 @@
 import { create } from 'zustand'
 import { apiFetch } from '../../shared/lib/api'
 import { getSession } from '../../shared/lib/staffSession'
-import { addGuestQuestId } from '../../shared/lib/guestLibrary'
+import { addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
+
+/* ── מצב הביטול של יצירה רצה (מחוץ ל-state — אין בו צורך ברינדור) ──
+   ביטול אמיתי, לא הסתרת מסך: ה-fetch/polling נקטעים (AbortController), ורשומת
+   ה-stub שנוצרה ב-DB נמחקת — כך גם התוצאה של היצירה הרקעית בשרת נזרקת
+   (ה-update שלה יפגוש 0 שורות) ולא נשארת הדמיה יתומה בספרייה. */
+let genController: AbortController | null = null
+let genQuestId: string | null = null
+let genCancelled = false
+
+/* מחיקת ה-stub שבוטל — best-effort (כישלון רשת לא מציג שגיאה למורה שכבר יצא) */
+async function discardCancelledQuest(id: string): Promise<void> {
+  try {
+    await apiFetch(`/api/quests/${id}`, { method: 'DELETE' })
+    if (getSession()?.staff.isGuest === true) removeGuestQuestId(id)
+  } catch {
+    /* ה-stub יישאר כטיוטה ריקה שאפשר למחוק ידנית — עדיף מלחסום את הביטול */
+  }
+}
 
 /* סוגי החידות הזמינים */
 export const PUZZLE_TYPES = [
@@ -129,6 +147,8 @@ interface CreatorState {
   togglePuzzle: (key: string) => void
   setPuzzleCount: (key: string, count: number) => void
   generate: () => Promise<void>
+  /* ביטול יצירה רצה: קוטע את הרשת, מוחק את ה-stub מה-DB, ומחזיר לטופס */
+  cancelGeneration: () => void
   reset: () => void
 }
 
@@ -171,6 +191,9 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 600_000)
+    genController = controller
+    genQuestId = null
+    genCancelled = false
 
     try {
       const res = await apiFetch('/api/quests/generate', {
@@ -206,11 +229,15 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
          עד שה-game_data מוכן (scenes) או שנכשל (genError). מנתק מ-timeout של proxy. */
       const { quest: stub } = await res.json()
       const questId: string = stub.id
+      genQuestId = questId
+      /* בוטל בזמן שה-POST רץ (טרם ידענו id, אז לא ניתן היה לבטל דרך cancelGeneration) —
+         עכשיו כשה-id בידינו: מוחקים את ה-stub ויוצאים בשקט. המסך כבר חזר לטופס. */
+      if (genCancelled) { void discardCancelledQuest(questId); return }
       /* מורה אורח: רושמים את ההדמיה ל-cache הדפדפן (בידוד per-browser — ראו guestLibrary) */
       if (getSession()?.staff.isGuest === true) addGuestQuestId(questId)
       const deadline = Date.now() + 600_000
       let lastErr = ''
-      while (Date.now() < deadline) {
+      while (Date.now() < deadline && !genCancelled) {
         await new Promise((r) => setTimeout(r, 4000))
         try {
           const r = await apiFetch(`/api/quests/${questId}`, { signal: controller.signal })
@@ -229,8 +256,10 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
           /* שגיאת רשת חולפת — ננסה שוב בסבב הבא */
         }
       }
+      if (genCancelled) return
       throw new Error(lastErr || 'היצירה נמשכה זמן רב מדי — נסו שוב')
     } catch (err) {
+      if (genCancelled) return /* ביטול יזום — לא שגיאה; המסך כבר חזר לטופס */
       set({
         status: 'error',
         error:
@@ -242,7 +271,21 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
       })
     } finally {
       clearTimeout(timer)
+      genController = null
     }
+  },
+
+  cancelGeneration: () => {
+    if (get().status !== 'generating') return
+    genCancelled = true
+    if (genQuestId) {
+      /* ה-stub כבר קיים: קוטעים את ה-polling ומוחקים אותו — התוצאה הרקעית תיזרק */
+      genController?.abort()
+      void discardCancelledQuest(genQuestId)
+    }
+    /* לפני קבלת ה-id — לא מנתקים את ה-POST: נותנים לו להסתיים ברקע (שניות
+       בודדות) כדי ש-generate יקבל את ה-id וימחק את ה-stub בעצמו (אחרת יתום). */
+    set({ status: 'idle', error: null })
   },
 
   reset: () => set({ status: 'idle', error: null, result: null, warnings: [], hub: null }),
