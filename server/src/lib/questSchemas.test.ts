@@ -8,6 +8,8 @@ import {
   collectOpenWarnings,
   shuffleAnswerPositions,
   lintHighRegister,
+  lintKnownErrors,
+  lintRepetition,
   FACT_CHECK_STALE_MS,
   type FactCheckMeta,
   type GameData,
@@ -288,5 +290,75 @@ describe('lintHighRegister — משלב ספרותי עם חלופה יומיו�
     } as unknown as GameData
     const hits = lintHighRegister(gd)
     expect(hits.map((h) => h.sceneId)).toEqual(['s1', 's1', '__endingGood__'])
+  })
+})
+
+describe('lintKnownErrors — רשימת שגיאות-ידועות מצטברת', () => {
+  const gdNarr2 = (narrative: string): GameData =>
+    ({ scenes: [{ id: 's1', title: 'בדיקה', narrative }], entrySceneId: 's1' }) as unknown as GameData
+
+  it('תופס את הכשלים שנצפו בשטח', () => {
+    expect(lintKnownErrors(gdNarr2('וולא יש הגנה מפני הקלע.'))[0]?.problem).toContain('וולא')
+    expect(lintKnownErrors(gdNarr2('אתם פוגשים מחשבים כמו פרידריך האייק.'))[0]?.correction).toContain('הוגים')
+    expect(lintKnownErrors(gdNarr2('לפתע {DR_HOLO} מופיע מולכם.'))[0]?.problem).toContain('placeholder')
+    expect(lintKnownErrors(gdNarr2('אחת אבן הספיקה לי.'))[0]?.correction).toBe('אבן אחת')
+  })
+
+  it('לא מדגל שימוש לגיטימי', () => {
+    const clean = 'המחשבים במעבדה עובדים מהר. מחשבים ניידים יקרים. היא אמרה שלא ולא ויתרה. אבן אחת נפלה.'
+    expect(lintKnownErrors(gdNarr2(clean))).toHaveLength(0)
+  })
+})
+
+describe('lintRepetition — חזרתיות חוצת-סצנות', () => {
+  it('אותו פתיח ביטוי-חתימה בשתי סצנות → דגל על המאוחרת בלבד', () => {
+    const gd = {
+      entrySceneId: 's1',
+      scenes: [
+        { id: 's1', title: 'א', drHoloDialog: 'תנו לי להסביר את זה בעברית פשוטה: החומה מגנה על העיר.' },
+        { id: 's2', title: 'ב', drHoloDialog: 'תנו לי להסביר את זה בעברית פשוטה: בשוק החליפו סחורות.' },
+      ],
+    } as unknown as GameData
+    const hits = lintRepetition(gd)
+    expect(hits).toHaveLength(1)
+    expect(hits[0].sceneId).toBe('s2')
+    expect(hits[0].problem).toContain('פתיח')
+  })
+
+  it('פתיחים שונים — אין דגל (הפיצ׳ר של ביטויי-החתימה נשמר)', () => {
+    const gd = {
+      entrySceneId: 's1',
+      scenes: [
+        { id: 's1', title: 'א', drHoloDialog: 'תנו לי להסביר את זה בעברית פשוטה: החומה מגנה.' },
+        { id: 's2', title: 'ב', drHoloDialog: 'דמיינו את זה: שוק ענק ורועש.' },
+        { id: 's3', title: 'ג', drHoloDialog: 'השורה התחתונה היא: המסחר בנה את העיר.' },
+      ],
+    } as unknown as GameData
+    expect(lintRepetition(gd)).toHaveLength(0)
+  })
+
+  it('משפט שלם זהה (≥6 מילים) בשתי סצנות → דגל אחד על המאוחרת', () => {
+    const rep = 'החיילים שמרו על החומה כל הלילה בלי לזוז'
+    const gd = {
+      entrySceneId: 's1',
+      scenes: [
+        { id: 's1', title: 'א', narrative: `${rep}. היה קר מאוד.` },
+        { id: 's2', title: 'ב', narrative: `בבוקר גיליתם: ${rep}. עכשיו תורכם.` },
+      ],
+    } as unknown as GameData
+    const hits = lintRepetition(gd)
+    expect(hits).toHaveLength(1)
+    expect(hits[0].sceneId).toBe('s2')
+  })
+
+  it('משפטים קצרים או חזרה בתוך אותה סצנה — לא מדוגלים', () => {
+    const gd = {
+      entrySceneId: 's1',
+      scenes: [
+        { id: 's1', title: 'א', narrative: 'קדימה, לדרך. הפתעה גדולה מחכה לכם שם למטה. הפתעה גדולה מחכה לכם שם למטה.' },
+        { id: 's2', title: 'ב', narrative: 'קדימה, לדרך.' },
+      ],
+    } as unknown as GameData
+    expect(lintRepetition(gd)).toHaveLength(0)
   })
 })

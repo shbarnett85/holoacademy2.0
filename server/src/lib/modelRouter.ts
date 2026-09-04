@@ -5,6 +5,8 @@
    flags (env):
      CONTENT_GEMINI=1        — master: כל תפקידי התוכן (לא-בטיחות) → Gemini
      SAFETY_GEMINI=1         — **עצמאי**: בטיחות → Gemini (בלי לגעת בשאר; ראו הערת #3)
+     FACTCHECK_GEMINI=1      — **עצמאי**: הוולידציה הלשונית/עובדתית בלבד → Gemini
+                               (GEMINI_FACTS_MODEL, ברירת מחדל flash) — היצירה נשארת Sonnet
      CONTENT_CLAUDE_ROLES=a,b — נסיגה פר-רכיב: תפקידים אלה נשארים Claude גם כש-master דלוק
    כולם דורשים GEMINI_API_KEY; בהיעדרו — הכול נשאר Claude (כמו GROUNDING).
    ברירת מחדל (בלי env): Claude בכל מקום — התנהגות היום, בטוח. */
@@ -23,6 +25,10 @@ const on = (v: string | undefined) => {
 export function engineFor(role: Role): 'gemini' | 'claude' {
   if (!hasGeminiKey()) return 'claude'
   if (role === 'safety') return on(process.env.SAFETY_GEMINI) ? 'gemini' : 'claude'
+  /* FACTCHECK_GEMINI=1 — עצמאי, ולידציה לשונית/עובדתית בלבד: מודד flash>haiku
+     בעברית (6/6 מול ~3/6 ב-benchmark הקטגוריות), בלי להזיז את היצירה מ-Sonnet
+     (ניסוי-הפרוזה העיוור הכריע נגד hybrid). CONTENT_GEMINI המאסטר עדיין גובר. */
+  if (role === 'factcheck' && on(process.env.FACTCHECK_GEMINI)) return 'gemini'
   if (!on(process.env.CONTENT_GEMINI)) return 'claude'
   /* ברירת מחדל: כל התוכן → Gemini (קורת גג אחת). ה-fact-check יוצב עם retry-על-JSON-שבור
      (runFactCheck), כך שאין צורך יותר להשאירו Claude. נסיגה פר-תפקיד עדיין זמינה:

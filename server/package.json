@@ -11,7 +11,8 @@
     "migrate": "tsx src/scripts/runSqlFile.ts",
     "create-superadmin": "tsx src/scripts/createSuperAdmin.ts",
     "start": "tsx src/index.ts",
-    "seed:library": "tsx src/scripts/seedLibrary.ts"
+    "seed:library": "tsx src/scripts/seedLibrary.ts",
+    "smoke:lang": "tsx src/scripts/lingRegression.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

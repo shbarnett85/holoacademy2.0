@@ -602,3 +602,101 @@ export function lintHighRegister(gameData: GameData, level = 10): { sceneId: str
   check('__endingBad__', gd.endingBad?.drHoloDialog)
   return out
 }
+
+/* הליכה אחידה על כל שדות הטקסט הפונים לתלמיד — לשימוש הלינטים הדטרמיניסטיים */
+function walkStudentText(gameData: GameData, cb: (sceneId: string, field: string, text: string) => void): void {
+  const emit = (sceneId: string, field: string, text?: string) => { if (text) cb(sceneId, field, text) }
+  for (const sc of gameData.scenes) {
+    emit(sc.id, 'narrative', sc.narrative)
+    emit(sc.id, 'dialog', sc.drHoloDialog)
+    emit(sc.id, 'question', sc.puzzle?.question)
+    emit(sc.id, 'explanation', sc.puzzle?.explanationCorrect)
+    emit(sc.id, 'explanation', sc.puzzle?.explanationIncorrect)
+    for (const q of sc.puzzle?.questions ?? []) emit(sc.id, 'quiz', q.question)
+  }
+  const gd = gameData as unknown as { endingGood?: { narrative?: string; drHoloDialog?: string }; endingBad?: { narrative?: string; drHoloDialog?: string } }
+  emit('__endingGood__', 'narrative', gd.endingGood?.narrative)
+  emit('__endingGood__', 'dialog', gd.endingGood?.drHoloDialog)
+  emit('__endingBad__', 'narrative', gd.endingBad?.narrative)
+  emit('__endingBad__', 'dialog', gd.endingBad?.drHoloDialog)
+}
+
+/* ── לינט שגיאות-ידועות (דטרמיניסטי, אפס-AI) ─────────────────────────────
+   רשימה מצטברת: כל כשל אמיתי שנצפה בשטח ואפשר לזהות בוודאות מוחלטת בלי הקשר-AI
+   מקבל שורה כאן (+מקרה בסוויטת הרגרסיה). זולים, רצים תמיד, אפס false-positive
+   בתכנון — דגל רק דפוס שלעולם אינו תקין. */
+const KNOWN_ERROR_PATTERNS: { re: RegExp; problem: string; correction: string }[] = [
+  { re: /(?<![א-ת])וולא(?![א-ת])/, problem: '"וולא" איננה מילה עברית (נצפה בדיאלוג פסאודו-ארכאי)', correction: 'ולא / ואין (לפי הכוונה)' },
+  { re: /(?<![א-ת])(?:ה|ו|וה)?מחשבים\s+(?:כמו|כגון|דוגמת)\s/, problem: 'גזירה מורפולוגית שגויה: "מחשבים" = מכונות; כשמדובר באנשים ("מחשבים כמו <שם>") הכוונה להוגים/חושבים', correction: 'הוגים / חושבים / הוגי דעות' },
+  { re: /\{DR_HOLO\}/, problem: 'ה-placeholder {DR_HOLO} דלף לטקסט המוצג לתלמיד (מותר רק ב-imagePrompt)', correction: 'ד"ר הולו' },
+  { re: /(?<![א-ת])אחת\s+אבן(?![א-ת])/, problem: 'סדר מילים הפוך (מספר לפני שם העצם) — לא עברית תקינה', correction: 'אבן אחת' },
+]
+
+export function lintKnownErrors(gameData: GameData): { sceneId: string; problem: string; correction?: string }[] {
+  const out: { sceneId: string; problem: string; correction?: string }[] = []
+  walkStudentText(gameData, (sceneId, _field, text) => {
+    const plain = stripNiqqud(text)
+    for (const p of KNOWN_ERROR_PATTERNS) {
+      const m = p.re.exec(plain)
+      if (!m) continue
+      const ctx = plain.slice(Math.max(0, m.index - 25), m.index + m[0].length + 15).replace(/\n/g, ' ')
+      out.push({ sceneId, problem: `${p.problem} ("…${ctx}…")`, correction: p.correction })
+    }
+  })
+  return out
+}
+
+/* ── לינט חזרתיות (דטרמיניסטי, חוצה-סצנות) ───────────────────────────────
+   הבודק-AI רואה את כל הסצנות אך אינו משווה ביניהן, וכלל-הפרומפט "ביטוי-חתימה
+   שונה בכל סצנה" לא נאכף — נצפה "תנו לי להסביר את זה בעברית פשוטה" פעמיים
+   באותה הדמיה. שני דפוסים, שניהם על טקסט מנורמל (ללא ניקוד/פיסוק):
+   (א) פתיח דיאלוג זהה (הקטע שעד ה-":" הראשון, ≥4 מילים) בשתי סצנות —
+       תופס בדיוק את ביטויי-החתימה החוזרים בלי לדעת את רשימתם;
+   (ב) משפט שלם זהה (≥6 מילים) בשתי סצנות שונות — העתקת ניסוח.
+   הדגל יושב על הסצנה המאוחרת (הראשונה לגיטימית) ומנחה ניסוח-מחדש שונה. */
+const normalizeForRepeat = (s: string) => stripNiqqud(s).replace(/[^א-ת0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
+const wordCount = (s: string) => (s ? s.split(' ').length : 0)
+
+export function lintRepetition(gameData: GameData): { sceneId: string; problem: string; correction?: string }[] {
+  const out: { sceneId: string; problem: string; correction?: string }[] = []
+  /* (א) פתיחי דיאלוג */
+  const openers = new Map<string, string>()
+  const dialogs: [string, string][] = []
+  for (const sc of gameData.scenes) if (sc.drHoloDialog) dialogs.push([sc.id, sc.drHoloDialog])
+  const gd = gameData as unknown as { endingGood?: { drHoloDialog?: string }; endingBad?: { drHoloDialog?: string } }
+  if (gd.endingGood?.drHoloDialog) dialogs.push(['__endingGood__', gd.endingGood.drHoloDialog])
+  if (gd.endingBad?.drHoloDialog) dialogs.push(['__endingBad__', gd.endingBad.drHoloDialog])
+  for (const [sceneId, dialog] of dialogs) {
+    const opener = normalizeForRepeat(dialog.split(':')[0])
+    if (wordCount(opener) < 4) continue
+    const first = openers.get(opener)
+    if (first && first !== sceneId) {
+      out.push({
+        sceneId,
+        problem: `חזרתיות: אותו פתיח דיאלוג ("${opener}") כבר הופיע בסצנה קודמת (${first}) — כל ביטוי-חתימה פעם אחת לכל היותר בהדמיה. נסח את פתיח הדיאלוג בסצנה זו אחרת (או פתח ישר בתוכן), בלי לשנות את שאר הדיאלוג`,
+        correction: 'פתיח שונה או כניסה ישירה לתוכן',
+      })
+    } else if (!first) openers.set(opener, sceneId)
+  }
+  /* (ב) משפטים שלמים זהים בין סצנות (נרטיב+דיאלוג) */
+  const seen = new Map<string, string>()
+  const flagged = new Set<string>()
+  walkStudentText(gameData, (sceneId, field, text) => {
+    if (field !== 'narrative' && field !== 'dialog') return
+    for (const raw of text.split(/[.!?:\n]+/)) {
+      const sent = normalizeForRepeat(raw)
+      if (wordCount(sent) < 6) continue
+      if (openers.has(sent)) continue /* פתיחים חוזרים כבר מטופלים בכלל (א) */
+      const first = seen.get(sent)
+      if (first && first !== sceneId && !flagged.has(sent)) {
+        flagged.add(sent)
+        out.push({
+          sceneId,
+          problem: `חזרתיות: המשפט "${raw.trim().slice(0, 60)}…" מופיע מילה-במילה גם בסצנה ${first} — נסח אותו כאן מחדש בניסוח שונה (אותו תוכן)`,
+          correction: 'ניסוח שונה לאותו תוכן',
+        })
+      } else if (!first) seen.set(sent, sceneId)
+    }
+  })
+  return out
+}
