@@ -462,14 +462,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               <div className="flex justify-center">{good ? <div style={{ fontSize: '3rem' }}>🏆</div> : <DrHoloEmblem size={56} />}</div>
               <h1 className="holo-text-glow text-2xl font-black mt-2">{ending.title}</h1>
               <p className="mt-3 text-start leading-relaxed" style={{ opacity: 0.85 }}>{ending.narrative}</p>
+              {/* אין תווית/בועת "ד״ר הולו" — עקביות עם עמוד הטקסט: הדיבור מסומן
+                 בתוך הפרוזה (ד״ר הולו אומר: "…"), בלי אייקון וכותרת שאוכלים גובה. */}
               {ending.drHoloDialog && (
-                <div className="flex items-start gap-3 mt-4 text-start">
-                  <div className="shrink-0"><DrHoloEmblem size={34} /></div>
-                  <div className="holo-panel flex-1" style={{ borderColor: 'rgba(136,85,255,0.45)', padding: '0.8rem' }}>
-                    <span className="text-xs" style={{ color: 'var(--holo-purple)' }}>ד״ר הולו</span>
-                    <p className="mt-1">{ending.drHoloDialog}</p>
-                  </div>
-                </div>
+                <p className="mt-3 text-start leading-relaxed">{`ד״ר הולו אומר: "${ending.drHoloDialog}"`}</p>
               )}
             </>
           ) : (
