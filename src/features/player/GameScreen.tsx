@@ -706,12 +706,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {reveal !== 'scene' && !transitioning && (scene.narrative || scene.drHoloDialog) && (
             <DigitalEntrance instant={stageInstant} className="mt-6">
             <div className="holo-panel text-start">
-              {scene.drHoloDialog && (
-                <div className="flex items-center gap-2 mb-2">
-                  <DrHoloEmblem size={26} />
-                  <span className="text-xs" style={{ color: 'var(--holo-purple)' }}>ד״ר הולו</span>
-                </div>
-              )}
+              {/* אין תווית "ד״ר הולו" מעל הטקסט: הנרטיב בגוף שלישי, והדיבור של
+                 הדוקטור כבר מסומן בתוך הפרוזה עצמה (ד״ר הולו אומר: "…") — תווית
+                 קבועה סימנה את כל החלון כדיבור שלו (סתירה) ואכלה גובה במצב רוחבי. */}
               <Typewriter
                 text={[
                   scene.narrative,
