@@ -9,7 +9,7 @@ import { useSyncExternalStore } from 'react'
    (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'hover' הוא סינתטי-בלבד (ללא קובץ).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover' | 'reveal' | 'burst' | 'welcome'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover' | 'reveal' | 'welcome'
 
 /* 'hover'/'reveal' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
 const FILES: Partial<Record<SoundName, string>> = {
@@ -167,7 +167,6 @@ function synth(name: SoundName) {
     case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
     case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
     /* פיצוץ הספלאש — בום תת-נמוך קומפקטי + הדף רעש קצר */
-    case 'burst': beep(90, 0.5, 'sine', 0.4, 30); noise(0.45, 0.22); break
     /* צליל כניסה — עליית טרצה חמה + נצנוץ עליון עדין (קבלת פנים, לא פנפרה) */
     case 'welcome': beep(587, 0.4, 'triangle', 0.22, 880); beep(880, 0.55, 'sine', 0.1, 1175); break
     /* רעם נמוך + בום תת-צונח — בלי סוויפ גבוה (שריקה) */
