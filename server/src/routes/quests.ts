@@ -163,6 +163,9 @@ questsRouter.get('/showcase', async (_req, res, next) => {
       const gd = r.game_data as { scenes?: { id: string; imageUrl?: string }[]; entrySceneId?: string } | null
       const scenes = gd?.scenes ?? []
       const entry = scenes.find((s) => s.id === gd?.entrySceneId) ?? scenes[0]
+      /* התמונה הממוזערת — הסצנה **השנייה** (עולם התוכן), לא הפתיחה: סצנת הפתיחה
+         היא תמיד מעבדת ד"ר הולו, וכל הכרטיסים נראו זהים. fallback: פתיחה → כל תמונה. */
+      const second = scenes.find((s) => s.id === (entry as { nextSceneId?: string })?.nextSceneId) ?? scenes[scenes.indexOf(entry) + 1]
       return {
         id: r.id,
         title: r.title,
@@ -170,7 +173,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
         gradeMin: r.grade_min ?? null,
         gradeMax: r.grade_max ?? null,
         sceneCount: scenes.length,
-        thumbUrl: entry?.imageUrl ?? scenes.find((s) => s.imageUrl)?.imageUrl ?? null,
+        thumbUrl: second?.imageUrl ?? entry?.imageUrl ?? scenes.find((s) => s.imageUrl)?.imageUrl ?? null,
       }
     }).filter((q) => q.sceneCount > 0)
     /* גיוון מקצועות במדף: קודם החדשה-ביותר מכל מקצוע (כל מורה רואה את המקצוע שלו),
