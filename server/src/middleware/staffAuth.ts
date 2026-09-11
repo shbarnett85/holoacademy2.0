@@ -10,6 +10,14 @@ export interface StaffContext {
   name: string
   role: StaffRole
   schoolId: string | null
+  /* חשבון הדמו המשותף (GUEST_EMAIL) — כל התחברות אליו, כולל בסיסמה, מסומנת
+     כאורח: האנליטיקה שלו מוגשת מנתוני-הדגמה סינתטיים (demoAnalytics) ולא מה-DB. */
+  isGuest?: boolean
+}
+
+/* האם הבקשה היא ממצב הדגמה (מורה אורח) והדמו מופעל (DEMO_ANALYTICS≠0) */
+export function isDemoGuest(req: Request): boolean {
+  return req.staff?.isGuest === true && process.env.DEMO_ANALYTICS !== '0'
 }
 
 /* הרחבת Request עם פרופיל הצוות המאומת */
@@ -69,12 +77,14 @@ export async function requireStaff(req: Request, _res: Response, next: NextFunct
     }
     if (!(await isUserActive(userRow.id))) throw new AppError(403, 'החשבון הושבת — פנה למנהל המערכת')
 
+    const guestEmail = (process.env.GUEST_EMAIL || 'teacher@demo.com').toLowerCase()
     req.staff = {
       userId: userRow.id,
       authId: userRow.auth_id,
       name: userRow.name,
       role: userRow.role,
       schoolId: userRow.school_id,
+      isGuest: (data.user.email ?? '').toLowerCase() === guestEmail,
     }
     next()
   } catch (err) {

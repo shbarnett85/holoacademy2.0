@@ -2,7 +2,8 @@ import { Router } from 'express'
 import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { requireStaff } from '../middleware/staffAuth.js'
+import { requireStaff, isDemoGuest } from '../middleware/staffAuth.js'
+import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
 import { callGeminiText } from '../lib/gemini.js'
@@ -12,6 +13,17 @@ import { computeWeakConcepts } from '../lib/weakConcepts.js'
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
 export const analyticsRouter = Router()
 analyticsRouter.use(requireStaff)
+
+/* ── מצב הדגמה (מורה אורח): האנליטיקה מוגשת מנתוני-דמו סינתטיים (demoAnalytics),
+   קריאה-בלבד. כתיבות נחסמות כאן גורף (חוץ מ-POST /summary, שבדמו מחזיר טקסט
+   קבוע בלי לכתוב דבר). ── */
+analyticsRouter.use((req, res, next) => {
+  if (isDemoGuest(req) && req.method !== 'GET' && !(req.method === 'POST' && req.path === '/summary')) {
+    res.status(403).json({ error: 'מצב הדגמה — נתוני הדמו לקריאה בלבד' })
+    return
+  }
+  next()
+})
 
 function isAdmin(req: Request): boolean {
   return req.staff?.role === 'admin' || req.staff?.role === 'super_admin'
@@ -173,6 +185,13 @@ async function objectiveStats(
 /* ── GET /api/analytics/assignment/:assignmentId — המסך הראשי ── */
 analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
   try {
+    /* מצב הדגמה — דשבורד מטלה מנתוני הדמו */
+    if (isDemoGuest(req)) {
+      const demo = demoAssignmentDashboard(req.params.assignmentId, new Date())
+      if (!demo) throw new AppError(404, 'מטלה לא נמצאה')
+      res.json(demo)
+      return
+    }
     const { data: asg, error } = await supabaseAdmin
       .from('assignments')
       .select('id, quest_id, class_id, due_date')
@@ -312,6 +331,10 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
 /* ── GET /api/analytics/class/:classId/assignments — רשימת מטלות + סיכום-על ── */
 analyticsRouter.get('/class/:classId/assignments', async (req, res, next) => {
   try {
+    if (isDemoGuest(req) && req.params.classId === DEMO_CLASS.id) {
+      res.json(demoAssignmentsList(new Date()))
+      return
+    }
     await assertClassAccess(req, req.params.classId)
     const { data: asgs, error } = await supabaseAdmin
       .from('assignments')
@@ -407,6 +430,11 @@ async function homeroomClassIds(req: Request): Promise<Set<string>> {
 /* ── GET /api/analytics/assignments — כל המטלות בכל הכיתות הנגישות (לרשימה המלאה + סינון) ── */
 analyticsRouter.get('/assignments', async (req, res, next) => {
   try {
+    /* מצב הדגמה — רשימת השיעורים מנתוני הדמו (ולא מהכיתות האמיתיות של חשבון הדמו) */
+    if (isDemoGuest(req)) {
+      res.json(demoAssignmentsList(new Date()))
+      return
+    }
     const classes = await accessibleClasses(req)
     const classMap = new Map(classes.map((c) => [c.id, c.gradeLabel]))
     const classIds = classes.map((c) => c.id)
@@ -500,6 +528,10 @@ analyticsRouter.get('/assignments', async (req, res, next) => {
    · מורה מקצועי → רק תלמידי כיתותיו, וביצועים מההקצאות שלו בלבד (sessions על הדמיות שיצר). */
 analyticsRouter.get('/students', async (req, res, next) => {
   try {
+    if (isDemoGuest(req)) {
+      res.json(demoStudentsLens(new Date()))
+      return
+    }
     const s = req.staff!
     const adminLike = isAdmin(req)
     const classes = await accessibleClasses(req)
@@ -576,6 +608,12 @@ analyticsRouter.get('/students', async (req, res, next) => {
 /* ── GET /api/analytics/student/:studentId — drill-down תלמיד ── */
 analyticsRouter.get('/student/:studentId', async (req, res, next) => {
   try {
+    if (isDemoGuest(req)) {
+      const demo = demoStudentDetail(req.params.studentId, new Date())
+      if (!demo) throw new AppError(404, 'תלמיד לא נמצא')
+      res.json(demo)
+      return
+    }
     /* ודא שהתלמיד באחת מכיתות הצוות */
     const { data: memberships } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', req.params.studentId)
     const classIds = (memberships ?? []).map((m) => m.class_id)
@@ -740,6 +778,11 @@ analyticsRouter.get('/trends', async (req, res, next) => {
 
     const buckets = monthBuckets(range)
     const labels = buckets.map((b) => b.label)
+    /* מצב הדגמה — סדרות מנתוני הדמו על דליים מתגלגלים (ראו demoAnalytics) */
+    if (isDemoGuest(req)) {
+      res.json(demoTrends(range, metric, entities, new Date()))
+      return
+    }
     /* עמיד לפני המיגרציה — אין טבלה → גרף ריק עם דגל notReady */
     if (!(await hasProgressSnapshots())) { res.json({ labels, series: [], notReady: true }); return }
 
@@ -1014,6 +1057,7 @@ analyticsRouter.get('/summary', async (req, res, next) => {
     const scope = req.query.scope as SummaryScope
     const id = req.query.id as string
     if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
+    if (isDemoGuest(req)) { res.json({ summary: null }); return } /* בדמו — נוצר טרי ב-POST, לא נשמר */
     /* אכיפת גישה — גם לשליפה בלבד (אל תחזיר סיכום על ישות שאסור לראות) */
     await gatherSummary(req, scope, id)
     if (!(await hasPedagogicalSummaries())) { res.json({ summary: null }); return }
@@ -1052,6 +1096,8 @@ analyticsRouter.post('/summary', async (req, res, next) => {
   try {
     const { scope, id, regenerate } = req.body as { scope: SummaryScope; id: string; regenerate?: boolean }
     if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
+    /* מצב הדגמה — סיכום קבוע (דטרמיניסטי, בלי קריאת AI ובלי שמירה) */
+    if (isDemoGuest(req)) { res.json(demoSummary(scope, id, new Date())); return }
     const stored = await hasPedagogicalSummaries()
     /* גוזר נתונים + אוכף RLS לפני כל קריאת AI */
     const { label, data, sampleSize } = await gatherSummary(req, scope, id)
@@ -1093,6 +1139,8 @@ analyticsRouter.get('/review-suggestions', async (req, res, next) => {
     const minDays = req.query.minDays !== undefined ? Math.max(0, Number(req.query.minDays) || 0) : 5
     const maxDays = 30
     const now = Date.now()
+    /* מצב הדגמה — בלי הצעות חזרה (יצירת הדמיית-חזרה היא פעולת כתיבה, והדמו לקריאה בלבד) */
+    if (isDemoGuest(req)) { res.json({ suggestions: [] }); return }
     const classes = await accessibleClasses(req)
     if (classes.length === 0) { res.json({ suggestions: [] }); return }
     const classNames = new Map(classes.map((c) => [c.id, c.gradeLabel]))

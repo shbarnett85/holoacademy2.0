@@ -2,6 +2,7 @@ import StudioTopBar from '../creator/StudioTopBar'
 import { micro } from '../creator/studioStyles'
 import ProgressLens from './ProgressLens'
 import LessonsPane from './LessonsPane'
+import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 
 /* שכבה = תווית הכיתה ללא מספר הכיתה בסוף (למשל "ז׳2" → "ז׳") */
 export const layerOf = (gradeLabel: string) => gradeLabel.replace(/\s*\d+$/, '').trim() || gradeLabel
@@ -24,6 +25,7 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
    ימין = סיכום שיעורים (אנליטיקת ההדמיות); שמאל = התקדמות (גרף רב-ישויות + drill-down).
    נערם אנכית במסך צר (flexWrap + flex-basis, לא 50/50 כפוי). הסקופ מהשרת (הרשאה A לשמאל, B/הקיים לימין). */
 export default function AnalyticsPanel() {
+  const { isGuest } = useStaffAuth()
   const pane: React.CSSProperties = { flex: '1 1 380px', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
   return (
     <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
@@ -34,6 +36,12 @@ export default function AnalyticsPanel() {
       <StudioTopBar active="analytics" />
 
       <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '12px 24px 26px', width: '100%' }}>
+        {/* מצב הדגמה — סימון עדין שהנתונים סינתטיים (כיתת דמו וירטואלית) */}
+        {isGuest && (
+          <div style={{ flex: '0 0 auto', alignSelf: 'flex-start', marginBottom: 8, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
+            🎬 נתוני הדגמה — כיתה וירטואלית להתרשמות; בחשבון אמיתי תראו כאן את התלמידים שלכם
+          </div>
+        )}
         {/* split רספונסיבי — נערם אנכית במסך צר */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
           {/* ימין (DOM ראשון ב-RTL) — סיכום שיעורים */}

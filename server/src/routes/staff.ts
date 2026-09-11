@@ -3,7 +3,8 @@ import type { Request } from 'express'
 import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { requireStaff } from '../middleware/staffAuth.js'
+import { requireStaff, isDemoGuest } from '../middleware/staffAuth.js'
+import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
 import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender } from '../lib/activeColumn.js'
 
 /* שורת כיתה — שדות שעשויים להיות קיימים לפי מצב המיגרציה */
@@ -20,6 +21,17 @@ interface ClassRow {
 /* כל המסלולים דורשים הזדהות צוות. ההרשאות מדורגות בתוך כל handler. */
 export const staffRouter = Router()
 staffRouter.use(requireStaff)
+
+/* מצב הדגמה (מורה אורח) — קריאה בלבד: כל כתיבת ניהול (הוספת/עריכת/מחיקת
+   כיתות, תלמידים, מורים) חסומה, כדי שהדמו יישאר נקי ושלא ניתן יהיה לגעת
+   בנתוני בית-הספר של חשבון הדמו. */
+staffRouter.use((req, res, next) => {
+  if (isDemoGuest(req) && req.method !== 'GET') {
+    res.status(403).json({ error: 'מצב הדגמה — הניהול לקריאה בלבד. הירשמו כמורים כדי לנהל כיתות אמיתיות.' })
+    return
+  }
+  next()
+})
 
 function isAdmin(req: Request): boolean {
   return req.staff?.role === 'admin' || req.staff?.role === 'super_admin'
@@ -202,6 +214,8 @@ staffRouter.post('/teachers/:id/reactivate', async (req, res, next) => {
 
 staffRouter.get('/classes', async (req, res, next) => {
   try {
+    /* מצב הדגמה — הכיתה הווירטואלית בלבד */
+    if (isDemoGuest(req)) { res.json(demoClasses()); return }
     const withGrade = await hasGradeLabel()
     let query = supabaseAdmin.from('classes').select('*').order('name')
     if (isAdmin(req)) {
@@ -379,6 +393,8 @@ staffRouter.post('/classes/:id/reactivate', async (req, res, next) => {
    מנהל → בית ספרו; מורה → כיתותיו. כולל קוד כיתה (url_code), PIN, מגדר ופעילות אחרונה. */
 staffRouter.get('/students', async (req, res, next) => {
   try {
+    /* מצב הדגמה — רוסטר התלמידים הווירטואליים בלבד */
+    if (isDemoGuest(req)) { res.json(demoRoster(new Date())); return }
     const withGrade = await hasGradeLabel()
     const withGender = await hasUserGender()
     const withActive = await hasIsActive('users')

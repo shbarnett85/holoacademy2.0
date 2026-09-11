@@ -10,6 +10,7 @@ import { holoConfirm, holoAlert } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 import { useIsMobile } from '../../shared/lib/useIsMobile'
+import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 
 interface StudentRow {
   id: string
@@ -396,6 +397,7 @@ function SaveBar({ studentName, saving, onSave, onCancel }: { studentName: strin
 /* ════════════════════════════════════════════════════════════════════════ */
 
 export default function Students() {
+  const { isGuest } = useStaffAuth()
   /* שני ספים נפרדים, כי שני הדברים נשברים ברוחב שונה:
      · cardView (900px) — הטבלה עצמה. נמדד: ב-900px כל השמות נחתכים (הגרוע קיבל
        38% מהרוחב הדרוש), ב-1000px רק אחד וב-92%. כלומר כבר ברוחב טאבלט
