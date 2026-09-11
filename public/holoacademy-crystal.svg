@@ -1,21 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="250 110 760 760" width="128" height="128"><title>Holo Academy</title><defs>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="640" viewBox="250 170 760 640"><title>Holo Academy crystal</title><defs>
 <linearGradient id="top-center" gradientUnits="userSpaceOnUse" x1="627" y1="247" x2="627" y2="416"><stop stop-color="#00F4EC"/><stop offset="1" stop-color="#00A8F3"/></linearGradient>
 <linearGradient id="top-side" gradientUnits="userSpaceOnUse" x1="627" y1="250" x2="627" y2="416"><stop stop-color="#00F5EE"/><stop offset="0.5" stop-color="#00DBF0"/><stop offset="1" stop-color="#008EE8"/></linearGradient>
 <linearGradient id="lower-center" gradientUnits="userSpaceOnUse" x1="627" y1="416" x2="627" y2="733"><stop stop-color="#3000FF"/><stop offset="0.48" stop-color="#A400E9"/><stop offset="1" stop-color="#F400E1"/></linearGradient>
 <linearGradient id="lower-side" gradientUnits="userSpaceOnUse" x1="627" y1="399" x2="627" y2="733"><stop stop-color="#3900FF"/><stop offset="0.5" stop-color="#AE00EC"/><stop offset="1" stop-color="#FE00E8"/></linearGradient>
 <linearGradient id="rails" gradientUnits="userSpaceOnUse" x1="627" y1="247" x2="627" y2="733"><stop stop-color="#A7FFFF"/><stop offset="0.32" stop-color="#D5FFFF"/><stop offset="0.65" stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFE2FC"/></linearGradient>
 <linearGradient id="halo" gradientUnits="userSpaceOnUse" x1="627" y1="247" x2="627" y2="733"><stop stop-color="#00F5FF"/><stop offset="0.28" stop-color="#00DFFF"/><stop offset="0.45" stop-color="#6920FF"/><stop offset="1" stop-color="#FF00E7"/></linearGradient>
+<filter id="glow" x="250" y="170" width="760" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="12"/></filter>
+<filter id="glow-tight" x="250" y="170" width="760" height="640" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="4"/></filter>
 </defs>
+<g id="crystal-glow" fill="none" stroke="url(#halo)"><path d="M627 247 L326 399 L502 733 H752 L928 399 Z" stroke-width="20" opacity="0.25" filter="url(#glow)"/><path d="M627 247 L326 399 L502 733 H752 L928 399 Z" stroke-width="12" opacity="0.3" filter="url(#glow-tight)"/></g>
 <g id="filled-facets">
 <path d="M627 247 L326 399 L480 416 Z M627 247 L928 399 L774 416 Z" fill="url(#top-side)"/>
 <path d="M627 247 L480 416 H774 Z" fill="url(#top-center)"/>
 <path d="M326 399 L480 416 L502 733 Z M928 399 L774 416 L752 733 Z" fill="url(#lower-side)"/>
 <path d="M480 416 H774 L752 733 H502 Z" fill="url(#lower-center)"/>
 </g>
-<path d="M627 247 L326 399 L502 733 H752 L928 399 Z" fill="none" stroke="url(#halo)" stroke-width="30" stroke-linejoin="round"/>
-<g id="crystal-rails" fill="none" stroke="url(#rails)" stroke-width="26" stroke-linejoin="miter" stroke-miterlimit="3">
+<path d="M627 247 L326 399 L502 733 H752 L928 399 Z" fill="none" stroke="url(#halo)" stroke-width="23" stroke-linejoin="round"/>
+<g id="crystal-rails" fill="none" stroke="url(#rails)" stroke-width="20" stroke-linejoin="miter" stroke-miterlimit="3">
 <path d="M627 247 L326 399 L502 733 H752 L928 399 Z"/><path d="M627 247 L480 416 L502 733 M627 247 L774 416 L752 733"/>
 <path d="M326 399 L480 416 H774 L928 399"/>
 <path d="M490.341 565 H763.659"/>
-<path d="M571.331 311 H682.669" stroke-width="18"/>
+<path d="M571.331 311 H682.669" stroke-width="13"/>
 </g></svg>

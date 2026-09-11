@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="940" viewBox="177 177 900 940"><title>Holo Academy</title><defs>
-<linearGradient id="wm" gradientUnits="userSpaceOnUse" x1="627" y1="815" x2="627" y2="1084"><stop stop-color="#FFFFFF"/><stop offset="0.6" stop-color="#D5F6FF"/><stop offset="1" stop-color="#BFE9FF"/></linearGradient>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="940" viewBox="177 177 900 940"><title>Holo Academy — transparent light-background master</title><defs>
 <linearGradient id="top-center" gradientUnits="userSpaceOnUse" x1="627" y1="247" x2="627" y2="416"><stop stop-color="#00F4EC"/><stop offset="1" stop-color="#00A8F3"/></linearGradient>
 <linearGradient id="top-side" gradientUnits="userSpaceOnUse" x1="627" y1="250" x2="627" y2="416"><stop stop-color="#00F5EE"/><stop offset="0.5" stop-color="#00DBF0"/><stop offset="1" stop-color="#008EE8"/></linearGradient>
 <linearGradient id="lower-center" gradientUnits="userSpaceOnUse" x1="627" y1="416" x2="627" y2="733"><stop stop-color="#3000FF"/><stop offset="0.48" stop-color="#A400E9"/><stop offset="1" stop-color="#F400E1"/></linearGradient>
@@ -22,7 +21,7 @@
 <path d="M326 399 L480 416 H774 L928 399"/>
 <path d="M490.341 565 H763.659"/>
 <path d="M571.331 311 H682.669" stroke-width="13"/>
-</g><g id="wordmark" fill="url(#wm)"><path d="M264 815 H298 V870 H393 V815 H426 V954 H393 V897 H298 V954 H264 Z"/>
+</g><g id="wordmark" fill="#081326"><path d="M264 815 H298 V870 H393 V815 H426 V954 H393 V897 H298 V954 H264 Z"/>
 <path fill-rule="evenodd" d="M457 884 A90 73 0 1 0 637 884 A90 73 0 1 0 457 884 Z M489 884 A58 46 0 1 0 605 884 A58 46 0 1 0 489 884 Z"/>
 <path d="M671 815 H704 V926 H792 V954 H671 Z"/>
 <path fill-rule="evenodd" d="M811 884 A90 73 0 1 0 991 884 A90 73 0 1 0 811 884 Z M843 884 A58 46 0 1 0 959 884 A58 46 0 1 0 843 884 Z"/>

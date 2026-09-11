@@ -99,19 +99,15 @@ export default function Home() {
     <HoloBackdrop>
       {/* כותרת */}
       <div style={{ textAlign: 'center', marginBottom: 56 }}>
+        {/* הלוגו הרשמי — lockup מלא (קריסטל + wordmark ‏HOLO ACADEMY) מקובץ המאסטר,
+           בגרסת רקע-כהה. ה-clamp מכווץ במסך צר במקום לחתוך; h1 נסתר-ויזואלית
+           נשאר לסמנטיקה/SEO. */}
         <img
           src="/holoacademy-logo.svg"
-          alt="HoloAcademy"
-          style={{ width: 116, height: 116, margin: '0 auto 22px', display: 'block', filter: 'drop-shadow(0 0 26px rgba(47,243,255,.35))' }}
+          alt="HOLO ACADEMY"
+          style={{ width: 'clamp(220px, 34vw, 320px)', height: 'auto', margin: '0 auto', display: 'block' }}
         />
-        <h1 style={{
-          /* 58px קבוע גלש מעבר למסך צר (405px על viewport 375). clamp מקטין רק
-             כשאין מקום — מעל ~483px רוחב מסך התוצאה היא 58px, כלומר דסקטופ ללא שינוי. */
-          margin: 0, fontSize: 'clamp(2.2rem, 12vw, 58px)', fontWeight: 900, letterSpacing: '-.02em', lineHeight: 1,
-          background: 'linear-gradient(135deg, #ffffff 30%, #7ef6ff 65%, #ff45e6 100%)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          filter: 'drop-shadow(0 0 32px rgba(47,243,255,.35))',
-        }}>HoloAcademy</h1>
+        <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
         <p style={{ margin: '14px 0 0', fontSize: 20, fontWeight: 400, color: 'rgba(180,220,255,.65)', letterSpacing: '.06em' }}>ממד חדש של למידה</p>
       </div>
 
