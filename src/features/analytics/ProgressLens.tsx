@@ -3,12 +3,15 @@ import { apiJson } from '../../shared/lib/api'
 import { glass, micro } from '../creator/studioStyles'
 import StudentDetail from './StudentDetail'
 import { useIsMobile } from '../../shared/lib/useIsMobile'
+import { HoloSelect } from './index'
+import { puzzleTypeLabel } from '../../shared/lib/labels'
+import { PROFILE_PUZZLE_TYPES } from '../../shared/lib/difficultyCalibration'
 
 /* עדשת "התקדמות" — סדרת-זמן מ-progress_snapshots. גרף קווי רב-סדרתי
    (צבע + דאש + סמן — לא צבע-בלבד), בורר מטריקה, טוגל טווח, צ'יפים של ישויות,
    ו-drill-down תלמיד מתחת לגרף. הסקופ מגיע מהשרת (הרשאה A). */
-type Metric = 'text_level' | 'overall_success'
-type Range = 'year' | 'term'
+type Metric = string /* 'text_level' | 'overall_success' | 'puzzle:<type>' */
+type Range = 'year' | 'term' | 'month' | 'custom'
 interface Series { id: string; name: string; kind: 'student' | 'class'; points: (number | null)[] }
 interface TrendsResp { labels: string[]; series: Series[]; notReady?: boolean }
 interface StudentOpt { studentId: string; name: string; className: string }
@@ -21,9 +24,13 @@ const METRICS: { v: Metric; label: string }[] = [
   { v: 'text_level', label: 'רמת קריאה' },
   { v: 'overall_success', label: 'אחוז הצלחה' },
 ]
+/* מדדים פר-סוג-אתגר — הרמה (1-10) של כל סוג לאורך זמן, מ-per_puzzle_level שבסנפשוטים */
+const TYPE_METRICS: { v: Metric; label: string }[] = PROFILE_PUZZLE_TYPES.map((t) => ({ v: `puzzle:${t}`, label: puzzleTypeLabel(t) }))
 const RANGES: { v: Range; label: string }[] = [
   { v: 'year', label: 'שנה' },
   { v: 'term', label: 'מחצית' },
+  { v: 'month', label: 'חודש' },
+  { v: 'custom', label: 'טווח…' },
 ]
 
 /* סמן לכל סדרה — צורה שונה (לא צבע-בלבד) */
@@ -99,6 +106,9 @@ export default function ProgressLens() {
   const [classes, setClasses] = useState<ClassOpt[]>([])
   const [metric, setMetric] = useState<Metric>('text_level')
   const [range, setRange] = useState<Range>('year')
+  /* טווח מותאם — מתאריך עד תאריך (פעיל רק כש-range='custom' ושני התאריכים מולאו) */
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [selected, setSelected] = useState<string[]>([])
   const [data, setData] = useState<TrendsResp | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -113,12 +123,14 @@ export default function ProgressLens() {
     apiJson<{ classes: ClassOpt[] }>('/api/staff/classes').then((b) => setClasses(b.classes.map((c) => ({ id: c.id, gradeLabel: c.gradeLabel })))).catch(() => {})
   }, [])
 
-  /* שליפת הסדרות בכל שינוי מטריקה/טווח/בחירה */
+  /* שליפת הסדרות בכל שינוי מטריקה/טווח/בחירה. טווח מותאם — רק כששני התאריכים מולאו. */
   useEffect(() => {
+    if (range === 'custom' && (!fromDate || !toDate)) return
     const ent = selected.join(',')
-    apiJson<TrendsResp>(`/api/analytics/trends?metric=${metric}&range=${range}&entities=${encodeURIComponent(ent)}`)
+    const dates = range === 'custom' ? `&from=${fromDate}&to=${toDate}` : ''
+    apiJson<TrendsResp>(`/api/analytics/trends?metric=${encodeURIComponent(metric)}&range=${range}${dates}&entities=${encodeURIComponent(ent)}`)
       .then(setData).catch((e: Error) => setError(e.message))
-  }, [metric, range, selected])
+  }, [metric, range, selected, fromDate, toDate])
 
   const toggle = (id: string) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id])
   const selectedStudents = useMemo(() => students.filter((s) => selected.includes(s.studentId)), [students, selected])
@@ -131,15 +143,31 @@ export default function ProgressLens() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0 }}>
       {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
 
-      {/* בקרות: מטריקה + טווח */}
+      {/* בקרות: מטריקה (כללית / פר-סוג-אתגר) + טווח (שנה/מחצית/חודש/מותאם) */}
       <div style={{ ...glass, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', flex: '0 0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ ...micro, fontSize: 9 }}>מדד</span>
           {METRICS.map((m) => <button key={m.v} onClick={() => setMetric(m.v)} style={pill(metric === m.v)}>{m.label}</button>)}
+          {/* מדדי סוגי האתגרים — רמת כל סוג (1-10) לאורך זמן */}
+          <HoloSelect
+            value={metric.startsWith('puzzle:') ? metric : ''}
+            onChange={(v) => setMetric(v || 'text_level')}
+            options={TYPE_METRICS.map((m) => ({ v: m.v, label: m.label }))}
+            placeholder="לפי סוג אתגר…"
+          />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ ...micro, fontSize: 9 }}>טווח</span>
           {RANGES.map((r) => <button key={r.v} onClick={() => setRange(r.v)} style={pill(range === r.v)}>{r.label}</button>)}
+          {range === 'custom' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                style={{ background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 8, color: 'var(--t68)', fontSize: 12, padding: '6px 9px', fontFamily: 'var(--font-display)', colorScheme: 'dark' }} />
+              <span style={{ fontSize: 11, color: 'var(--t6)' }}>עד</span>
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                style={{ background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 8, color: 'var(--t68)', fontSize: 12, padding: '6px 9px', fontFamily: 'var(--font-display)', colorScheme: 'dark' }} />
+            </span>
+          )}
         </div>
       </div>
 
@@ -170,6 +198,7 @@ export default function ProgressLens() {
 
       {/* הגרף */}
       <div style={{ ...glass, padding: 20, flex: '0 0 auto' }}>
+        {range === 'custom' && (!fromDate || !toDate) && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 12, fontSize: 11 }}>בחרו תאריך התחלה וסיום להצגת הטווח המותאם.</p>}
         {!data && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30 }}>טוען…</p>}
         {data?.notReady && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 30, fontSize: 11 }}>טבלת ההתקדמות (progress_snapshots) עדיין לא הוקמה — הרץ את המיגרציה ואת ה-seed.</p>}
         {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30, fontSize: 11 }}>אין עדיין נתוני התקדמות לישויות שנבחרו.</p>}

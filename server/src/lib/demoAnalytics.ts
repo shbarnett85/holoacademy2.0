@@ -13,6 +13,8 @@
    הסולם תואם למודל האמיתי: text_level ‏1-20, רמות אתגר 1-10, כלל 60/80
    (רמה יורדת מתחת ל-60% הצלחה, עולה מעל 80%), ספי דגלים 60/85. */
 
+import { buildTrendBuckets } from './trendBuckets.js'
+
 /* ── PRNG דטרמיניסטי (mulberry32, seed קבוע) ── */
 function mulberry32(seed: number) {
   let a = seed >>> 0
@@ -49,6 +51,7 @@ interface DemoProfile {
   story: string
   sessions: number /* דו-ספרתי (10-99) */
   startLevel: number /* text_level התחלתי (1-20) */
+  endLevel: number /* רמת היעד בסוף השנה — המסלול מתקדם אליה בהדרגה */
   jitter: number /* תנודתיות סביב העקומה */
   curve: (t: number) => number
   avgSceneMs: number /* קצב קריאה אופייני (לדגלי skip/slow) */
@@ -57,14 +60,14 @@ interface DemoProfile {
 export const DEMO_CLASS = { id: 'demo-class-1', gradeLabel: 'ו׳2', name: 'ו׳2', urlCode: 'demo-vav2' }
 
 const PROFILES: DemoProfile[] = [
-  { id: 'demo-s1', name: 'אביגיל ברק', gender: 'female', story: 'מצטיינת יציבה', sessions: 26, startLevel: 9, jitter: 0.04, curve: () => 0.9, avgSceneMs: 38000 },
-  { id: 'demo-s2', name: 'יונתן שדה', gender: 'male', story: 'התקשה — והשתפר משמעותית', sessions: 31, startLevel: 4, jitter: 0.06, curve: (t) => 0.42 + 0.36 * t, avgSceneMs: 52000 },
-  { id: 'demo-s3', name: 'תמר גולן', gender: 'female', story: 'תנודתית', sessions: 24, startLevel: 7, jitter: 0.05, curve: (t) => 0.68 + 0.16 * Math.sin(t * Math.PI * 5), avgSceneMs: 41000 },
-  { id: 'demo-s4', name: 'עידו נחל', gender: 'male', story: 'פתח חזק — ונחלש', sessions: 22, startLevel: 9, jitter: 0.05, curve: (t) => 0.86 - 0.3 * t, avgSceneMs: 4200 /* מהיר מאוד — חשד לדילוג בהמשך */ },
-  { id: 'demo-s5', name: 'נועם הרר', gender: 'male', story: 'אמצע יציב', sessions: 19, startLevel: 6, jitter: 0.05, curve: () => 0.72, avgSceneMs: 47000 },
-  { id: 'demo-s6', name: 'שירה כרמל', gender: 'female', story: 'מתקדמת לאט ובעקביות', sessions: 28, startLevel: 5, jitter: 0.04, curve: (t) => 0.6 + 0.22 * t, avgSceneMs: 58000 },
-  { id: 'demo-s7', name: 'אלון דגן', gender: 'male', story: 'מתקשה כרונית, שיפור קל', sessions: 17, startLevel: 3, jitter: 0.06, curve: (t) => 0.38 + 0.14 * t, avgSceneMs: 97000 /* איטי */ },
-  { id: 'demo-s8', name: 'מיכל אשד', gender: 'female', story: 'הצטרפה באמצע השנה — חזקה', sessions: 15, startLevel: 8, jitter: 0.04, curve: () => 0.84, avgSceneMs: 36000 },
+  { id: 'demo-s1', name: 'אביגיל ברק', gender: 'female', story: 'מצטיינת יציבה', sessions: 26, startLevel: 9, endLevel: 12, jitter: 0.04, curve: () => 0.9, avgSceneMs: 38000 },
+  { id: 'demo-s2', name: 'יונתן שדה', gender: 'male', story: 'התקשה — והשתפר משמעותית', sessions: 31, startLevel: 4, endLevel: 11, jitter: 0.06, curve: (t) => 0.42 + 0.36 * t, avgSceneMs: 52000 },
+  { id: 'demo-s3', name: 'תמר גולן', gender: 'female', story: 'תנודתית', sessions: 24, startLevel: 7, endLevel: 7, jitter: 0.05, curve: (t) => 0.68 + 0.16 * Math.sin(t * Math.PI * 5), avgSceneMs: 41000 },
+  { id: 'demo-s4', name: 'עידו נחל', gender: 'male', story: 'פתח חזק — ונחלש', sessions: 22, startLevel: 9, endLevel: 6, jitter: 0.05, curve: (t) => 0.86 - 0.3 * t, avgSceneMs: 4200 /* מהיר מאוד — חשד לדילוג בהמשך */ },
+  { id: 'demo-s5', name: 'נועם הרר', gender: 'male', story: 'אמצע יציב', sessions: 19, startLevel: 6, endLevel: 7, jitter: 0.05, curve: () => 0.72, avgSceneMs: 47000 },
+  { id: 'demo-s6', name: 'שירה כרמל', gender: 'female', story: 'מתקדמת לאט ובעקביות', sessions: 28, startLevel: 5, endLevel: 9, jitter: 0.04, curve: (t) => 0.6 + 0.22 * t, avgSceneMs: 58000 },
+  { id: 'demo-s7', name: 'אלון דגן', gender: 'male', story: 'מתקשה כרונית, שיפור קל', sessions: 17, startLevel: 3, endLevel: 4, jitter: 0.06, curve: (t) => 0.38 + 0.14 * t, avgSceneMs: 97000 /* איטי */ },
+  { id: 'demo-s8', name: 'מיכל אשד', gender: 'female', story: 'הצטרפה באמצע השנה — חזקה', sessions: 15, startLevel: 8, endLevel: 9, jitter: 0.04, curve: () => 0.84, avgSceneMs: 36000 },
 ]
 
 /* ── מטלות הדמו — היסטי ימים קבועים מ"היום"; החדשה ביותר לפני 3 ימים,
@@ -153,9 +156,13 @@ function buildWorld() {
     for (const day of days) {
       const t = 1 - day.daysAgo / 363 /* 0=לפני שנה, 1=אתמול */
       const success = clamp(p.curve(t) + (rand() * 2 - 1) * p.jitter, 0.05, 1)
-      /* כלל 60/80 האמיתי: <60% ירידה, >80% עלייה — הרמות זזות כמו במודל הכיול */
+      /* כלל 60/80 האמיתי מספק את התנודה המקומית: <60% ירידה, >80% עלייה */
       if (success < 0.6) level = clamp(level - 1, 1, 20)
       else if (success > 0.8) level = clamp(level + 1, 1, 20)
+      /* עיגון לסיפור הפרופיל: הרמה נעה לאורך המסלול startLevel→endLevel (±1) —
+         בלעדיו הצעדים המקומיים סוחפים את הרמה הרחק מהמסלול המתוכנן */
+      const target = p.startLevel + (p.endLevel - p.startLevel) * t
+      level = clamp(level, Math.max(1, Math.round(target) - 1), Math.min(20, Math.round(target) + 1))
       const completed = rand() > 0.06 /* מעט "באמצע" */
       const sceneMs = Math.round(p.avgSceneMs * (0.85 + rand() * 0.3))
       sessions.push({
@@ -241,7 +248,7 @@ export function demoAssignmentDashboard(assignmentId: string, now: Date) {
     const hard = 0.75 + 0.45 * rnd() /* מקדם קושי קבוע (נגזר מה-seed של המטלה) */
     let solved = 0, failed = 0
     for (const s of completed) {
-      const pass = (s.successRate ?? 0) * (2 - hard) > 0.5
+      const pass = (s.successRate ?? 0) * (2 - hard) > DEMO_PASS_T
       if (c.type === 'moralDilemma' || pass) solved++
       else failed++
     }
@@ -297,6 +304,8 @@ export function demoAssignmentDashboard(assignmentId: string, now: Date) {
     perChallenge, perObjective, students: perStudent, insights,
   }
 }
+
+const DEMO_PASS_T = 0.66 /* סף "עבר את האתגר" — מפזר את אחוזי ההצלחה פר-אתגר באופן אמין */
 
 function hashStr(s: string): number {
   let h = 2166136261
@@ -368,33 +377,59 @@ export function demoStudentDetail(studentId: string, now: Date) {
 }
 
 /* ── GET /api/analytics/trends — סדרות לגרף ההתקדמות ──
-   בדמו הדליים **מתגלגלים** (10/6 חודשים אחרונים עד החודש הנוכחי) ולא דליי
-   שנת-הלימודים של הנתיב האמיתי — אחרת בספטמבר הגרף היה כמעט ריק והדרישה
-   "נראה זהה בכל כניסה, לנצח" הייתה נשברת. הקליינט מרנדר את התוויות מהתגובה
-   (אותו קוד), כך שהצורה זהה תמיד ורק שמות החודשים מתגלגלים. */
+   בדמו, year/term מוגשים על דליים חודשיים **מתגלגלים** (10/6 אחרונים) ולא על
+   שנת-הלימודים — אחרת בספטמבר הגרף כמעט ריק והדרישה "נראה זהה תמיד" נשברת.
+   month/custom משתמשים בדליים האמיתיים (lib/trendBuckets — אותו קוד כמו
+   הנתיב). הערכים נדגמים מהמסלול לפי "לפני k ימים" בקווינטים קבועים (30/7),
+   כך שצורת הגרף קבועה לנצח והתוויות מתגלגלות. */
 const HE_MONTHS = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳']
+const DAY_MS = 86_400_000
+const DEMO_TYPES = ['multipleChoice', 'trueFalse', 'finalQuiz', 'wordCompletion', 'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory']
 
-export function demoTrends(range: string, metric: string, entities: string[], now: Date) {
-  const count = range === 'term' ? 6 : 10
-  const buckets: { key: string; label: string }[] = []
-  for (let i = count - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    buckets.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: HE_MONTHS[d.getMonth()] })
+/* היסט קבוע פר-(תלמיד,סוג) — אותה גרילה בדיוק כמו ב-drill-down (perType) */
+function typeOffsetOf(p: DemoProfile, type: string): number {
+  const trnd = mulberry32(hashStr(p.id))
+  for (const t of DEMO_TYPES) {
+    const off = trnd() * 2 - 1
+    trnd() /* צריכת דגימת ה-rate — שומר על אותו רצף כמו demoStudentDetail */
+    if (t === type) return off
   }
-  const monthsAgoOf = (key: string) => {
-    const [y, m] = key.split('-').map(Number)
-    return (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m)
+  return 0
+}
+
+export function demoTrends(range: string, metric: string, entities: string[], now: Date, from?: string, to?: string) {
+  const puzzleType = metric.startsWith('puzzle:') ? metric.slice(7) : null
+
+  /* הדליים: month/custom — אמיתיים (מהספרייה המשותפת); year/term — חודשי מתגלגל */
+  let buckets: { label: string; daysAgoEnd: number; daysAgoStart: number }[]
+  if (range === 'month' || range === 'custom') {
+    buckets = buildTrendBuckets(range, from, to, now).map((b) => ({
+      label: b.label,
+      daysAgoEnd: Math.max(0, Math.round((now.getTime() - b.end.getTime()) / DAY_MS) + 1),
+      daysAgoStart: Math.round((now.getTime() - b.start.getTime()) / DAY_MS),
+    }))
+  } else {
+    const count = range === 'term' ? 6 : 10
+    buckets = []
+    for (let i = count - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      /* קווינט חודשי קבוע (30 יום) — זהות מוחלטת בין שנים, כולל מעוברות */
+      buckets.push({ label: HE_MONTHS[d.getMonth()], daysAgoEnd: i * 30, daysAgoStart: i * 30 + 30 })
+    }
   }
-  /* ערך התלמיד "לפני k חודשים" — מהמסלול (הנקודה האחרונה שישנה מ-k חודשים) */
-  const valueAt = (p: DemoProfile, k: number, m: string): number | null => {
+
+  /* ערך התלמיד "נכון לדלי": הנקודה האחרונה במסלול שקרתה בתוך הדלי או לפניו,
+     ורק אם לתלמיד יש בכלל נתונים ותיקים מקצה הדלי (מיכל הצטרפה באמצע). */
+  const valueAt = (p: DemoProfile, b: { daysAgoEnd: number; daysAgoStart: number }): number | null => {
     const traj = WORLD.trajectories.get(p.id)!
-    const minDays = k * 30 /* קירוב חודשי עקבי — צורת הגרף זהה תמיד */
-    const pts = traj.filter((t) => t.daysAgo >= minDays)
-    const pt = pts.at(-1) ?? (k <= 0 ? traj.at(-1) : undefined)
+    const inOrBefore = traj.filter((t) => t.daysAgo >= b.daysAgoEnd)
+    const pt = inOrBefore.at(-1) ?? (b.daysAgoEnd === 0 ? traj.at(-1) : undefined)
     if (!pt) return null
-    if (traj[0].daysAgo < minDays && p.id === 'demo-s8') return null /* לפני שהצטרפה */
-    return m === 'text_level' ? pt.level : pt.success
+    if (traj[0].daysAgo < b.daysAgoEnd) return null /* לפני שהצטרף/ה */
+    if (puzzleType) return clamp(Math.round(pt.level / 2 + typeOffsetOf(p, puzzleType)), 1, 10)
+    return metric === 'text_level' ? pt.level : pt.success
   }
+
   type Ent = { id: string; name: string; kind: 'student' | 'class'; profiles: DemoProfile[] }
   const ents: Ent[] = []
   for (const id of entities) {
@@ -408,14 +443,42 @@ export function demoTrends(range: string, metric: string, entities: string[], no
   const series = ents.map((e) => ({
     id: e.id, name: e.name, kind: e.kind,
     points: buckets.map((b) => {
-      const k = monthsAgoOf(b.key)
-      if (k < 0) return null /* חודשים עתידיים בשנת הלימודים — אין נתונים עדיין */
-      const vals = e.profiles.map((p) => valueAt(p, k, metric)).filter((v): v is number => v != null)
+      const vals = e.profiles.map((p) => valueAt(p, b)).filter((v): v is number => v != null)
       if (!vals.length) return null
       return round2(vals.reduce((a, c) => a + c, 0) / vals.length)
     }),
   }))
   return { labels: buckets.map((b) => b.label), series }
+}
+
+/* ── GET /api/analytics/challenge-types — ביצועי הכיתה לפי סוג אתגר (דמו) ──
+   נגזר מאותם חישובים דטרמיניסטיים של דשבורד המטלה, עם סינון לפי מקצוע. */
+export function demoChallengeTypes(subject: string) {
+  const stats = new Map<string, { solved: number; failed: number; diffSum: number; diffN: number }>()
+  for (const a of ASSIGNMENTS) {
+    if (subject && a.subject !== subject) continue
+    const completed = PROFILES.map((p) => sessionOf(p.id, a.id)).filter((s): s is DemoSession => !!s && s.completed)
+    const rnd = mulberry32(hashStr(a.id))
+    for (const c of a.challenges) {
+      const hard = 0.75 + 0.45 * rnd() /* אותו מקדם קושי כמו בדשבורד */
+      let s0 = stats.get(c.type)
+      if (!s0) { s0 = { solved: 0, failed: 0, diffSum: 0, diffN: 0 }; stats.set(c.type, s0) }
+      for (const s of completed) {
+        const pass = (s.successRate ?? 0) * (2 - hard) > DEMO_PASS_T
+        if (c.type === 'moralDilemma' || pass) s0.solved++; else s0.failed++
+      }
+      s0.diffSum += clamp(Math.round(3 + hard * 4), 1, 10) /* קושי מייצג פר-אתגר */
+      s0.diffN++
+    }
+  }
+  const types = [...stats.entries()]
+    .map(([type, s0]) => {
+      const attempts = s0.solved + s0.failed
+      return { type, attempts, solved: s0.solved, failed: s0.failed, successRate: attempts ? round2(s0.solved / attempts) : null, avgDifficulty: s0.diffN ? Math.round((s0.diffSum / s0.diffN) * 10) / 10 : null }
+    })
+    .sort((a, b) => (a.successRate ?? 2) - (b.successRate ?? 2))
+  const subjects = [...new Set(ASSIGNMENTS.map((a) => a.subject))].sort((a, b) => a.localeCompare(b, 'he'))
+  return { types, subjects }
 }
 
 /* ── רוסטר (GET /api/staff/students) + כיתות (GET /api/staff/classes) ── */
@@ -442,17 +505,83 @@ export function demoClasses() {
   }
 }
 
-/* ── סיכום פדגוגי — טקסט קבוע (דטרמיניסטי, בלי קריאת AI) ── */
+/* ── סיכום פדגוגי — טקסטים קבועים (דטרמיניסטיים, בלי קריאת AI) ──
+   כתובים בסגנון האמיתי של ד״ר הולו: תצפיות מהוסות מהנתונים (לא אבחנות), מבנה
+   של תמונת-מצב → מה בולט → הצעה מעשית. הנתונים בטקסט נגזרים מהמסלול עצמו
+   (רמות/אחוזים אמיתיים של הדמו), כך שהסיכום תמיד עקבי עם הגרפים. */
+const gd = (p: DemoProfile) => (p.gender === 'female' ? { hi: 'היא', shel: 'שלה', lah: 'לה', ita: 'איתה' } : { hi: 'הוא', shel: 'שלו', lo: 'לו', ita: 'איתו' })
+
+function studentSummaryText(p: DemoProfile): string {
+  const traj = WORLD.trajectories.get(p.id)!
+  const startLvl = traj[0].level
+  const lastLvl = traj.at(-1)!.level
+  const mine = WORLD.sessions.filter((s) => s.studentId === p.id && s.completed && s.successRate !== null)
+  const half = Math.floor(mine.length / 2)
+  const avg = (arr: typeof mine) => Math.round((arr.reduce((a, s) => a + s.successRate!, 0) / Math.max(1, arr.length)) * 100)
+  const firstPct = avg(mine.slice(0, half))
+  const lastPct = avg(mine.slice(half))
+  const g = gd(p)
+
+  const openings: Record<string, string> = {
+    'demo-s1': `אביגיל מציגה לאורך כל השנה יציבות מרשימה ברמות הצלחה גבוהות (סביב ${lastPct}%), ורמת הקריאה שלה טיפסה בהדרגה עד ${lastLvl}/20. בשלב הזה נראה שהאתגרים הרגילים כבר אינם מאתגרים אותה באמת.`,
+    'demo-s2': `הסיפור של יונתן הוא סיפור השנה של הכיתה: ממיצוע של כ-${firstPct}% במחצית הראשונה לכ-${lastPct}% במחצית האחרונה, ורמת קריאה שעלתה מ-${startLvl} ל-${lastLvl}. השיפור הדרגתי ועקבי — לא קפיצה חד-פעמית — מה שמרמז על ביסוס אמיתי.`,
+    'demo-s3': `אצל תמר בולטת תנודתיות: שבועות חזקים מאוד לצד ירידות חדות, בלי מגמה ברורה לאורך זמן (הממוצע נשאר סביב ${lastPct}%). דפוס כזה מזמין בדיקה של גורמים חיצוניים ללמידה — עייפות, עומס, או עניין משתנה בנושאים שונים.`,
+    'demo-s4': `עידו פתח את השנה חזק (כ-${firstPct}% בתחילת הדרך) אך נמצא במגמת ירידה מתמשכת (כ-${lastPct}% לאחרונה), ורמת הקריאה ירדה מ-${startLvl} ל-${lastLvl}. לצד זאת, זמני הקריאה שלו קצרים באופן קיצוני — דפוס שמתאים לדילוג על הטקסט ולא לקושי הבנה.`,
+    'demo-s5': `נועם שומר על עקביות שקטה סביב ${lastPct}% — לא בולט בקצוות, מתקדם בקצב אחיד. תלמידים כאלה נוטים "להיעלם" בכיתה דווקא כי אין סביבם אירועים; שווה לוודא שהוא מקבל גם אתגר וגם הכרה.`,
+    'demo-s6': `שירה מדגימה את הדפוס שהכי כיף לראות: התקדמות איטית, עקבית וכמעט ללא נסיגות — מ-${firstPct}% ל-${lastPct}%, ומרמת קריאה ${startLvl} ל-${lastLvl}. קצב הקריאה שלה איטי יחסית, אבל התוצאה מעידה שהיא קוראת באמת.`,
+    'demo-s7': `אלון מתקשה לאורך השנה (סביב ${lastPct}%), עם שיפור קל אך יציב מתחילת השנה. זמני השהייה הארוכים שלו בכל סצנה מעידים על השקעה אמיתית — הוא לא מוותר, פשוט זקוק ליותר זמן ולרמות מותאמות.`,
+    'demo-s8': `מיכל הצטרפה לכיתה באמצע השנה ונכנסה חזק — כ-${lastPct}% הצלחה כבר מההדמיות הראשונות, ורמת קריאה ${lastLvl}/20. ההסתגלות המהירה מרשימה; הנתונים עדיין מעטים יחסית (${mine.length} הדמיות), אז מוקדם לקבוע דפוסים.`,
+  }
+  const actions: Record<string, string> = {
+    'demo-s1': 'הצעה מעשית: להעלות את רף האתגר — הדמיות ברמת קושי גבוהה יותר או תפקיד חונכות לתלמיד מתקשה. שעמום אצל מצטיינים מופיע בנתונים באיחור.',
+    'demo-s2': 'הצעה מעשית: לשקף ליונתן את הגרף שלו — ראיית ההתקדמות במו-עיניו היא מחזק עצום. להיזהר מהעלאת קושי חדה מדי שתשבור את המומנטום.',
+    'demo-s3': 'הצעה מעשית: לעקוב אחרי אילו נושאים מולידים את השבועות החזקים, ולנסות לזהות עם תמר ביחד מה עובד לה שם. פאנל "ביצועים לפי סוג אתגר" יכול לחדד את התמונה.',
+    'demo-s4': 'הצעה מעשית: שיחה אישית קצרה, לא מאשימה — לברר מה השתנה. ייתכן שהחומר קל מדי עבורו והדילוג הוא שעמום, וייתכן שמשהו חוץ-לימודי מושך את הקשב.',
+    'demo-s5': 'הצעה מעשית: לתת לנועם במה קטנה — להציג פתרון לכיתה או לבחור נושא להדמיה הבאה. עקביות ראויה להכרה לא פחות מהצטיינות.',
+    'demo-s6': 'הצעה מעשית: להמשיך באותו קצב בדיוק. אם מעלים רמה — בצעד אחד בכל פעם; הנתונים מראים שכל מדרגה אצלה מתייצבת לפני הבאה.',
+    'demo-s7': 'הצעה מעשית: לוודא שהרמות המותאמות אישית פועלות (הכיול האוטומטי כבר הוריד את רמת האתגרים), ולחגוג את השיפור הקטן — מ-38% ל-55% זו דרך ארוכה עבורו.',
+    'demo-s8': 'הצעה מעשית: להמשיך מעקב רגיל; אחרי עוד כמה שבועות של נתונים אפשר יהיה לראות אם הרמה ההתחלתית הגבוהה מחזיקה גם בנושאים חדשים.',
+  }
+  return `${openings[p.id]}\n\n${actions[p.id]}\n\n(טקסט הדגמה על תלמיד/ה וירטואלי/ת — בחשבון אמיתי ד״ר הולו כותב את הסיכום מהנתונים של התלמידים שלכם.)`
+}
+
+function classSummaryText(): string {
+  const rates = PROFILES.map((p) => {
+    const mine = WORLD.sessions.filter((s) => s.studentId === p.id && s.completed && s.successRate !== null)
+    return mine.reduce((a, s) => a + s.successRate!, 0) / Math.max(1, mine.length)
+  })
+  const avgPct = Math.round((rates.reduce((a, b) => a + b, 0) / rates.length) * 100)
+  return `כיתה ${DEMO_CLASS.gradeLabel} מציגה שנה של למידה פעילה — ${WORLD.sessions.length} הדמיות שהושלמו על ידי ${PROFILES.length} תלמידים, בממוצע הצלחה כיתתי של כ-${avgPct}%.
+
+מה בולט בתמונה הכיתתית: הפער בין התלמידים גדול אך מוסבר — יש בכיתה מצטיינת יציבה (אביגיל), סיפור-שיפור מרשים (יונתן, שעלה מ~42% ל~75% במהלך השנה), והתקדמות איטית-אך-בטוחה (שירה). שני תלמידים מבקשים תשומת לב הפוכה: עידו נמצא במגמת ירידה מתמשכת עם דפוס דילוג על טקסטים, ואלון משקיע רבות אך זקוק לרמות מותאמות ולזמן.
+
+הצעה מעשית: רוב הכיתה בשלה להעלאת עומק בהדרגה, אך שווה לתכנן את השיעורים הקרובים עם שני מסלולי קושי — הכיול האישי כבר עושה חלק מהעבודה, והדשבורד יראה אם הפער מצטמצם.
+
+(טקסט הדגמה על כיתה וירטואלית — בחשבון אמיתי ד״ר הולו כותב את הסיכום מהנתונים של הכיתה שלכם.)`
+}
+
+function assignmentSummaryText(a: DemoAssignmentDef): string {
+  const per = PROFILES.map((p) => sessionOf(p.id, a.id)).filter((s): s is DemoSession => !!s)
+  const completed = per.filter((s) => s.completed)
+  const rates = completed.map((s) => s.successRate!).filter((r) => r !== null)
+  const avgPct = rates.length ? Math.round((rates.reduce((x, y) => x + y, 0) / rates.length) * 100) : 0
+  const low = rates.filter((r) => r < 0.6).length
+  return `"${a.title}" (${a.subject}) הושלמה על ידי ${completed.length} מתוך ${PROFILES.length} תלמידים, בממוצע הצלחה של ${avgPct}%. ${low > 0 ? `${low} תלמידים סיימו מתחת לרף ה-60% — שווה לבדוק איתם את הנושא בערוץ אחר לפני שממשיכים.` : 'אף תלמיד לא נשאר מתחת לרף ה-60% — בסיס טוב להתקדם ממנו.'} פירוט האתגרים בדשבורד מראה היכן בדיוק הכיתה נתקעה; אם יש יעד חלש, הדמיית-חזרה ממוקדת היא הצעד הטבעי הבא.
+
+(טקסט הדגמה — בחשבון אמיתי הסיכום נכתב מהנתונים בפועל.)`
+}
+
 export function demoSummary(scope: string, id: string, now: Date) {
   const p = PROFILES.find((x) => x.id === id)
+  const a = ASSIGNMENTS.find((x) => x.id === id)
   const content =
-    scope === 'student' && p
-      ? `${p.name} — ${p.story}. בתצפית על ${p.sessions} הדמיות מהשנה האחרונה נראית מגמה עקבית עם הסיפור הזה: רמת הטקסט הנוכחית היא ${WORLD.trajectories.get(p.id)!.at(-1)!.level}/20, והכיול האוטומטי (כלל 60/80) התאים את הרמות בהדרגה. מומלץ להמשיך לעקוב אחרי הגרף בעמוד ההתקדמות ולשוחח עם התלמיד/ה על התחומים שבהם נצפתה תנודתיות. (טקסט הדגמה — בחשבון אמיתי הסיכום נכתב על ידי ד״ר הולו מהנתונים בפועל.)`
-      : `כיתה ${DEMO_CLASS.gradeLabel} — תמונה כיתתית מגוונת: מצטיינים יציבים לצד תלמידים במגמת שיפור ותלמידים הזקוקים לליווי. אחוזי ההצלחה הממוצעים סביב 70% עם התקדמות עקבית ברמות הטקסט לאורך השנה. (טקסט הדגמה — בחשבון אמיתי הסיכום נכתב על ידי ד״ר הולו מהנתונים בפועל.)`
+    scope === 'student' && p ? studentSummaryText(p)
+    : scope === 'assignment' && a ? assignmentSummaryText(a)
+    : classSummaryText()
   return {
     summary: {
       id: null, scope, entity_id: id, content, edited_content: null,
-      sample_size: scope === 'student' && p ? p.sessions : PROFILES.length,
+      sample_size: scope === 'student' && p ? p.sessions : scope === 'assignment' ? PROFILES.length : WORLD.sessions.length,
       created_at: daysAgo(now, 1, 12).toISOString(), updated_at: daysAgo(now, 1, 12).toISOString(),
     },
     cached: false, notPersisted: true,

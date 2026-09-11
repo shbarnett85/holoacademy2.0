@@ -5,6 +5,66 @@ import AssignmentDashboard from './AssignmentDashboard'
 import StudentDetail from './StudentDetail'
 import { pct } from './format'
 import { HoloSelect, layerOf } from './index'
+import { puzzleTypeLabel } from '../../shared/lib/labels'
+
+/* ── פאנל "ביצועים לפי סוג אתגר" — אגרגציה כיתתית מכל השיעורים, עם סינון מקצוע ──
+   ברים ממוינים מהקשה לקל (הצלחה נמוכה למעלה) + ניסיונות + קושי ממוצע. */
+interface TypeRow { type: string; attempts: number; solved: number; failed: number; successRate: number | null; avgDifficulty: number | null }
+
+function ChallengeTypesPanel() {
+  const [subject, setSubject] = useState('')
+  const [subjects, setSubjects] = useState<string[]>([])
+  const [rows, setRows] = useState<TypeRow[] | null>(null)
+  const [open, setOpen] = useState(true)
+
+  useEffect(() => {
+    apiJson<{ types: TypeRow[]; subjects: string[] }>(`/api/analytics/challenge-types${subject ? `?subject=${encodeURIComponent(subject)}` : ''}`)
+      .then((b) => { setRows(b.types); if (!subject) setSubjects(b.subjects) })
+      .catch(() => setRows([]))
+  }, [subject])
+
+  if (rows !== null && rows.length === 0 && !subject) return null /* אין נתונים בכלל — לא מציגים */
+
+  return (
+    <div style={{ ...glass, padding: '14px 16px', flex: '0 0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button onClick={() => setOpen((o) => !o)} style={{ ...micro, fontSize: 9, color: 'var(--t28)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          🧩 ביצועים לפי סוג אתגר {open ? '▾' : '◂'}
+        </button>
+        {open && subjects.length > 0 && (
+          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginRight: 'auto' }}>
+            <button onClick={() => setSubject('')} style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 14, cursor: 'pointer', color: !subject ? 'var(--t-on-accent)' : 'var(--t6)', background: !subject ? 'linear-gradient(135deg,var(--t66),var(--t15))' : 'var(--t70)', border: '1px solid var(--t67)' }}>כל המקצועות</button>
+            {subjects.map((sub) => (
+              <button key={sub} onClick={() => setSubject(sub === subject ? '' : sub)} style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 14, cursor: 'pointer', color: subject === sub ? 'var(--t-on-accent)' : 'var(--t6)', background: subject === sub ? 'linear-gradient(135deg,var(--t66),var(--t15))' : 'var(--t70)', border: '1px solid var(--t67)' }}>{sub}</button>
+            ))}
+          </span>
+        )}
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 10 }}>
+          {rows === null && <p style={{ ...micro, color: 'var(--t22)', fontSize: 10, textAlign: 'center', padding: 8 }}>טוען…</p>}
+          {rows !== null && rows.length === 0 && <p style={{ ...micro, color: 'var(--t37)', fontSize: 10, textAlign: 'center', padding: 8 }}>אין נתונים למקצוע הזה.</p>}
+          {(rows ?? []).map((r) => {
+            const sr = r.successRate ?? 0
+            const barColor = r.successRate === null ? 'var(--t6)' : sr < 0.6 ? 'var(--t5)' : sr < 0.85 ? 'var(--t4)' : 'var(--t3)'
+            return (
+              <div key={r.type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--t12)', width: 128, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{puzzleTypeLabel(r.type)}</span>
+                <div style={{ flex: 1, height: 8, borderRadius: 6, background: 'var(--t25)', border: '1px solid var(--t62)', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round(sr * 100)}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width .3s ease' }} />
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: barColor, width: 40, textAlign: 'left', flexShrink: 0 }}>{pct(r.successRate)}</span>
+                <span style={{ ...micro, fontSize: 8.5, color: 'var(--t44)', width: 88, flexShrink: 0 }}>
+                  {r.attempts} ניסיונות{r.avgDifficulty != null ? ` · קושי ${r.avgDifficulty}` : ''}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 /* פיין "סיכום שיעורים" — אנליטיקת ההדמיות (רשימה→AssignmentDashboard→drill-down תלמיד).
    כולל בידול "ההדמיות האחרות" למחנך (הרשאה B). עצמאי — מנהל את ה-drill-down הפנימי שלו. */
@@ -133,6 +193,9 @@ export default function LessonsPane() {
           </div>
         </div>
       )}
+
+      {/* ביצועים לפי סוג אתגר — אגרגציה מכל השיעורים, מסונן לפי מקצוע */}
+      <ChallengeTypesPanel />
 
       {/* שורת סינון */}
       <div style={{ ...glass, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flex: '0 0 auto' }}>

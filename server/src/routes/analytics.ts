@@ -3,12 +3,13 @@ import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest } from '../middleware/staffAuth.js'
-import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
+import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
 import { callGeminiText } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
 import { computeWeakConcepts } from '../lib/weakConcepts.js'
+import { buildTrendBuckets, bucketIndexOf } from '../lib/trendBuckets.js'
 
 /* כל המסלולים דורשים צוות; הגישה מסוננת להרשאות (מורה → כיתותיו, מנהל → בית ספרו). */
 export const analyticsRouter = Router()
@@ -736,25 +737,7 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
    admin → בית ספרו; super_admin → הכול; מורה מקצועי → ריק (אין גישה חוצת-מקצוע).
    ════════════════════════════════════════════════════════════════════════ */
 
-const HE_MONTHS = ['ינו׳', 'פבר׳', 'מרץ', 'אפר׳', 'מאי', 'יוני', 'יולי', 'אוג׳', 'ספט׳', 'אוק׳', 'נוב׳', 'דצמ׳']
-const mkey = (y: number, m0: number) => `${y}-${String(m0 + 1).padStart(2, '0')}` /* m0 = 0-indexed */
-
-/* דליי חודשים לפי טווח: שנה = שנת לימודים ספט→יוני; מחצית = 6 חודשים אחרונים */
-function monthBuckets(range: string): { key: string; label: string }[] {
-  const now = new Date()
-  const out: { key: string; label: string }[] = []
-  if (range === 'term') {
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      out.push({ key: mkey(d.getFullYear(), d.getMonth()), label: HE_MONTHS[d.getMonth()] })
-    }
-  } else {
-    const startY = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1 /* ספט=8 */
-    const seq: [number, number][] = [[startY, 8], [startY, 9], [startY, 10], [startY, 11], [startY + 1, 0], [startY + 1, 1], [startY + 1, 2], [startY + 1, 3], [startY + 1, 4], [startY + 1, 5]]
-    for (const [y, m] of seq) out.push({ key: mkey(y, m), label: HE_MONTHS[m] })
-  }
-  return out
-}
+/* דליי הזמן עברו ל-lib/trendBuckets.ts (year/term/month/custom) — משותף גם לדמו */
 
 /* כיתות הזמינות לגרף ההתקדמות (הרשאה A): super→הכול, admin→בית ספרו, מורה→כיתות-החינוך שלו */
 async function snapshotClasses(req: Request): Promise<{ id: string; gradeLabel: string }[]> {
@@ -774,13 +757,15 @@ analyticsRouter.get('/trends', async (req, res, next) => {
     const metric = (req.query.metric as string) || 'text_level'
     const range = (req.query.range as string) || 'year'
     const entities = ((req.query.entities as string) || '').split(',').map((x) => x.trim()).filter(Boolean)
-    if (!['text_level', 'overall_success'].includes(metric)) throw new AppError(400, 'metric לא נתמך')
+    /* מדדים: רמת קריאה / הצלחה כוללת / רמה פר-סוג-אתגר (puzzle:<type> — מ-per_puzzle_level שבסנפשוטים) */
+    const puzzleMetric = metric.startsWith('puzzle:') ? metric.slice(7) : null
+    if (!['text_level', 'overall_success'].includes(metric) && !puzzleMetric) throw new AppError(400, 'metric לא נתמך')
 
-    const buckets = monthBuckets(range)
+    const buckets = buildTrendBuckets(range, req.query.from as string | undefined, req.query.to as string | undefined)
     const labels = buckets.map((b) => b.label)
     /* מצב הדגמה — סדרות מנתוני הדמו על דליים מתגלגלים (ראו demoAnalytics) */
     if (isDemoGuest(req)) {
-      res.json(demoTrends(range, metric, entities, new Date()))
+      res.json(demoTrends(range, metric, entities, new Date(), req.query.from as string | undefined, req.query.to as string | undefined))
       return
     }
     /* עמיד לפני המיגרציה — אין טבלה → גרף ריק עם דגל notReady */
@@ -808,37 +793,112 @@ analyticsRouter.get('/trends', async (req, res, next) => {
     const needIds = [...new Set(ents.flatMap((e) => e.studentIds))]
     if (needIds.length === 0) { res.json({ labels, series: [] }); return }
 
-    const firstKey = buckets[0].key, lastKey = buckets[buckets.length - 1].key
-    const start = new Date(firstKey + '-01T00:00:00Z').toISOString()
-    const [ly, lm] = lastKey.split('-').map(Number)
-    const end = new Date(Date.UTC(ly, lm, 1)).toISOString() /* תחילת החודש הבא אחרי הדלי האחרון */
+    const start = buckets[0].start.toISOString()
+    const end = buckets[buckets.length - 1].end.toISOString()
+    /* רמות פר-סוג חיות ב-per_puzzle_level (jsonb) — נשלף רק כשהמדד דורש */
+    const snapCols = 'student_id, taken_at, text_level, overall_success' + (puzzleMetric ? ', per_puzzle_level' : '')
     const { data: snaps } = await supabaseAdmin
       .from('progress_snapshots')
-      .select('student_id, taken_at, text_level, overall_success')
+      .select(snapCols)
       .in('student_id', needIds)
       .gte('taken_at', start).lt('taken_at', end)
       .order('taken_at', { ascending: true })
 
-    /* student → bucketKey → הערך האחרון בחודש (ordered asc → last wins) */
-    const byStudent = new Map<string, Map<string, number>>()
-    for (const r of (snaps ?? []) as { student_id: string; taken_at: string; text_level: number | null; overall_success: number | null }[]) {
-      const v = metric === 'text_level' ? r.text_level : r.overall_success
+    /* student → אינדקס-דלי → הערך האחרון בדלי (ordered asc → last wins).
+       השיוך לפי טווח [start,end) של הדלי — עובד לדלי חודשי ושבועי כאחד. */
+    const byStudent = new Map<string, Map<number, number>>()
+    for (const r of (snaps ?? []) as unknown as { student_id: string; taken_at: string; text_level: number | null; overall_success: number | null; per_puzzle_level?: Record<string, number> | null }[]) {
+      const v = puzzleMetric
+        ? r.per_puzzle_level?.[puzzleMetric] ?? null
+        : metric === 'text_level' ? r.text_level : r.overall_success
       if (v == null) continue
-      const d = new Date(r.taken_at)
-      const key = mkey(d.getUTCFullYear(), d.getUTCMonth())
+      const bi = bucketIndexOf(buckets, new Date(r.taken_at))
+      if (bi < 0) continue
       let m = byStudent.get(r.student_id); if (!m) { m = new Map(); byStudent.set(r.student_id, m) }
-      m.set(key, Number(v))
+      m.set(bi, Number(v))
     }
 
     const series = ents.map((e) => ({
       id: e.id, name: e.name, kind: e.kind,
-      points: buckets.map((b) => {
-        const vals = e.studentIds.map((sid) => byStudent.get(sid)?.get(b.key)).filter((v): v is number => v != null)
+      points: buckets.map((_b, bi) => {
+        const vals = e.studentIds.map((sid) => byStudent.get(sid)?.get(bi)).filter((v): v is number => v != null)
         if (vals.length === 0) return null
         return Math.round((vals.reduce((a, c) => a + c, 0) / vals.length) * 100) / 100
       }),
     }))
     res.json({ labels, series })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── GET /api/analytics/challenge-types?subject= — ביצועי הכיתות לפי סוג אתגר ──
+   אגרגציה מה-events המסוכמים (puzzle_solved/failed, payload.puzzleType+difficulty)
+   על פני כל ההדמיות הנגישות, עם סינון אופציונלי לפי מקצוע ההדמיה. סקופ כמו עדשת
+   התלמידים: admin/מחנך → הכול; מורה מקצועי → sessions על הדמיות שיצר בלבד. */
+analyticsRouter.get('/challenge-types', async (req, res, next) => {
+  try {
+    const subject = ((req.query.subject as string) || '').trim()
+    if (isDemoGuest(req)) { res.json(demoChallengeTypes(subject)); return }
+
+    const adminLike = isAdmin(req)
+    const classes = await accessibleClasses(req)
+    if (!classes.length) { res.json({ types: [], subjects: [] }); return }
+    const homeroomSet = await homeroomClassIds(req)
+    const full = adminLike || homeroomSet.size > 0
+    let ownQuestIds = new Set<string>()
+    if (!full) {
+      const { data } = await supabaseAdmin.from('quests').select('id').eq('created_by', req.staff!.userId)
+      ownQuestIds = new Set((data ?? []).map((q) => q.id as string))
+    }
+    const studentIds: string[] = []
+    for (const c of classes) for (const st of await activeStudents(c.id)) studentIds.push(st.id)
+    const uniqIds = [...new Set(studentIds)]
+    if (!uniqIds.length) { res.json({ types: [], subjects: [] }); return }
+
+    const { data: sessRows } = await supabaseAdmin
+      .from('sessions')
+      .select('id, quest_id, started_at')
+      .in('user_id', uniqIds)
+      .not('completed_at', 'is', null)
+      .order('started_at', { ascending: false })
+      .limit(600)
+    let sessions = (sessRows ?? []) as { id: string; quest_id: string }[]
+    if (!full) sessions = sessions.filter((s) => ownQuestIds.has(s.quest_id))
+
+    /* מקצוע פר-הדמיה — לרשימת הסינון ולסינון עצמו */
+    const questIds = [...new Set(sessions.map((s) => s.quest_id))]
+    const subjByQuest = new Map<string, string | null>()
+    if (questIds.length && (await hasQuestSubject())) {
+      const { data } = await supabaseAdmin.from('quests').select('id, subject').in('id', questIds)
+      for (const q of (data ?? []) as { id: string; subject: string | null }[]) subjByQuest.set(q.id, q.subject)
+    }
+    const subjects = [...new Set([...subjByQuest.values()].filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'he'))
+    if (subject) sessions = sessions.filter((s) => subjByQuest.get(s.quest_id) === subject)
+
+    const stats = new Map<string, { solved: number; failed: number; diffSum: number; diffN: number }>()
+    const sessIds = sessions.map((s) => s.id)
+    for (let i = 0; i < sessIds.length; i += 200) {
+      const { data: evs } = await supabaseAdmin
+        .from('events')
+        .select('type, payload')
+        .in('session_id', sessIds.slice(i, i + 200))
+        .in('type', ['puzzle_solved', 'puzzle_failed'])
+      for (const e of (evs ?? []) as { type: string; payload: { puzzleType?: string; difficulty?: number | null } | null }[]) {
+        const t = e.payload?.puzzleType ?? 'multipleChoice'
+        let s0 = stats.get(t)
+        if (!s0) { s0 = { solved: 0, failed: 0, diffSum: 0, diffN: 0 }; stats.set(t, s0) }
+        if (e.type === 'puzzle_solved') s0.solved++; else s0.failed++
+        if (typeof e.payload?.difficulty === 'number') { s0.diffSum += e.payload.difficulty; s0.diffN++ }
+      }
+    }
+    const types = [...stats.entries()]
+      .map(([type, s0]) => {
+        const attempts = s0.solved + s0.failed
+        return { type, attempts, solved: s0.solved, failed: s0.failed, successRate: attempts ? Math.round((s0.solved / attempts) * 100) / 100 : null, avgDifficulty: s0.diffN ? Math.round((s0.diffSum / s0.diffN) * 10) / 10 : null }
+      })
+      .sort((a, b) => (a.successRate ?? 2) - (b.successRate ?? 2))
+    res.json({ types, subjects })
   } catch (err) {
     next(err)
   }
