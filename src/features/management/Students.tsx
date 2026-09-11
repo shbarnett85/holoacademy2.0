@@ -593,6 +593,12 @@ export default function Students() {
       <StudioTopBar active="students" />
 
       <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: isMobile ? '12px 10px 26px' : '12px 24px 26px', width: '100%' }}>
+        {/* מצב הדגמה — הרוסטר סינתטי (כיתת דמו וירטואלית) */}
+        {isGuest && (
+          <div style={{ flex: '0 0 auto', alignSelf: 'flex-start', marginBottom: 8, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
+            🎬 נתוני הדגמה — תלמידים וירטואליים
+          </div>
+        )}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'flex-start' }}>
 
           {/* ימין — ניהול */}
