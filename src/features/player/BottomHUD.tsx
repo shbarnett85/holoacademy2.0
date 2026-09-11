@@ -21,7 +21,7 @@ interface Props {
    הפתרון, אבל התצוגה (display) מתמלאת רק כשרסיסי ההצלחה מגיעים (אירוע
    'holo-shards-arrived' מ-successShatter), באנימציית מילוי רכה על הקריסטל הספציפי.
    קריסטל שהושלם: צליל ניצחון + פעימת crystal-pop (הקיימת) + הבזק אור מהקריסטל. */
-export function CrystalBar({ progress }: { progress: number; shardEvent: number }) {
+export function CrystalBar({ progress, steps }: { progress: number; shardEvent: number; steps?: number[] }) {
   const [display, setDisplay] = useState(progress)
   const displayRef = useRef(progress)
   const pendingRef = useRef(progress)
@@ -108,7 +108,7 @@ export function CrystalBar({ progress }: { progress: number; shardEvent: number 
         const fillFraction = Math.max(0, Math.min(1, display * TOTAL_CRYSTALS - i))
         return (
           <span key={i} className="relative" {...(i === targetIdx ? { 'data-crystal-target': '1' } : {})}>
-            <CrystalGauge fill={fillFraction} justCompleted={justCompletedIdx === i} />
+            <CrystalGauge fill={fillFraction} steps={steps?.[i]} index={i} justCompleted={justCompletedIdx === i} />
             {flashIdx === i && <span className="crystal-flash" />}
           </span>
         )

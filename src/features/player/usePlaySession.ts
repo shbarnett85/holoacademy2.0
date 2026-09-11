@@ -4,12 +4,13 @@ import {
   saveResumeLocal, loadResumeLocal, clearResumeLocal,
   type SessionStart, type CompletePayload,
 } from './sessionTracker'
-import type { CollectableItem, GameAnalytics } from './useGameEngine'
+import type { CollectableItem, GameAnalytics, ChallengeResult } from './useGameEngine'
 
 export interface InitialState {
   currentSceneId: string
   inventory: CollectableItem[]
   visitedScenes: string[]
+  challengeResults?: ChallengeResult[]
 }
 
 interface ResumeState {
@@ -17,6 +18,8 @@ interface ResumeState {
   inventory: unknown[]
   visitedScenes: unknown[]
   crystals: number
+  /* מילוי הקריסטלים החלקי — נשמר ומשוחזר כדי שלא יתאפס ביציאה-וחזרה */
+  challengeResults?: unknown[]
 }
 
 interface PlaySession {
@@ -67,6 +70,7 @@ export function usePlaySession(questId: string | undefined): PlaySession {
             currentSceneId: snap.currentSceneId,
             inventory: (snap.inventory as CollectableItem[]) ?? [],
             visitedScenes: (snap.visitedScenes as string[]) ?? [],
+            challengeResults: ((snap as { challengeResults?: unknown[] }).challengeResults as ChallengeResult[]) ?? [],
           }
         : undefined
       setState({ sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined })

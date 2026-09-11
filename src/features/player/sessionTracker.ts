@@ -134,6 +134,8 @@ interface LocalResume {
   inventory: unknown[]
   visitedScenes: unknown[]
   crystals: number
+  /* מילוי הקריסטלים (כולל חלקי) — נשמר כדי ש-resume לא יאפס את ההתקדמות */
+  challengeResults?: unknown[]
 }
 
 const resumeKey = (questId: string) => `holo_resume_${questId}`

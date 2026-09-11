@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
+import CrystalDevGallery from './features/player/CrystalDevGallery'
 import ErrorBoundary from './shared/ui/ErrorBoundary'
 import { HoloDialogHost } from './shared/ui/dialog'
 import { initSound, installGlobalClickSound } from './shared/lib/sound'
@@ -63,6 +64,8 @@ export default function App() {
           <Route path="/manage/students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
           <Route path="/analytics"       element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/play/:questId"   element={<Player />} />
+          {/* גלריית עיצוב לשקעי הקריסטלים — DEV בלבד */}
+          {import.meta.env.DEV && <Route path="/dev/crystals" element={<CrystalDevGallery />} />}
           <Route path="/student"         element={<StudentHome />} />
         </Routes>
         </div>

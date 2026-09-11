@@ -124,7 +124,7 @@ interface Props {
   /* תיעוד אנליטיקה — מודל מרוכז: צבירה מקומית, שליחה אחת בסיום (best-effort) */
   initialState?: EngineInitialState
   /* שמירת מצב ביניים ל-resume — מקומי בלבד, ללא רשת */
-  saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number }) => void
+  saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number; challengeResults?: unknown[] }) => void
   /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע */
   onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
@@ -282,7 +282,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => { initSound() }, [])
 
   useEffect(() => {
-    saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull })
+    saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull, challengeResults: engine.challengeResults })
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     setAdvancing(false)
     setContentVisible(true) /* סצנה חדשה מתחילה גלויה (לא באמצע fade של החלפת אתגר) */
@@ -479,7 +479,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* הקריסטלים שנאספו — מתמלאים בסנכרון עם chargeT (החלקיקים המתכנסים) */}
           <div ref={crystalRowRef} className="flex justify-center gap-1 mt-5" dir="ltr">
             {Array.from({ length: TOTAL_CRYSTALS }).map((_, i) => (
-              <CrystalGauge key={i} fill={Math.max(0, Math.min(1, engine.crystalProgress * TOTAL_CRYSTALS * chargeT - i))} size={30} />
+              <CrystalGauge key={i} fill={Math.max(0, Math.min(1, engine.crystalProgress * TOTAL_CRYSTALS * chargeT - i))} steps={engine.crystalSteps[i]} index={i} size={30} />
             ))}
           </div>
 
@@ -926,7 +926,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         title={scene.title}
         onExit={handleExit}
         hudSlot={<>
-          <CrystalBar progress={engine.crystalProgress} shardEvent={engine.shardEvent} />
+          <CrystalBar progress={engine.crystalProgress} steps={engine.crystalSteps} shardEvent={engine.shardEvent} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
         </>}
       />

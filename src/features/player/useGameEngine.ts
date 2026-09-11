@@ -17,6 +17,10 @@ export interface EngineInitialState {
   currentSceneId: string
   inventory: CollectableItem[]
   visitedScenes: string[]
+  /* תוצאות האתגרים שנצברו — משחזר את מילוי הקריסטלים (גם החלקי) ב-resume,
+     ומסמן את האתגרים שכבר נוסו (אין ניסיון חוזר). הדמיות/שמירות ישנות בלי
+     השדה — מתחילות ריק, כמו קודם. */
+  challengeResults?: ChallengeResult[]
 }
 
 export interface EngineOptions {
@@ -126,6 +130,26 @@ export interface GameData {
 
 export const TOTAL_CRYSTALS = 5
 
+/* ── הקצאת אתגרים לקריסטלים (ויזואלי בלבד — המכנה של המילוי החלקי בשקעים) ──
+   כל אתגר משויך לקריסטל שבו נופל אמצע טווח-המשקל המצטבר שלו, והמכנה של כל
+   שקע = מספר האתגרים ששויכו לו (משתנה בין קריסטלים ובין הדמיות — נקרא
+   מהנתונים, לא מספר קבוע). **לא נוגע בלוגיקת ההתקדמות** (crystalProgress /
+   crystalsFull נשארים רציפים לפי משקל) — משמש רק לקוונטיזציית התצוגה
+   ולתוויות הנגישות. קריסטל בלי אתגרים משויכים (הדמיה עם <5 אתגרים) מקבל
+   מכנה 1 — מתמלא כיחידה אחת. */
+export function crystalStepCounts(weights: number[], totalCrystals = TOTAL_CRYSTALS): number[] {
+  const counts: number[] = Array(totalCrystals).fill(0)
+  const total = weights.reduce((a, b) => a + b, 0)
+  if (total <= 0) return counts.map(() => 1)
+  let cum = 0
+  for (const w of weights) {
+    const mid = (cum + w / 2) / total
+    counts[Math.min(totalCrystals - 1, Math.floor(mid * totalCrystals))]++
+    cum += w
+  }
+  return counts.map((c) => Math.max(1, c))
+}
+
 export interface ChallengeResult {
   sceneId: string
   sceneTitle: string
@@ -149,12 +173,14 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
 
   const [currentSceneId, setCurrentSceneId] = useState(init?.currentSceneId ?? gameData.entrySceneId)
   const [inventory, setInventory] = useState<CollectableItem[]>(init?.inventory ?? [])
-  /* תוצאות אתגרים — הבסיס לרסיסים ולקריסטלים */
-  const [challengeResults, setChallengeResults] = useState<ChallengeResult[]>([])
+  /* תוצאות אתגרים — הבסיס לרסיסים ולקריסטלים. ב-resume משוחזרות מהשמירה
+     המקומית, כך שהמילוי החלקי של הקריסטלים לא מתאפס ביציאה-וחזרה. */
+  const [challengeResults, setChallengeResults] = useState<ChallengeResult[]>(init?.challengeResults ?? [])
   const [shardEvent, setShardEvent] = useState(0) /* טריגר לאנימציית רסיס עף */
   const [visitedScenes, setVisitedScenes] = useState<string[]>(init?.visitedScenes ?? [gameData.entrySceneId])
   const [unlockedGates, setUnlockedGates] = useState<Set<string>>(new Set())
-  const [solvedPuzzles, setSolvedPuzzles] = useState<Set<string>>(new Set())
+  /* אתגרים שכבר נוסו (פתרון או כישלון) — ב-resume משוחזרים מתוצאות האתגרים */
+  const [solvedPuzzles, setSolvedPuzzles] = useState<Set<string>>(() => new Set((init?.challengeResults ?? []).map((r) => r.sceneId)))
   /* ב-resume — סצנות שכבר נאסף מהן חפץ (לפי ה-inventory המשוחזר) מסומנות כנאספו */
   const [collectedScenes, setCollectedScenes] = useState<Set<string>>(() => {
     const s = new Set<string>()
@@ -491,7 +517,8 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   }, [scene, track])
 
   /* ── חישוב קריסטלים: סך האתגרים מתחלק ל-5 קריסטלים לפי משקל ──
-     מבחן סיכום (finalQuiz) שוקל קריסטל שלם אחד; שאר האתגרים חולקים את היתר. */
+     מבחן סיכום (finalQuiz) שוקל קריסטל שלם אחד; שאר האתגרים חולקים את היתר.
+     (crystalStepCounts — הפונקציה הטהורה — מוגדרת מחוץ ל-hook, מיוצאת לבדיקות) */
   const challengeWeights = useMemo(() => {
     const map = new Map<string, number>()
     const challengeScenes = gameData.scenes.filter((s) => s.puzzle)
@@ -510,6 +537,8 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     () => [...challengeWeights.values()].reduce((a, b) => a + b, 0),
     [challengeWeights],
   )
+  /* המכנה של המילוי החלקי בכל שקע — כמה אתגרים הוקצו לכל קריסטל (ויזואלי בלבד) */
+  const crystalSteps = useMemo(() => crystalStepCounts([...challengeWeights.values()]), [challengeWeights])
   const earnedWeight = challengeResults.reduce(
     (a, r) => a + (challengeWeights.get(r.sceneId) ?? 0) * r.score,
     0,
@@ -593,6 +622,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     totalChallenges,
     crystalProgress,
     crystalsFull,
+    crystalSteps,
     shardEvent,
     visitedScenes,
     message,
