@@ -3,9 +3,13 @@
    האמיתיים (26px של ה-HUD ו-30px של הסיכום) לבדיקת קריאוּת. */
 import { useState } from 'react'
 import CrystalGauge from './CrystalGauge'
+import CrystalFusion from './CrystalFusion'
+import CrystalRain from './CrystalRain'
 
 export default function CrystalDevGallery() {
   const [pop, setPop] = useState(false)
+  const [fusion, setFusion] = useState(false)
+  const [rain, setRain] = useState(false)
   const row = (steps: number, size: number) => (
     <div key={`${steps}-${size}`} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
       <span style={{ width: 110, fontSize: 12, color: '#8fb3d9', fontFamily: 'monospace' }}>N={steps} · {size}px</span>
@@ -20,9 +24,19 @@ export default function CrystalDevGallery() {
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#070b18', padding: 24, display: 'flex', flexDirection: 'column', gap: 18, fontFamily: 'var(--font-display)' }}>
       <h1 style={{ color: '#fff', fontSize: 18, margin: 0 }}>שקעי קריסטל — כל המצבים (DEV)</h1>
-      <button onClick={() => { setPop(false); requestAnimationFrame(() => setPop(true)) }} style={{ alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 8, background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.4)', color: '#7ef6ff', cursor: 'pointer' }}>
-        ▶ הפעל אנימציית השלמה
-      </button>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={() => { setPop(false); requestAnimationFrame(() => setPop(true)) }} style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.4)', color: '#7ef6ff', cursor: 'pointer' }}>
+          ▶ אנימציית השלמה
+        </button>
+        <button onClick={() => { setFusion(false); requestAnimationFrame(() => setFusion(true)) }} style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(242,65,218,.12)', border: '1px solid rgba(242,65,218,.4)', color: '#ff8df0', cursor: 'pointer' }}>
+          ▶ היתוך
+        </button>
+        <button onClick={() => setRain((r) => !r)} style={{ padding: '6px 14px', borderRadius: 8, background: 'rgba(120,180,255,.12)', border: '1px solid rgba(120,180,255,.4)', color: '#b4dcff', cursor: 'pointer' }}>
+          {rain ? '⏸ עצור גשם' : '▶ גשם קריסטלים'}
+        </button>
+      </div>
+      {fusion && <CrystalFusion onDone={() => setFusion(false)} />}
+      {rain && <CrystalRain />}
       {[2, 3, 4, 5].map((n) => row(n, 26))}
       <div style={{ height: 6 }} />
       {[4].map((n) => row(n, 30))}

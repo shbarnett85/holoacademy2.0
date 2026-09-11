@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { playSound } from '../../shared/lib/sound'
+import { CRYSTAL_NORM } from '../../shared/ui/CrystalMark'
 
 /* "היתוך קריסטלים" — שלושה יהלומים מתנגשים אל המרכז ומתפוצצים בהתפרצות זוהר.
    מנוע canvas (פורט מ-design-reference/היתוך קריסטלים.html), מתנגן *פעם אחת* (~2.65ש׳)
@@ -28,17 +29,19 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
     resize()
     window.addEventListener('resize', resize)
 
-    /* קריסטל HoloAcademy (מעוין + H של הלוגו) ב-viewBox 220×210 (מרכז 110,105).
-       crFill = מעוין למילוי ציאן; crStroke = מתאר המעוין + פסי ה-H לקווים. */
+    /* קריסטל HoloAcademy (הלוגו החדש) ב-viewBox 220×210 (מרכז 110,105) —
+       מהגאומטריה המשותפת (CRYSTAL_NORM): כתר ציאן, פביליון מגנטה, rails בהירים. */
     const CRW = 220, CRH = 210, CX = 110, CY = 105, R = 92
-    const VX = R * 0.5, VY = R * 0.5
-    const crFill = new Path2D()
-    crFill.moveTo(CX, CY - R); crFill.lineTo(CX + R, CY); crFill.lineTo(CX, CY + R); crFill.lineTo(CX - R, CY); crFill.closePath()
+    const toPath = (ptsN: [number, number][], close = true) => {
+      const p = new Path2D()
+      ptsN.forEach(([x, y], i) => (i === 0 ? p.moveTo(CX + x * R, CY + y * R) : p.lineTo(CX + x * R, CY + y * R)))
+      if (close) p.closePath()
+      return p
+    }
+    const crCrown = toPath(CRYSTAL_NORM.crown)
+    const crPavilion = toPath(CRYSTAL_NORM.pavilion)
     const crStroke = new Path2D()
-    crStroke.moveTo(CX, CY - R); crStroke.lineTo(CX + R, CY); crStroke.lineTo(CX, CY + R); crStroke.lineTo(CX - R, CY); crStroke.closePath()
-    crStroke.moveTo(CX - VX, CY - VY); crStroke.lineTo(CX - VX, CY + VY)
-    crStroke.moveTo(CX + VX, CY - VY); crStroke.lineTo(CX + VX, CY + VY)
-    crStroke.moveTo(CX - VX, CY); crStroke.lineTo(CX + VX, CY)
+    for (const seg of CRYSTAL_NORM.rails) crStroke.addPath(toPath(seg, false))
 
     const T_FLASH = 1200, T_END = 2650
     const TAU = Math.PI * 2
@@ -74,12 +77,16 @@ export default function CrystalFusion({ onDone }: { onDone: () => void }) {
       ctx.save(); ctx.globalAlpha = alpha
       ctx.translate(x, y); ctx.rotate(rot); ctx.scale(scale, scale); ctx.translate(-CRW / 2, -CRH / 2)
       ctx.shadowColor = 'rgba(47,243,255,0.95)'; ctx.shadowBlur = glow
-      const g = ctx.createLinearGradient(0, 0, CRW * 0.2, CRH)
-      g.addColorStop(0, '#8ffcff'); g.addColorStop(0.45, '#2ff3ff'); g.addColorStop(1, '#12b9d6')
-      ctx.fillStyle = g; ctx.fill(crFill); ctx.shadowBlur = 0
+      /* כתר ציאן + פביליון מגנטה — הגרדיאנטים של הלוגו */
+      const gc = ctx.createLinearGradient(0, 0, 0, CRH * 0.55)
+      gc.addColorStop(0, '#00F4EC'); gc.addColorStop(1, '#00A8F3')
+      ctx.fillStyle = gc; ctx.fill(crCrown)
+      const gp = ctx.createLinearGradient(0, CRH * 0.4, 0, CRH)
+      gp.addColorStop(0, '#3000FF'); gp.addColorStop(0.48, '#A400E9'); gp.addColorStop(1, '#F400E1')
+      ctx.fillStyle = gp; ctx.fill(crPavilion); ctx.shadowBlur = 0
       ctx.lineJoin = 'round'; ctx.lineCap = 'round'
-      /* מתאר + פסי ה-H — ציאן בהיר (קווים) */
-      ctx.strokeStyle = 'rgba(190,250,255,0.95)'; ctx.lineWidth = 9; ctx.stroke(crStroke)
+      /* rails בהירים — כמו במאסטר */
+      ctx.strokeStyle = 'rgba(233,251,255,0.95)'; ctx.lineWidth = 9; ctx.stroke(crStroke)
       ctx.restore()
     }
 

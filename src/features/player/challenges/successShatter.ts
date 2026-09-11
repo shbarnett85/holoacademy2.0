@@ -5,7 +5,7 @@
    (המילוי בתצוגה נדחה עד אז). prefers-reduced-motion → מילוי מיידי + המשך.
    onDone נקרא פעם אחת בדיוק. */
 
-const SHARD_COLORS = ['#2ff3ff', '#7ef6ff', '#9b8cff', '#bffcff']
+const SHARD_COLORS = ['#2ff3ff', '#7ef6ff', '#f241da', '#bffcff'] /* פלטת הלוגו החדש — ציאן+מגנטה */
 const SHARD_COUNT = 18
 
 const ARRIVED_EVENT = 'holo-shards-arrived'

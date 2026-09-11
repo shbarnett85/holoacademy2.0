@@ -50,6 +50,29 @@ export const CRYSTAL_COLORS = {
 
 const pts = (...p: Pt[]) => p.map(([x, y]) => `${x},${y}`).join(' ')
 
+/* ── גאומטריה מנורמלת לקנבס (fusion/rain/charge): מרכז (0,0), חצי-רוחב 1 ── */
+const CXm = 627
+const CYm = (247 + 733) / 2
+const HW = (928 - 326) / 2
+const nm = ([x, y]: Pt): Pt => [(x - CXm) / HW, (y - CYm) / HW]
+export const CRYSTAL_NORM = {
+  outline: CRYSTAL_OUTLINE.map(nm),
+  rails: CRYSTAL_RAILS.map((seg) => seg.map(nm)),
+  crown: ([T, R, GR, GL, L] as Pt[]).map(nm),
+  pavilion: ([L, GL, GR, R, BR, BL] as Pt[]).map(nm),
+  /* חצי-גובה ביחס לחצי-רוחב */
+  aspect: (733 - 247) / 2 / HW,
+}
+
+/* ציור קווי (line-art) של הקריסטל בקנבס — מתאר + rails, בסגנון holo-mono */
+export function traceCrystalCanvas(ctx: CanvasRenderingContext2D, size: number): void {
+  for (const seg of CRYSTAL_NORM.rails) {
+    ctx.beginPath()
+    seg.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x * size, y * size) : ctx.lineTo(x * size, y * size)))
+    ctx.stroke()
+  }
+}
+
 /* גרדיאנטים של המאסטר — מזהים פר-מופע (הקומפוננטה מופיעה כמה פעמים בעמוד) */
 export function CrystalDefs({ uid }: { uid: string }) {
   return (

@@ -40,7 +40,7 @@ export default function CrystalCharge({ count, targetRef }: { count: number; tar
         y: ty + Math.sin(ang) * dist,
         delay: Math.random() * 0.35, /* כניסה מדורגת — תחושת זרימה רכה */
         size: 1.2 + Math.random() * 2.3,
-        color: Math.random() > 0.5 ? '0,246,255' : '120,180,255',
+        color: (() => { const r = Math.random(); return r < 0.45 ? '0,246,255' : r < 0.8 ? '120,180,255' : '255,80,235' })(),
       })
     }
 
