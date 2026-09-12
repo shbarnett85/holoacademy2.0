@@ -108,6 +108,9 @@ export default function Home() {
             alt="HOLO ACADEMY"
             style={{ width: 'clamp(220px, 34vw, 320px)', height: 'auto', margin: '0 auto', display: 'block' }}
           />
+          {/* שכבות הגליץ' — עותקים ציאן/מג׳נטה שמתפרצים לרגע (CSS בלבד) */}
+          <span className="hlg-glitch hlg-glitch--c" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
+          <span className="hlg-glitch hlg-glitch--m" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
         </div>
         <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
         <p style={{ margin: '14px 0 0', fontSize: 20, fontWeight: 400, color: 'rgba(180,220,255,.65)', letterSpacing: '.06em' }}>ממד חדש של למידה</p>

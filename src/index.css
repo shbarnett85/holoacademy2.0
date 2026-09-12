@@ -117,8 +117,40 @@
   0%, 100% { opacity: 0.65; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.06); }
 }
+
+/* ── גליץ' הולוגרפי: שתי שכבות-עתק של הלוגו (ציאן/מג׳נטה) שמתפרצות לרגע
+   קצר בכל מחזור — פרוסות clip-path אופקיות מוסטות הצידה, כמו שידור הולוגרמה
+   שמקרטע. clip-path/transform/opacity בלבד; רוב הזמן השכבות שקופות. ── */
+.holo-logo-glow .hlg-glitch {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  opacity: 0; will-change: clip-path, transform, opacity;
+}
+.holo-logo-glow .hlg-glitch img { width: 100%; height: 100%; display: block; }
+.holo-logo-glow .hlg-glitch--c {
+  filter: drop-shadow(0 0 2px rgba(0, 230, 255, 0.9)) hue-rotate(-18deg) saturate(1.6);
+  animation: hlg-glitch-a 4.4s steps(1, end) infinite;
+}
+.holo-logo-glow .hlg-glitch--m {
+  filter: drop-shadow(0 0 2px rgba(255, 60, 220, 0.9)) hue-rotate(28deg) saturate(1.6);
+  animation: hlg-glitch-b 4.4s steps(1, end) infinite;
+}
+@keyframes hlg-glitch-a {
+  0%, 88% { opacity: 0; transform: none; clip-path: inset(0 0 100% 0); }
+  88.5% { opacity: 0.9; transform: translateX(-7px); clip-path: inset(12% 0 74% 0); }
+  90% { opacity: 0.9; transform: translateX(5px); clip-path: inset(46% 0 38% 0); }
+  91.5% { opacity: 0.9; transform: translateX(-4px); clip-path: inset(68% 0 18% 0); }
+  93%, 100% { opacity: 0; transform: none; clip-path: inset(0 0 100% 0); }
+}
+@keyframes hlg-glitch-b {
+  0%, 88.7% { opacity: 0; transform: none; clip-path: inset(100% 0 0 0); }
+  89.2% { opacity: 0.85; transform: translateX(6px); clip-path: inset(30% 0 58% 0); }
+  90.7% { opacity: 0.85; transform: translateX(-6px); clip-path: inset(56% 0 30% 0); }
+  92.2% { opacity: 0.85; transform: translateX(4px); clip-path: inset(8% 0 84% 0); }
+  93.5%, 100% { opacity: 0; transform: none; clip-path: inset(100% 0 0 0); }
+}
 @media (prefers-reduced-motion: reduce) {
   .holo-logo-glow::before, .holo-logo-glow::after { animation: none; }
+  .holo-logo-glow .hlg-glitch { display: none; }
 }
 
 /* ── אולפן היצירה (Claude Design): neon slider + glass + scrollbar ── */
