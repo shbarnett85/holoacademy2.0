@@ -89,6 +89,38 @@
   .holo-page-enter, .holo-tab-enter, .holo-tab-exit, .holo-screen-fade { animation: none; }
 }
 
+/* ── glow הלוגו (דף הבית) — מוקדי אור בצבעי התאורה של הלוגו:
+   ציאן בדלת השמאלית, מג׳נטה-סגול בימנית, זהב-שמש במרכז. שתי שכבות
+   בפאזה הפוכה יוצרות נשימה עדינה; opacity/transform בלבד. ── */
+.holo-logo-glow { position: relative; display: block; width: fit-content; margin: 0 auto; }
+.holo-logo-glow > img { position: relative; z-index: 1; }
+.holo-logo-glow::before,
+.holo-logo-glow::after {
+  content: ''; position: absolute; inset: -14% -22%; z-index: 0; pointer-events: none;
+  filter: blur(26px); will-change: opacity, transform;
+}
+.holo-logo-glow::before {
+  background:
+    radial-gradient(34% 26% at 24% 34%, rgba(0, 213, 255, 0.4), transparent 72%),
+    radial-gradient(34% 26% at 76% 34%, rgba(242, 65, 218, 0.38), transparent 72%),
+    radial-gradient(26% 18% at 50% 25%, rgba(255, 186, 92, 0.42), transparent 70%);
+  animation: hlg-breathe 5.6s ease-in-out infinite;
+}
+.holo-logo-glow::after {
+  background:
+    radial-gradient(16% 12% at 50% 26%, rgba(255, 224, 160, 0.5), transparent 68%),
+    radial-gradient(10% 30% at 27% 36%, rgba(90, 235, 255, 0.3), transparent 70%),
+    radial-gradient(10% 30% at 73% 36%, rgba(250, 120, 235, 0.28), transparent 70%);
+  animation: hlg-breathe 5.6s ease-in-out -2.8s infinite;
+}
+@keyframes hlg-breathe {
+  0%, 100% { opacity: 0.65; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .holo-logo-glow::before, .holo-logo-glow::after { animation: none; }
+}
+
 /* ── אולפן היצירה (Claude Design): neon slider + glass + scrollbar ── */
 .cf input[type=range] {
   -webkit-appearance: none; appearance: none; width: 100%; height: 3px; border-radius: 3px;

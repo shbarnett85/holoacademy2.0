@@ -102,11 +102,13 @@ export default function Home() {
         {/* הלוגו הרשמי — lockup מלא (שער-האור + wordmark ‏HOLO ACADEMY), ‏PNG שקוף
            לרקע כהה. ה-clamp מכווץ במסך צר במקום לחתוך; h1 נסתר-ויזואלית
            נשאר לסמנטיקה/SEO. */}
-        <img
-          src="/holoacademy-logo.png"
-          alt="HOLO ACADEMY"
-          style={{ width: 'clamp(220px, 34vw, 320px)', height: 'auto', margin: '0 auto', display: 'block' }}
-        />
+        <div className="holo-logo-glow">
+          <img
+            src="/holoacademy-logo.png"
+            alt="HOLO ACADEMY"
+            style={{ width: 'clamp(220px, 34vw, 320px)', height: 'auto', margin: '0 auto', display: 'block' }}
+          />
+        </div>
         <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
         <p style={{ margin: '14px 0 0', fontSize: 20, fontWeight: 400, color: 'rgba(180,220,255,.65)', letterSpacing: '.06em' }}>ממד חדש של למידה</p>
       </div>
