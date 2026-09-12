@@ -113,7 +113,18 @@ export default function Home() {
           <span className="hlg-glitch hlg-glitch--m" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
         </div>
         <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
-        <p style={{ margin: '14px 0 0', fontSize: 20, fontWeight: 400, color: 'rgba(180,220,255,.65)', letterSpacing: '.06em' }}>ממד חדש של למידה</p>
+        {/* טאגליין — גדול ובולט, גרדיאנט תכלת-לבן עדין בהתאמה לזוהר הלוגו */}
+        <p style={{
+          margin: '16px 0 0',
+          fontSize: 'clamp(24px, 3.4vw, 36px)',
+          fontWeight: 600,
+          letterSpacing: '.09em',
+          background: 'linear-gradient(120deg, #eaf9ff 15%, #9fdcff 55%, #d9b8ff 90%)',
+          WebkitBackgroundClip: 'text',
+          backgroundClip: 'text',
+          color: 'transparent',
+          textShadow: '0 0 26px rgba(120,200,255,.28)',
+        }}>ממד חדש של למידה</p>
       </div>
 
       {/* כרטיסי מצב */}
