@@ -376,6 +376,16 @@ export function demoStudentDetail(studentId: string, now: Date) {
   }
 }
 
+/* ── POST /api/quests/:id/variant — סימולציית "הכנת גרסה אישית" לאורח ──
+   מחזיר את אותו פרופיל בדיוק כמו ה-drill-down (רמות פר-סוג זהות), בלי
+   קריאת AI ובלי שורת DB — התלמידים וירטואליים. null = לא תלמיד דמו. */
+export function demoVariantSnapshot(studentId: string) {
+  const d = demoStudentDetail(studentId, new Date())
+  if (!d) return null
+  const p = PROFILES.find((x) => x.id === studentId)!
+  return { textLevel: d.profile.text_level, perPuzzleLevel: d.profile.per_puzzle_level, gender: p.gender }
+}
+
 /* ── GET /api/analytics/trends — סדרות לגרף ההתקדמות ──
    בדמו, year/term מוגשים על דליים חודשיים **מתגלגלים** (10/6 אחרונים) ולא על
    שנת-הלימודים — אחרת בספטמבר הגרף כמעט ריק והדרישה "נראה זהה תמיד" נשברת.

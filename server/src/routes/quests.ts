@@ -17,7 +17,8 @@ import {
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
 import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
 import { defaultProfileForGrade, gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
-import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
+import { requireStaff, ensureOwner, isDemoGuest } from '../middleware/staffAuth.js'
+import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasQuestGrade } from '../lib/activeColumn.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
@@ -275,6 +276,17 @@ const variantSchema = z.object({ studentId: z.string().uuid() })
 
 questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
   try {
+    /* מורה אורח: התלמידים וירטואליים (demo-s1..) — מדמים הכנה מוצלחת עם
+       אותו snapshot כמו ה-drill-down, בלי AI ובלי DB (השהיה קצרה לריאליזם) */
+    if (isDemoGuest(req)) {
+      const sid = typeof (req.body as { studentId?: unknown })?.studentId === 'string' ? (req.body as { studentId: string }).studentId : ''
+      const snap = demoVariantSnapshot(sid)
+      if (snap) {
+        await new Promise((r) => setTimeout(r, 650))
+        res.json({ ok: true, profileSnapshot: snap, persisted: false, demo: true })
+        return
+      }
+    }
     const parsed = variantSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'studentId נדרש')
     const { studentId } = parsed.data
@@ -499,6 +511,12 @@ questsRouter.post('/:id/assign', requireStaff, async (req, res, next) => {
   try {
     const { classIds } = req.body as { classIds?: string[] }
     if (!Array.isArray(classIds) || classIds.length === 0) throw new AppError(400, 'חסר classIds')
+
+    /* מורה אורח: הכיתה וירטואלית (demo-class-1) — אין שורות DB בדמו */
+    if (isDemoGuest(req) && classIds.every((id) => id.startsWith('demo-'))) {
+      res.status(201).json({ assignments: [], demo: true })
+      return
+    }
 
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
