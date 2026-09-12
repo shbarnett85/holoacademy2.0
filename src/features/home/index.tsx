@@ -99,11 +99,11 @@ export default function Home() {
     <HoloBackdrop>
       {/* כותרת */}
       <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        {/* הלוגו הרשמי — lockup מלא (קריסטל + wordmark ‏HOLO ACADEMY) מקובץ המאסטר,
-           בגרסת רקע-כהה. ה-clamp מכווץ במסך צר במקום לחתוך; h1 נסתר-ויזואלית
+        {/* הלוגו הרשמי — lockup מלא (שער-האור + wordmark ‏HOLO ACADEMY), ‏PNG שקוף
+           לרקע כהה. ה-clamp מכווץ במסך צר במקום לחתוך; h1 נסתר-ויזואלית
            נשאר לסמנטיקה/SEO. */}
         <img
-          src="/holoacademy-logo.svg"
+          src="/holoacademy-logo.png"
           alt="HOLO ACADEMY"
           style={{ width: 'clamp(220px, 34vw, 320px)', height: 'auto', margin: '0 auto', display: 'block' }}
         />
