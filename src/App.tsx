@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
 import CrystalDevGallery from './features/player/CrystalDevGallery'
 import MemoryDevHarness from './features/player/MemoryDevHarness'
+import SecretDeck from './features/deck/SecretDeck'
 import ErrorBoundary from './shared/ui/ErrorBoundary'
 import { HoloDialogHost } from './shared/ui/dialog'
 import { initSound, installGlobalClickSound } from './shared/lib/sound'
@@ -68,6 +69,8 @@ export default function App() {
           {/* גלריית עיצוב לשקעי הקריסטלים — DEV בלבד */}
           {import.meta.env.DEV && <Route path="/dev/crystals" element={<CrystalDevGallery />} />}
           {import.meta.env.DEV && <Route path="/dev/memory" element={<MemoryDevHarness />} />}
+          {/* עמוד סודי (לא מקושר): מצגת GESAwards 2026 */}
+          <Route path="/ges2026" element={<SecretDeck />} />
           <Route path="/student"         element={<StudentHome />} />
         </Routes>
         </div>
