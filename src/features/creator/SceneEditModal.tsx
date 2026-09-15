@@ -46,6 +46,7 @@ export default function SceneEditModal({
   regenerating,
   objectives = [],
 }: Props) {
+  const [title, setTitle] = useState(scene.title ?? '')
   const [narrative, setNarrative] = useState(scene.narrative ?? '')
   const [imagePrompt, setImagePrompt] = useState(scene.imagePrompt ?? '')
 
@@ -84,7 +85,11 @@ export default function SceneEditModal({
 
   /* שמירת הסצנה (PATCH) ועדכון ה-state בהורה — ללא סגירת המודאל. מחזיר אם הצליח. */
   async function persist(): Promise<boolean> {
-    const payload: Record<string, unknown> = { sceneId: scene.id, narrative, imagePrompt }
+    /* ולידציית כותרת: לא ריקה, ולא ארוכה משיוצג יפה בכותרת הסצנה במשחק */
+    const t = title.trim()
+    if (!t) throw new Error('כותרת הסצנה לא יכולה להיות ריקה')
+    if (t.length > 80) throw new Error('כותרת הסצנה ארוכה מדי (עד 80 תווים)')
+    const payload: Record<string, unknown> = { sceneId: scene.id, title: t, narrative, imagePrompt }
     if (hasPuzzle) {
       const puzzlePayload: Record<string, unknown> = {
         question,
@@ -179,6 +184,19 @@ export default function SceneEditModal({
           >
             ✕
           </button>
+        </div>
+
+        {/* כותרת הסצנה */}
+        <div className="mb-4">
+          <label style={labelStyle}>כותרת הסצנה</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={80}
+            style={{ ...fieldStyle, padding: '0.5rem 0.8rem', fontWeight: 700 }}
+            placeholder="כותרת הסצנה…"
+            dir="rtl"
+          />
         </div>
 
         {/* נרטיב */}
