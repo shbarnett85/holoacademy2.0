@@ -160,7 +160,7 @@
 .home3 {
   display: grid;
   grid-template-areas: 'steps login shelf' 'strip strip strip';
-  grid-template-columns: minmax(200px, 300px) minmax(380px, 1.4fr) minmax(230px, 330px);
+  grid-template-columns: minmax(230px, 310px) minmax(380px, 1.4fr) minmax(230px, 310px); /* טורי הצד זהים — סימטריה */
   grid-template-rows: 1fr auto;
   align-items: center;
   gap: 14px 26px;

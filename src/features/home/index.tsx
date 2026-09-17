@@ -40,6 +40,28 @@ const CARD_GAP = 10
 const STEP = CARD_H + CARD_GAP
 const VISIBLE = 3
 
+/* ── טוקנים משותפים לשני הטורים הצדדיים — סימטריה מדויקת: ערך אחד לשניהם ──
+   כותרת, רוחב, גובה כרטיס, מרווח, גובה ערימה ושורת-תחתית זהים בין
+   "התנסו עכשיו" (שמאל) ל"איך זה עובד" (ימין). */
+export const SIDE = {
+  cardH: CARD_H,
+  gap: CARD_GAP,
+  stackH: VISIBLE * STEP - CARD_GAP,
+  footH: 26,
+}
+
+/* כותרת טור צדדי — אייקון + כותרת + שורת משנה, מבנה זהה לשני הצדדים */
+function SideHead({ icon, glow, title, sub }: { icon: string; glow: string; title: React.ReactNode; sub: string }) {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+        <span style={{ filter: `drop-shadow(0 0 10px ${glow})` }}>{icon}</span> {title}
+      </div>
+      <div style={{ fontSize: 11.5, color: 'rgba(160,200,240,.55)', marginTop: 3 }}>{sub}</div>
+    </div>
+  )
+}
+
 function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
   const navigate = useNavigate()
   const [cur, setCur] = useState(0)
@@ -65,16 +87,14 @@ function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
       aria-label="הדמיות מוכנות להתנסות"
       style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
     >
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
-          <span style={{ filter: 'drop-shadow(0 0 10px rgba(255,154,46,.6))' }}>🎮</span>{' '}
-          התנסו עכשיו — <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>בלי הרשמה</span>
-        </div>
-        <div style={{ fontSize: 11.5, color: 'rgba(160,200,240,.55)', marginTop: 3 }}>מהספרייה הרשמית — לחצו ושחקו</div>
-      </div>
+      <SideHead
+        icon="🎮" glow="rgba(255,154,46,.6)"
+        title={<>התנסו עכשיו — <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>בלי הרשמה</span></>}
+        sub="מהספרייה הרשמית — לחצו ושחקו"
+      />
 
       {/* חלון הקרוסלה */}
-      <div style={{ position: 'relative', height: VISIBLE * STEP - CARD_GAP, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: SIDE.stackH, overflow: 'hidden' }}>
         {quests.map((q, i) => {
           const d = ((i - cur) % n + n) % n
           const visible = d < VISIBLE
@@ -118,17 +138,15 @@ function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
       </div>
 
       {/* חצים ידניים — גלויים תמיד (וגם היחידים ב-reduced-motion) */}
-      {rotate && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
-          {([['▲', -1, 'ההדמיה הקודמת'], ['▼', 1, 'ההדמיה הבאה']] as const).map(([ch, dir, label]) => (
-            <button key={ch} onClick={() => go(dir)} aria-label={label}
-              style={{ width: 34, height: 26, borderRadius: 8, cursor: 'pointer', fontSize: 11, lineHeight: 1,
-                background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', color: 'rgba(170,215,250,.85)' }}>
-              {ch}
-            </button>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, height: SIDE.footH }}>
+        {rotate && ([['▲', -1, 'ההדמיה הקודמת'], ['▼', 1, 'ההדמיה הבאה']] as const).map(([ch, dir, label]) => (
+          <button key={ch} onClick={() => go(dir)} aria-label={label}
+            style={{ width: 34, height: SIDE.footH, borderRadius: 8, cursor: 'pointer', fontSize: 11, lineHeight: 1,
+              background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', color: 'rgba(170,215,250,.85)' }}>
+            {ch}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -209,19 +227,24 @@ export default function Home() {
     <HoloBackdrop>
       <div className="home3">
 
-        {/* ── טור ימני: איך זה עובד ── */}
-        <div className="home3-steps">
-          <div style={colTitle}>איך זה עובד?</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* ── טור ימני: איך זה עובד — מבנה ומידות זהים לטור "התנסו עכשיו" ── */}
+        <div className="home3-steps" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <SideHead
+            icon="🧭" glow="rgba(47,243,255,.6)"
+            title="איך זה עובד?"
+            sub="הדמיות למידה אינטראקטיביות — לכל מקצוע, שכבה ורמה"
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: SIDE.stackH }}>
             {[
               { n: '1', icon: '📝', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
               { n: '2', icon: '🧬', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.' },
               { n: '3', icon: '📊', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.' },
             ].map((s) => (
               <div key={s.n} style={{
-                padding: '12px 14px', borderRadius: 14, textAlign: 'right',
+                height: SIDE.cardH, boxSizing: 'border-box', padding: '12px 14px', borderRadius: 14, textAlign: 'right',
                 background: 'linear-gradient(135deg, rgba(10,22,46,.75), rgba(4,9,20,.85))',
                 border: '1px solid rgba(120,180,220,.14)',
+                display: 'flex', flexDirection: 'column', justifyContent: 'center',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                   <span style={{
@@ -234,6 +257,14 @@ export default function Home() {
                 <div style={{ fontSize: 11.5, color: 'rgba(170,205,235,.72)', lineHeight: 1.6 }}>{s.text}</div>
               </div>
             ))}
+          </div>
+          {/* מקביל לשורת החצים של הקרוסלה — אותו גובה, משני צידי המסך */}
+          <div style={{ display: 'flex', justifyContent: 'center', height: SIDE.footH }}>
+            <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" style={{
+              display: 'inline-flex', alignItems: 'center', height: SIDE.footH, boxSizing: 'border-box',
+              fontSize: 11, fontWeight: 600, padding: '0 12px', borderRadius: 8,
+              color: 'rgba(200,230,255,.8)', background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', textDecoration: 'none',
+            }}>📄 תקציר לרשויות ובתי ספר</a>
           </div>
         </div>
 
@@ -261,10 +292,7 @@ export default function Home() {
             backgroundClip: 'text',
             color: 'transparent',
             textShadow: '0 0 26px rgba(120,200,255,.28)',
-          }}>ממד חדש של למידה</p>
-          <p style={{ margin: '7px 0 0', fontSize: 13, color: 'rgba(160,200,240,.6)', lineHeight: 1.6 }}>
-            הדמיות למידה אינטראקטיביות שנבנות בדקות — לכל מקצוע, לכל שכבה
-          </p>
+          }}>ממד חדש של למידה!</p>
 
           {/* שני כפתורי הכניסה — זה לצד זה */}
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 20 }}>
@@ -332,10 +360,6 @@ export default function Home() {
           {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
             <span key={c} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)' }}>✓ {c}</span>
           ))}
-          <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" style={{
-            fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 9,
-            color: 'rgba(200,230,255,.8)', background: 'rgba(10,22,46,.7)', border: '1px solid rgba(120,180,220,.25)', textDecoration: 'none',
-          }}>📄 תקציר לרשויות ובתי ספר</a>
           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(47,243,255,.28)', marginRight: 6 }}>
             © 2026 HoloAcademy
           </span>
