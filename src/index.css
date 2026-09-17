@@ -181,13 +181,13 @@
   --fs-body: clamp(14px, 1.05vw, 17px);
   --fs-mode-title: clamp(21px, 1.65vw, 29px);
   --fs-mode-sub: clamp(14px, 1.05vw, 17px);
-  --fs-tagline: clamp(24px, 2.6vw, 42px);
+  --fs-tagline: clamp(17px, 1.7vw, 26px); /* משנית ללוגו */
   --fs-tag: clamp(11.5px, 0.85vw, 14px);
   --fs-btn: clamp(15px, 1.1vw, 19px);
   --fs-chip: clamp(13px, 0.95vw, 16px);
   --fs-foot: clamp(10.5px, 0.8vw, 12.5px);
   /* הקובץ רופד-מחדש סימטרית (466px רוחב, היה 640) — הכיול שומר על אותו גודל חזותי */
-  --logo-w: min(clamp(140px, 13.5vw, 240px), 25vh);
+  --logo-w: min(clamp(170px, 16.5vw, 300px), 31vh); /* הלוגו דומיננטי */
   --mode-card-w: clamp(186px, 15vw, 264px);
 }
 .home3-steps { grid-area: steps; }
