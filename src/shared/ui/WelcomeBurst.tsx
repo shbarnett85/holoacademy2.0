@@ -21,7 +21,7 @@ export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?
   const accessLabel = role === 'teacher' ? 'TEACHER · ACCESS GRANTED' : 'STAFF · ACCESS GRANTED'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(4,6,14,.92)', backdropFilter: 'blur(6px)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'rgba(4,6,14,.45)' /* מעל שכבת הטשטוש של EntryShell — הרקע נשאר הדף הראשי */ }}>
       {/* בזק רשת רקע */}
       <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(rgba(${RGB},.06) 1px,transparent 1px),linear-gradient(90deg,rgba(${RGB},.06) 1px,transparent 1px)`, backgroundSize: '32px 32px', animation: 'd-grid 2.2s ease forwards', pointerEvents: 'none' }} />
 

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 
 interface Props {
   student: { id: string; name: string }
@@ -49,7 +48,6 @@ export default function PinScreen({ student, onBack, onSuccess }: Props) {
   const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'] as const
 
   return (
-    <HoloBackdrop>
       <div
         dir="rtl"
         style={{
@@ -104,6 +102,5 @@ export default function PinScreen({ student, onBack, onSuccess }: Props) {
           חזרה
         </button>
       </div>
-    </HoloBackdrop>
   )
 }

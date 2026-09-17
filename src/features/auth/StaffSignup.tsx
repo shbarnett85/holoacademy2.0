@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
 import { setSession, type StaffSession } from '../../shared/lib/staffSession'
+import EntryShell from '../../shared/ui/EntryShell'
 
 interface School { id: string; name: string }
 interface LoginResponse {
@@ -65,7 +66,8 @@ export default function StaffSignup() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 gap-6" style={{ background: 'var(--holo-bg)' }}>
+    <EntryShell onClose={() => navigate('/staff/login')}>
+    <div className="flex flex-col items-center justify-center p-2 gap-6">
       <div className="text-center">
         <h1 className="holo-text-glow font-black" style={{ fontSize: '2.2rem' }}>הרשמת צוות</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--holo-text)', opacity: 0.55 }}>מורה או מנהל חדש</p>
@@ -121,5 +123,6 @@ export default function StaffSignup() {
         </p>
       </div>
     </div>
+    </EntryShell>
   )
 }

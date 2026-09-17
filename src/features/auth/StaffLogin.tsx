@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
 import { setSession, type StaffSession } from '../../shared/lib/staffSession'
-import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+import EntryShell from '../../shared/ui/EntryShell'
 import WelcomeBurst from '../../shared/ui/WelcomeBurst'
 
 interface LoginResponse {
@@ -70,10 +70,17 @@ export default function StaffLogin() {
     }
   }
 
-  if (welcome) return <WelcomeBurst name={welcome.name} role={welcome.role} onDone={() => navigate(welcome.to)} />
+  /* אנימציית המעבר מוצגת בתוך אותה קליפה — הרקע המטושטש נשאר יציב */
+  if (welcome) {
+    return (
+      <EntryShell>
+        <WelcomeBurst name={welcome.name} role={welcome.role} onDone={() => navigate(welcome.to)} />
+      </EntryShell>
+    )
+  }
 
   return (
-    <HoloBackdrop>
+    <EntryShell onClose={() => navigate('/')}>
       <div
         style={{
           background: 'linear-gradient(135deg, rgba(10,22,46,.97), rgba(4,9,20,.99))',
@@ -151,6 +158,6 @@ export default function StaffLogin() {
           <Link to="/staff/signup" style={{ color: 'var(--holo-cyan-bright)' }}>הרשמה</Link>
         </p>
       </div>
-    </HoloBackdrop>
+    </EntryShell>
   )
 }

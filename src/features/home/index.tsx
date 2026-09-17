@@ -46,6 +46,9 @@ function retryLogo(e: React.SyntheticEvent<HTMLImageElement>) {
   setTimeout(() => { el.src = '/holoacademy-logo.png?r=' + Date.now() }, 1500)
 }
 
+/* cache מודול לחלון הראווה — הבית מרונדר שוב כרקע חי של מסכי הכניסה */
+let showcaseMemo: ShowcaseQuest[] | null = null
+
 const reduceMotion =
   typeof window !== 'undefined' &&
   ((!!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
@@ -204,22 +207,31 @@ export default function Home() {
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
-  const [showcase, setShowcase] = useState<ShowcaseQuest[]>([])
+  const [showcase, setShowcase] = useState<ShowcaseQuest[]>(showcaseMemo ?? [])
   const rowsByHeight = useVisibleRows()
   /* לא פותחים חלון גדול ממספר ההדמיות — חריץ ריק שובר את מלאות הטור */
   const rows = Math.max(3, Math.min(rowsByHeight, showcase.length || 3))
   /* גובה כרטיס-שלב: שלושת השלבים נמתחים בדיוק לגובה ערימת הקרוסלה — איזון נשמר */
   const stepH = (stackHFor(rows) - 2 * SIDE.gap) / 3
   useEffect(() => {
+    if (showcaseMemo) return /* cache מודול — הבית מרונדר גם כרקע מסכי הכניסה, בלי הבהוב */
     fetch('/api/quests/showcase')
       .then((res) => (res.ok ? res.json() : { quests: [] }))
-      .then((body: { quests?: ShowcaseQuest[] }) => setShowcase((body.quests ?? []).filter((q) => q.thumbUrl).slice(0, 8)))
+      .then((body: { quests?: ShowcaseQuest[] }) => { showcaseMemo = (body.quests ?? []).filter((q) => q.thumbUrl).slice(0, 8); setShowcase(showcaseMemo) })
       .catch(() => setShowcase([]))
   }, [])
 
   function startDemo() {
     navigate('/play/leonardo')
   }
+
+  /* ‏Escape סוגר את מודאל קוד-הכיתה — אותה התנהגות כמו כל חלונות הכניסה */
+  useEffect(() => {
+    if (!showCodeModal) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCodeModal(false); setClassCode('') } }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showCodeModal])
 
   function enterClass() {
     const code = classCode.trim()

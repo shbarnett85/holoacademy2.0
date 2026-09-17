@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PinScreen from './PinScreen'
-import HoloBackdrop from '../../shared/ui/HoloBackdrop'
+import EntryShell from '../../shared/ui/EntryShell'
 
 interface Student {
   id: string
@@ -46,37 +46,40 @@ export default function ClassEntry() {
 
   if (error) {
     return (
-      <HoloBackdrop>
+      <EntryShell onClose={() => navigate('/')}>
         <div style={{ background: 'linear-gradient(135deg,rgba(10,22,46,.95),rgba(4,9,20,.98))', border: '1px solid rgba(255,80,120,.4)', borderRadius: 22, padding: '40px 44px', width: 360, textAlign: 'center', boxShadow: '0 0 80px rgba(255,80,120,.12)' }}>
           <div style={{ fontSize: '3rem' }}>🛸</div>
           <h2 style={{ fontSize: 22, fontWeight: 800, marginTop: 8, color: '#ff7099' }}>אופס!</h2>
           <p style={{ marginTop: 10, color: 'rgba(180,220,255,.7)' }}>{error}</p>
           <p style={{ marginTop: 6, fontSize: 13, color: 'rgba(160,200,240,.4)' }}>בדקו את הקישור שקיבלתם מהמורה</p>
         </div>
-      </HoloBackdrop>
+      </EntryShell>
     )
   }
 
   if (!info) {
     return (
-      <HoloBackdrop>
+      <EntryShell onClose={() => navigate('/')}>
         <span className="holo-text-glow" style={{ fontSize: '1.25rem' }}>טוען…</span>
-      </HoloBackdrop>
+      </EntryShell>
     )
   }
 
+  /* שלב ה-PIN — אותה קליפה בדיוק: הרקע לא מתחלף במעבר בחירה↔קוד */
   if (selected) {
     return (
-      <PinScreen
-        student={selected}
-        onBack={() => setSelected(null)}
-        onSuccess={(token) => handleLoginSuccess(token, selected)}
-      />
+      <EntryShell onClose={() => setSelected(null)}>
+        <PinScreen
+          student={selected}
+          onBack={() => setSelected(null)}
+          onSuccess={(token) => handleLoginSuccess(token, selected)}
+        />
+      </EntryShell>
     )
   }
 
   return (
-    <HoloBackdrop>
+    <EntryShell onClose={() => navigate('/')}>
       <div
         style={{
           background: 'linear-gradient(135deg,rgba(10,22,46,.97),rgba(4,9,20,.99))',
@@ -113,6 +116,6 @@ export default function ClassEntry() {
           חזרה
         </button>
       </div>
-    </HoloBackdrop>
+    </EntryShell>
   )
 }
