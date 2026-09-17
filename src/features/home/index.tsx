@@ -43,31 +43,40 @@ const VISIBLE = 3
 /* ── טוקנים משותפים לשני הטורים הצדדיים — סימטריה מדויקת: ערך אחד לשניהם ──
    כותרת, רוחב, גובה כרטיס, מרווח, גובה ערימה ושורת-תחתית זהים בין
    "התנסו עכשיו" (שמאל) ל"איך זה עובד" (ימין). */
-export const SIDE = {
-  cardH: CARD_H,
-  gap: CARD_GAP,
-  stackH: VISIBLE * STEP - CARD_GAP,
-  footH: 26,
+export const SIDE = { cardH: CARD_H, gap: CARD_GAP, footH: 26 }
+/* גובה הערימה נגזר ממספר השורות הגלויות (גדל עם גובה המסך) — זהה לשני הטורים */
+export const stackHFor = (rows: number) => rows * STEP - CARD_GAP
+
+/* כמה שורות קרוסלה נכנסות — לפי גובה החלון: 3 רגיל, 4 במסך מלא, 5 בענק */
+function useVisibleRows() {
+  const calc = () => (typeof window === 'undefined' ? VISIBLE : window.innerHeight >= 1250 ? 5 : window.innerHeight >= 980 ? 4 : 3)
+  const [rows, setRows] = useState(calc)
+  useEffect(() => {
+    const on = () => setRows(calc())
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
+  return rows
 }
 
 /* כותרת טור צדדי — אייקון + כותרת + שורת משנה, מבנה זהה לשני הצדדים */
 function SideHead({ icon, glow, title, sub }: { icon: string; glow: string; title: React.ReactNode; sub: string }) {
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 16, fontWeight: 800, color: '#fff' }}>
+      <div style={{ fontSize: 'var(--fs-side-title)', fontWeight: 800, color: '#fff' }}>
         <span style={{ filter: `drop-shadow(0 0 10px ${glow})` }}>{icon}</span> {title}
       </div>
-      <div style={{ fontSize: 11.5, color: 'rgba(160,200,240,.55)', marginTop: 3 }}>{sub}</div>
+      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'rgba(160,200,240,.55)', marginTop: 3 }}>{sub}</div>
     </div>
   )
 }
 
-function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
+function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: number }) {
   const navigate = useNavigate()
   const [cur, setCur] = useState(0)
   const [paused, setPaused] = useState(false)
   const n = quests.length
-  const rotate = n > VISIBLE
+  const rotate = n > rows
   const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
@@ -94,12 +103,12 @@ function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
       />
 
       {/* חלון הקרוסלה */}
-      <div style={{ position: 'relative', height: SIDE.stackH, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: stackHFor(rows), overflow: 'hidden' }}>
         {quests.map((q, i) => {
           const d = ((i - cur) % n + n) % n
-          const visible = d < VISIBLE
+          const visible = d < rows
           /* מיקום: גלויים בחלון; האחרון-במעגל חונה מעל (ציר הכניסה/יציאה העליון); השאר מתחת */
-          const slot = visible ? d : d === n - 1 ? -1 : VISIBLE
+          const slot = visible ? d : d === n - 1 ? -1 : rows
           const grades = gradeRangeLabel(q.gradeMin, q.gradeMax)
           return (
             <button
@@ -125,7 +134,7 @@ function ShowcaseCarousel({ quests }: { quests: ShowcaseQuest[] }) {
                   style={{ width: 92, height: '100%', objectFit: 'cover', flexShrink: 0, display: 'block' }} />
               )}
               <div style={{ flex: 1, minWidth: 0, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: '#d5e9f8', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.title}</div>
+                <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: '#d5e9f8', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 'auto' }}>
                   {q.subject && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>}
                   {grades && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>}
@@ -172,6 +181,11 @@ export default function Home() {
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
   const [showcase, setShowcase] = useState<ShowcaseQuest[]>([])
+  const rowsByHeight = useVisibleRows()
+  /* לא פותחים חלון גדול ממספר ההדמיות — חריץ ריק שובר את מלאות הטור */
+  const rows = Math.max(3, Math.min(rowsByHeight, showcase.length || 3))
+  /* גובה כרטיס-שלב: שלושת השלבים נמתחים בדיוק לגובה ערימת הקרוסלה — איזון נשמר */
+  const stepH = (stackHFor(rows) - 2 * SIDE.gap) / 3
   useEffect(() => {
     fetch('/api/quests/showcase')
       .then((res) => (res.ok ? res.json() : { quests: [] }))
@@ -234,14 +248,14 @@ export default function Home() {
             title="איך זה עובד?"
             sub="הדמיות למידה אינטראקטיביות — לכל מקצוע, שכבה ורמה"
           />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: SIDE.stackH }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: stackHFor(rows) }}>
             {[
               { n: '1', icon: '📝', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
               { n: '2', icon: '🧬', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.' },
               { n: '3', icon: '📊', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.' },
             ].map((s) => (
               <div key={s.n} style={{
-                height: SIDE.cardH, boxSizing: 'border-box', padding: '12px 14px', borderRadius: 14, textAlign: 'right',
+                height: stepH, boxSizing: 'border-box', padding: '12px 14px', borderRadius: 14, textAlign: 'right',
                 background: 'linear-gradient(135deg, rgba(10,22,46,.75), rgba(4,9,20,.85))',
                 border: '1px solid rgba(120,180,220,.14)',
                 display: 'flex', flexDirection: 'column', justifyContent: 'center',
@@ -252,9 +266,9 @@ export default function Home() {
                     fontSize: 11, fontWeight: 800, color: '#04101c', background: 'linear-gradient(135deg, #2ff3ff, #9b8cff)',
                   }}>{s.n}</span>
                   <span style={{ fontSize: 15 }}>{s.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#dff2ff' }}>{s.title}</span>
+                  <span style={{ fontSize: 'var(--fs-step-title)', fontWeight: 800, color: '#dff2ff' }}>{s.title}</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'rgba(170,205,235,.72)', lineHeight: 1.6 }}>{s.text}</div>
+                <div style={{ fontSize: 'var(--fs-body)', color: 'rgba(170,205,235,.72)', lineHeight: 1.6 }}>{s.text}</div>
               </div>
             ))}
           </div>
@@ -274,7 +288,7 @@ export default function Home() {
             <img
               src="/holoacademy-logo.png"
               alt="HOLO ACADEMY"
-              style={{ width: 'clamp(180px, 21vw, 240px)', height: 'auto', margin: '0 auto', display: 'block' }}
+              style={{ width: 'var(--logo-w, clamp(180px, 21vw, 240px))', height: 'auto', margin: '0 auto', display: 'block' }}
             />
             {/* שכבות הגליץ' — עותקים ציאן/מג׳נטה שמתפרצים לרגע (CSS בלבד) */}
             <span className="hlg-glitch hlg-glitch--c" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
@@ -284,7 +298,7 @@ export default function Home() {
           {/* טאגליין — גרדיאנט תכלת-לבן בהתאמה לזוהר הלוגו */}
           <p style={{
             margin: '10px 0 0',
-            fontSize: 'clamp(19px, 2.1vw, 26px)',
+            fontSize: 'var(--fs-tagline)',
             fontWeight: 600,
             letterSpacing: '.09em',
             background: 'linear-gradient(120deg, #eaf9ff 15%, #9fdcff 55%, #d9b8ff 90%)',
@@ -305,7 +319,7 @@ export default function Home() {
                   onMouseLeave={() => setHov(null)}
                   onClick={() => selectCard(c.id)}
                   style={{
-                    width: 196, padding: '18px 16px 16px', borderRadius: 18,
+                    width: 'var(--mode-card-w)', padding: 'clamp(16px, 1.6vh, 26px) 16px 16px', borderRadius: 18,
                     background: isHov ? c.grad : 'linear-gradient(135deg, rgba(10,22,46,.86), rgba(4,9,20,.92))',
                     border: `1px solid ${isHov ? c.border : `rgba(${c.rgb},.22)`}`,
                     backdropFilter: 'blur(18px)',
@@ -316,8 +330,8 @@ export default function Home() {
                   }}
                 >
                   <div style={{ color: isHov ? c.accent : `rgba(${c.rgb},.65)`, transition: 'color .22s', filter: isHov ? `drop-shadow(0 0 12px ${c.accent})` : 'none' }}>{c.icon}</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: isHov ? '#fff' : '#cfe4f2', transition: 'color .2s' }}>{c.label}</div>
-                  <div style={{ fontSize: 11.5, color: isHov ? 'rgba(220,240,255,.7)' : 'rgba(130,170,205,.55)', lineHeight: 1.55, transition: 'color .2s' }}>{c.sub}</div>
+                  <div style={{ fontSize: 'var(--fs-mode-title)', fontWeight: 800, color: isHov ? '#fff' : '#cfe4f2', transition: 'color .2s' }}>{c.label}</div>
+                  <div style={{ fontSize: 'var(--fs-mode-sub)', color: isHov ? 'rgba(220,240,255,.7)' : 'rgba(130,170,205,.55)', lineHeight: 1.55, transition: 'color .2s' }}>{c.sub}</div>
                   <div style={{
                     marginTop: 2, padding: '7px 26px', borderRadius: 9, fontSize: 13, fontWeight: 700,
                     background: isHov ? `rgba(${c.rgb},.22)` : `rgba(${c.rgb},.08)`,
@@ -334,7 +348,7 @@ export default function Home() {
         {/* ── טור שמאלי: קרוסלת ההדמיות ── */}
         <div className="home3-shelf">
           {showcase.length > 0 ? (
-            <ShowcaseCarousel quests={showcase} />
+            <ShowcaseCarousel quests={showcase} rows={rows} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={colTitle}>התנסו עכשיו</div>

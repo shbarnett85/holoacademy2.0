@@ -160,27 +160,41 @@
 .home3 {
   display: grid;
   grid-template-areas: 'steps login shelf' 'strip strip strip';
-  grid-template-columns: minmax(230px, 310px) minmax(380px, 1.4fr) minmax(230px, 310px); /* טורי הצד זהים — סימטריה */
+  /* טורים ביחסים (fr), לא ברוחב קבוע — גדלים עם המסך; המרכז תמיד הרחב.
+     טוקני הטיפוגרפיה מדורגים (clamp) — גדלים בהדרגה עם הרוחב. */
+  grid-template-columns: minmax(230px, 1fr) minmax(380px, 1.9fr) minmax(230px, 1fr);
   grid-template-rows: 1fr auto;
   align-items: center;
-  gap: 14px 26px;
-  width: min(1290px, 100%);
-  padding: 18px 26px 12px;
+  gap: clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 56px);
+  /* תקרה ומרכוז במסכים ענקיים — לא נמתחים ל-3000px */
+  width: min(1860px, 100%);
+  min-height: 100dvh;
+  padding: clamp(14px, 2vh, 30px) clamp(20px, 2.6vw, 52px) clamp(10px, 1.6vh, 20px);
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+  --fs-side-title: clamp(16px, 1.15vw, 21px);
+  --fs-side-sub: clamp(11.5px, 0.82vw, 14px);
+  --fs-step-title: clamp(13px, 0.95vw, 16px);
+  --fs-body: clamp(11.5px, 0.85vw, 14px);
+  --fs-mode-title: clamp(17px, 1.3vw, 23px);
+  --fs-mode-sub: clamp(11.5px, 0.85vw, 14px);
+  --fs-tagline: clamp(19px, 2vw, 32px);
+  --logo-w: min(clamp(180px, 18vw, 320px), 34vh);
+  --mode-card-w: clamp(186px, 15vw, 264px);
 }
 .home3-steps { grid-area: steps; }
 .home3-login { grid-area: login; }
 .home3-shelf { grid-area: shelf; }
 .home3-strip { grid-area: strip; }
-@media (max-width: 1020px) {
+@media (max-width: 900px) {
   .home3 {
     grid-template-areas: 'login' 'shelf' 'steps' 'strip';
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: none;
     justify-items: center;
     gap: 26px;
+    min-height: 0;
     padding: 26px 16px 14px;
   }
   .home3-steps, .home3-shelf { width: min(430px, 100%); }
