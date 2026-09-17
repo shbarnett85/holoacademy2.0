@@ -173,13 +173,18 @@
   box-sizing: border-box;
   position: relative;
   z-index: 1;
-  --fs-side-title: clamp(16px, 1.15vw, 21px);
-  --fs-side-sub: clamp(11.5px, 0.82vw, 14px);
-  --fs-step-title: clamp(13px, 0.95vw, 16px);
-  --fs-body: clamp(11.5px, 0.85vw, 14px);
-  --fs-mode-title: clamp(17px, 1.3vw, 23px);
-  --fs-mode-sub: clamp(11.5px, 0.85vw, 14px);
-  --fs-tagline: clamp(19px, 2vw, 32px);
+  /* הסולם הטיפוגרפי — הוגדל ~25-30% בכל הרזולוציות, ביחסים שמורים */
+  --fs-side-title: clamp(20px, 1.5vw, 27px);
+  --fs-side-sub: clamp(14px, 1.05vw, 17px);
+  --fs-step-title: clamp(16px, 1.2vw, 20px);
+  --fs-body: clamp(14px, 1.05vw, 17px);
+  --fs-mode-title: clamp(21px, 1.65vw, 29px);
+  --fs-mode-sub: clamp(14px, 1.05vw, 17px);
+  --fs-tagline: clamp(24px, 2.6vw, 42px);
+  --fs-tag: clamp(11.5px, 0.85vw, 14px);
+  --fs-btn: clamp(15px, 1.1vw, 19px);
+  --fs-chip: clamp(13px, 0.95vw, 16px);
+  --fs-foot: clamp(10.5px, 0.8vw, 12.5px);
   --logo-w: min(clamp(180px, 18vw, 320px), 34vh);
   --mode-card-w: clamp(186px, 15vw, 264px);
 }

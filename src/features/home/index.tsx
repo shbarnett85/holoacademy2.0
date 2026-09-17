@@ -77,7 +77,7 @@ function SideHead({ icon, glow, title, sub }: { icon: React.ReactNode; glow: str
       <div style={{ fontSize: 'var(--fs-side-title)', fontWeight: 800, color: '#fff' }}>
         <span style={{ filter: `drop-shadow(0 0 10px ${glow})` }}>{icon}</span> {title}
       </div>
-      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'rgba(160,200,240,.55)', marginTop: 3 }}>{sub}</div>
+      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'rgba(160,200,240,.55)', marginTop: 3, lineHeight: 1.35, minHeight: 'calc(var(--fs-side-sub) * 2.7)' }}>{sub}</div>
     </div>
   )
 }
@@ -147,9 +147,9 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
               <div style={{ flex: 1, minWidth: 0, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: '#d5e9f8', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.title}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  {q.subject && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>}
-                  {grades && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>}
-                  <span style={{ marginRight: 'auto', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c' }}>שחקו <BrandIcon name="play" size={11} /></span>
+                  {q.subject && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>}
+                  {grades && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>}
+                  <span style={{ marginRight: 'auto', fontSize: 'var(--fs-tag)', fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c' }}>שחקו <BrandIcon name="play" size={11} /></span>
                 </div>
               </div>
             </button>
@@ -246,7 +246,7 @@ export default function Home() {
     else navigate('/staff/login')
   }
 
-  const colTitle: React.CSSProperties = { textAlign: 'center', fontSize: 16, fontWeight: 800, color: '#fff', marginBottom: 10 }
+  const colTitle: React.CSSProperties = { textAlign: 'center', fontSize: 'var(--fs-side-title)', fontWeight: 800, color: '#fff', marginBottom: 10 }
 
   return (
     <HoloBackdrop>
@@ -284,7 +284,7 @@ export default function Home() {
           <div style={{ display: 'flex', justifyContent: 'center', height: SIDE.footH }}>
             <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" style={{
               display: 'inline-flex', alignItems: 'center', height: SIDE.footH, boxSizing: 'border-box',
-              fontSize: 11, fontWeight: 600, padding: '0 12px', borderRadius: 8,
+              fontSize: 'var(--fs-chip)', fontWeight: 600, padding: '0 12px', borderRadius: 8,
               color: 'rgba(200,230,255,.8)', background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', textDecoration: 'none',
             }}><BrandIcon name="brief" size={13} style={{ color: '#2ff3ff', marginLeft: 5 }} />תקציר לרשויות ובתי ספר</a>
           </div>
@@ -341,7 +341,7 @@ export default function Home() {
                   <div style={{ fontSize: 'var(--fs-mode-title)', fontWeight: 800, color: isHov ? '#fff' : '#cfe4f2', transition: 'color .2s' }}>{c.label}</div>
                   <div style={{ fontSize: 'var(--fs-mode-sub)', color: isHov ? 'rgba(220,240,255,.7)' : 'rgba(130,170,205,.55)', lineHeight: 1.55, transition: 'color .2s' }}>{c.sub}</div>
                   <div style={{
-                    marginTop: 2, padding: '7px 26px', borderRadius: 9, fontSize: 13, fontWeight: 700,
+                    marginTop: 2, padding: '7px 26px', borderRadius: 9, fontSize: 'var(--fs-btn)', fontWeight: 700,
                     background: isHov ? `rgba(${c.rgb},.22)` : `rgba(${c.rgb},.08)`,
                     border: `1px solid ${isHov ? `rgba(${c.rgb},.5)` : `rgba(${c.rgb},.3)`}`,
                     color: isHov ? c.accent : `rgba(${c.rgb},.75)`, transition: 'all .2s',
@@ -382,12 +382,12 @@ export default function Home() {
         <div className="home3-strip" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, paddingTop: 4 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
             {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
-              <span key={c} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span key={c} style={{ fontSize: 'var(--fs-chip)', fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                 <BrandIcon name="check" size={11} style={{ color: '#2ff3ff' }} /> {c}
               </span>
             ))}
           </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(47,243,255,.28)', textAlign: 'center' }}>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-foot)', letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(47,243,255,.28)', textAlign: 'center' }}>
             © 2026 HoloAcademy
           </div>
         </div>
