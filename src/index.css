@@ -162,7 +162,8 @@
   grid-template-areas: 'steps login shelf' 'strip strip strip';
   /* טורים ביחסים (fr), לא ברוחב קבוע — גדלים עם המסך; המרכז תמיד הרחב.
      טוקני הטיפוגרפיה מדורגים (clamp) — גדלים בהדרגה עם הרוחב. */
-  grid-template-columns: minmax(230px, 1fr) minmax(380px, 1.9fr) minmax(230px, 1fr);
+  /* טורי צד רחבים מעט יותר (שניהם שווים) — שורת תגית+שכבה+שחקו נכנסת בשורה אחת */
+  grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.6fr) minmax(320px, 1fr);
   grid-template-rows: 1fr auto;
   align-items: center;
   gap: clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 56px);

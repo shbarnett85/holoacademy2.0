@@ -159,10 +159,10 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
               )}
               <div style={{ flex: 1, minWidth: 0, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: '#d5e9f8', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.title}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 'auto' }}>
-                  {q.subject && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>}
-                  {grades && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>}
-                  <span style={{ marginRight: 'auto', fontSize: 'var(--fs-tag)', fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c' }}>שחקו <BrandIcon name="play" size={11} /></span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap', minWidth: 0, marginTop: 'auto' }}>
+                  {q.subject && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{q.subject}</span>}
+                  {grades && <span style={{ fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff', whiteSpace: 'nowrap', flexShrink: 0 }}>{grades}</span>}
+                  <span style={{ marginRight: 'auto', fontSize: 'var(--fs-tag)', fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c', whiteSpace: 'nowrap', flexShrink: 0 }}>שחקו <BrandIcon name="play" size={11} /></span>
                 </div>
               </div>
             </button>
