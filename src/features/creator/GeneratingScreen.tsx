@@ -186,7 +186,8 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
         @keyframes ld-scanline { 0%{top:0%;opacity:1} 100%{top:100%;opacity:0} }
         @keyframes ld-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
         @keyframes ld-fadein { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
-        @keyframes ld-sweep { 0%{transform:translateX(-120%)} 100%{transform:translateX(420%)} }
+        /* המקטע 30% מרוחב המסלול — הטווח ‎-120%..420%‎ (יחסי למקטע) מכסה את כל המסלול; ימין→שמאל, טבעי ב-RTL */
+        @keyframes ld-sweep { 0%{transform:translateX(420%)} 100%{transform:translateX(-120%)} }
       `}</style>
 
       {/* קו סריקה */}
@@ -260,8 +261,9 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
         </div>
 
         {/* בר התקדמות בלתי-מוגדר (משך היצירה אינו ידוע מראש) */}
-        <div style={{ width: '100%', height: 4, borderRadius: 4, background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.15)', overflow: 'hidden', marginBottom: 12 }}>
-          <div style={{ width: '30%', height: '100%', borderRadius: 4, background: 'linear-gradient(90deg,#ff45e6,#2ff3ff)', boxShadow: '0 0 16px rgba(47,243,255,.7)', animation: 'ld-sweep 1.6s ease-in-out infinite' }} />
+        <div style={{ position: 'relative', width: '100%', height: 4, borderRadius: 4, background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.15)', overflow: 'hidden', marginBottom: 12 }}>
+          {/* מעוגן ל-left:0 — בלי זה, ב-RTL המקטע נצמד לימין וההחלקה מכסה רק את מרכז המסלול */}
+          <div style={{ position: 'absolute', left: 0, top: 0, width: '30%', height: '100%', borderRadius: 4, background: 'linear-gradient(90deg,#ff45e6,#2ff3ff)', boxShadow: '0 0 16px rgba(47,243,255,.7)', animation: 'ld-sweep 1.6s ease-in-out infinite' }} />
         </div>
 
         {/* מונה זמן + הערת המתנה */}
