@@ -296,6 +296,13 @@ export default function Home() {
             <img
               src="/holoacademy-logo.png"
               alt="HOLO ACADEMY"
+              /* כשל טעינה חולף (רשת רעועה / שרת שקם מחדש) — ניסיון חוזר אחד אחרי 1.5ש׳ */
+              onError={(e) => {
+                const el = e.currentTarget
+                if (el.dataset.retried) return
+                el.dataset.retried = '1'
+                setTimeout(() => { el.src = '/holoacademy-logo.png?r=' + Date.now() }, 1500)
+              }}
               style={{ width: 'var(--logo-w, clamp(180px, 21vw, 240px))', height: 'auto', margin: '0 auto', display: 'block' }}
             />
             {/* שכבות הגליץ' — עותקים ציאן/מג׳נטה שמתפרצים לרגע (CSS בלבד) */}
