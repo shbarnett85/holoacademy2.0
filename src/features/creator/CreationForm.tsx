@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../shared/lib/api'
 import { playSound } from '../../shared/lib/sound'
 import { SUBJECTS } from '../../shared/lib/subjects'
@@ -11,6 +11,7 @@ import { glass, micro } from './studioStyles'
 import { GRADE_LEVEL_MIN, GRADE_LEVEL_MAX, levelToGradeLabel } from '../../shared/lib/difficultyCalibration'
 import Tooltip from '../../shared/ui/Tooltip'
 import { TT, TT_PUZZLE, TT_SIM, TT_ART } from './tooltips'
+import StylePreview, { STYLE_PREVIEW_SRC, isCoarsePointer, preloadStylePreviews } from './StylePreview'
 
 /* שכבת-גיל לפי רמה (סקאלת 1-20) — מקור יחיד מ-difficultyCalibration */
 function gradeLabel(level: number): string {
@@ -75,6 +76,8 @@ const ICON = {
 }
 
 function Studio() {
+  /* טעינה מוקדמת של שש תמונות ההדגמה — כדי שה-hover יהיה מיידי */
+  useEffect(() => { preloadStylePreviews(ART_STYLES.map((a) => a.key)) }, [])
   const s = useCreatorStore()
 
   /* שיפור תוכן הלימוד עם AI */
@@ -405,16 +408,24 @@ function Studio() {
             </div>
 
             <label style={fieldLabel}>סגנון אמנותי</label>
+            {/* תצוגה מקדימה: אותו נושא (ד"ר הולו במעבדה) בכל ששת הסגנונות — ההשוואה
+               היא סגנון, לא תוכן. דסקטופ: תמונת hover; מגע: תמונה זעירה קבועה בכרטיס.
+               התיאור הטקסטואלי נשמר כ-aria-label (נגישות — לא הוסר מהדף). */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
               {ART_STYLES.map((a) => {
                 const on = s.artStyle === a.key
                 return (
-                  <Tooltip key={a.key} text={TT_ART[a.key]} block>
-                  <button onClick={() => s.set({ artStyle: a.key })} style={{ width: '100%', padding: '10px 4px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s', textAlign: 'center', background: on ? 'linear-gradient(150deg,var(--t127),var(--t84))' : 'var(--t122)', border: '1px solid ' + (on ? 'var(--t128)' : 'var(--t67)'), color: on ? 'var(--t13)' : 'var(--t99)', boxShadow: on ? '0 0 16px var(--t129)' : 'none' }}>
+                  <StylePreview key={a.key} styleKey={a.key} label={a.label} desc={TT_ART[a.key]}>
+                  <button onClick={() => s.set({ artStyle: a.key })} aria-label={`${a.label} — ${TT_ART[a.key] ?? ''}`} style={{ width: '100%', padding: '10px 4px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s', textAlign: 'center', background: on ? 'linear-gradient(150deg,var(--t127),var(--t84))' : 'var(--t122)', border: '1px solid ' + (on ? 'var(--t128)' : 'var(--t67)'), color: on ? 'var(--t13)' : 'var(--t99)', boxShadow: on ? '0 0 16px var(--t129)' : 'none' }}>
+                    {isCoarsePointer && (
+                      <img src={STYLE_PREVIEW_SRC(a.key)} alt="" loading="lazy"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        style={{ width: '100%', aspectRatio: '3 / 2', objectFit: 'cover', borderRadius: 7, marginBottom: 5, display: 'block' }} />
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'center', color: on ? 'var(--t130)' : 'var(--t124)', filter: on ? 'drop-shadow(0 0 8px var(--t131))' : 'none' }}><HoloIcon name={a.key as HoloIconName} size={26} /></div>
                     <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5 }}>{a.label}</div>
                   </button>
-                  </Tooltip>
+                  </StylePreview>
                 )
               })}
             </div>
