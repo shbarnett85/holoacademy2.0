@@ -185,7 +185,8 @@
   --fs-btn: clamp(15px, 1.1vw, 19px);
   --fs-chip: clamp(13px, 0.95vw, 16px);
   --fs-foot: clamp(10.5px, 0.8vw, 12.5px);
-  --logo-w: min(clamp(180px, 18vw, 320px), 34vh);
+  /* הקובץ רופד-מחדש סימטרית (466px רוחב, היה 640) — הכיול שומר על אותו גודל חזותי */
+  --logo-w: min(clamp(140px, 13.5vw, 240px), 25vh);
   --mode-card-w: clamp(186px, 15vw, 264px);
 }
 .home3-steps { grid-area: steps; }
