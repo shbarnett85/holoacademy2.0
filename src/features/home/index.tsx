@@ -22,6 +22,39 @@ function gradeRangeLabel(min: number | null, max: number | null): string | null 
   return a ? `כיתה ${a}׳` : null
 }
 
+/* ── סט אייקוני המותג לעמוד הראשי — SVG מקומי, קו 1.6 אחיד (כמו אייקוני
+   מצב מורה/תלמיד, הרף), צורות גיאומטריות חדות בשפת הגביש. currentColor —
+   הצבע נקבע בהקשר (ציאן/מג׳נטה של המותג). אפס אמוג׳י. ── */
+const BRAND_PATHS: Record<string, React.ReactNode> = {
+  /* מצפן-יהלום — "איך זה עובד" */
+  compass: <><path d="M12 2L22 12L12 22L2 12Z" /><path d="M15.5 8.5L13.2 13.2L8.5 15.5L10.8 10.8Z" /></>,
+  /* גביש-נגינה — "התנסו עכשיו" */
+  playGem: <><path d="M12 2L20.5 7V17L12 22L3.5 17V7Z" /><path d="M10 9L15.5 12L10 15Z" /></>,
+  /* מסמך — "מתארים חומר לימוד" */
+  doc: <><path d="M6 3H14.5L19 7.5V21H6Z" /><path d="M14.5 3V7.5H19" /><path d="M9 12.5H16" /><path d="M9 16.5H13.5" /></>,
+  /* הגביש — "ד״ר הולו בונה הרפתקה" (הד ללוגו) */
+  crystal: <><path d="M12 3L19 8.2L16.4 20H7.6L5 8.2Z" /><path d="M5 8.2H19" /><path d="M9.8 8.2L12 20" /><path d="M14.2 8.2L12 20" /></>,
+  /* תרשים — "משחקים והמורה רואה" */
+  chart: <><path d="M4 20H20" /><path d="M7.5 20V12" /><path d="M12 20V5.5" /><path d="M16.5 20V14.5" /></>,
+  /* מסמך עם חותם-יהלום — תקציר לרשויות */
+  brief: <><path d="M6 3H14.5L19 7.5V21H6Z" /><path d="M14.5 3V7.5H19" /><path d="M12.5 10.5L15 13L12.5 15.5L10 13Z" /></>,
+  /* וי חד — רצועת היתרונות */
+  check: <path d="M5 12.5L10 17.5L19 7" />,
+  /* משולש נגינה — "שחקו" */
+  play: <path d="M8.5 5.5L18 12L8.5 18.5Z" />,
+  chevUp: <path d="M6 14.5L12 8.5L18 14.5" />,
+  chevDown: <path d="M6 9.5L12 15.5L18 9.5" />,
+}
+function BrandIcon({ name, size = 18, style }: { name: keyof typeof BRAND_PATHS; size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ display: 'inline-block', verticalAlign: '-0.18em', flexShrink: 0, ...style }}>
+      {BRAND_PATHS[name]}
+    </svg>
+  )
+}
+
 const reduceMotion =
   typeof window !== 'undefined' &&
   ((!!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
@@ -60,7 +93,7 @@ function useVisibleRows() {
 }
 
 /* כותרת טור צדדי — אייקון + כותרת + שורת משנה, מבנה זהה לשני הצדדים */
-function SideHead({ icon, glow, title, sub }: { icon: string; glow: string; title: React.ReactNode; sub: string }) {
+function SideHead({ icon, glow, title, sub }: { icon: React.ReactNode; glow: string; title: React.ReactNode; sub: string }) {
   return (
     <div style={{ textAlign: 'center' }}>
       <div style={{ fontSize: 'var(--fs-side-title)', fontWeight: 800, color: '#fff' }}>
@@ -97,7 +130,7 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
       style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
     >
       <SideHead
-        icon="🎮" glow="rgba(255,154,46,.6)"
+        icon={<BrandIcon name="playGem" size={19} style={{ color: '#f241da' }} />} glow="rgba(242,65,218,.55)"
         title={<>התנסו עכשיו — <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>בלי הרשמה</span></>}
         sub="מהספרייה הרשמית — לחצו ושחקו"
       />
@@ -138,7 +171,7 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 'auto' }}>
                   {q.subject && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(47,243,255,.08)', border: '1px solid rgba(47,243,255,.25)', color: '#7ef6ff' }}>{q.subject}</span>}
                   {grades && <span style={{ fontSize: 9.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, background: 'rgba(155,140,255,.08)', border: '1px solid rgba(155,140,255,.25)', color: '#b9adff' }}>{grades}</span>}
-                  <span style={{ marginRight: 'auto', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c' }}>שחקו ▶</span>
+                  <span style={{ marginRight: 'auto', fontSize: 10.5, fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: 'rgba(255,154,46,.14)', border: '1px solid rgba(255,154,46,.4)', color: '#ffc98c' }}>שחקו <BrandIcon name="play" size={11} /></span>
                 </div>
               </div>
             </button>
@@ -148,11 +181,11 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
 
       {/* חצים ידניים — גלויים תמיד (וגם היחידים ב-reduced-motion) */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 10, height: SIDE.footH }}>
-        {rotate && ([['▲', -1, 'ההדמיה הקודמת'], ['▼', 1, 'ההדמיה הבאה']] as const).map(([ch, dir, label]) => (
-          <button key={ch} onClick={() => go(dir)} aria-label={label}
-            style={{ width: 34, height: SIDE.footH, borderRadius: 8, cursor: 'pointer', fontSize: 11, lineHeight: 1,
-              background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', color: 'rgba(170,215,250,.85)' }}>
-            {ch}
+        {rotate && ([['chevUp', -1, 'ההדמיה הקודמת'], ['chevDown', 1, 'ההדמיה הבאה']] as const).map(([name, dir, label]) => (
+          <button key={name} onClick={() => go(dir)} aria-label={label}
+            style={{ width: 34, height: SIDE.footH, borderRadius: 8, cursor: 'pointer', lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', color: '#2ff3ff' }}>
+            <BrandIcon name={name} size={14} />
           </button>
         ))}
       </div>
@@ -244,15 +277,15 @@ export default function Home() {
         {/* ── טור ימני: איך זה עובד — מבנה ומידות זהים לטור "התנסו עכשיו" ── */}
         <div className="home3-steps" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <SideHead
-            icon="🧭" glow="rgba(47,243,255,.6)"
+            icon={<BrandIcon name="compass" size={19} style={{ color: '#2ff3ff' }} />} glow="rgba(47,243,255,.55)"
             title="איך זה עובד?"
             sub="הדמיות למידה אינטראקטיביות — לכל מקצוע, שכבה ורמה"
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: stackHFor(rows) }}>
             {[
-              { n: '1', icon: '📝', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
-              { n: '2', icon: '🧬', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.' },
-              { n: '3', icon: '📊', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.' },
+              { n: '1', icon: 'doc' as const, title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
+              { n: '2', icon: 'crystal' as const, title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.' },
+              { n: '3', icon: 'chart' as const, title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.' },
             ].map((s) => (
               <div key={s.n} style={{
                 height: stepH, boxSizing: 'border-box', padding: '12px 14px', borderRadius: 14, textAlign: 'right',
@@ -265,7 +298,7 @@ export default function Home() {
                     width: 21, height: 21, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     fontSize: 11, fontWeight: 800, color: '#04101c', background: 'linear-gradient(135deg, #2ff3ff, #9b8cff)',
                   }}>{s.n}</span>
-                  <span style={{ fontSize: 15 }}>{s.icon}</span>
+                  <BrandIcon name={s.icon} size={17} style={{ color: '#2ff3ff' }} />
                   <span style={{ fontSize: 'var(--fs-step-title)', fontWeight: 800, color: '#dff2ff' }}>{s.title}</span>
                 </div>
                 <div style={{ fontSize: 'var(--fs-body)', color: 'rgba(170,205,235,.72)', lineHeight: 1.6 }}>{s.text}</div>
@@ -278,7 +311,7 @@ export default function Home() {
               display: 'inline-flex', alignItems: 'center', height: SIDE.footH, boxSizing: 'border-box',
               fontSize: 11, fontWeight: 600, padding: '0 12px', borderRadius: 8,
               color: 'rgba(200,230,255,.8)', background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', textDecoration: 'none',
-            }}>📄 תקציר לרשויות ובתי ספר</a>
+            }}><BrandIcon name="brief" size={13} style={{ color: '#2ff3ff', marginLeft: 5 }} />תקציר לרשויות ובתי ספר</a>
           </div>
         </div>
 
@@ -362,7 +395,7 @@ export default function Home() {
                   border: '1px solid rgba(255,154,46,.28)',
                 }}
               >
-                <span style={{ fontSize: 18 }}>🎨</span>
+                <BrandIcon name="playGem" size={18} style={{ color: '#f241da' }} />
                 הדמיית דמו — לאונרדו דה וינצ׳י
               </button>
             </div>
@@ -370,13 +403,18 @@ export default function Home() {
         </div>
 
         {/* ── רצועת יתרונות + קישור התקציר + זכויות ── */}
-        <div className="home3-strip" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 4 }}>
-          {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
-            <span key={c} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)' }}>✓ {c}</span>
-          ))}
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(47,243,255,.28)', marginRight: 6 }}>
+        {/* פוטר: רצועת היתרונות ממורכזת על ציר הדף, והזכויות בשורה נפרדת מתחתיה */}
+        <div className="home3-strip" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, paddingTop: 4 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+            {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
+              <span key={c} style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.22)', color: 'rgba(126,246,255,.85)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <BrandIcon name="check" size={11} style={{ color: '#2ff3ff' }} /> {c}
+              </span>
+            ))}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(47,243,255,.28)', textAlign: 'center' }}>
             © 2026 HoloAcademy
-          </span>
+          </div>
         </div>
       </div>
 
