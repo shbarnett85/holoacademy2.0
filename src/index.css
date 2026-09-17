@@ -153,6 +153,40 @@
   .holo-logo-glow .hlg-glitch { display: none; }
 }
 
+/* ── דף הבית: שלושה טורים במסך אחד (RTL) ─────────────────────────────────
+   grid-template-areas שולט בסדר — בדסקטופ: ימין=שלבים, מרכז=כניסה (רחב
+   ושולט), שמאל=הדמיות; שורת יתרונות מתחת. במובייל הסדר מוכתב מהאזורים
+   (כניסה→הדמיות→שלבים→רצועה), לא מסדר ה-DOM. */
+.home3 {
+  display: grid;
+  grid-template-areas: 'steps login shelf' 'strip strip strip';
+  grid-template-columns: minmax(200px, 300px) minmax(380px, 1.4fr) minmax(230px, 330px);
+  grid-template-rows: 1fr auto;
+  align-items: center;
+  gap: 14px 26px;
+  width: min(1290px, 100%);
+  padding: 18px 26px 12px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+.home3-steps { grid-area: steps; }
+.home3-login { grid-area: login; }
+.home3-shelf { grid-area: shelf; }
+.home3-strip { grid-area: strip; }
+@media (max-width: 1020px) {
+  .home3 {
+    grid-template-areas: 'login' 'shelf' 'steps' 'strip';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    justify-items: center;
+    gap: 26px;
+    padding: 26px 16px 14px;
+  }
+  .home3-steps, .home3-shelf { width: min(430px, 100%); }
+  .home3-login { width: 100%; }
+}
+
 /* ── אולפן היצירה (Claude Design): neon slider + glass + scrollbar ── */
 .cf input[type=range] {
   -webkit-appearance: none; appearance: none; width: 100%; height: 3px; border-radius: 3px;
