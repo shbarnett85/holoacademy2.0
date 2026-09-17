@@ -183,7 +183,11 @@ questsRouter.get('/showcase', async (_req, res, next) => {
     for (const q of [...mapped].reverse()) if (!bySubject.has(q.subject ?? '')) bySubject.set(q.subject ?? '', q)
     const firstPerSubject = [...bySubject.values()]
     const rest = mapped.filter((q) => !firstPerSubject.includes(q))
-    const payload = { quests: [...firstPerSubject, ...rest] }
+    /* סדר תצוגה מוסדר לבאנר — רץ אחרי מעבר הגיוון (שהופך את הרשימה); מיון יציב:
+       מי שלא ברשימה נשאר אחרי המוסדרים, בסדר הגיוון */
+    const SHOWCASE_ORDER = ['לאונרדו', 'דוד וג', 'מסע בין כוכבים', 'ציידי ההנחות']
+    const orderOf = (t: string) => { const i = SHOWCASE_ORDER.findIndex((k) => t.includes(k)); return i === -1 ? SHOWCASE_ORDER.length : i }
+    const payload = { quests: [...firstPerSubject, ...rest].sort((a, b) => orderOf(a.title) - orderOf(b.title)) }
     showcaseCache = { at: Date.now(), payload }
     res.json(payload)
   } catch (err) {
