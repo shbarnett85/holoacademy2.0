@@ -33,6 +33,19 @@ function StepNum({ n }: { n: string }) {
   )
 }
 
+/* עמידות טעינת הלוגו (הראשי + שכבות הגליץ'): כשל חולף (רשת רעועה / שרת
+   שקם מחדש) → ניסיון חוזר אחד עם cache-bust אחרי 1.5ש׳; נכשל שוב —
+   שכבת גליץ' דקורטיבית מוסתרת, כדי שלא יהבהב אייקון תמונה-שבורה. */
+function retryLogo(e: React.SyntheticEvent<HTMLImageElement>) {
+  const el = e.currentTarget
+  if (el.dataset.retried) {
+    if (el.closest('.hlg-glitch')) (el.closest('.hlg-glitch') as HTMLElement).style.display = 'none'
+    return
+  }
+  el.dataset.retried = '1'
+  setTimeout(() => { el.src = '/holoacademy-logo.png?r=' + Date.now() }, 1500)
+}
+
 const reduceMotion =
   typeof window !== 'undefined' &&
   ((!!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
@@ -296,18 +309,14 @@ export default function Home() {
             <img
               src="/holoacademy-logo.png"
               alt="HOLO ACADEMY"
-              /* כשל טעינה חולף (רשת רעועה / שרת שקם מחדש) — ניסיון חוזר אחד אחרי 1.5ש׳ */
-              onError={(e) => {
-                const el = e.currentTarget
-                if (el.dataset.retried) return
-                el.dataset.retried = '1'
-                setTimeout(() => { el.src = '/holoacademy-logo.png?r=' + Date.now() }, 1500)
-              }}
+              onError={retryLogo}
               style={{ width: 'var(--logo-w, clamp(180px, 21vw, 240px))', height: 'auto', margin: '0 auto', display: 'block' }}
             />
-            {/* שכבות הגליץ' — עותקים ציאן/מג׳נטה שמתפרצים לרגע (CSS בלבד) */}
-            <span className="hlg-glitch hlg-glitch--c" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
-            <span className="hlg-glitch hlg-glitch--m" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" /></span>
+            {/* שכבות הגליץ' — עותקים ציאן/מג׳נטה שמתפרצים לרגע (CSS בלבד).
+               אותה עמידות-טעינה כמו הלוגו הראשי — אחרת עותק שבור מהבהב כאייקון
+               תמונה-שבורה בכל התפרצות; כישלון סופי מסתיר את השכבה (דקורטיבית). */}
+            <span className="hlg-glitch hlg-glitch--c" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" onError={retryLogo} /></span>
+            <span className="hlg-glitch hlg-glitch--m" aria-hidden="true"><img src="/holoacademy-logo.png" alt="" onError={retryLogo} /></span>
           </div>
           <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
           {/* טאגליין — גרדיאנט תכלת-לבן בהתאמה לזוהר הלוגו */}
