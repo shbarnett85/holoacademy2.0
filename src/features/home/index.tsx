@@ -122,7 +122,7 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
     >
       <SideHead
         icon={<BrandIcon name="playGem" size={19} style={{ color: '#f241da' }} />} glow="rgba(242,65,218,.55)"
-        title={<>התנסו עכשיו — <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>בלי הרשמה</span></>}
+        title={<>התנסו עכשיו - <span style={{ color: 'var(--holo-orange, #ff9a2e)' }}>ללא הרשמה</span></>}
         sub="מהספרייה הרשמית — לחצו ושחקו"
       />
 
