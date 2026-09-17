@@ -45,6 +45,17 @@ const BRAND_PATHS: Record<string, React.ReactNode> = {
   chevUp: <path d="M6 14.5L12 8.5L18 14.5" />,
   chevDown: <path d="M6 9.5L12 15.5L18 9.5" />,
 }
+/* מסמן מספר שלב — יהלום קו 1.6 (שפת הגביש) עם הספרה בציאן. דיסקרטי:
+   סימון סדר בלבד, הכותרת היא המובילה. גודל אופטי כשל אייקון השלב. */
+function StepNum({ n }: { n: string }) {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path d="M12 2.5L21.5 12L12 21.5L2.5 12Z" stroke="#2ff3ff" strokeWidth="1.6" strokeLinejoin="round" opacity="0.55" />
+      <text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill="#2ff3ff" fontFamily="var(--font-display)">{n}</text>
+    </svg>
+  )
+}
+
 function BrandIcon({ name, size = 18, style }: { name: keyof typeof BRAND_PATHS; size?: number; style?: React.CSSProperties }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
@@ -294,10 +305,7 @@ export default function Home() {
                 display: 'flex', flexDirection: 'column', justifyContent: 'center',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                  <span style={{
-                    width: 21, height: 21, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    fontSize: 11, fontWeight: 800, color: '#04101c', background: 'linear-gradient(135deg, #2ff3ff, #9b8cff)',
-                  }}>{s.n}</span>
+                  <StepNum n={s.n} />
                   <BrandIcon name={s.icon} size={17} style={{ color: '#2ff3ff' }} />
                   <span style={{ fontSize: 'var(--fs-step-title)', fontWeight: 800, color: '#dff2ff' }}>{s.title}</span>
                 </div>
