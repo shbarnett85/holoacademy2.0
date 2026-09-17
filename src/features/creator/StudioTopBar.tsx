@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import BrandIcon from '../../shared/ui/BrandIcon'
 import { glass, micro } from './studioStyles'
 import { checkNavGuard } from '../../shared/lib/navGuard'
 import { useSoundSettings } from '../../shared/lib/sound'
@@ -78,7 +79,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
         </div>
         <ThemeToggle />
         <button onClick={toggleMuted} title={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-pressed={muted} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', fontSize: '1.05rem', background: 'var(--t241)', border: '1px solid var(--t41)', color: 'var(--t19)' }}>
-          {muted ? '🔇' : '🔊'}
+          <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={16} />
         </button>
         <button onClick={() => { logout(); navigate('/') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'var(--t242)', border: '1px solid var(--t231)', color: 'var(--t243)' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>

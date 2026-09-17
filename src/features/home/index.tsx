@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { trackFunnel } from '../../shared/lib/funnel'
+import BrandIcon from '../../shared/ui/BrandIcon'
 
 /* הדמיה בחלון הראווה — מדף "התנסו עכשיו" ללא הרשמה */
 interface ShowcaseQuest {
@@ -22,46 +23,12 @@ function gradeRangeLabel(min: number | null, max: number | null): string | null 
   return a ? `כיתה ${a}׳` : null
 }
 
-/* ── סט אייקוני המותג לעמוד הראשי — SVG מקומי, קו 1.6 אחיד (כמו אייקוני
-   מצב מורה/תלמיד, הרף), צורות גיאומטריות חדות בשפת הגביש. currentColor —
-   הצבע נקבע בהקשר (ציאן/מג׳נטה של המותג). אפס אמוג׳י. ── */
-const BRAND_PATHS: Record<string, React.ReactNode> = {
-  /* מצפן-יהלום — "איך זה עובד" */
-  compass: <><path d="M12 2L22 12L12 22L2 12Z" /><path d="M15.5 8.5L13.2 13.2L8.5 15.5L10.8 10.8Z" /></>,
-  /* גביש-נגינה — "התנסו עכשיו" */
-  playGem: <><path d="M12 2L20.5 7V17L12 22L3.5 17V7Z" /><path d="M10 9L15.5 12L10 15Z" /></>,
-  /* מסמך — "מתארים חומר לימוד" */
-  doc: <><path d="M6 3H14.5L19 7.5V21H6Z" /><path d="M14.5 3V7.5H19" /><path d="M9 12.5H16" /><path d="M9 16.5H13.5" /></>,
-  /* הגביש — "ד״ר הולו בונה הרפתקה" (הד ללוגו) */
-  crystal: <><path d="M12 3L19 8.2L16.4 20H7.6L5 8.2Z" /><path d="M5 8.2H19" /><path d="M9.8 8.2L12 20" /><path d="M14.2 8.2L12 20" /></>,
-  /* תרשים — "משחקים והמורה רואה" */
-  chart: <><path d="M4 20H20" /><path d="M7.5 20V12" /><path d="M12 20V5.5" /><path d="M16.5 20V14.5" /></>,
-  /* מסמך עם חותם-יהלום — תקציר לרשויות */
-  brief: <><path d="M6 3H14.5L19 7.5V21H6Z" /><path d="M14.5 3V7.5H19" /><path d="M12.5 10.5L15 13L12.5 15.5L10 13Z" /></>,
-  /* וי חד — רצועת היתרונות */
-  check: <path d="M5 12.5L10 17.5L19 7" />,
-  /* משולש נגינה — "שחקו" */
-  play: <path d="M8.5 5.5L18 12L8.5 18.5Z" />,
-  chevUp: <path d="M6 14.5L12 8.5L18 14.5" />,
-  chevDown: <path d="M6 9.5L12 15.5L18 9.5" />,
-}
-/* מסמן מספר שלב — יהלום קו 1.6 (שפת הגביש) עם הספרה בציאן. דיסקרטי:
-   סימון סדר בלבד, הכותרת היא המובילה. גודל אופטי כשל אייקון השלב. */
+/* מסמן מספר שלב — יהלום קו-מתאר דק עם הספרה בציאן (דיסקרטי, סימון סדר בלבד) */
 function StepNum({ n }: { n: string }) {
   return (
     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
       <path d="M12 2.5L21.5 12L12 21.5L2.5 12Z" stroke="#2ff3ff" strokeWidth="1.6" strokeLinejoin="round" opacity="0.55" />
       <text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fill="#2ff3ff" fontFamily="var(--font-display)">{n}</text>
-    </svg>
-  )
-}
-
-function BrandIcon({ name, size = 18, style }: { name: keyof typeof BRAND_PATHS; size?: number; style?: React.CSSProperties }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-      style={{ display: 'inline-block', verticalAlign: '-0.18em', flexShrink: 0, ...style }}>
-      {BRAND_PATHS[name]}
     </svg>
   )
 }

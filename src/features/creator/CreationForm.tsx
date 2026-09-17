@@ -10,6 +10,7 @@ import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 import { GRADE_LEVEL_MIN, GRADE_LEVEL_MAX, levelToGradeLabel } from '../../shared/lib/difficultyCalibration'
 import Tooltip from '../../shared/ui/Tooltip'
+import BrandIcon from '../../shared/ui/BrandIcon'
 import { TT, TT_PUZZLE, TT_SIM, TT_ART } from './tooltips'
 import StylePreview, { STYLE_PREVIEW_SRC, isCoarsePointer, preloadStylePreviews } from './StylePreview'
 
@@ -24,8 +25,8 @@ function gradeText(level: number): string {
 }
 
 const SIM_TYPES = [
-  { key: 'adventure', label: 'הרפתקה', icon: '⚔️', desc: 'מסע עם אתגרים ומשימות' },
-  { key: 'tour', label: 'סיור', icon: '🔭', desc: 'חקירה חופשית ולמידה' },
+  { key: 'adventure', label: 'הרפתקה', desc: 'מסע עם אתגרים ומשימות' },
+  { key: 'tour', label: 'סיור', desc: 'חקירה חופשית ולמידה' },
 ] as const
 
 const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--t27)', fontWeight: 500, marginBottom: 6, display: 'block' }
@@ -161,7 +162,7 @@ function Studio() {
         {/* חידות (ימין ב-RTL) */}
         <div style={{ ...col, flex: '1 1 320px' }}>
           <div style={{ ...glass, padding: 22, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <PanelHead icon={ICON.grid} title="חידות" kicker={activePuzzles + ' פעילות'} />
+            <Tooltip text={TT.panelPuzzles} block><PanelHead icon={ICON.grid} title="חידות" kicker={activePuzzles + ' פעילות'} /></Tooltip>
             <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1, minHeight: 0, paddingLeft: 4 }}>
               {PUZZLE_TYPES.map((p) => {
                 const on = !!s.puzzleTypes[p.key]
@@ -187,7 +188,7 @@ function Studio() {
                       </div></Tooltip>
                     )}
                     {p.key === 'itemUsage' && on && (
-                      <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}>🗝️ ייווצרו {s.puzzleCounts.itemUsage ?? 1} מפתחות ו-{s.puzzleCounts.itemUsage ?? 1} שערים נעולים</p>
+                      <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}><BrandIcon name="key" size={12} style={{ marginLeft: 4 }} />ייווצרו {s.puzzleCounts.itemUsage ?? 1} מפתחות ו-{s.puzzleCounts.itemUsage ?? 1} שערים נעולים</p>
                     )}
                   </div>
                 )
@@ -215,7 +216,7 @@ function Studio() {
                             <button key={n} onClick={() => s.setPuzzleCount('finalQuiz', n)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)', background: count === n ? 'linear-gradient(135deg,var(--t15),var(--t14))' : 'var(--t57)', border: '1px solid ' + (count === n ? 'transparent' : 'var(--t101)'), color: count === n ? 'var(--t17)' : 'var(--t99)', boxShadow: count === n ? '0 0 12px var(--t2)' : 'none' }}>{n}</button>
                           ))}
                         </div></Tooltip>
-                        <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}>🏁 בסצנת השיא ייווצר מבחן אינטגרטיבי של {count} שאלות</p>
+                        <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}><BrandIcon name="flag" size={12} style={{ marginLeft: 4 }} />בסצנת השיא ייווצר מבחן אינטגרטיבי של {count} שאלות</p>
                       </>
                     )}
                   </div>
@@ -230,7 +231,7 @@ function Studio() {
           {s.status === 'error' && (
             <div style={{ ...glass, padding: '16px 20px', borderColor: 'var(--t102)', textAlign: 'center' }}>
               <p style={{ color: 'var(--t5)' }}>{s.error}</p>
-              <button onClick={() => s.generate()} style={{ marginTop: 10, padding: '8px 18px', borderRadius: 10, cursor: 'pointer', background: 'var(--t103)', border: '1px solid var(--t102)', color: 'var(--t104)', fontWeight: 600 }}>נסה שוב 🔄</button>
+              <button onClick={() => s.generate()} style={{ marginTop: 10, padding: '8px 18px', borderRadius: 10, cursor: 'pointer', background: 'var(--t103)', border: '1px solid var(--t102)', color: 'var(--t104)', fontWeight: 600 }}>נסה שוב <BrandIcon name="refresh" size={13} /></button>
             </div>
           )}
 
@@ -277,7 +278,7 @@ function Studio() {
               <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד <span style={{ fontWeight: 400, color: 'var(--t109)', fontSize: 11 }}>(אופציונלי)</span></label>
               <Tooltip text={TT.enhance}>
               <button type="button" onClick={enhanceContent} disabled={enhancing} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t31)', background: 'linear-gradient(135deg, var(--t110), var(--t111))', border: '1px solid var(--t29)', boxShadow: '0 0 12px var(--t110)', opacity: enhancing ? 0.6 : 1 }}>
-                {enhancing ? <><span style={{ display: 'inline-block', animation: 'cf-spin .8s linear infinite' }}>⟳</span> משפר…</> : <>שפר עם AI ✨</>}
+                {enhancing ? <><span style={{ display: 'inline-flex', animation: 'cf-spin .8s linear infinite' }}><BrandIcon name="refresh" size={13} /></span> משפר…</> : <>שפר עם AI <BrandIcon name="spark" size={13} /></>}
               </button>
               </Tooltip>
             </div>
@@ -285,7 +286,7 @@ function Studio() {
               <textarea className="cf-in" style={{ ...inputBase, marginBottom: 14, lineHeight: 1.55, minHeight: 110, flex: 1, resize: 'vertical' }} value={s.curriculum} onChange={(e) => s.set({ curriculum: e.target.value })} placeholder="תארו את החומר שתרצו ללמד: נושאים, מושגים, עובדות חשובות…" />
             </Tooltip>
 
-            {enhanceError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 10 }}>⚠️ {enhanceError}</p>}
+            {enhanceError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 10 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{enhanceError}</p>}
 
             {/* השוואה — מקור מול גרסה משופרת */}
             {comparison && (
@@ -296,12 +297,12 @@ function Studio() {
                     <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', opacity: 0.75, maxHeight: '12rem', overflowY: 'auto' }}>{comparison.original}</p>
                   </div>
                   <div style={{ borderRadius: 11, padding: 12, background: 'var(--t112)', border: '1px solid var(--t29)', boxShadow: '0 0 14px var(--t113)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--t16)' }}>✨ הגרסה המשופרת</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--t16)' }}><BrandIcon name="spark" size={12} /> הגרסה המשופרת</div>
                     <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', maxHeight: '12rem', overflowY: 'auto', color: 'var(--t68)' }}>{comparison.enhanced}</p>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-                  <button onClick={() => { s.set({ curriculum: comparison.enhanced }); setComparison(null) }} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, color: 'var(--t13)', background: 'linear-gradient(135deg,var(--t14),var(--t15))', border: 'none' }}>השתמש בגרסה המשופרת ✨</button>
+                  <button onClick={() => { s.set({ curriculum: comparison.enhanced }); setComparison(null) }} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, color: 'var(--t13)', background: 'linear-gradient(135deg,var(--t14),var(--t15))', border: 'none' }}>השתמש בגרסה המשופרת <BrandIcon name="spark" size={13} /></button>
                   <button onClick={() => setComparison(null)} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--t99)', background: 'transparent', border: '1px solid var(--t59)' }}>השאר את המקור</button>
                 </div>
               </div>
@@ -310,12 +311,12 @@ function Studio() {
             {/* יעדי למידה — כל אתגר יתויג ביעד שהוא בוחן; מזין את דיווח השליטה באנליטיקה */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ ...fieldLabel, margin: 0 }}>🎯 יעדי למידה <span style={{ fontWeight: 400, color: 'var(--t109)', fontSize: 11 }}>(אופציונלי · מפעיל דיווח שליטה)</span></label>
-                <button type="button" onClick={extractObjectives} disabled={extractingObj} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t114)', background: 'linear-gradient(135deg, var(--t115), var(--t116))', border: '1px solid var(--t117)', opacity: extractingObj ? 0.6 : 1 }}>
-                  {extractingObj ? <><span style={{ display: 'inline-block', animation: 'cf-spin .8s linear infinite' }}>⟳</span> מחלץ…</> : <>חלץ אוטומטית ✨</>}
-                </button>
+                <Tooltip text={TT.objectives}><label style={{ ...fieldLabel, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><BrandIcon name="target" size={14} style={{ color: '#2ff3ff' }} /> יעדי למידה <span style={{ fontWeight: 400, color: 'var(--t109)', fontSize: 11 }}>(אופציונלי · מפעיל דיווח שליטה)</span></label></Tooltip>
+                <Tooltip text={TT.extract}><button type="button" onClick={extractObjectives} disabled={extractingObj} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t114)', background: 'linear-gradient(135deg, var(--t115), var(--t116))', border: '1px solid var(--t117)', opacity: extractingObj ? 0.6 : 1 }}>
+                  {extractingObj ? <><span style={{ display: 'inline-flex', animation: 'cf-spin .8s linear infinite' }}><BrandIcon name="refresh" size={13} /></span> מחלץ…</> : <>חלץ אוטומטית <BrandIcon name="spark" size={13} /></>}
+                </button></Tooltip>
               </div>
-              {objError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 8 }}>⚠️ {objError}</p>}
+              {objError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 8 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{objError}</p>}
               {s.objectives.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                   {s.objectives.map((o, i) => (
@@ -338,14 +339,16 @@ function Studio() {
               )}
             </div>
 
+            <Tooltip text={TT.length} block>
             <div style={{ paddingTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9 }}>
                 <label style={{ ...fieldLabel, margin: 0 }}>אורך ההדמיה</label>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{s.questLength} סצנות</span>
               </div>
-              <Tooltip text={TT.length} block><NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} /></Tooltip>
+              <NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} />
               <div style={{ ...micro, fontSize: 9.5, color: 'var(--t37)', marginTop: 9 }}>4 — 15 סצנות</div>
             </div>
+            </Tooltip>
           </div>
 
           {/* כפתור יצירה */}
@@ -362,28 +365,31 @@ function Studio() {
         {/* התאמות (שמאל ב-RTL) */}
         <div style={{ ...col, flex: '1 1 320px' }}>
           <div style={{ ...glass, padding: 22, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            <PanelHead icon={ICON.sliders} title="התאמות" kicker="TUNING" />
+            <Tooltip text={TT.panelTuning} block><PanelHead icon={ICON.sliders} title="התאמות" kicker="TUNING" /></Tooltip>
             {/* שכבת גיל (שולט) — סליידר גרירה בשמות שכבה (גן→י"ג, רמות 4-17). מזיז את
                 קושי החידות לאותה שכבה אוטומטית (הצמדה-מחדש בכל הזזה; מוחק עקיפה ידנית). */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <label style={{ ...fieldLabel, margin: 0 }}>שכבת גיל</label>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{gradeText(s.writingLevel)}</span>
-            </div>
+            <Tooltip text={TT.ageLevel} block>
             <div style={{ marginBottom: 16 }}>
-              <Tooltip text={TT.ageLevel} block><NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
-                onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} /></Tooltip>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
+                <label style={{ ...fieldLabel, margin: 0 }}>שכבת גיל</label>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{gradeText(s.writingLevel)}</span>
+              </div>
+              <NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} />
             </div>
+            </Tooltip>
 
             {/* קושי חידות (עוקב אך עצמאי) — אפשר להזיז לבד; הזזת שכבת הגיל מאפסת אותו חזרה. */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
-              <label style={{ ...fieldLabel, margin: 0 }}>קושי חידות</label>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t120)' }}>{gradeText(s.puzzleDifficulty)}</span>
+            <Tooltip text={TT.difficulty} block>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
+                <label style={{ ...fieldLabel, margin: 0 }}>קושי חידות</label>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t120)' }}>{gradeText(s.puzzleDifficulty)}</span>
+              </div>
+              <NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
+                onChange={(lv) => s.set({ puzzleDifficulty: lv })} />
             </div>
-            <div style={{ marginBottom: 10 }}>
-              <Tooltip text={TT.difficulty} block><NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
-                onChange={(lv) => s.set({ puzzleDifficulty: lv })} /></Tooltip>
-            </div>
-            <p style={{ fontSize: 11.5, lineHeight: 1.6, color: 'var(--t121)', marginBottom: 20 }}>שכבת הגיל קובעת שפה, אופי ותוכן. קושי החידות נצמד אליה — ואפשר לכוונן בנפרד.</p>
+            </Tooltip>
 
             <label style={fieldLabel}>סוג ההדמיה</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 20 }}>
@@ -401,11 +407,13 @@ function Studio() {
               })}
             </div>
 
+            <Tooltip text={TT.drHolo} block>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderRadius: 12, background: 'var(--t25)', border: '1px solid var(--t26)', marginBottom: 20, color: s.includeDrHolo ? 'var(--t1)' : 'var(--t126)' }}>
               <HoloIcon name="drholo" size={24} style={{ filter: s.includeDrHolo ? 'drop-shadow(0 0 8px var(--t125))' : 'none' }} />
               <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: 'var(--t12)' }}>ד״ר הולו <span style={{ color: 'var(--t6)', fontWeight: 400 }}>· דמות מנחה</span></span>
-              <Tooltip text={TT.drHolo}><Toggle on={s.includeDrHolo} onClick={() => s.set({ includeDrHolo: !s.includeDrHolo })} /></Tooltip>
+              <Toggle on={s.includeDrHolo} onClick={() => s.set({ includeDrHolo: !s.includeDrHolo })} />
             </div>
+            </Tooltip>
 
             <label style={fieldLabel}>סגנון אמנותי</label>
             {/* תצוגה מקדימה: אותו נושא (ד"ר הולו במעבדה) בכל ששת הסגנונות — ההשוואה

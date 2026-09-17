@@ -1,4 +1,5 @@
 import { useTheme } from '../lib/useTheme'
+import BrandIcon from './BrandIcon'
 
 /* מתג מצב בהיר/כהה.
    המפרט מתאר כפתור שנבנה ב-DOM ע"י theme.js וקבוע למעלה-שמאל. כאן הוא רכיב
@@ -20,7 +21,7 @@ export default function ThemeToggle() {
         background: 'var(--t241)', border: '1px solid var(--t41)', color: 'var(--t19)',
       }}
     >
-      {light ? '🌙' : '☀️'}
+      <BrandIcon name={light ? 'moon' : 'sun'} size={16} />
     </button>
   )
 }
