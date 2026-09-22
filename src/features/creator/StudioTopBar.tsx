@@ -27,7 +27,7 @@ const TITLES: Record<TabId, string> = {
 /* סרגל עליון משותף לאולפן (לוגו + טאבים שמנווטים ב-router + סטטוס + יציאה) */
 export default function StudioTopBar({ active }: { active: TabId }) {
   const navigate = useNavigate()
-  const { logout, user } = useStaffAuth()
+  const { logout, user, isStaff } = useStaffAuth()
   const { muted, toggleMuted } = useSoundSettings()
 
   /* מסמן ל-CSS שמסך אולפן מורכב, כדי שהמצב הבהיר יבהיר גם את רקע ה-body —
@@ -73,17 +73,25 @@ export default function StudioTopBar({ active }: { active: TabId }) {
         })}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...glass, borderRadius: 30, padding: '7px 14px' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--t15)', boxShadow: '0 0 8px var(--t15)', animation: 'holo-status-pulse 2s infinite' }} />
-          <span style={{ fontSize: 12.5, color: 'var(--t19)', fontWeight: 500 }}>{user?.name ?? 'מורה'} מחובר</span>
-        </div>
+        {isStaff ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...glass, borderRadius: 30, padding: '7px 14px' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--t15)', boxShadow: '0 0 8px var(--t15)', animation: 'holo-status-pulse 2s infinite' }} />
+            <span style={{ fontSize: 12.5, color: 'var(--t19)', fontWeight: 500 }}>{user?.name ?? 'מורה'} מחובר</span>
+          </div>
+        ) : (
+          /* יוצר אנונימי — יצירה חופשית; ההדמיות נשמרות בדפדפן ועוברות לחשבון בהרשמה */
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ ...glass, borderRadius: 30, padding: '7px 14px', fontSize: 12, color: 'var(--t6)' }}>מצב ניסיון — ההדמיות נשמרות בדפדפן זה</span>
+            <button onClick={() => navigate('/staff/login')} style={{ padding: '8px 16px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none' }}>התחברות / הרשמה</button>
+          </div>
+        )}
         <ThemeToggle />
         <button onClick={toggleMuted} title={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'} aria-pressed={muted} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', fontSize: '1.05rem', background: 'var(--t241)', border: '1px solid var(--t41)', color: 'var(--t19)' }}>
           <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={16} />
         </button>
-        <button onClick={() => { logout(); navigate('/') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'var(--t242)', border: '1px solid var(--t231)', color: 'var(--t243)' }}>
+        {isStaff && <button onClick={() => { logout(); navigate('/') }} title="יציאה" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, cursor: 'pointer', background: 'var(--t242)', border: '1px solid var(--t231)', color: 'var(--t243)' }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(180deg)' }}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-        </button>
+        </button>}
       </div>
     </div>
   )

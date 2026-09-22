@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getTurnstileToken } from '../../shared/lib/turnstile'
 import { apiFetch } from '../../shared/lib/api'
 import { getSession } from '../../shared/lib/staffSession'
 import { addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
@@ -196,11 +197,14 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
     genCancelled = false
 
     try {
+      /* אימות אנושי בלתי-נראה — נאסף ברקע, בלי שום שלב גלוי למשתמש */
+      const turnstileToken = await getTurnstileToken().catch(() => null)
       const res = await apiFetch('/api/quests/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
+          turnstileToken: turnstileToken ?? undefined,
           title: s.title,
           subject: s.subject || undefined,
           curriculum: s.curriculum,

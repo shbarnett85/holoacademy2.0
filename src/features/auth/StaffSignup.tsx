@@ -57,6 +57,7 @@ export default function StaffSignup() {
         body: JSON.stringify({ email: email.trim(), password }),
       })
       setSession({ ...session, staff })
+      void apiJson('/api/quests/claim-anon', { method: 'POST' }).catch(() => {})
       navigate(staff.role === 'super_admin' ? '/admin' : '/creator')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההרשמה נכשלה')

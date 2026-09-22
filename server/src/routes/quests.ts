@@ -18,6 +18,8 @@ import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
 import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
 import { defaultProfileForGrade, gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner, isDemoGuest } from '../middleware/staffAuth.js'
+import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAccess.js'
+import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
 import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasQuestGrade } from '../lib/activeColumn.js'
@@ -83,7 +85,7 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
 
 
 /* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה הכול. */
-questsRouter.get('/', requireStaff, async (req, res, next) => {
+questsRouter.get('/', requireCreator, async (req, res, next) => {
   try {
     const [pub, subj] = await Promise.all([hasPublicQuests(), hasQuestSubject()])
     const cols = 'id, title, game_data, status, created_at' + (pub ? ', is_public' : '') + (subj ? ', subject' : '')
@@ -91,7 +93,12 @@ questsRouter.get('/', requireStaff, async (req, res, next) => {
       .from('quests')
       .select(cols)
       .order('created_at', { ascending: false })
-    if (req.staff!.role !== 'admin') query = query.eq('created_by', req.staff!.userId)
+    if (req.staff) {
+      if (req.staff.role !== 'admin') query = query.eq('created_by', req.staff.userId)
+    } else {
+      /* מבקר אנונימי — רק ההדמיות שנוצרו בדפדפן הזה */
+      query = query.eq('anon_id', req.anonId!)
+    }
     const { data, error } = await query
 
     if (error) throw new AppError(500, 'שגיאה בשליפת הדמיות: ' + error.message)
@@ -256,7 +263,7 @@ questsRouter.post('/:id/personalize', requireStaff, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* קביעת צורת הפנייה: form מפורש > gender מפורש > מגדר התלמיד (studentId) > plural */
     let form: FormOfAddress = parsed.data.form ?? parsed.data.gender ?? 'plural'
@@ -459,7 +466,7 @@ questsRouter.post('/:id/share', requireStaff, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* שער איכות (תיקון 3): תוכן פגום לא נכנס לספרייה שכל המורים מעתיקים ממנה.
        סתירת תשובה/הסבר חיה (כולל כזו שנוצרה בעריכת מורה) — חסימה קשיחה עד תיקון;
@@ -498,9 +505,9 @@ questsRouter.post('/:id/share', requireStaff, async (req, res, next) => {
 questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה')
-    const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by').eq('id', req.params.id).single()
+    const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
     const { error: upErr } = await supabaseAdmin.from('quests').update({ is_public: false }).eq('id', quest.id)
     if (upErr) throw new AppError(500, 'שגיאה בהסרה: ' + upErr.message)
     res.json({ ok: true, is_public: false })
@@ -522,9 +529,9 @@ questsRouter.post('/:id/assign', requireStaff, async (req, res, next) => {
       return
     }
 
-    const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by').eq('id', req.params.id).single()
+    const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* סינון כיתות שכבר מוקצות — מניעת כפילויות ללא unique constraint */
     const { data: existing } = await supabaseAdmin
@@ -548,15 +555,15 @@ questsRouter.post('/:id/assign', requireStaff, async (req, res, next) => {
 })
 
 /* DELETE /api/quests/:id — מחיקת הדמיה (בעל ההדמיה או מנהל) */
-questsRouter.delete('/:id', requireStaff, async (req, res, next) => {
+questsRouter.delete('/:id', requireCreator, async (req, res, next) => {
   try {
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, created_by')
+      .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: delError } = await supabaseAdmin.from('quests').delete().eq('id', quest.id)
     if (delError) throw new AppError(500, 'שגיאה במחיקה: ' + delError.message)
@@ -658,7 +665,7 @@ interface EditableEnding {
 
 /* PATCH /api/quests/:id/scene — עדכון חלקי של שדות סצנה בתוך game_data
    body: { sceneId, narrative?, imagePrompt?, puzzle? } */
-questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
+questsRouter.patch('/:id/scene', requireCreator, async (req, res, next) => {
   try {
     const parsed = patchSceneSchema.safeParse(req.body)
     if (!parsed.success) {
@@ -668,12 +675,12 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
 
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, game_data, created_by')
+      .select('id, game_data, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as { scenes: EditableScene[]; endingGood?: EditableEnding; endingBad?: EditableEnding }
 
@@ -743,7 +750,7 @@ questsRouter.patch('/:id/scene', requireStaff, async (req, res, next) => {
    "טיוטה לא-שמורה" ברמת העמוד — ולכן שחזור אמיתי דורש כתיבה חוזרת לשרת, לא רק
    איפוס state מקומי. מקבל את ה-game_data המלא כמות-שהוא (בלי ולידציית סכמה מחדש)
    כדי לשמר שדות-מטא שהוזרקו בזמן ריצה (factCheck/genMeta/readingScale) בלי לאבד אותם. */
-questsRouter.patch('/:id/restore', requireStaff, async (req, res, next) => {
+questsRouter.patch('/:id/restore', requireCreator, async (req, res, next) => {
   try {
     const gameData = req.body?.gameData
     if (!gameData || !Array.isArray(gameData.scenes)) {
@@ -751,11 +758,11 @@ questsRouter.patch('/:id/restore', requireStaff, async (req, res, next) => {
     }
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, created_by')
+      .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: updateError } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
     if (updateError) throw new AppError(500, 'שגיאה בשחזור: ' + updateError.message)
@@ -767,18 +774,18 @@ questsRouter.patch('/:id/restore', requireStaff, async (req, res, next) => {
 })
 
 /* PATCH /api/quests/:id — עריכת שדות ברמת ההדמיה (כרגע: title בלבד) */
-questsRouter.patch('/:id', requireStaff, async (req, res, next) => {
+questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
   try {
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined
     if (title !== undefined && title.length === 0) throw new AppError(400, 'שם ההדמיה לא יכול להיות ריק')
 
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, created_by')
+      .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const patch: Record<string, unknown> = {}
     if (title !== undefined) patch.title = title
@@ -797,15 +804,15 @@ questsRouter.patch('/:id', requireStaff, async (req, res, next) => {
    (runFactCheck, Haiku) ומחיל את התיקונים שזוהו (scopedFactFix) — אותם תיקונים המופיעים
    ב"אזהרות מבנה". שומר את ה-game_data המעודכן ומחזיר אותו + מספר הסצנות שתוקנו + אזהרות
    שנותרו (אם נשארו). דורש בעלות. */
-questsRouter.post('/:id/refine', requireStaff, async (req, res, next) => {
+questsRouter.post('/:id/refine', requireCreator, async (req, res, next) => {
   try {
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, game_data, created_by')
+      .select('id, game_data, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameData
     const fc = await runFactCheck(gameData)
@@ -1148,12 +1155,22 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
 /* POST /api/quests/generate — רושם הדמיה "בעיצומה של יצירה" ומחזיר מיד; היצירה רצה
    ברקע (מנתק את היצירה הארוכה מ-timeout של ה-proxy). הקליינט עושה polling ל-GET /:id. */
-questsRouter.post('/generate', requireStaff, async (req, res, next) => {
+questsRouter.post('/generate', requireCreator, async (req, res, next) => {
+  /* מפתח הזהות לשומרים: מורה לפי userId, מבקר לפי עוגיית anon */
+  const actorKey = req.staff?.userId ?? req.anonId!
+  let flightHeld = false
   try {
     const parsed = generateRequestSchema.safeParse(req.body)
     if (!parsed.success) {
       throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
     }
+    /* ── שומרי-בוטים: אימות אנושי בלתי-נראה + קצב + יצירה-אחת-בכל-רגע.
+       שקוף לחלוטין למשתמש רגיל — אין שום שלב גלוי לפני יצירה. ── */
+    const ip = clientIp(req)
+    await verifyTurnstile((req.body as { turnstileToken?: string }).turnstileToken, ip)
+    checkRateLimit(actorKey + '|' + ip)
+    acquireFlight(actorKey)
+    flightHeld = true
     /* יעדי למידה: המורה שולח טקסט חופשי; השרת מקצה מזהים יציבים (obj_1..) לתיוג האתגרים */
     const objectives = (parsed.data.objectives ?? [])
       .map((t) => t.trim())
@@ -1165,7 +1182,7 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
     const inputSafety = await runInputSafetyCheck(params.title, params.curriculum)
     if (inputSafety.blocked) {
       if (inputSafety.technical) throw new AppError(503, SAFETY_TECH_MESSAGE) /* fail-closed טכני — לא חסימת-תוכן */
-      void logContentSafety({ teacherId: req.staff!.userId, stage: 'input', category: inputSafety.category, title: params.title })
+      void logContentSafety({ teacherId: req.staff?.userId, stage: 'input', category: inputSafety.category, title: params.title })
       throw new AppError(422, SAFETY_BLOCK_MESSAGE)
     }
 
@@ -1180,16 +1197,49 @@ questsRouter.post('/generate', requireStaff, async (req, res, next) => {
       difficulty_settings: params.difficultySettings ?? {},
       game_data: { generating: true },
       status: 'draft',
-      created_by: req.staff!.userId,
+      created_by: req.staff?.userId ?? null,
+      anon_id: req.staff ? null : req.anonId,
     }
     if (parsed.data.subject && (await hasQuestSubject())) stub.subject = parsed.data.subject
 
     const { data: quest, error } = await supabaseAdmin.from('quests').insert(stub).select().single()
     if (error || !quest) throw new AppError(500, 'שגיאה ביצירת ההדמיה: ' + (error?.message ?? ''))
 
-    /* מחזירים מיד — היצירה ממשיכה ברקע */
+    /* ניטור עלויות — כל יצירה נרשמת (אנונימי/צוות/אורח-דמו) */
+    void logGeneration({
+      actorType: req.staff ? (isDemoGuest(req) ? 'guest' : 'staff') : 'anon',
+      actorId: actorKey,
+      ip,
+      questId: quest.id,
+    })
+
+    /* מחזירים מיד — היצירה ממשיכה ברקע; נעילת היצירה-הבודדת משוחררת בסיומה */
     res.status(201).json({ quest, generating: true })
-    void generateQuestInBackground(quest.id, params, req.staff!.userId)
+    void generateQuestInBackground(quest.id, params, req.staff?.userId ?? 'anon')
+      .finally(() => releaseFlight(actorKey))
+    flightHeld = false
+  } catch (err) {
+    if (flightHeld) releaseFlight(actorKey)
+    next(err)
+  }
+})
+
+/* ── POST /api/quests/claim-anon — העברת הדמיות אנונימיות לחשבון אחרי הרשמה ──
+   נקרא ע"י הקליינט מיד אחרי התחברות/הרשמה. הזיהוי מהעוגייה (httpOnly) —
+   אי-אפשר "לתבוע" הדמיות של דפדפן אחר. */
+questsRouter.post('/claim-anon', requireStaff, async (req, res, next) => {
+  try {
+    const anonId = readAnonId(req)
+    if (!anonId) { res.json({ claimed: 0 }); return }
+    const { data, error } = await supabaseAdmin
+      .from('quests')
+      .update({ created_by: req.staff!.userId, anon_id: null })
+      .eq('anon_id', anonId)
+      .select('id')
+    if (error) throw new AppError(500, 'העברת ההדמיות נכשלה: ' + error.message)
+    const claimed = data?.length ?? 0
+    if (claimed > 0) void logGeneration({ event: 'claim', actorType: 'anon', actorId: anonId, costAgorot: 0 })
+    res.json({ claimed })
   } catch (err) {
     next(err)
   }

@@ -221,6 +221,7 @@ export const gameDataSchema = z
 export type GameData = z.infer<typeof gameDataSchema>
 
 export const generateRequestSchema = z.object({
+  turnstileToken: z.string().optional(), /* אימות אנושי בלתי-נראה — נבדק בשרת */
   title: z.string().min(1),
   curriculum: z.string().default(''),
   questLength: z.number().int().positive(),

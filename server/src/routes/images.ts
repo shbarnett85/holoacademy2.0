@@ -8,7 +8,7 @@ import { generateImage, styledPrompt, HISTORICAL_NEGATIVE } from '../lib/togethe
 import { uploadBase64Image } from '../lib/storage.js'
 import { AppError } from '../middleware/errors.js'
 import { DR_HOLO_PLACEHOLDER, drHoloWithExpression } from '../prompts/constants.js'
-import { requireStaff, ensureOwner } from '../middleware/staffAuth.js'
+import { requireCreator, ensureQuestAccess } from '../lib/creatorAccess.js'
 
 export const imagesRouter = Router()
 
@@ -145,7 +145,7 @@ async function runPool<T>(tasks: (() => Promise<T>)[], concurrency: number): Pro
 
 /* POST /api/quests/:id/regenerate-image — יצירה מחדש של תמונה בודדת
    body: { sceneId, kind?: 'scene' | 'item' } */
-imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) => {
+imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next) => {
   try {
     const { sceneId, kind = 'scene' } = req.body as { sceneId?: string; kind?: 'scene' | 'item' }
     if (!sceneId) throw new AppError(400, 'חסר sceneId')
@@ -157,7 +157,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
 
@@ -215,7 +215,7 @@ imagesRouter.post('/:id/regenerate-image', requireStaff, async (req, res, next) 
    body אופציונלי: { style?, regenerateAll? } — "צור תמונות מחדש": יצירה-מחדש של *כל*
    התמונות בסגנון אמנותי חדש (המורה בוחר מתוך ששת הסגנונות). הסגנון נשמר ל-art_style
    כך שגם regenerate-image עתידי של סצנה בודדת ישתמש בו. */
-imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) => {
+imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next) => {
   try {
     const { style, regenerateAll } = (req.body ?? {}) as { style?: string; regenerateAll?: boolean }
 
@@ -226,7 +226,7 @@ imagesRouter.post('/:id/generate-images', requireStaff, async (req, res, next) =
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, quest.created_by)
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
     const artStyle = (style || quest.art_style) as string | undefined

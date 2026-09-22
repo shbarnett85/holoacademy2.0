@@ -57,10 +57,11 @@ export default function App() {
           <Route path="/class/:urlCode"  element={<ClassEntry />} />
           <Route path="/staff/login"     element={<StaffLogin />} />
           <Route path="/staff/signup"    element={<StaffSignup />} />
-          <Route path="/creator"         element={<ProtectedRoute><Creator /></ProtectedRoute>} />
-          <Route path="/creator/library" element={<ProtectedRoute><Library /></ProtectedRoute>} />
+          {/* היצירה פתוחה לכולם — הרשמה נדרשת רק לשיתוף לכיתה */}
+          <Route path="/creator"         element={<Creator />} />
+          <Route path="/creator/library" element={<Library />} />
           <Route path="/library"         element={<ProtectedRoute><Library /></ProtectedRoute>} />
-          <Route path="/creator/quest/:questId" element={<ProtectedRoute><QuestView /></ProtectedRoute>} />
+          <Route path="/creator/quest/:questId" element={<QuestView />} />
           <Route path="/admin"           element={<ProtectedRoute superAdminOnly><SuperAdmin /></ProtectedRoute>} />
           <Route path="/manage"          element={<ProtectedRoute><Management /></ProtectedRoute>} />
           <Route path="/manage/students" element={<ProtectedRoute><Students /></ProtectedRoute>} />

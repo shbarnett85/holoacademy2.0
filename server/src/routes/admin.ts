@@ -310,3 +310,44 @@ adminRouter.patch('/reports/:id', async (req, res, next) => {
     next(err)
   }
 })
+
+/* ── ניטור עלויות יצירה: יצירות/עלות ליום, פילוח אנונימי/רשום, אחוז המרה ──
+   הנתונים מ-gen_log (נכתב בכל יצירה). 14 הימים האחרונים + סיכום המרות. */
+adminRouter.get('/gen-stats', async (_req, res, next) => {
+  try {
+    const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+    const { data, error } = await supabaseAdmin
+      .from('gen_log')
+      .select('created_at, event, actor_type, actor_id, est_cost_agorot')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(5000)
+    if (error) throw new AppError(500, error.message)
+    interface Row { created_at: string; event: string; actor_type: string; actor_id: string; est_cost_agorot: number }
+    const rows = (data ?? []) as Row[]
+    const days = new Map<string, { count: number; costAgorot: number; anon: number; registered: number; guest: number }>()
+    const anonActors = new Set<string>()
+    const claimedActors = new Set<string>()
+    for (const r of rows) {
+      if (r.event === 'claim') { claimedActors.add(r.actor_id); continue }
+      const day = r.created_at.slice(0, 10)
+      const d = days.get(day) ?? { count: 0, costAgorot: 0, anon: 0, registered: 0, guest: 0 }
+      d.count++
+      d.costAgorot += r.est_cost_agorot ?? 0
+      if (r.actor_type === 'anon') { d.anon++; anonActors.add(r.actor_id) }
+      else if (r.actor_type === 'guest') d.guest++
+      else d.registered++
+      days.set(day, d)
+    }
+    const conversion = anonActors.size > 0
+      ? [...claimedActors].filter((a) => anonActors.has(a)).length / anonActors.size
+      : null
+    res.json({
+      days: [...days.entries()].map(([date, d]) => ({ date, ...d })).sort((a, b) => b.date.localeCompare(a.date)),
+      anonConversion: conversion,
+      anonActors: anonActors.size,
+    })
+  } catch (err) {
+    next(err)
+  }
+})

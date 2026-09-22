@@ -1,3 +1,4 @@
+import GenStats from './GenStats'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiJson, apiFetch } from '../../shared/lib/api'
@@ -94,6 +95,9 @@ export default function SuperAdminPanel() {
       </header>
 
       {error && <p className="text-sm" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
+
+      {/* ניטור עלויות יצירה */}
+      <GenStats />
 
       <div className="w-full flex justify-between items-center">
         <h2 className="font-bold">בתי ספר</h2>

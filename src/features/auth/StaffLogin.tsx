@@ -60,6 +60,8 @@ export default function StaffLogin() {
         body: JSON.stringify({ email: email.trim(), password }),
       })
       setSession({ ...session, staff })
+      /* העברת הדמיות שנוצרו כאנונימי לחשבון (עוגיית anon — צד שרת) */
+      void apiJson('/api/quests/claim-anon', { method: 'POST' }).catch(() => {})
       setWelcome({ name: staff.name, role: staff.role, to: staff.role === 'super_admin' ? '/admin' : '/creator' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההתחברות נכשלה')

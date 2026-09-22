@@ -586,7 +586,7 @@ function ColHead({ icon, title, kicker, count, rgb }: { icon: React.ReactNode; t
 }
 
 export default function Library() {
-  const { isGuest } = useStaffAuth()
+  const { isGuest, isStaff } = useStaffAuth()
   const [quests, setQuests] = useState<QuestSummary[] | null>(null)
   const [publicQuests, setPublicQuests] = useState<PublicQuest[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -743,7 +743,7 @@ export default function Library() {
                   <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}
                     onPlay={() => navigate(`/play/${q.id}`)}
-                    onShare={() => setShareFor(q)}
+                    onShare={() => { if (!isStaff) { navigate('/staff/login') /* שיתוף דורש חשבון */ } else setShareFor(q) }}
                     onUnshare={() => doUnshare(q)}
                     onDelete={() => doDelete(q)} />
                 ))}
