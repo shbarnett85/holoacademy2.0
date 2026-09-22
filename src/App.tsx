@@ -12,6 +12,8 @@ import { initSound, installGlobalClickSound } from './shared/lib/sound'
 const Home       = lazy(() => import('./features/home'))
 const ClassEntry = lazy(() => import('./features/auth'))
 const StaffLogin = lazy(() => import('./features/auth/StaffLogin'))
+const Forgot = lazy(() => import('./features/auth/PasswordReset').then((m) => ({ default: m.ForgotPassword })))
+const Reset  = lazy(() => import('./features/auth/PasswordReset').then((m) => ({ default: m.ResetPassword })))
 const StaffSignup = lazy(() => import('./features/auth/StaffSignup'))
 const ProtectedRoute = lazy(() => import('./features/auth/ProtectedRoute'))
 const Creator    = lazy(() => import('./features/creator'))
@@ -57,6 +59,8 @@ export default function App() {
           <Route path="/class/:urlCode"  element={<ClassEntry />} />
           <Route path="/staff/login"     element={<StaffLogin />} />
           <Route path="/staff/signup"    element={<StaffSignup />} />
+          <Route path="/staff/forgot"    element={<Forgot />} />
+          <Route path="/staff/reset"     element={<Reset />} />
           {/* היצירה פתוחה לכולם — הרשמה נדרשת רק לשיתוף לכיתה */}
           <Route path="/creator"         element={<Creator />} />
           <Route path="/creator/library" element={<Library />} />

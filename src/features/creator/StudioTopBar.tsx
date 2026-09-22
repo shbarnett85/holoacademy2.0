@@ -72,16 +72,16 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           )
         })}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', minWidth: 0 }}>
         {isStaff ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...glass, borderRadius: 30, padding: '7px 14px' }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--t15)', boxShadow: '0 0 8px var(--t15)', animation: 'holo-status-pulse 2s infinite' }} />
-            <span style={{ fontSize: 12.5, color: 'var(--t19)', fontWeight: 500 }}>{user?.name ?? 'מורה'} מחובר</span>
+            <span style={{ fontSize: 12.5, color: 'var(--t19)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{user?.name ?? 'מורה'} מחובר</span>
           </div>
         ) : (
           /* יוצר אנונימי — יצירה חופשית; ההדמיות נשמרות בדפדפן ועוברות לחשבון בהרשמה */
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ ...glass, borderRadius: 30, padding: '7px 14px', fontSize: 12, color: 'var(--t6)' }}>מצב ניסיון — ההדמיות נשמרות בדפדפן זה</span>
+            <span style={{ ...glass, borderRadius: 30, padding: '7px 14px', fontSize: 12, color: 'var(--t6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>מצב ניסיון — ההדמיות נשמרות בדפדפן זה</span>
             <button onClick={() => navigate('/staff/login')} style={{ padding: '8px 16px', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none' }}>התחברות / הרשמה</button>
           </div>
         )}

@@ -158,6 +158,8 @@ export default function StaffLogin() {
         <p style={{ fontSize: 13, marginTop: 14, color: 'rgba(160,200,240,.55)' }}>
           אין לך חשבון?{' '}
           <Link to="/staff/signup" style={{ color: 'var(--holo-cyan-bright)' }}>הרשמה</Link>
+          {' · '}
+          <Link to="/staff/forgot" style={{ color: 'rgba(160,200,240,.7)' }}>שכחתי סיסמה</Link>
         </p>
       </div>
     </EntryShell>

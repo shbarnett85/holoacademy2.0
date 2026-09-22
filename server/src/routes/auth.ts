@@ -26,15 +26,31 @@ const staffSignupSchema = z.object({
   password: z.string().min(6, 'הסיסמה חייבת לפחות 6 תווים'),
   name: z.string().min(1),
   role: z.enum(['teacher', 'admin']),
-  schoolId: z.string().uuid(),
-})
+  schoolId: z.string().uuid().optional(),
+  /* בית ספר שאינו ברשימה — נוצר תוך כדי ההרשמה */
+  newSchoolName: z.string().min(2).max(80).optional(),
+}).refine((d) => d.schoolId || d.newSchoolName, { message: 'יש לבחור בית ספר או להזין חדש' })
 
 /* POST /api/auth/staff-signup — יצירת מורה/מנהל (MVP: signup פתוח) */
 authRouter.post('/auth/staff-signup', rateLimitByIp('staff-signup', 5), async (req, res, next) => {
   try {
     const parsed = staffSignupSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
-    const { email, password, name, role, schoolId } = parsed.data
+    const { email, password, name, role, newSchoolName } = parsed.data
+    let schoolId = parsed.data.schoolId ?? null
+
+    /* 0) בית ספר חדש — נוצר עם slug ייחודי (נגזר מהשם או אקראי) */
+    if (!schoolId && newSchoolName) {
+      const base = newSchoolName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      const slug = (base || 'school') + '-' + Math.random().toString(36).slice(2, 7)
+      const { data: school, error: schoolErr } = await supabaseAdmin
+        .from('schools')
+        .insert({ name: newSchoolName.trim(), slug })
+        .select('id')
+        .single()
+      if (schoolErr || !school) throw new AppError(500, 'יצירת בית הספר נכשלה: ' + (schoolErr?.message ?? ''))
+      schoolId = school.id
+    }
 
     /* 1) יצירת משתמש ב-Supabase Auth (admin API, service_role) */
     const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
@@ -59,6 +75,36 @@ authRouter.post('/auth/staff-signup', rateLimitByIp('staff-signup', 5), async (r
     }
 
     res.status(201).json({ ok: true, user: userRow })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── שחזור סיסמה ─────────────────────────────────────────────────────────────
+   forgot: שולח מייל איפוס דרך Supabase (תמיד 200 — לא מדליפים אילו חשבונות
+   קיימים). reset: הקישור מהמייל נושא access_token (recovery) — מאמתים אותו
+   ומעדכנים סיסמה דרך ה-admin API. */
+authRouter.post('/auth/forgot-password', rateLimitByIp('forgot-password', 5), async (req, res, next) => {
+  try {
+    const email = z.string().email().safeParse((req.body as { email?: string })?.email)
+    if (!email.success) throw new AppError(400, 'כתובת אימייל לא תקינה')
+    const origin = (req.headers.origin as string | undefined) ?? 'https://holoacademy.ai'
+    await supabaseAnon.auth.resetPasswordForEmail(email.data, { redirectTo: origin + '/staff/reset' }).catch(() => {})
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+authRouter.post('/auth/reset-password', rateLimitByIp('reset-password', 8), async (req, res, next) => {
+  try {
+    const parsed = z.object({ accessToken: z.string().min(10), password: z.string().min(6, 'הסיסמה חייבת לפחות 6 תווים') }).safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
+    const { data, error } = await supabaseAdmin.auth.getUser(parsed.data.accessToken)
+    if (error || !data.user) throw new AppError(401, 'קישור האיפוס פג תוקף — בקשו קישור חדש')
+    const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(data.user.id, { password: parsed.data.password })
+    if (updErr) throw new AppError(500, 'עדכון הסיסמה נכשל: ' + updErr.message)
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }

@@ -25,6 +25,8 @@ export default function StaffSignup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [password2, setPassword2] = useState('')
+  const [newSchoolName, setNewSchoolName] = useState('')
   const [role, setRole] = useState<'teacher' | 'admin'>('teacher')
   const [schools, setSchools] = useState<School[]>([])
   const [schoolId, setSchoolId] = useState('')
@@ -40,7 +42,10 @@ export default function StaffSignup() {
       .catch(() => setError('שגיאה בטעינת רשימת בתי הספר'))
   }, [])
 
-  const canSubmit = name.trim() && /\S+@\S+/.test(email) && password.length >= 6 && schoolId
+  const isNewSchool = schoolId === '__new__'
+  const passwordsMatch = password === password2
+  const canSubmit = name.trim() && /\S+@\S+/.test(email) && password.length >= 6 && passwordsMatch &&
+    (isNewSchool ? newSchoolName.trim().length >= 2 : !!schoolId)
 
   async function submit() {
     if (busy || !canSubmit) return
@@ -49,7 +54,10 @@ export default function StaffSignup() {
     try {
       await apiJson('/api/auth/staff-signup', {
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password, role, schoolId }),
+        body: JSON.stringify({
+          name: name.trim(), email: email.trim(), password, role,
+          ...(isNewSchool ? { newSchoolName: newSchoolName.trim() } : { schoolId }),
+        }),
       })
       /* התחברות אוטומטית אחרי הרשמה מוצלחת */
       const { session, staff } = await apiJson<LoginResponse>('/api/auth/staff-login', {
@@ -84,6 +92,11 @@ export default function StaffSignup() {
         <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>סיסמה (לפחות 6 תווים)</label>
         <input dir="ltr" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-4" style={inputStyle} />
 
+        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>אימות סיסמה</label>
+        <input dir="ltr" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} className="mb-1"
+          style={{ ...inputStyle, ...(password2 && !passwordsMatch ? { border: '1px solid rgba(255,80,120,.6)' } : {}) }} />
+        <p className="text-xs mb-3" style={{ color: password2 && !passwordsMatch ? '#ff9bb3' : 'transparent', minHeight: 16 }}>הסיסמאות אינן תואמות</p>
+
         <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>תפקיד</label>
         <div className="grid grid-cols-2 gap-3 mb-4">
           {([{ k: 'teacher', l: '🧑‍🏫 מורה' }, { k: 'admin', l: '🛡️ מנהל' }] as const).map((r) => (
@@ -100,12 +113,18 @@ export default function StaffSignup() {
         </div>
 
         <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>בית ספר</label>
-        <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className="mb-4" style={{ ...inputStyle, cursor: 'pointer' }}>
+        <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className="mb-2" style={{ ...inputStyle, cursor: 'pointer' }}>
           {schools.length === 0 && <option value="">טוען…</option>}
           {schools.map((s) => (
             <option key={s.id} value={s.id} style={{ background: 'var(--holo-bg)' }}>{s.name}</option>
           ))}
+          <option value="__new__" style={{ background: 'var(--holo-bg)' }}>➕ בית הספר שלי לא ברשימה…</option>
         </select>
+        {isNewSchool && (
+          <input value={newSchoolName} onChange={(e) => setNewSchoolName(e.target.value)} placeholder="שם בית הספר החדש"
+            className="mb-4" style={inputStyle} autoFocus />
+        )}
+        {!isNewSchool && <div className="mb-2" />}
 
         {error && <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
 
