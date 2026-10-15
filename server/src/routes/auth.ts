@@ -4,14 +4,28 @@ import { z } from 'zod'
 import { supabaseAdmin, supabaseAnon } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { isUserActive, isSuperAdminEmail } from '../middleware/staffAuth.js'
+import { hasCanShare } from '../lib/activeColumn.js'
 import { rateLimitByIp, recordFailure, isLocked, RATE_LIMIT_MESSAGE } from '../middleware/rateLimit.js'
 
 export const authRouter = Router()
 
+/* האם עמודת schools.is_restricted_org קיימת (cache חיובי בלבד) */
+let restrictedColOk = false
+async function hasRestrictedOrgColumn(): Promise<boolean> {
+  if (restrictedColOk) return true
+  const { error } = await supabaseAdmin.from('schools').select('is_restricted_org').limit(1)
+  if (!error) restrictedColOk = true
+  return restrictedColOk
+}
+
 /* GET /api/schools — רשימת בתי ספר לטופס ההרשמה (פתוח) */
 authRouter.get('/schools', async (_req, res, next) => {
   try {
-    const { data, error } = await supabaseAdmin.from('schools').select('id, name').order('name')
+    /* ארגוני פיילוט מוגבלים (is_restricted_org) מוסתרים מההרשמה העצמית — מוסיפים
+       אליהם אנשים רק מנהל הארגון / מנהל-על. עמיד לפני מיגרציית org_permissions. */
+    let q = supabaseAdmin.from('schools').select('id, name').order('name')
+    if (await hasRestrictedOrgColumn()) q = q.eq('is_restricted_org', false)
+    const { data, error } = await q
     if (error) throw new AppError(500, 'שגיאה בשליפת בתי ספר')
     res.json({ schools: data ?? [] })
   } catch (err) {
@@ -38,6 +52,14 @@ authRouter.post('/auth/staff-signup', rateLimitByIp('staff-signup', 5), async (r
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
     const { email, password, name, role, newSchoolName } = parsed.data
     let schoolId = parsed.data.schoolId ?? null
+
+    /* הרשמה עצמית לארגון פיילוט מוגבל חסומה — רק מנהל הארגון מוסיף אליו מורים */
+    if (schoolId && (await hasRestrictedOrgColumn())) {
+      const { data: org } = await supabaseAdmin.from('schools').select('is_restricted_org').eq('id', schoolId).maybeSingle()
+      if ((org as { is_restricted_org?: boolean } | null)?.is_restricted_org) {
+        throw new AppError(403, 'ההרשמה לארגון זה מתבצעת דרך מנהל הארגון בלבד')
+      }
+    }
 
     /* 0) בית ספר חדש — נוצר עם slug ייחודי (נגזר מהשם או אקראי) */
     if (!schoolId && newSchoolName) {
@@ -138,13 +160,15 @@ authRouter.post('/auth/staff-login', rateLimitByIp('staff-login', 10), async (re
       return
     }
 
-    const { data: userRow, error: uErr } = await supabaseAdmin
+    const withShare = await hasCanShare()
+    const { data: userRowRaw, error: uErr } = await supabaseAdmin
       .from('users')
-      .select('id, name, role, school_id')
+      .select(withShare ? 'id, name, role, school_id, can_share' : 'id, name, role, school_id')
       .eq('auth_id', data.user.id)
       .single()
+    const userRow = userRowRaw as unknown as { id: string; name: string; role: string; school_id: string | null; can_share?: boolean } | null
     if (uErr || !userRow) throw new AppError(403, 'המשתמש אינו מורה/מנהל רשום')
-    if (!['teacher', 'admin', 'super_admin'].includes(userRow.role)) {
+    if (!['teacher', 'admin', 'municipal_admin', 'super_admin'].includes(userRow.role)) {
       throw new AppError(403, 'אין הרשאת צוות')
     }
     if (!(await isUserActive(userRow.id))) throw new AppError(403, 'החשבון הושבת — פנה למנהל המערכת')
@@ -161,6 +185,7 @@ authRouter.post('/auth/staff-login', rateLimitByIp('staff-login', 10), async (re
         role: userRow.role,
         schoolId: userRow.school_id,
         email,
+        canShare: userRow.can_share !== false, /* תצוגה בלבד — האכיפה בשרת */
       },
     })
   } catch (err) {

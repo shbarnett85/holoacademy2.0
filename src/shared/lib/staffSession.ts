@@ -1,7 +1,7 @@
 /* ניהול ה-session של צוות (מורה/מנהל) — Supabase session ב-localStorage.
    חיצוני ל-React (external store) כדי שכל הקומפוננטות יסונכרנו. */
 
-export type StaffRole = 'teacher' | 'admin' | 'super_admin'
+export type StaffRole = 'teacher' | 'admin' | 'municipal_admin' | 'super_admin'
 
 export interface StaffProfile {
   userId: string
@@ -9,6 +9,8 @@ export interface StaffProfile {
   role: StaffRole
   schoolId: string | null
   email: string
+  /* הרשאת שיתוף — תצוגה בלבד (האכיפה בשרת). חסר/true = מותר */
+  canShare?: boolean
   /* מורה אורח (חשבון הדגמה) — מוגדר ע"י guest-login; פעולות ציבוריות (שיתוף) מנוטרלות */
   isGuest?: boolean
 }

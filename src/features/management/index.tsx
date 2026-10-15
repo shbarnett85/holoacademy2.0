@@ -86,7 +86,7 @@ export default function ManagementPanel() {
     <div className="holo-page-enter flex flex-col items-center min-h-screen p-6 gap-5 max-w-2xl mx-auto">
       <header className="w-full">
         <div className="flex items-center justify-between">
-          <span className="text-sm" style={{ opacity: 0.6 }}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
+          <span className="text-sm" style={{ opacity: 0.6 }}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'municipal_admin' ? 'מנהל עירוני' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
           <div className="flex gap-3">
             <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => navigate('/analytics')}>📊 אנליטיקה</button>
             <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>

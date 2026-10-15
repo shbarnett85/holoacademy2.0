@@ -1,3 +1,4 @@
+import { apiFetch } from '../../shared/lib/api'
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
@@ -49,7 +50,7 @@ export default function Player() {
 
   useEffect(() => {
     if (!questId) return
-    fetch(`/api/quests/${questId}`)
+    apiFetch(`/api/quests/${questId}`)
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)

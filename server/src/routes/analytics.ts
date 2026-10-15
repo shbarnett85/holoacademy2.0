@@ -2,7 +2,7 @@ import { Router } from 'express'
 import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { requireStaff, isDemoGuest } from '../middleware/staffAuth.js'
+import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
 import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
@@ -27,7 +27,7 @@ analyticsRouter.use((req, res, next) => {
 })
 
 function isAdmin(req: Request): boolean {
-  return req.staff?.role === 'admin' || req.staff?.role === 'super_admin'
+  return isOrgAdminRole(req.staff?.role)
 }
 
 /* ── סף-דגלים (thresholds) — מקור אמת יחיד לחישוב הדגלים ── */

@@ -8,7 +8,7 @@ const ACC2 = '#9b8cff'
 const RGB = '47,243,255'
 const BRAND = ['#2ff3ff', '#9b8cff', '#ff45e6']
 
-export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?: string; role?: 'teacher' | 'admin' | 'super_admin'; onDone: () => void }) {
+export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?: string; role?: 'teacher' | 'admin' | 'municipal_admin' | 'super_admin'; onDone: () => void }) {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     /* צליל קבלת-הפנים — נורה מיד; ההתחברות עצמה היא ה-user-gesture, אז אין

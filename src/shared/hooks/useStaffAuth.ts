@@ -21,7 +21,7 @@ export function useStaffAuth(): StaffAuth {
     role: session ? session.staff.role : null,
     schoolId: session ? session.staff.schoolId : null,
     isStaff: !!session,
-    isAdmin: !!session && (session.staff.role === 'admin' || session.staff.role === 'super_admin'),
+    isAdmin: !!session && (session.staff.role === 'admin' || session.staff.role === 'municipal_admin' || session.staff.role === 'super_admin'),
     isSuperAdmin: !!session && session.staff.role === 'super_admin',
     isGuest: !!session && session.staff.isGuest === true,
     logout: () => setSession(null),

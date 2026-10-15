@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express'
 
 /* שגיאת אפליקציה עם סטטוס HTTP */
 export class AppError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public code?: string) {
     super(message)
   }
 }
@@ -16,7 +16,7 @@ export function errorHandler(
   _next: NextFunction,
 ) {
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: err.message })
+    res.status(err.status).json(err.code ? { error: err.message, code: err.code } : { error: err.message })
     return
   }
   logError('שגיאה לא צפויה:', err)

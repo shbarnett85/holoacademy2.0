@@ -3,7 +3,8 @@ import type { Request } from 'express'
 import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { requireStaff, isDemoGuest } from '../middleware/staffAuth.js'
+import { hasCanShare } from '../lib/activeColumn.js'
+import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
 import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender } from '../lib/activeColumn.js'
 
@@ -34,7 +35,7 @@ staffRouter.use((req, res, next) => {
 })
 
 function isAdmin(req: Request): boolean {
-  return req.staff?.role === 'admin' || req.staff?.role === 'super_admin'
+  return isOrgAdminRole(req.staff?.role)
 }
 function requireAdminRole(req: Request): void {
   if (!isAdmin(req)) throw new AppError(403, 'נדרשת הרשאת מנהל')
@@ -184,6 +185,17 @@ staffRouter.post('/teachers', async (req, res, next) => {
     const authId = await createAuthUser(parsed.data.email, parsed.data.password)
     const payload: Record<string, unknown> = { name: parsed.data.name, role: 'teacher', school_id: req.staff!.schoolId, auth_id: authId }
     if (withActive) payload.is_active = true
+    /* ביקורת (מי יצר) + ירושת דגל השיתוף מברירת המחדל של הארגון. תמיד role='teacher' —
+       אין דרך ליצור מנהלים/לשנות תפקידים מהנתיב הזה. */
+    if (await hasCanShare()) {
+      payload.created_by = req.staff!.userId
+      let canShare = true
+      if (req.staff!.schoolId) {
+        const { data: org } = await supabaseAdmin.from('schools').select('teachers_can_share_default').eq('id', req.staff!.schoolId).maybeSingle()
+        canShare = (org as { teachers_can_share_default?: boolean } | null)?.teachers_can_share_default !== false
+      }
+      payload.can_share = canShare
+    }
     const { data: row, error } = await supabaseAdmin.from('users').insert(payload).select('id, name, role').single()
     if (error || !row) {
       await supabaseAdmin.auth.admin.deleteUser(authId).catch(() => {})

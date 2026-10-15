@@ -17,7 +17,8 @@ import {
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
 import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
 import { defaultProfileForGrade, gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
-import { requireStaff, ensureOwner, isDemoGuest } from '../middleware/staffAuth.js'
+import { requireStaff, ensureOwner, isDemoGuest, requireCanShare, tryStaff, SHARING_DISABLED_MESSAGE } from '../middleware/staffAuth.js'
+import { hasCanShare } from '../lib/activeColumn.js'
 import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAccess.js'
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
@@ -114,7 +115,7 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       subject: subj ? (q.subject ?? null) : null,
     }))
 
-    res.json({ quests })
+    res.json({ quests, permissions: { canShare: req.staff ? req.staff.canShare !== false : false } })
   } catch (err) {
     next(err)
   }
@@ -207,11 +208,26 @@ questsRouter.get('/:id', async (req, res, next) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('quests')
-      .select('id, title, game_data, status, created_at')
+      .select('id, title, game_data, status, created_at, created_by')
       .eq('id', req.params.id)
       .single()
 
     if (error || !data) throw new AppError(404, 'הדמיה לא נמצאה')
+
+    /* הדמיה של יוצר מוגבל-שיתוף (can_share=false) אינה נגישה לציבור/תלמידים — רק לבעלים,
+       למנהל הארגון (אותו בית ספר) ולמנהל-על. מונע עקיפה דרך קישור /play ישיר. */
+    const creatorId = (data as { created_by?: string | null }).created_by
+    if (creatorId && (await hasCanShare())) {
+      const { data: creator } = await supabaseAdmin.from('users').select('can_share, school_id').eq('id', creatorId).maybeSingle()
+      const c = creator as { can_share?: boolean; school_id?: string | null } | null
+      if (c && c.can_share === false) {
+        const staff = await tryStaff(req)
+        const sameOrgAdmin = !!staff && (staff.role === 'admin' || staff.role === 'municipal_admin') && !!staff.schoolId && staff.schoolId === c.school_id
+        const ok = !!staff && (staff.role === 'super_admin' || staff.userId === creatorId || sameOrgAdmin)
+        if (!ok) throw new AppError(403, SHARING_DISABLED_MESSAGE, 'SHARING_DISABLED')
+      }
+    }
+    delete (data as { created_by?: unknown }).created_by
 
     /* watchdog: fact-check שנתקע על 'pending' (ריסטרט שרת באמצע הריצה ברקע) — ריפוי עצלן
        בקריאה, בלי cron. מסומן done+stale, נשמר best-effort, וה-polling של הקליינט נעצר. */
@@ -253,7 +269,7 @@ const personalizeSchema = z.object({
   form: z.enum(['male', 'female', 'plural']).optional(),
   studentId: z.string().uuid().optional(),
 })
-questsRouter.post('/:id/personalize', requireStaff, async (req, res, next) => {
+questsRouter.post('/:id/personalize', requireStaff, requireCanShare, async (req, res, next) => {
   try {
     const parsed = personalizeSchema.safeParse(req.body ?? {})
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
@@ -285,7 +301,7 @@ questsRouter.post('/:id/personalize', requireStaff, async (req, res, next) => {
    עמיד לחוסר הטבלה (hasQuestVariants). */
 const variantSchema = z.object({ studentId: z.string().uuid() })
 
-questsRouter.post('/:id/variant', requireStaff, async (req, res, next) => {
+questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res, next) => {
   try {
     /* מורה אורח: התלמידים וירטואליים (demo-s1..) — מדמים הכנה מוצלחת עם
        אותו snapshot כמו ה-drill-down, בלי AI ובלי DB (השהיה קצרה לריאליזם) */
@@ -457,7 +473,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
 })
 
 /* POST /api/quests/:id/share — שיתוף ההדמיה לספרייה הציבורית (היוצר בלבד, ללא אישור מראש) */
-questsRouter.post('/:id/share', requireStaff, async (req, res, next) => {
+questsRouter.post('/:id/share', requireStaff, requireCanShare, async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה (נדרשת מיגרציה)')
     const { data: quest, error } = await supabaseAdmin
@@ -518,7 +534,7 @@ questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
 
 /* POST /api/quests/:id/assign — הקצאת הדמיה לכיתות (יוצר ההדמיה)
    body: { classIds: string[] } — מזהי כיתות UUID; upsert כדי לא לשכפל */
-questsRouter.post('/:id/assign', requireStaff, async (req, res, next) => {
+questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res, next) => {
   try {
     const { classIds } = req.body as { classIds?: string[] }
     if (!Array.isArray(classIds) || classIds.length === 0) throw new AppError(400, 'חסר classIds')

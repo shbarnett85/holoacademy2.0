@@ -1,3 +1,4 @@
+import { SHARING_DISABLED_UI_MESSAGE } from '../../shared/lib/contact'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiJson } from '../../shared/lib/api'
@@ -72,8 +73,8 @@ function Chip({ children }: { children: React.ReactNode }) {
 const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
 
 /* ── כרטיס הדמיה שלי ── */
-function QuestCard({ q, busy, isGuest, onOpen, onPlay, onShare, onUnshare, onDelete }: {
-  q: QuestSummary; busy: boolean; isGuest: boolean
+function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete }: {
+  q: QuestSummary; busy: boolean; isGuest: boolean; shareBlocked: boolean; onShareBlocked: () => void
   onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void; onDelete: () => void
 }) {
   return (
@@ -110,9 +111,10 @@ function QuestCard({ q, busy, isGuest, onOpen, onPlay, onShare, onUnshare, onDel
           </button>
           {/* שתף — פותח מודאל. מנוטרל למורה אורח (חשבון הדגמה, בלי שיתוף לספרייה) */}
           <button disabled={busy || isGuest}
-            title={isGuest ? 'שיתוף אינו זמין במצב מורה אורח' : undefined}
-            onClick={(e) => { e.stopPropagation(); if (!isGuest) onShare() }}
-            style={{ ...cardBtn, color: 'var(--t170)', borderColor: 'var(--t162)', opacity: (busy || isGuest) ? 0.4 : 1, cursor: isGuest ? 'not-allowed' : 'pointer' }}>
+            title={isGuest ? 'שיתוף אינו זמין במצב מורה אורח' : shareBlocked ? SHARING_DISABLED_UI_MESSAGE : undefined}
+            aria-disabled={shareBlocked || undefined}
+            onClick={(e) => { e.stopPropagation(); if (isGuest) return; if (shareBlocked) { onShareBlocked(); return } onShare() }}
+            style={{ ...cardBtn, color: 'var(--t170)', borderColor: 'var(--t162)', opacity: (busy || isGuest || shareBlocked) ? 0.4 : 1, cursor: (isGuest || shareBlocked) ? 'not-allowed' : 'pointer' }}>
             שתף
           </button>
           <button onClick={(e) => { e.stopPropagation(); onOpen() }} style={cardBtn}>ערוך</button>
@@ -587,6 +589,8 @@ function ColHead({ icon, title, kicker, count, rgb }: { icon: React.ReactNode; t
 
 export default function Library() {
   const { isGuest, isStaff } = useStaffAuth()
+  /* הרשאת שיתוף מהשרת (תצוגה בלבד — האכיפה בשרת: 403 SHARING_DISABLED) */
+  const [shareBlocked, setShareBlocked] = useState(false)
   const [quests, setQuests] = useState<QuestSummary[] | null>(null)
   const [publicQuests, setPublicQuests] = useState<PublicQuest[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -611,8 +615,8 @@ export default function Library() {
   }, [])
 
   function loadMine() {
-    apiJson<{ quests: QuestSummary[] }>('/api/quests')
-      .then((b) => { if (mountedRef.current) setQuests(b.quests) })
+    apiJson<{ quests: QuestSummary[]; permissions?: { canShare?: boolean } }>('/api/quests')
+      .then((b) => { if (mountedRef.current) { setQuests(b.quests); setShareBlocked(b.permissions?.canShare === false && isStaff) } })
       .catch((e: Error) => { if (mountedRef.current) setError(e.message) })
   }
   function loadPublic() {
@@ -743,6 +747,8 @@ export default function Library() {
                   <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}
                     onPlay={() => navigate(`/play/${q.id}`)}
+                    shareBlocked={shareBlocked}
+                    onShareBlocked={() => flash(SHARING_DISABLED_UI_MESSAGE)}
                     onShare={() => { if (!isStaff) { navigate('/staff/login') /* שיתוף דורש חשבון */ } else setShareFor(q) }}
                     onUnshare={() => doUnshare(q)}
                     onDelete={() => doDelete(q)} />

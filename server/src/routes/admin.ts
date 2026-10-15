@@ -173,7 +173,7 @@ adminRouter.get('/users', async (req, res, next) => {
     const withActive = await hasIsActive()
     let query = supabaseAdmin
       .from('users')
-      .select(withActive ? 'id, name, role, school_id, auth_id, is_active' : 'id, name, role, school_id, auth_id')
+      .select(withActive ? 'id, name, role, school_id, auth_id, is_active, can_share' : 'id, name, role, school_id, auth_id, can_share')
       .order('name')
     const schoolId = req.query.schoolId
     if (typeof schoolId === 'string' && schoolId) query = query.eq('school_id', schoolId)
@@ -181,11 +181,12 @@ adminRouter.get('/users', async (req, res, next) => {
     if (error) throw new AppError(500, 'שגיאה בשליפת משתמשים: ' + error.message)
     const banned = await bannedAuthIds()
     res.json({
-      users: ((data ?? []) as unknown as { id: string; name: string; role: string; school_id: string | null; auth_id: string | null; is_active?: boolean }[]).map((u) => ({
+      users: ((data ?? []) as unknown as { id: string; name: string; role: string; school_id: string | null; auth_id: string | null; is_active?: boolean; can_share?: boolean }[]).map((u) => ({
         id: u.id,
         name: u.name,
         role: u.role,
         school_id: u.school_id,
+        can_share: u.can_share !== false,
         is_active: u.is_active !== false && !(u.auth_id && banned.has(u.auth_id)),
       })),
     })
@@ -198,7 +199,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(1),
-  role: z.enum(['teacher', 'admin']),
+  role: z.enum(['teacher', 'admin', 'municipal_admin']),
   schoolId: z.string().uuid(),
 })
 
@@ -226,6 +227,53 @@ adminRouter.post('/users', async (req, res, next) => {
   } catch (err) {
     next(err)
   }
+})
+
+/* ── הרשאת שיתוף (can_share) — פר-מורה ופר-ארגון. מנהל-על בלבד: מנהל עירוני/ארגון
+   אינו יכול להפעיל לעצמו (אין לו נתיב לכאן). ── */
+const permsSchema = z.object({ canShare: z.boolean() })
+
+/* PATCH /api/admin/users/:id/permissions { canShare } — הפעלה/כיבוי שיתוף למורה בודד */
+adminRouter.patch('/users/:id/permissions', async (req, res, next) => {
+  try {
+    const parsed = permsSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    const { data, error } = await supabaseAdmin
+      .from('users').update({ can_share: parsed.data.canShare }).eq('id', req.params.id).select('id, name, can_share').single()
+    if (error || !data) throw new AppError(404, 'משתמש לא נמצא או שהעמודה can_share חסרה (הרץ org_permissions.sql)')
+    res.json({ ok: true, user: data })
+  } catch (err) { next(err) }
+})
+
+const orgPolicySchema = z.object({
+  teachersCanShareDefault: z.boolean().optional(),
+  restrictedOrg: z.boolean().optional(),
+  applyToExistingTeachers: z.boolean().optional(),
+})
+
+/* PATCH /api/admin/schools/:id/policy — מדיניות ארגון: ברירת-מחדל שיתוף למורים חדשים,
+   ארגון-פיילוט מוגבל (מוסתר מהרשמה), ואופציונלית החלה על המורים הקיימים בארגון. */
+adminRouter.patch('/schools/:id/policy', async (req, res, next) => {
+  try {
+    const parsed = orgPolicySchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    const { teachersCanShareDefault, restrictedOrg, applyToExistingTeachers } = parsed.data
+    const patch: Record<string, unknown> = {}
+    if (teachersCanShareDefault !== undefined) patch.teachers_can_share_default = teachersCanShareDefault
+    if (restrictedOrg !== undefined) patch.is_restricted_org = restrictedOrg
+    if (Object.keys(patch).length > 0) {
+      const { error } = await supabaseAdmin.from('schools').update(patch).eq('id', req.params.id)
+      if (error) throw new AppError(500, 'עדכון הארגון נכשל: ' + error.message)
+    }
+    let affected = 0
+    if (applyToExistingTeachers && teachersCanShareDefault !== undefined) {
+      const { data } = await supabaseAdmin
+        .from('users').update({ can_share: teachersCanShareDefault })
+        .eq('school_id', req.params.id).eq('role', 'teacher').select('id')
+      affected = data?.length ?? 0
+    }
+    res.json({ ok: true, teachersUpdated: affected })
+  } catch (err) { next(err) }
 })
 
 /* השבתה/הפעלה של משתמש בודד — ban (עובד תמיד) + is_active אם קיים */

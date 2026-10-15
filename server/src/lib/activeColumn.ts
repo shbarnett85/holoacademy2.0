@@ -13,6 +13,11 @@ async function check(key: string, query: () => PromiseLike<{ error: any }>): Pro
   return false
 }
 
+/* האם עמודת users.can_share קיימת (מיגרציית org_permissions) — לפני כן כולם רשאים לשתף */
+export async function hasCanShare(): Promise<boolean> {
+  return check('__users_can_share', () => supabaseAdmin.from('users').select('can_share').limit(1))
+}
+
 export async function hasIsActive(table: 'users' | 'classes' | 'schools'): Promise<boolean> {
   return check(table, () => supabaseAdmin.from(table).select('is_active').limit(1))
 }

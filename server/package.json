@@ -12,7 +12,9 @@
     "create-superadmin": "tsx src/scripts/createSuperAdmin.ts",
     "start": "tsx src/index.ts",
     "seed:library": "tsx src/scripts/seedLibrary.ts",
-    "smoke:lang": "tsx src/scripts/lingRegression.ts"
+    "smoke:lang": "tsx src/scripts/lingRegression.ts",
+    "create-demo-admin": "tsx src/scripts/createDemoAdmin.ts",
+    "seed-nesher-demo": "tsx src/scripts/seedNesherDemo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",
