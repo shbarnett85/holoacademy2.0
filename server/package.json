@@ -14,7 +14,8 @@
     "seed:library": "tsx src/scripts/seedLibrary.ts",
     "smoke:lang": "tsx src/scripts/lingRegression.ts",
     "create-demo-admin": "tsx src/scripts/createDemoAdmin.ts",
-    "seed-nesher-demo": "tsx src/scripts/seedNesherDemo.ts"
+    "seed-nesher-demo": "tsx src/scripts/seedNesherDemo.ts",
+    "demo-data:accept": "tsx src/scripts/demoDataAcceptance.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

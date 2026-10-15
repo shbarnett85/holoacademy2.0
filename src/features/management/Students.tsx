@@ -11,6 +11,7 @@ import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 import { useIsMobile } from '../../shared/lib/useIsMobile'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 interface StudentRow {
   id: string
@@ -20,6 +21,7 @@ interface StudentRow {
   secret: string | null
   gender: 'male' | 'female' | null
   isActive: boolean
+  isFictitious?: boolean
   lastActive: string | null
 }
 
@@ -142,7 +144,7 @@ function Row({
 
   /* אשכול השם (אווטאר + שם בר-עריכה + מגדר) — זהה בטבלה ובכרטיס */
   const nameCluster = (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px 8px', minWidth: 0, flexWrap: 'wrap' }}>
         <div style={{ width: 30, height: 30, borderRadius: '50%', background: isPending ? 'linear-gradient(135deg,var(--t259),var(--t260))' : 'linear-gradient(135deg,var(--t88),var(--t260))', border: `1px solid ${isPending ? 'var(--t261)' : 'var(--t88)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: isPending ? 'var(--t262)' : 'var(--t1)', flexShrink: 0 }}>
           {(effectiveName[0] || '?').toUpperCase()}
         </div>
@@ -160,10 +162,11 @@ function Row({
           <span
             onClick={startEdit}
             title="לחץ לעריכת השם"
-            style={{ fontSize: 13, fontWeight: 600, color: isPending ? 'var(--t262)' : 'var(--t251)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', flex: 1, minWidth: 0, borderRadius: 4, padding: '2px 4px', transition: 'background .1s', background: hov ? 'var(--t40)' : 'transparent' }}>
+            style={{ fontSize: 13, fontWeight: 600, color: isPending ? 'var(--t262)' : 'var(--t251)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'text', flex: '1 1 72px', minWidth: 72, borderRadius: 4, padding: '2px 4px', transition: 'background .1s', background: hov ? 'var(--t40)' : 'transparent' }}>
             {effectiveName}
           </span>
         )}
+      <DemoStudentBadge show={st.isFictitious} />
       <GenderBadge gender={effectiveGender} onChange={onGenderChange} />
       {isPending && !editing && <span style={{ fontSize: 9, color: 'var(--t264)', lineHeight: 1 }}>●</span>}
     </div>
@@ -288,7 +291,7 @@ function DifficultyModal({
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t250)', backdropFilter: 'blur(7px)' }}>
       <div onClick={(e) => e.stopPropagation()} dir="rtl" style={{ ...glass, padding: '28px 32px', width: 580, maxWidth: '95vw', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 0 60px var(--t272)' }}>
         <div style={{ ...micro, color: 'var(--t273)', marginBottom: 6 }}>◇ הגדרות קושי</div>
-        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)', marginBottom: 2 }}>{student.name}</div>
+        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>{student.name}<DemoStudentBadge show={student.isFictitious} /></div>
         <div style={{ fontSize: 12, color: 'var(--t274)', marginBottom: 4 }}>
           כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} הדמיות שכוילו` : ''}
         </div>

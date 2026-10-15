@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
-import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies } from '../lib/activeColumn.js'
+import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasFictitious } from '../lib/activeColumn.js'
 import { claude } from '../lib/claude.js'
 import { callGeminiText } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
@@ -58,17 +58,19 @@ async function assertClassAccess(req: Request, classId: string): Promise<{ id: s
 }
 
 /* תלמידים פעילים בכיתה */
-async function activeStudents(classId: string): Promise<{ id: string; name: string }[]> {
+async function activeStudents(classId: string): Promise<{ id: string; name: string; isFictitious: boolean }[]> {
   const withActive = await hasIsActive('users')
-  const { data: members } = await supabaseAdmin
-    .from('class_members')
-    .select(withActive ? 'users(id, name, role, is_active)' : 'users(id, name, role)')
-    .eq('class_id', classId)
-  return (members ?? [])
+  const cols = ['id', 'name', 'role']
+  if (withActive) cols.push('is_active')
+  if (await hasFictitious()) cols.push('is_fictitious')
+  const sel: string = `users(${cols.join(', ')})`
+  const { data: members } = await supabaseAdmin.from('class_members').select(sel).eq('class_id', classId)
+  type U = { id: string; name: string; role: string; is_active?: boolean; is_fictitious?: boolean }
+  return ((members ?? []) as unknown as { users: U | U[] }[])
     .map((m) => (Array.isArray(m.users) ? m.users[0] : m.users))
-    .filter(Boolean)
-    .filter((u: { role: string; is_active?: boolean }) => u.role === 'student' && u.is_active !== false)
-    .map((u: { id: string; name: string }) => ({ id: u.id, name: u.name }))
+    .filter((u): u is U => !!u)
+    .filter((u) => u.role === 'student' && u.is_active !== false)
+    .map((u) => ({ id: u.id, name: u.name, isFictitious: u.is_fictitious === true }))
 }
 
 interface SessionRow {
@@ -223,7 +225,7 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
     /* פירוק לפי תלמיד */
     const perStudent = students.map((stu) => {
       const sess = sessions.get(stu.id)
-      if (!sess) return { studentId: stu.id, name: stu.name, status: 'not_started' as const, successRate: null, crystals: null, durationMs: null, avgSceneMs: null, flags: [] as string[] }
+      if (!sess) return { studentId: stu.id, name: stu.name, isFictitious: stu.isFictitious, status: 'not_started' as const, successRate: null, crystals: null, durationMs: null, avgSceneMs: null, flags: [] as string[] }
       const status = sess.completed_at ? ('completed' as const) : ('in_progress' as const)
       const sum = summaries.get(sess.id)
       /* אחוז הצלחה/קריסטלים רלוונטיים רק למשחק שהושלם; באמצע → null */
@@ -238,7 +240,7 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
         if (avgSceneMs !== null && avgSceneMs < SKIP_AVG_SCENE_MS && successRate < EXCEL_RATE) flags.push('skip_suspect')
         if (avgSceneMs !== null && avgSceneMs > SLOW_AVG_SCENE_MS) flags.push('slow')
       }
-      return { studentId: stu.id, name: stu.name, status, successRate, crystals, durationMs, avgSceneMs, flags }
+      return { studentId: stu.id, name: stu.name, isFictitious: stu.isFictitious, status, successRate, crystals, durationMs, avgSceneMs, flags }
     })
 
     /* אגרגציות כיתתיות */
@@ -547,12 +549,12 @@ analyticsRouter.get('/students', async (req, res, next) => {
     }
 
     /* תלמיד → כיתה מייצגת (מעדיף כיתת-חינוך אם התלמיד בכמה כיתות נגישות) */
-    const studentClass = new Map<string, { name: string; classId: string; gradeLabel: string }>()
+    const studentClass = new Map<string, { name: string; classId: string; gradeLabel: string; isFictitious: boolean }>()
     for (const c of classes) {
       for (const st of await activeStudents(c.id)) {
         const cur = studentClass.get(st.id)
         const isHome = homeroomSet.has(c.id)
-        if (!cur || (isHome && !homeroomSet.has(cur.classId))) studentClass.set(st.id, { name: st.name, classId: c.id, gradeLabel: c.gradeLabel })
+        if (!cur || (isHome && !homeroomSet.has(cur.classId))) studentClass.set(st.id, { name: st.name, classId: c.id, gradeLabel: c.gradeLabel, isFictitious: st.isFictitious })
       }
     }
     const studentIds = [...studentClass.keys()]
@@ -593,7 +595,7 @@ analyticsRouter.get('/students', async (req, res, next) => {
         else if (avgSuccessRate < STRUGGLE_RATE) flags.push('struggling')
       }
       return {
-        studentId: sid, name: meta.name, className: meta.gradeLabel, crossSubject: full,
+        studentId: sid, name: meta.name, isFictitious: meta.isFictitious, className: meta.gradeLabel, crossSubject: full,
         textLevel, sessionsCount: completed.length, avgSuccessRate,
         lastActive: mySess[0]?.started_at ?? null, flags,
       }
@@ -626,7 +628,8 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
     }
     if (!allowed) throw new AppError(403, 'אין לך גישה לתלמיד זה')
 
-    const { data: stu } = await supabaseAdmin.from('users').select('id, name').eq('id', req.params.studentId).single()
+    const stuCols = (await hasFictitious()) ? 'id, name, is_fictitious' : 'id, name'
+    const { data: stu } = await supabaseAdmin.from('users').select(stuCols).eq('id', req.params.studentId).single()
 
     /* פרופיל הקושי — המבנה החדש (per-type) אם המיגרציה רצה, אחרת המבנה הישן */
     const v2 = await hasDifficultyProfileV2()
@@ -676,7 +679,11 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
 
     const profileAny = profile as Record<string, unknown> | null
     res.json({
-      student: { id: req.params.studentId, name: (stu as { name?: string } | null)?.name ?? '' },
+      student: {
+        id: req.params.studentId,
+        name: (stu as { name?: string } | null)?.name ?? '',
+        isFictitious: (stu as { is_fictitious?: boolean } | null)?.is_fictitious === true,
+      },
       profile: profileAny ?? null,
       profileVersion: v2 ? 2 : 1,
       skipping,

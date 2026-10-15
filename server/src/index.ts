@@ -13,6 +13,7 @@ import { imagesRouter } from './routes/images.js'
 import { aiRouter } from './routes/ai.js'
 import { adminRouter } from './routes/admin.js'
 import { staffRouter } from './routes/staff.js'
+import { demoDataRouter } from './routes/demoData.js'
 import { sessionsRouter } from './routes/sessions.js'
 import { analyticsRouter } from './routes/analytics.js'
 import { libraryRouter } from './routes/library.js'
@@ -57,6 +58,7 @@ app.use('/api/quests', questsRouter)
 app.use('/api/quests', imagesRouter)
 app.use('/api/ai', aiRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/staff/demo', demoDataRouter)
 app.use('/api/staff', staffRouter)
 app.use('/api/sessions', sessionsRouter)
 app.use('/api/analytics', analyticsRouter)

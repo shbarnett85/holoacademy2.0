@@ -6,7 +6,7 @@ import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender } from '../lib/activeColumn.js'
+import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender, hasFictitious } from '../lib/activeColumn.js'
 
 /* שורת כיתה — שדות שעשויים להיות קיימים לפי מצב המיגרציה */
 interface ClassRow {
@@ -240,7 +240,7 @@ staffRouter.get('/classes', async (req, res, next) => {
     }
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת כיתות: ' + error.message)
-    const classes = (data ?? []) as unknown as (ClassRow & { is_active?: boolean })[]
+    const classes = (data ?? []) as unknown as (ClassRow & { is_active?: boolean; is_fictitious?: boolean })[]
 
     const ids = classes.map((c) => c.id)
     const teacherMap = await teachersByClass(ids)
@@ -258,6 +258,7 @@ staffRouter.get('/classes', async (req, res, next) => {
         teachers: teacherMap.get(c.id) ?? [],
         studentCount: studentCount.get(c.id) ?? 0,
         is_active: c.is_active !== false,
+        is_fictitious: c.is_fictitious === true,
       })),
     })
   } catch (err) {
@@ -430,10 +431,11 @@ staffRouter.get('/students', async (req, res, next) => {
     const sCols = ['id', 'name', 'role', 'pin']
     if (withActive) sCols.push('is_active')
     if (withGender) sCols.push('gender')
+    if (await hasFictitious()) sCols.push('is_fictitious')
     const sel: string = `class_id, users(${sCols.join(', ')})`
     const { data: membersRaw, error: mErr } = await supabaseAdmin.from('class_members').select(sel).in('class_id', classIds)
     if (mErr) throw new AppError(500, 'שגיאה בשליפת תלמידים: ' + mErr.message)
-    type SUser = { id: string; name: string; role: string; pin?: string | null; is_active?: boolean; gender?: string | null }
+    type SUser = { id: string; name: string; role: string; pin?: string | null; is_active?: boolean; gender?: string | null; is_fictitious?: boolean }
     const members = (membersRaw ?? []) as unknown as { class_id: string; users: SUser | SUser[] | null }[]
 
     const students = members
@@ -449,6 +451,7 @@ staffRouter.get('/students', async (req, res, next) => {
           secret: u.pin ?? null,
           gender: u.gender ?? null,
           isActive: u.is_active !== false,
+          isFictitious: u.is_fictitious === true,
           lastActive: null as string | null,
         }
       })
@@ -482,19 +485,20 @@ staffRouter.get('/classes/:id/students', async (req, res, next) => {
     const cols = ['id', 'name', 'role']
     if (withActive) cols.push('is_active')
     if (withGender) cols.push('gender')
+    if (await hasFictitious()) cols.push('is_fictitious')
     const sel: string = `users(${cols.join(', ')})`
     const { data: membersRaw, error } = await supabaseAdmin
       .from('class_members')
       .select(sel)
       .eq('class_id', req.params.id)
     if (error) throw new AppError(500, 'שגיאה בשליפת תלמידים: ' + error.message)
-    type UserRow = { id: string; name: string; role: string; is_active?: boolean; gender?: string | null }
+    type UserRow = { id: string; name: string; role: string; is_active?: boolean; gender?: string | null; is_fictitious?: boolean }
     const members = (membersRaw ?? []) as unknown as { users: UserRow | UserRow[] }[]
     const students = members
       .map((m) => (Array.isArray(m.users) ? m.users[0] : m.users))
       .filter(Boolean)
       .filter((u: { role: string }) => u.role === 'student')
-      .map((u: { id: string; name: string; is_active?: boolean; gender?: string | null }) => ({ id: u.id, name: u.name, is_active: u.is_active !== false, gender: u.gender ?? null }))
+      .map((u: UserRow) => ({ id: u.id, name: u.name, is_active: u.is_active !== false, gender: u.gender ?? null, is_fictitious: u.is_fictitious === true }))
     res.json({ students })
   } catch (err) {
     next(err)

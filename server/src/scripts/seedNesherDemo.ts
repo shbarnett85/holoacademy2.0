@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from '../lib/supabase.js'
-import { hasIsActive, hasGradeLabel, hasClassTeachers, hasUserGender } from '../lib/activeColumn.js'
+import { hasIsActive, hasGradeLabel, hasClassTeachers, hasUserGender, hasFictitious } from '../lib/activeColumn.js'
 
 /* ── זריעת נתוני דמו לארגון פיילוט (כיתה + 8 תלמידים בדויים + 3 הדמיות + תוצאות) ──
    כדי שדשבורד האנליטיקה של המנהל העירוני לא יהיה ריק. כל שורה שנזרעת נרשמת
@@ -96,6 +96,8 @@ async function main() {
   if (already && already.length) { console.log('הארגון כבר נזרע. להסרה: --remove. לזריעה מחדש: --remove ואז זריעה.'); return }
 
   const act = (await hasIsActive('users')) ? { is_active: true } : {}
+  /* תלמידים/כיתה/סשנים שנזרעים כאן הם נתוני דוגמה — מסומנים כדי שייחשפו עם התג וייכללו ב"מחק נתוני דוגמה" */
+  const fict = (await hasFictitious()) ? { is_fictitious: true } : {}
   const actClass = (await hasIsActive('classes')) ? { is_active: true } : {}
   /* 1) מורה דמו — חשבון auth בלתי-שמיש (סיסמה אקראית לא ידועה), ללא הרשאת שיתוף */
   const teacherEmail = `demo.teacher.${randomBytes(3).toString('hex')}@example.com`
@@ -114,7 +116,7 @@ async function main() {
   const { data: cls, error: cErr } = await supabaseAdmin
     .from('classes')
     .insert({
-      name: 'דמו ח׳1', slug: 'demo-h1', school_id: school.id, url_code: urlCode, ...actClass,
+      name: 'דמו ח׳1', slug: 'demo-h1', school_id: school.id, url_code: urlCode, ...actClass, ...fict,
       ...((await hasGradeLabel()) ? { grade_label: 'ח׳1' } : {}),
       ...((await hasClassTeachers()) ? {} : { teacher_id: teacher.id }), /* לפני מיגרציית class_teachers */
     })
@@ -131,7 +133,7 @@ async function main() {
     const pin = String(Math.floor(1000 + Math.random() * 9000))
     const { data: u, error } = await supabaseAdmin
       .from('users')
-      .insert({ name: st.name, role: 'student', pin, school_id: school.id, ...act, ...(withGender ? { gender: st.gender } : {}) })
+      .insert({ name: st.name, role: 'student', pin, school_id: school.id, ...act, ...fict, ...(withGender ? { gender: st.gender } : {}) })
       .select('id')
       .single()
     if (error || !u) throw new Error('יצירת תלמיד דמו נכשלה: ' + (error?.message ?? ''))
@@ -191,7 +193,7 @@ async function main() {
       if (qi === 2 && si === 7) continue
       const inProgress = qi === 2 && si === 6
       const startedAt = new Date(Date.now() - (qi * 2 + 1) * 86_400_000 - si * 3_600_000).toISOString()
-      const sess: Record<string, unknown> = { user_id: stu.id, quest_id: quest.id, started_at: startedAt, max_score: puzzleScenes.length, inventory: [], visited_scenes: sceneIds }
+      const sess: Record<string, unknown> = { user_id: stu.id, quest_id: quest.id, started_at: startedAt, max_score: puzzleScenes.length, inventory: [], visited_scenes: sceneIds, ...fict }
       let correct = 0
       const results = puzzleScenes.map(() => {
         const solved = rand() < Math.min(0.97, Math.max(0.12, stu.ability + (rand() - 0.5) * 0.25 - qi * 0.04))

@@ -13,6 +13,17 @@ async function check(key: string, query: () => PromiseLike<{ error: any }>): Pro
   return false
 }
 
+/* האם עמודות הנתונים הפיקטיביים (users/classes/sessions.is_fictitious) קיימות */
+export async function hasFictitious(): Promise<boolean> {
+  return check('__fictitious', async () => {
+    const a = await supabaseAdmin.from('users').select('is_fictitious').limit(1)
+    if (a.error) return a
+    const b = await supabaseAdmin.from('classes').select('is_fictitious').limit(1)
+    if (b.error) return b
+    return supabaseAdmin.from('sessions').select('is_fictitious').limit(1)
+  })
+}
+
 /* האם עמודת users.can_share קיימת (מיגרציית org_permissions) — לפני כן כולם רשאים לשתף */
 export async function hasCanShare(): Promise<boolean> {
   return check('__users_can_share', () => supabaseAdmin.from('users').select('can_share').limit(1))

@@ -5,6 +5,7 @@ import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { pct, duration } from './format'
 import PedagogicalSummary from './PedagogicalSummary'
 import ProgressGraph from './ProgressGraph'
+import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 /* מבנה ישן (v1) — נשמר לתאימות לאחור */
 interface ProfileV1 {
@@ -26,7 +27,7 @@ interface ProfileV2 {
 }
 interface HistoryItem { sessionId: string; questId: string; questTitle: string; startedAt: string | null; completedAt: string | null; status: string; successRate: number | null }
 interface StudentAnalytics {
-  student: { id: string; name: string }
+  student: { id: string; name: string; isFictitious?: boolean }
   profile: ProfileV1 | ProfileV2 | null
   profileVersion: 1 | 2
   skipping: boolean
@@ -103,7 +104,10 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← {backLabel}</button>
-        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)', textShadow: '0 0 20px var(--t23)' }}>{data.student.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 19, fontWeight: 800, color: 'var(--t13)', textShadow: '0 0 20px var(--t23)' }}>
+          {data.student.name}
+          <DemoStudentBadge show={data.student.isFictitious} />
+        </div>
         <span style={{ width: 60 }} />
       </div>
 

@@ -5,9 +5,10 @@ import { glass, micro } from '../creator/studioStyles'
 import DonutChart from './charts'
 import { pct, duration, FLAG_META, STATUS_META } from './format'
 import PedagogicalSummary from './PedagogicalSummary'
+import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 interface PerStudent {
-  studentId: string; name: string
+  studentId: string; name: string; isFictitious?: boolean
   status: 'completed' | 'in_progress' | 'not_started'
   successRate: number | null; crystals: number | null; durationMs: number | null; avgSceneMs: number | null
   flags: string[]
@@ -298,6 +299,7 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--t26)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 700, color: 'var(--t68)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                  <DemoStudentBadge show={s.isFictitious} />
                   {s.flags.map((f) => FLAG_META[f] && <span key={f} title={FLAG_META[f].label} style={{ fontSize: 14 }}>{FLAG_META[f].icon}</span>)}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, flexShrink: 0 }}>

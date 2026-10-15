@@ -4,10 +4,12 @@ import { apiJson, apiFetch } from '../../shared/lib/api'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import ConfirmModal from '../superadmin/ConfirmModal'
 import ClassManage from './ClassManage'
+import DemoDataPanel from './DemoDataPanel'
+import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
 export interface ClassTeacher { teacherId: string; name: string; subject: string }
-export interface ClassRow { id: string; name: string; slug: string; url_code: string; gradeLabel: string; teachers: ClassTeacher[]; studentCount: number; is_active: boolean }
+export interface ClassRow { id: string; name: string; slug: string; url_code: string; gradeLabel: string; teachers: ClassTeacher[]; studentCount: number; is_active: boolean; is_fictitious?: boolean }
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--t253)', border: '1px solid var(--t219)',
@@ -100,6 +102,8 @@ export default function ManagementPanel() {
 
       {error && <p className="text-sm" style={{ color: 'var(--t18)' }}>⚠️ {error}</p>}
 
+      <DemoDataPanel classes={classes} onChanged={load} />
+
       {isAdmin && (
         <>
           <div className="flex gap-3 flex-wrap justify-center">
@@ -157,6 +161,7 @@ export default function ManagementPanel() {
           <div key={c.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: c.is_active ? 1 : 0.45 }}>
             <div>
               <span className="font-bold">{c.gradeLabel}</span>
+              {c.is_fictitious && <span className="mr-2"><DemoStudentBadge show /></span>}
               <span className="text-xs mr-2" style={{ opacity: 0.6 }}>· {c.studentCount} תלמידים{c.teachers.length ? ` · ${c.teachers.map((t) => t.name).join(', ')}` : ''}</span>
               {!c.is_active && <span className="text-xs mr-2" style={{ color: 'var(--t18)' }}>○ מושבת</span>}
             </div>

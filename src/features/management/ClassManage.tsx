@@ -4,10 +4,11 @@ import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { glass, micro } from '../creator/studioStyles'
 import ConfirmModal from '../superadmin/ConfirmModal'
 import PedagogicalSummary from '../analytics/PedagogicalSummary'
+import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 import type { ClassRow, ClassTeacher } from './index'
 
 type Gender = 'male' | 'female' | null
-interface Student { id: string; name: string; is_active: boolean; gender: Gender }
+interface Student { id: string; name: string; is_active: boolean; gender: Gender; is_fictitious?: boolean }
 interface NewStudent { id?: string; name: string; pin: string }
 interface SchoolTeacher { id: string; name: string; is_active: boolean }
 
@@ -244,6 +245,7 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
                 <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: s.is_active ? 1 : 0.5 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)' }}>{s.name}</span>
+                    {s.is_fictitious && <span style={{ marginRight: 6 }}><DemoStudentBadge show /></span>}
                     {s.gender === 'male' && <span style={{ fontSize: 10, color: 'var(--t140)', marginRight: 6 }}>♂</span>}
                     {s.gender === 'female' && <span style={{ fontSize: 10, color: 'var(--t120)', marginRight: 6 }}>♀</span>}
                     {!s.is_active && <span style={{ fontSize: 10, color: 'var(--t18)', marginRight: 6 }}>מושבת</span>}

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireSuperAdmin } from '../middleware/staffAuth.js'
-import { hasQuestReports } from '../lib/activeColumn.js'
+import { hasQuestReports, hasFictitious } from '../lib/activeColumn.js'
 
 /* כל ה-routes כאן מוגנים ב-requireSuperAdmin (role=super_admin בלבד) */
 export const adminRouter = Router()
@@ -177,6 +177,8 @@ adminRouter.get('/users', async (req, res, next) => {
       .order('name')
     const schoolId = req.query.schoolId
     if (typeof schoolId === 'string' && schoolId) query = query.eq('school_id', schoolId)
+    /* תלמידי דוגמה אינם משתמשים אמיתיים — לא נספרים ולא מוצגים בניהול המערכת */
+    if (await hasFictitious()) query = query.eq('is_fictitious', false)
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת משתמשים: ' + error.message)
     const banned = await bannedAuthIds()
