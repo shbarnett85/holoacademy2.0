@@ -16,14 +16,17 @@ import {
 } from '../prompts/questPrompt.js'
 import { validateHubStructure, type HubInfo } from '../lib/hubValidation.js'
 import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficultyScaling.js'
-import { defaultProfileForGrade, gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
+import { gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner, isDemoGuest, requireCanShare, tryStaff, SHARING_DISABLED_MESSAGE } from '../middleware/staffAuth.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAccess.js'
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasUserGender, hasPublicQuests, hasQuestVariants, hasDifficultyProfileV2, hasQuestGrade } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasQuestSubjectId, hasUserGender, hasPublicQuests, hasQuestVariants, hasQuestGrade } from '../lib/activeColumn.js'
+import { subjectByCode, subjectFieldsOfQuest, questSubjectOut } from '../lib/subjects.js'
+import { subjectName as subjectName_, isSubjectCode } from '../../../src/shared/lib/subjects.js'
+import { loadEffectiveProfile } from '../lib/profileCalibration.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
 import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, shuffleAnswerPositions, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
@@ -88,8 +91,8 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
 /* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה הכול. */
 questsRouter.get('/', requireCreator, async (req, res, next) => {
   try {
-    const [pub, subj] = await Promise.all([hasPublicQuests(), hasQuestSubject()])
-    const cols = 'id, title, game_data, status, created_at' + (pub ? ', is_public' : '') + (subj ? ', subject' : '')
+    const [pub, subj, subjId] = await Promise.all([hasPublicQuests(), hasQuestSubject(), hasQuestSubjectId()])
+    const cols = 'id, title, game_data, status, created_at' + (pub ? ', is_public' : '') + (subj ? ', subject' : '') + (subjId ? ', subject_id' : '')
     let query = supabaseAdmin
       .from('quests')
       .select(cols)
@@ -104,7 +107,8 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
 
     if (error) throw new AppError(500, 'שגיאה בשליפת הדמיות: ' + error.message)
 
-    const quests = ((data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null }[]).map((q) => ({
+    const rows = (data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null; subject_id?: string | null }[]
+    const quests = await Promise.all(rows.map(async (q) => ({
       id: q.id,
       title: q.title,
       created_at: q.created_at,
@@ -112,8 +116,9 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       is_public: pub ? q.is_public === true : false,
       is_review: !!q.game_data?.reviewOf,
       sceneCount: q.game_data?.scenes?.length ?? 0,
-      subject: subj ? (q.subject ?? null) : null,
-    }))
+      /* subject = שם לתצוגה; subjectCode = המזהה היציב; שניהם null = "לא סווג" */
+      ...(await questSubjectOut({ subject: subj ? q.subject : undefined, subject_id: subjId ? (q.subject_id ?? null) : undefined })),
+    })))
 
     res.json({ quests, permissions: { canShare: req.staff ? req.staff.canShare !== false : false } })
   } catch (err) {
@@ -155,7 +160,8 @@ questsRouter.get('/showcase', async (_req, res, next) => {
     if (!(await hasPublicQuests())) { res.json({ quests: [] }); return }
     const withGrade = await hasQuestGrade()
     const withSubject = await hasQuestSubject()
-    const cols = `id, title, game_data, created_at${withSubject ? ', subject' : ''}${withGrade ? ', grade_min, grade_max, is_official' : ''}`
+    const withSubjectId = await hasQuestSubjectId()
+    const cols = `id, title, game_data, created_at${withSubject ? ', subject' : ''}${withSubjectId ? ', subject_id' : ''}${withGrade ? ', grade_min, grade_max, is_official' : ''}`
     const { data, error } = await supabaseAdmin
       .from('quests')
       .select(cols)
@@ -163,8 +169,10 @@ questsRouter.get('/showcase', async (_req, res, next) => {
       .order('created_at', { ascending: true })
       .limit(40)
     if (error) throw new AppError(500, error.message)
-    interface Row { id: string; title: string; game_data: unknown; subject?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
+    interface Row { id: string; title: string; game_data: unknown; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
     const rows = (data ?? []) as unknown as Row[]
+    const subjectOf = new Map<string, string | null>()
+    for (const r of rows) subjectOf.set(r.id, (await questSubjectOut({ subject: withSubject ? r.subject : undefined, subject_id: withSubjectId ? (r.subject_id ?? null) : undefined })).subject)
     /* רשמיות קודם; אם אין עמודת is_official/אין רשמיות — כל הציבוריות */
     const officials = withGrade ? rows.filter((r) => r.is_official) : []
     const pool = officials.length > 0 ? officials : rows
@@ -178,7 +186,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
       return {
         id: r.id,
         title: r.title,
-        subject: r.subject ?? null,
+        subject: subjectOf.get(r.id) ?? null,
         gradeMin: r.grade_min ?? null,
         gradeMax: r.grade_max ?? null,
         sceneCount: scenes.length,
@@ -319,23 +327,18 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
     const { studentId } = parsed.data
     const questId = req.params.id
 
-    const { data: quest } = await supabaseAdmin.from('quests').select('game_data, created_by').eq('id', questId).single()
+    const { data: quest } = await supabaseAdmin.from('quests').select('*').eq('id', questId).single()
     if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
 
-    /* ── שלוף פרופיל + מגדר + שכבת כיתה במקביל ── */
-    const [v2, hasGender] = await Promise.all([hasDifficultyProfileV2(), hasUserGender()])
-    const profileCols = v2 ? 'text_level, per_puzzle_level' : 'id'
+    /* ── שלוף מגדר + כיתת התלמיד (class_members, לא users.class_id) ── */
+    const hasGender = await hasUserGender()
     const userCols = hasGender ? 'gender' : 'id'
-
-    /* התלמיד משויך לכיתה דרך class_members (לא users.class_id) */
-    const [{ data: profileRow }, { data: userRow }, { data: memberRow }] = await Promise.all([
-      supabaseAdmin.from('difficulty_profiles').select(profileCols).eq('user_id', studentId).maybeSingle(),
+    const [{ data: userRow }, { data: memberRow }] = await Promise.all([
       supabaseAdmin.from('users').select(userCols).eq('id', studentId).maybeSingle(),
       supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId).maybeSingle(),
     ])
 
-    /* grade_label לברירת מחדל מבוססת-שכבה */
     const ur = userRow as Record<string, unknown> | null
     const classId = (memberRow as { class_id?: string } | null)?.class_id ?? null
     let gradeLabel: string | null = null
@@ -344,12 +347,11 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
       gradeLabel = (classRow as Record<string, unknown> | null)?.grade_label as string | null ?? null
     }
 
-    const pr = profileRow as Record<string, unknown> | null
-    const fallback = defaultProfileForGrade(gradeLabel)
-    const textLevel = typeof pr?.text_level === 'number' ? pr.text_level : fallback.textLevel
-    const perPuzzleLevel: Record<string, number> = v2 && pr?.per_puzzle_level && typeof pr.per_puzzle_level === 'object'
-      ? pr.per_puzzle_level as Record<string, number>
-      : { ...fallback.perPuzzleLevel }
+    /* רמות: לפי שורת המקצוע של התלמיד (מקצוע חדש = רמת פתיחה), או הגלובלי להדמיה "לא סווג" */
+    const questSubjectId = (quest as { subject_id?: string | null }).subject_id ?? null
+    const eff = await loadEffectiveProfile(studentId, classId, questSubjectId)
+    const textLevel = eff.profile.textLevel
+    const perPuzzleLevel: Record<string, number> = { ...eff.profile.perPuzzleLevel }
 
     const gender = (ur?.gender === 'male' || ur?.gender === 'female') ? ur.gender as 'male' | 'female' : null
     const form: FormOfAddress = gender ?? 'plural'
@@ -359,8 +361,7 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
 
     /* ── DIAG ── */
     debug('[variant:profile]', {
-      studentId, v2,
-      hasProfileRow: pr !== null,
+      studentId, profileSource: eff.source, subjectId: questSubjectId,
       gradeLabel, textLevel, moralLevel,
       perPuzzleLevel_sample: Object.fromEntries(Object.entries(perPuzzleLevel).slice(0, 3)),
       gender, form,
@@ -432,8 +433,11 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
     }
 
     const reviewTitle = `חזרה: ${base.title}`.slice(0, 120)
+    /* הדמיית חזרה יורשת את מקצוע ההדמיה המקורית */
+    const inheritedSubject = await subjectFieldsOfQuest(base.id)
     const params: QuestGenerationParams = {
       title: reviewTitle,
+      subjectName: inheritedSubject.subjectName ?? undefined,
       curriculum: (base.curriculum as string | null) ?? '',
       questLength: 4,
       puzzlePreferences: { types: { multipleChoice: true, trueFalse: true, wordCompletion: true } },
@@ -460,6 +464,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
       game_data: { generating: true },
       status: 'draft',
       created_by: req.staff!.userId,
+      ...inheritedSubject.fields,
     }
     const { data: created, error: insErr } = await supabaseAdmin.from('quests').insert(stub).select('id').single()
     if (insErr || !created) throw new AppError(500, 'יצירת הדמיית החזרה נכשלה: ' + (insErr?.message ?? ''))
@@ -789,11 +794,13 @@ questsRouter.patch('/:id/restore', requireCreator, async (req, res, next) => {
   }
 })
 
-/* PATCH /api/quests/:id — עריכת שדות ברמת ההדמיה (כרגע: title בלבד) */
+/* PATCH /api/quests/:id — עריכת שדות ברמת ההדמיה: title ו/או subjectCode (שיוך מהיר מהספרייה) */
 questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
   try {
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined
     if (title !== undefined && title.length === 0) throw new AppError(400, 'שם ההדמיה לא יכול להיות ריק')
+    const subjectCode = typeof req.body?.subjectCode === 'string' ? req.body.subjectCode : undefined
+    if (subjectCode !== undefined && !isSubjectCode(subjectCode)) throw new AppError(400, 'מקצוע לא מוכר')
 
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
@@ -805,12 +812,20 @@ questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
 
     const patch: Record<string, unknown> = {}
     if (title !== undefined) patch.title = title
+    let subjectOut: { subject: string | null; subjectCode: string | null } | undefined
+    if (subjectCode !== undefined) {
+      const row = await subjectByCode(subjectCode)
+      if (await hasQuestSubject()) patch.subject = row?.nameHe ?? subjectName_(subjectCode)
+      if (row && (await hasQuestSubjectId())) patch.subject_id = row.id
+      else if (!row && (await hasQuestSubjectId())) throw new AppError(503, 'טבלת המקצועות טרם הוגדרה')
+      subjectOut = { subject: row?.nameHe ?? subjectName_(subjectCode), subjectCode }
+    }
     if (Object.keys(patch).length === 0) throw new AppError(400, 'אין שדות לעדכון')
 
     const { error: updateError } = await supabaseAdmin.from('quests').update(patch).eq('id', quest.id)
     if (updateError) throw new AppError(500, 'שגיאה בשמירה: ' + updateError.message)
 
-    res.json({ ok: true, title })
+    res.json({ ok: true, title, ...(subjectOut ?? {}) })
   } catch (err) {
     next(err)
   }
@@ -1192,7 +1207,10 @@ questsRouter.post('/generate', requireCreator, async (req, res, next) => {
       .map((t) => t.trim())
       .filter(Boolean)
       .map((text, i) => ({ id: `obj_${i + 1}`, text }))
-    const params: QuestGenerationParams = { ...parsed.data, objectives: objectives.length > 0 ? objectives : undefined }
+    /* מקצוע (חובה): קוד → שורה בטבלת subjects. לפני המיגרציה: שם מהרשימה המשותפת בלבד. */
+    const subjectRow = await subjectByCode(parsed.data.subjectCode)
+    const subjectName = subjectRow?.nameHe ?? subjectName_(parsed.data.subjectCode)
+    const params: QuestGenerationParams = { ...parsed.data, subjectName, objectives: objectives.length > 0 ? objectives : undefined }
 
     /* שכבת בטיחות — בדיקת קלט (חוסמת, לפני יצירת ה-stub וקריאת Sonnet) */
     const inputSafety = await runInputSafetyCheck(params.title, params.curriculum)
@@ -1216,7 +1234,8 @@ questsRouter.post('/generate', requireCreator, async (req, res, next) => {
       created_by: req.staff?.userId ?? null,
       anon_id: req.staff ? null : req.anonId,
     }
-    if (parsed.data.subject && (await hasQuestSubject())) stub.subject = parsed.data.subject
+    if (await hasQuestSubject()) stub.subject = subjectName
+    if (subjectRow && (await hasQuestSubjectId())) stub.subject_id = subjectRow.id
 
     const { data: quest, error } = await supabaseAdmin.from('quests').insert(stub).select().single()
     if (error || !quest) throw new AppError(500, 'שגיאה ביצירת ההדמיה: ' + (error?.message ?? ''))

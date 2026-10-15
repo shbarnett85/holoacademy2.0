@@ -120,6 +120,7 @@ export interface HubInfo {
 interface CreatorState {
   /* סקציה 1 — תוכן */
   title: string
+  /* קוד מקצוע (shared/lib/subjects.ts) — שדה חובה ביצירה; '' = טרם נבחר */
   subject: string
   curriculum: string
   /* יעדי למידה (אופציונלי, עד 8) — כל אתגר יתויג ביעד שהוא בוחן */
@@ -206,7 +207,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
         body: JSON.stringify({
           turnstileToken: turnstileToken ?? undefined,
           title: s.title,
-          subject: s.subject || undefined,
+          subjectCode: s.subject,
           curriculum: s.curriculum,
           objectives: s.objectives.filter((o) => o.trim()).length > 0 ? s.objectives.filter((o) => o.trim()) : undefined,
           questType: s.questType,

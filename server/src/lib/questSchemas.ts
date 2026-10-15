@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isSubjectCode } from '../../../src/shared/lib/subjects.js'
 
 /* ── סכמות zod לולידציה של ה-GameData המוחזר מ-Claude ── */
 
@@ -235,6 +236,9 @@ export const generateRequestSchema = z.object({
   includeDrHolo: z.boolean().optional(),
   artStyle: z.string().optional(),
   questType: z.string().optional(),
+  /* מקצוע — שדה חובה (קוד מהרשימה המשותפת). משפיע על הפרומפט ועל סיווג ההדמיה. */
+  subjectCode: z.string({ error: 'יש לבחור מקצוע' }).refine(isSubjectCode, 'יש לבחור מקצוע מהרשימה'),
+  /* legacy — מחרוזת חופשית מקליינטים ישנים; מתעלמים (לא מנחשים מקצוע ממנה) */
   subject: z.string().optional(),
   /* צורת פנייה — ברירת מחדל plural (גרסה כיתתית/ניטרלית) */
   formOfAddress: z.enum(['male', 'female', 'plural']).optional(),

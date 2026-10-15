@@ -5,8 +5,9 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStudent } from '../middleware/studentAuth.js'
 import { warn } from '../lib/log.js'
-import { recalibrateProfile } from '../lib/profileCalibration.js'
-import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants } from '../lib/activeColumn.js'
+import { questSubjectOut } from '../lib/subjects.js'
+import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
+import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels } from '../lib/activeColumn.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
@@ -57,9 +58,11 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     /* subject — שאילתה נפרדת, דיפנסיבית */
     const subjectMap = new Map<string, string>()
     if (await hasQuestSubject()) {
-      const { data: subjectRows } = await supabaseAdmin.from('quests').select('id, subject').in('id', questIds)
-      for (const r of (subjectRows ?? []) as { id: string; subject?: string | null }[]) {
-        if (r.subject) subjectMap.set(r.id, r.subject)
+      const withId = await hasQuestSubjectId()
+      const { data: subjectRows } = await supabaseAdmin.from('quests').select(withId ? 'id, subject, subject_id' : 'id, subject').in('id', questIds)
+      for (const r of (subjectRows ?? []) as unknown as { id: string; subject?: string | null; subject_id?: string | null }[]) {
+        const out = await questSubjectOut({ subject: withId ? undefined : r.subject, subject_id: withId ? (r.subject_id ?? null) : undefined })
+        if (out.subject) subjectMap.set(r.id, out.subject)
       }
     }
 
@@ -175,8 +178,13 @@ sessionsRouter.post('/start', async (req, res, next) => {
     }
 
     /* max_score לפי מספר האתגרים בהדמיה */
-    const { data: quest } = await supabaseAdmin.from('quests').select('game_data').eq('id', questId).single()
-    const maxScore = countChallenges(quest?.game_data)
+    const { data: quest } = await supabaseAdmin.from('quests').select((await hasQuestSubjectId()) ? 'game_data, subject_id' : 'game_data').eq('id', questId).single()
+    const maxScore = countChallenges((quest as { game_data?: unknown } | null)?.game_data)
+    /* מקצוע חדש לתלמיד = פרופיל חדש ברמת הפתיחה (trigger='seed' ביומן הרמות) — לא מועתק מהגלובלי */
+    const startSubjectId = (quest as { subject_id?: string | null } | null)?.subject_id ?? null
+    if (startSubjectId && (await hasSubjectLevels())) {
+      try { await ensureSubjectLevels(userId, req.student!.classId ?? null, startSubjectId) } catch { /* best-effort */ }
+    }
 
     const payload: Record<string, unknown> = {
       user_id: userId, quest_id: questId, started_at: new Date().toISOString(),
@@ -377,7 +385,13 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     /* כיול פרופיל הקושי בשרת (JS) — best-effort: כשל לא יפיל את הסיום */
     let profileUpdated = false
     try {
-      const cal = await recalibrateProfile(session.user_id, req.student!.classId ?? null, perType, avgSceneMs)
+      /* מקצוע ההדמיה קובע לאיזה פרופיל מכוילים; הדמיה בלי מקצוע → הפרופיל הגלובלי */
+      let subjectId: string | null = null
+      if (await hasQuestSubjectId()) {
+        const { data: qs } = await supabaseAdmin.from('quests').select('subject_id').eq('id', session.quest_id).maybeSingle()
+        subjectId = (qs as { subject_id?: string | null } | null)?.subject_id ?? null
+      }
+      const cal = await recalibrateProfile(session.user_id, req.student!.classId ?? null, perType, avgSceneMs, { subjectId, sessionId: session.id })
       profileUpdated = cal !== null
 
       /* progress_snapshot — סדרת-הזמן של ההתקדמות. נכתב *אחרי* הכיול ורק לסשן שנספר
@@ -389,7 +403,7 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
           : null)
         /* idempotent — מוחקים snapshot קודם של אותו session (retry של complete לא יכפיל את סדרת-הזמן) */
         await supabaseAdmin.from('progress_snapshots').delete().eq('session_id', session.id)
-        const { error: snapErr } = await supabaseAdmin.from('progress_snapshots').insert({
+        const snap: Record<string, unknown> = {
           student_id: session.user_id,
           class_id: req.student!.classId ?? null,
           session_id: session.id,
@@ -397,7 +411,9 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
           per_puzzle_level: cal.profile.perPuzzleLevel,
           success_rates: perTypeSuccess,
           overall_success: overall,
-        })
+        }
+        if (subjectId && (await hasQuestSubjectId())) snap.subject_id = subjectId
+        const { error: snapErr } = await supabaseAdmin.from('progress_snapshots').insert(snap)
         if (snapErr) warn('[snapshot] כתיבת progress_snapshot נכשלה ל-session', session.id, '—', snapErr.message)
       }
     } catch (e) {

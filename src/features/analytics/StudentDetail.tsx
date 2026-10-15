@@ -33,6 +33,11 @@ interface StudentAnalytics {
   skipping: boolean
   history: HistoryItem[]
   trend: { date: string | null; successRate: number | null }[]
+  /* רמות פר-מקצוע — רק מקצועות שהצופה רשאי לראות */
+  subjectLevels?: { subjectCode: string; subjectName: string; textLevel: number; perType: Record<string, number>; teacherLocked: boolean }[]
+  /* מקצועות אחרים של התלמיד — שמות בלבד, מוצגים באפור (ללא נתונים) */
+  otherSubjects?: { name: string }[]
+  visibility?: { full: boolean }
 }
 
 function dateStr(s: string | null): string {
@@ -122,9 +127,35 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
         </div>
       )}
 
-      {/* פרופיל קושי נוכחי */}
+      {/* רמות פר-מקצוע (מקצוע חדש = פרופיל חדש; הרמות אינן מתמזגות לציון אחד) */}
+      {mode !== 'summary' && (data.subjectLevels?.length ?? 0) > 0 && (
+        <Panel title="רמות לפי מקצוע">
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {data.subjectLevels!.map((sl) => (
+              <div key={sl.subjectCode} style={{ padding: '10px 14px', borderRadius: 11, background: 'var(--t25)', border: '1px solid var(--t26)', minWidth: 130 }}>
+                <div style={{ fontSize: 12, color: 'var(--t12)', marginBottom: 4 }}>{sl.subjectName}{sl.teacherLocked ? ' 🔒' : ''}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--t1)' }}>{Math.round(sl.textLevel)}<span style={{ fontSize: 11, opacity: 0.45 }}>/20</span></div>
+                <div style={{ ...micro, fontSize: 8.5, marginTop: 2 }}>רמת טקסט</div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--t6)', margin: '10px 0 0' }}>לכל מקצוע פרופיל נפרד — אין לחבר בין מקצועות לציון אחד.</p>
+        </Panel>
+      )}
+
+      {/* מקצועות אחרים של התלמיד — שמות בלבד, באפור, לא לחיצים */}
+      {mode !== 'summary' && (data.otherSubjects?.length ?? 0) > 0 && (
+        <div aria-label="מקצועות נוספים של התלמיד" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, color: 'var(--t6)' }}>מקצועות נוספים (נתונים אצל מורי המקצוע):</span>
+          {data.otherSubjects!.map((o) => (
+            <span key={o.name} aria-disabled="true" style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, color: 'var(--t6)', background: 'transparent', border: '1px dashed var(--t26)', cursor: 'default', opacity: 0.7 }}>{o.name}</span>
+          ))}
+        </div>
+      )}
+
+      {/* פרופיל קושי נוכחי (גלובלי — למחנך) */}
       {mode !== 'summary' && <Panel title="פרופיל הקושי הנוכחי">
-        {!p ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>עדיין אין מספיק נתונים לפרופיל קושי.</p> : isV2 ? (
+        {!p ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>{data.visibility?.full === false ? 'הפרופיל הכללי זמין למחנך הכיתה. הרמות במקצוע שלך מופיעות למעלה.' : 'עדיין אין מספיק נתונים לפרופיל קושי.'}</p> : isV2 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/20</span></>} label="רמת טקסט" />

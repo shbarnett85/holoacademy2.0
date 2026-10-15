@@ -1,7 +1,9 @@
 /* ── סימולציית תוצאות לתלמיד פיקטיבי — טהורה ודטרמיניסטית ─────────────────────
    מקבלת תלמיד + הדמיה ומחזירה בדיוק את הצורה ש-POST /sessions/:id/complete
-   מקבל מהקליינט האמיתי (challenges / sceneTimes / summary) — בתוספת שדות-בחירה
-   נוספים ב-payload (התשובה שנבחרה בפועל). אין כאן DB ואין Date.now: הזמן והכתיבה
+   מקבל מהקליינט האמיתי (challenges / sceneTimes / summary). שדות-הבחירה ב-`extra`
+   (התשובה שנבחרה) אינם נכתבים ל-events — הזרימה האמיתית לא כותבת אותם; הם יחזרו בשלב 1B
+   לטבלת answers עם is_synthetic=true, באותה סכמה כמו נתונים אמיתיים.
+   אין כאן DB ואין Date.now: הזמן והכתיבה
    בשכבת השירות. ה-seed נגזר ממזהה התלמיד + ההדמיה, כך שהתוצאה זהה בכל הרצה. */
 
 export type Tier = 'strong' | 'good' | 'medium' | 'struggling' | 'inconsistent' | 'partial'

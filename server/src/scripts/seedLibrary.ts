@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { supabaseAdmin } from '../lib/supabase.js'
+import { legacySubjectToCode } from '../../../src/shared/lib/subjects.js'
 
 /* ── ייצור ספריית הפתיחה — אצוות הדמיות מתוך seed/libraryTopics.json ──
    רץ מול השרת החי (צינור היצירה המלא: בטיחות/ולידציה/fact-check/יעדים), ואז מייצר
@@ -135,7 +136,7 @@ async function main() {
         title: t.title,
         curriculum: t.curriculum,
         objectives: t.objectives,
-        subject: t.subject,
+        subjectCode: legacySubjectToCode(t.subject) ?? 'other',
         questLength: t.questLength,
         puzzlePreferences: { types: Object.fromEntries((t.puzzleTypes ?? DEFAULT_PUZZLE_TYPES).map((p) => [p, true])) },
         difficultySettings: { writingLevel: t.writingLevel, puzzleDifficulty: t.writingLevel },

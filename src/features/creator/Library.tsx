@@ -9,6 +9,7 @@ import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { getGuestQuestIds, addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
+import { SUBJECTS, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
 
 interface QuestSummary {
   id: string
@@ -20,6 +21,8 @@ interface QuestSummary {
   is_review?: boolean
   sceneCount: number
   subject?: string | null
+  /* קוד המקצוע (subjects.code); null = "לא סווג" */
+  subjectCode?: string | null
 }
 
 /* הדמיה בספרייה הציבורית (GET /api/library) */
@@ -27,6 +30,7 @@ interface PublicQuest {
   id: string
   title: string
   subject: string | null
+  subjectCode?: string | null
   sceneCount: number
   puzzleTypes: string[]
   authorName: string
@@ -49,7 +53,8 @@ interface StudentRow {
 }
 
 const GRADES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב']
-const SUBJECTS = ['עברית', 'מתמטיקה', 'אנגלית', 'מדעים', 'תנ״ך', 'היסטוריה', 'גאוגרפיה', 'אזרחות', 'ספרות']
+/* רשימת המקצועות — מקור יחיד משותף (shared/lib/subjects.ts); אין עוד רשימה מקומית */
+const SUBJECT_NAMES: string[] = SUBJECTS.map((s) => s.nameHe)
 const CYAN = '47,243,255'
 const MAGENTA = '255,69,230'
 const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
@@ -73,9 +78,10 @@ function Chip({ children }: { children: React.ReactNode }) {
 const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
 
 /* ── כרטיס הדמיה שלי ── */
-function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete }: {
+function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete, onAssignSubject }: {
   q: QuestSummary; busy: boolean; isGuest: boolean; shareBlocked: boolean; onShareBlocked: () => void
   onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void; onDelete: () => void
+  onAssignSubject: (code: string) => void
 }) {
   return (
     <div onClick={onOpen}
@@ -92,7 +98,21 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
           <Chip>{q.sceneCount} סצנות</Chip>
-          {q.subject && <Chip>{q.subject}</Chip>}
+          {q.subject
+            ? <Chip>{q.subject}</Chip>
+            : (
+              /* הדמיה "לא סווג" — שיוך מהיר למקצוע (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */
+              <select
+                aria-label="שיוך למקצוע"
+                disabled={busy}
+                value=""
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => { e.stopPropagation(); if (e.target.value) onAssignSubject(e.target.value) }}
+                style={{ fontSize: 11, fontWeight: 700, color: 'var(--t164)', padding: '3px 8px', borderRadius: 20, cursor: 'pointer', background: 'var(--t166)', border: '1px dashed var(--t168)', fontFamily: 'var(--font-display)' }}>
+                <option value="">{UNCLASSIFIED_LABEL} — שייכו למקצוע…</option>
+                {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
+              </select>
+            )}
           <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
@@ -140,7 +160,7 @@ function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boole
         </span>
         <div style={{ fontSize: 11.5, color: 'var(--t174)', marginTop: 3 }}>נוצר במקור על ידי {q.authorName}</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-          {q.subject && <Chip>{q.subject}</Chip>}
+          <Chip>{q.subject ?? UNCLASSIFIED_LABEL}</Chip>
           {q.gradeMin != null && q.gradeMax != null && <Chip>{q.gradeMin === q.gradeMax ? `כיתה ${GRADES[q.gradeMin - 1] ?? q.gradeMin}` : `כיתות ${GRADES[q.gradeMin - 1] ?? q.gradeMin}–${GRADES[q.gradeMax - 1] ?? q.gradeMax}`}</Chip>}
           <Chip>{q.sceneCount} סצנות</Chip>
           {q.puzzleTypes.slice(0, 3).map((t) => <Chip key={t}>{puzzleTypeLabel(t)}</Chip>)}
@@ -633,6 +653,14 @@ export default function Library() {
     try { await apiJson(`/api/quests/${q.id}/unshare`, { method: 'POST' }); flash('ההדמיה הוסרה מהספרייה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusyId(null) }
   }
+  async function doAssignSubject(q: QuestSummary, code: string) {
+    setBusyId(q.id); setError(null)
+    try {
+      const out = await apiJson<{ subject?: string; subjectCode?: string }>(`/api/quests/${q.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subjectCode: code }) })
+      setQuests((prev) => (prev ?? []).map((it) => (it.id === q.id ? { ...it, subject: out.subject ?? null, subjectCode: out.subjectCode ?? code } : it)))
+      flash('✓ ההדמיה שויכה למקצוע')
+    } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה בשיוך המקצוע') } finally { setBusyId(null) }
+  }
   async function doDelete(q: QuestSummary) {
     if (!(await holoConfirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
     setBusyId(q.id); setError(null)
@@ -678,8 +706,7 @@ export default function Library() {
     return (publicQuests ?? []).filter((it) => {
       if (query.trim() && !`${it.title} ${it.authorName}`.toLowerCase().includes(query.trim().toLowerCase())) return false
       if (subjKeys.length) {
-        const sub = it.subject ?? ''
-        const ok = subjOn[sub] || (subjOn['אחר'] && !SUBJECTS.includes(sub))
+        const ok = !!subjOn[it.subject ?? UNCLASSIFIED_LABEL]
         if (!ok) return false
       }
       /* פילטר טווח שכבות — רק כשהמורה צמצם את הטווח ולהדמיה יש מטא שכבה.
@@ -714,7 +741,7 @@ export default function Library() {
             <div style={{ ...micro, marginBottom: 10 }}>מקצוע</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1, minWidth: 220 }}>
-                {[...SUBJECTS, 'אחר'].map((sub) => {
+                {[...SUBJECT_NAMES, UNCLASSIFIED_LABEL].map((sub) => {
                   const on = !!subjOn[sub]
                   return (
                     <button key={sub} onClick={() => toggleSubj(sub)} style={{ padding: '8px 15px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-display)', transition: 'all .15s', background: on ? 'linear-gradient(120deg, var(--t81), var(--t127))' : 'var(--t25)', border: '1px solid ' + (on ? 'var(--t135)' : 'var(--t86)'), color: on ? 'var(--t13)' : 'var(--t27)', boxShadow: on ? '0 0 14px var(--t88)' : 'none' }}>{sub}</button>
@@ -751,6 +778,7 @@ export default function Library() {
                     onShareBlocked={() => flash(SHARING_DISABLED_UI_MESSAGE)}
                     onShare={() => { if (!isStaff) { navigate('/staff/login') /* שיתוף דורש חשבון */ } else setShareFor(q) }}
                     onUnshare={() => doUnshare(q)}
+                    onAssignSubject={(code) => doAssignSubject(q, code)}
                     onDelete={() => doDelete(q)} />
                 ))}
               </div>

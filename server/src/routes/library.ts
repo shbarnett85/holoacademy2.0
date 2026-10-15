@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
-import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestGrade } from '../lib/activeColumn.js'
+import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestSubjectId, hasQuestGrade } from '../lib/activeColumn.js'
+import { subjectByCode, subjectByLegacyName, questSubjectOut, subjectFieldsOfQuest } from '../lib/subjects.js'
 
 /* ספרייה ציבורית — כל מורה במערכת רואה הדמיות משותפות, מעתיק אותן לעריכה, ומדווח. */
 export const libraryRouter = Router()
@@ -23,20 +24,29 @@ function puzzleTypes(gd: PublicGameData | null | undefined): string[] {
 libraryRouter.get('/', async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) { res.json({ quests: [] }); return }
-    const [withSubject, withGrade] = await Promise.all([hasQuestSubject(), hasQuestGrade()])
+    const [withSubject, withSubjectId, withGrade] = await Promise.all([hasQuestSubject(), hasQuestSubjectId(), hasQuestGrade()])
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
     const subject = typeof req.query.subject === 'string' ? req.query.subject.trim() : ''
+    const subjectCode = typeof req.query.subjectCode === 'string' ? req.query.subjectCode.trim() : ''
 
     const cols = 'id, title, game_data, created_at, published_at, created_by, original_author_id'
       + (withSubject ? ', subject' : '')
+      + (withSubjectId ? ', subject_id' : '')
       + (withGrade ? ', grade_min, grade_max, is_official' : '')
     let query = supabaseAdmin.from('quests').select(cols).eq('is_public', true).order('published_at', { ascending: false })
     if (q) query = query.ilike('title', `%${q}%`)
-    if (subject && withSubject) query = query.eq('subject', subject)
+    /* סינון לפי מקצוע: קוד (מועדף) או שם היסטורי — שניהם דרך subject_id */
+    if ((subjectCode || subject) && withSubjectId) {
+      const row = subjectCode ? await subjectByCode(subjectCode) : await subjectByLegacyName(subject)
+      if (!row) { res.json({ quests: [] }); return }
+      query = query.eq('subject_id', row.id)
+    } else if (subject && withSubject) {
+      query = query.eq('subject', subject)
+    }
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת הספרייה: ' + error.message)
 
-    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
+    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
     const rows = (data ?? []) as unknown as Row[]
 
     /* שמות היוצרים המקוריים (לקרדיט) */
@@ -47,12 +57,14 @@ libraryRouter.get('/', async (req, res, next) => {
       for (const u of (users ?? []) as { id: string; name: string }[]) names.set(u.id, u.name)
     }
 
-    const quests = rows.map((r) => {
+    const quests = await Promise.all(rows.map(async (r) => {
       const authorId = r.original_author_id ?? r.created_by
+      const subj = await questSubjectOut({ subject: withSubjectId ? undefined : r.subject, subject_id: withSubjectId ? (r.subject_id ?? null) : undefined })
       return {
         id: r.id,
         title: r.title,
-        subject: r.subject ?? null,
+        subject: subj.subject,
+        subjectCode: subj.subjectCode,
         sceneCount: r.game_data?.scenes?.length ?? 0,
         puzzleTypes: puzzleTypes(r.game_data),
         authorName: (authorId && names.get(authorId)) || 'מורה',
@@ -62,7 +74,7 @@ libraryRouter.get('/', async (req, res, next) => {
         gradeMax: r.grade_max ?? null,
         isOfficial: r.is_official === true,
       }
-    })
+    }))
     res.json({ quests })
   } catch (err) {
     next(err)
@@ -73,11 +85,10 @@ libraryRouter.get('/', async (req, res, next) => {
 libraryRouter.post('/:id/copy', async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה')
-    const withSubject = await hasQuestSubject()
-    const cols = 'id, title, game_data, is_public, created_by, original_author_id' + (withSubject ? ', subject' : '')
+    const cols = 'id, title, game_data, is_public, created_by, original_author_id'
     const { data: src, error } = await supabaseAdmin.from('quests').select(cols).eq('id', req.params.id).single()
     if (error || !src) throw new AppError(404, 'הדמיה לא נמצאה')
-    const s = src as unknown as { id: string; title: string; game_data: unknown; is_public?: boolean; created_by: string | null; original_author_id: string | null; subject?: string | null }
+    const s = src as unknown as { id: string; title: string; game_data: unknown; is_public?: boolean; created_by: string | null; original_author_id: string | null }
     if (!s.is_public) throw new AppError(403, 'ההדמיה אינה ציבורית')
 
     const insert: Record<string, unknown> = {
@@ -88,7 +99,8 @@ libraryRouter.post('/:id/copy', async (req, res, next) => {
       is_public: false,
       original_author_id: s.original_author_id ?? s.created_by, /* שמירת קרדיט ליוצר המקורי */
     }
-    if (withSubject && s.subject) insert.subject = s.subject
+    /* העותק יורש את מקצוע המקור (subject_id + הטקסט המסונכרן) */
+    Object.assign(insert, (await subjectFieldsOfQuest(s.id)).fields)
     const { data: created, error: insErr } = await supabaseAdmin.from('quests').insert(insert).select('id, title').single()
     if (insErr || !created) throw new AppError(500, 'שגיאה ביצירת העותק: ' + (insErr?.message ?? ''))
     res.status(201).json({ quest: created })

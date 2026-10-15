@@ -58,7 +58,7 @@ describe('demoAnalytics — תקינות מול המודל האמיתי', () => 
     for (const s of students) expect(s.sessionsCount).toBeGreaterThanOrEqual(10)
     expect(students).toHaveLength(8)
   })
-  it('רמות בסולם 1-20, אחוזים ב-0..1, רמות פר-סוג 1-10', () => {
+  it('רמות בסולם 1-20, אחוזים ב-0..1, רמות פר-סוג 1-20', () => {
     const { students } = demoStudentsLens(NOW)
     for (const s of students) {
       expect(s.textLevel).toBeGreaterThanOrEqual(1)
@@ -66,7 +66,7 @@ describe('demoAnalytics — תקינות מול המודל האמיתי', () => 
       if (s.avgSuccessRate !== null) { expect(s.avgSuccessRate).toBeGreaterThanOrEqual(0); expect(s.avgSuccessRate).toBeLessThanOrEqual(1) }
       const d = demoStudentDetail(s.studentId, NOW)!
       for (const lvl of Object.values(d.profile.per_puzzle_level)) {
-        expect(lvl).toBeGreaterThanOrEqual(1); expect(lvl).toBeLessThanOrEqual(10)
+        expect(lvl).toBeGreaterThanOrEqual(1); expect(lvl).toBeLessThanOrEqual(20)
       }
     }
   })

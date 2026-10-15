@@ -172,11 +172,14 @@ function Row({
     </div>
   )
 
+  const { role: viewerRole } = useStaffAuth()
+  const aggregateOnlyRole = viewerRole === 'admin' || viewerRole === 'municipal_admin'
   const actions = (
     <>
-      <ActionBtn label="הגדרות קושי" color="var(--t118)" rgb="255,69,230" onClick={onOpenDifficulty} />
-      <ActionBtn label="התקדמות"    color="var(--t265)" rgb="255,154,46"  onClick={onOpenProgress} />
-      <ActionBtn label="סיכום פדגוגי" color="var(--t54)" rgb="177,139,255" onClick={onOpenSummary} />
+      {/* מנהלים: אגרגטים בלבד — אין פריטים ברמת תלמיד בודד (נאכף גם בשרת) */}
+      {!aggregateOnlyRole && <ActionBtn label="הגדרות קושי" color="var(--t118)" rgb="255,69,230" onClick={onOpenDifficulty} />}
+      {!aggregateOnlyRole && <ActionBtn label="התקדמות"    color="var(--t265)" rgb="255,154,46"  onClick={onOpenProgress} />}
+      {!aggregateOnlyRole && <ActionBtn label="סיכום פדגוגי" color="var(--t54)" rgb="177,139,255" onClick={onOpenSummary} />}
     </>
   )
 

@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { supabaseAdmin } from '../lib/supabase.js'
-import { hasProgressSnapshots, hasHomeroom, hasClassTeachers } from '../lib/activeColumn.js'
+import { hasProgressSnapshots, hasHomeroom, hasClassTeachers, hasSyntheticFlag } from '../lib/activeColumn.js'
 
 /* Seed לסדרת-הזמן של ההתקדמות (גרף "התקדמות"). idempotent + מתויג דמו (session_id=null).
    מזריק snapshots חודשיים ספט→יוני ל-5 תלמידי כיתת הדמו, עם trajectories שמספרים סיפור:
@@ -78,6 +78,7 @@ async function main() {
   const ids = studentIds.map((s) => s.id)
   await supabaseAdmin.from('progress_snapshots').delete().is('session_id', null).in('student_id', ids)
 
+  const synthetic = await hasSyntheticFlag() /* seed מסומן is_synthetic — האנליטיקה האמיתית מסננת */
   const rows: Record<string, unknown>[] = []
   for (const { id, name } of studentIds) {
     const t = TRAJ[name]
@@ -87,6 +88,7 @@ async function main() {
         student_id: id, class_id: classId, session_id: null,
         taken_at: `${ym}-15T10:00:00Z`,
         text_level: text, per_puzzle_level: perPuzzle(text), success_rates: rates(ok), overall_success: ok,
+        ...(synthetic ? { is_synthetic: true } : {}),
       })
     })
   }

@@ -13,6 +13,33 @@ async function check(key: string, query: () => PromiseLike<{ error: any }>): Pro
   return false
 }
 
+/* ── יסודות האנליטיקה (migrations/analytics_foundations.sql) ── */
+export async function hasSubjects(): Promise<boolean> {
+  return check('__subjects', () => supabaseAdmin.from('subjects').select('id').limit(1))
+}
+export async function hasQuestSubjectId(): Promise<boolean> {
+  return check('__quest_subject_id', () => supabaseAdmin.from('quests').select('subject_id').limit(1))
+}
+export async function hasSubjectLevels(): Promise<boolean> {
+  return check('__subject_levels', () => supabaseAdmin.from('student_subject_levels').select('id').limit(1))
+}
+export async function hasLevelHistory(): Promise<boolean> {
+  return check('__level_history', () => supabaseAdmin.from('level_history').select('id').limit(1))
+}
+export async function hasDataAccessLog(): Promise<boolean> {
+  return check('__data_access_log', () => supabaseAdmin.from('data_access_log').select('id').limit(1))
+}
+/* דגל is_synthetic על sessions/events/progress_snapshots/difficulty_profiles */
+export async function hasSyntheticFlag(): Promise<boolean> {
+  return check('__synthetic', () => supabaseAdmin.from('sessions').select('is_synthetic').limit(1))
+}
+export async function hasClassTeacherSubjectId(): Promise<boolean> {
+  return check('__ct_subject_id', () => supabaseAdmin.from('class_teachers').select('subject_id').limit(1))
+}
+export async function hasProfileLock(): Promise<boolean> {
+  return check('__profile_lock', () => supabaseAdmin.from('difficulty_profiles').select('teacher_locked').limit(1))
+}
+
 /* האם עמודות הנתונים הפיקטיביים (users/classes/sessions.is_fictitious) קיימות */
 export async function hasFictitious(): Promise<boolean> {
   return check('__fictitious', async () => {

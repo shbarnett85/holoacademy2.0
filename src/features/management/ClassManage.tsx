@@ -6,6 +6,7 @@ import ConfirmModal from '../superadmin/ConfirmModal'
 import PedagogicalSummary from '../analytics/PedagogicalSummary'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 import type { ClassRow, ClassTeacher } from './index'
+import { SUBJECTS } from '../../shared/lib/subjects'
 
 type Gender = 'male' | 'female' | null
 interface Student { id: string; name: string; is_active: boolean; gender: Gender; is_fictitious?: boolean }
@@ -83,7 +84,7 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   const [teachers, setTeachers] = useState<ClassTeacher[]>(cls.teachers)
   const [gradeLabel, setGradeLabel] = useState(cls.gradeLabel)
   const [schoolTeachers, setSchoolTeachers] = useState<SchoolTeacher[]>([])
-  const [newT, setNewT] = useState({ teacherId: '', subject: '' })
+  const [newT, setNewT] = useState({ teacherId: '', subjectCode: '', isHomeroom: false })
 
   const link = `holoacademy.ai/class/${cls.url_code}`
 
@@ -105,8 +106,11 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
     if (busy || !newT.teacherId) return
     setBusy(true); setError(null)
     try {
-      await apiJson(`/api/staff/classes/${cls.id}/teachers`, { method: 'POST', body: JSON.stringify({ teacherId: newT.teacherId, subject: newT.subject.trim() }) })
-      setNewT({ teacherId: '', subject: '' }); refreshClass()
+      await apiJson(`/api/staff/classes/${cls.id}/teachers`, {
+        method: 'POST',
+        body: JSON.stringify({ teacherId: newT.teacherId, subjectCode: newT.subjectCode || undefined, isHomeroom: newT.isHomeroom || undefined }),
+      })
+      setNewT({ teacherId: '', subjectCode: '', isHomeroom: false }); refreshClass()
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
   }
   async function removeTeacher(teacherId: string) {
@@ -178,8 +182,10 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
           ? <p style={{ fontSize: 12, color: 'var(--t248)' }}>אין מורים משויכים.</p>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: isAdmin ? 10 : 0 }}>
               {teachers.map((t) => (
-                <div key={t.teacherId + t.subject} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 9, background: 'var(--t178)', border: '1px solid var(--t116)' }}>
-                  <span style={{ fontSize: 13, color: 'var(--t12)' }}>{t.name}{t.subject ? <span style={{ fontSize: 11, color: 'var(--t252)', marginRight: 6 }}>· {t.subject}</span> : null}</span>
+                <div key={t.teacherId + t.subject + (t.isHomeroom ? 'h' : '')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 9, background: 'var(--t178)', border: '1px solid var(--t116)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--t12)' }}>{t.name}
+                    {t.isHomeroom ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t15)', marginRight: 6 }}>· 🎓 מחנך/ת</span> : null}
+                    {t.subject ? <span style={{ fontSize: 11, color: 'var(--t252)', marginRight: 6 }}>· {t.subject}</span> : null}</span>
                   {isAdmin && <button onClick={() => removeTeacher(t.teacherId)} style={{ background: 'none', border: 'none', color: 'var(--t5)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>הסר</button>}
                 </div>
               ))}
@@ -192,7 +198,15 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
               <option value="">בחר מורה…</option>
               {schoolTeachers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <input placeholder="מקצוע (אופציונלי)" value={newT.subject} onChange={(e) => setNewT({ ...newT, subject: e.target.value })} style={{ ...inputStyle, flex: '1 1 100px' }} />
+            <select aria-label="מקצוע" value={newT.subjectCode} onChange={(e) => setNewT({ ...newT, subjectCode: e.target.value })}
+              style={{ ...inputStyle, width: 'auto', flex: '1 1 110px' }}>
+              <option value="">מקצוע (אופציונלי)…</option>
+              {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
+            </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--t12)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={newT.isHomeroom} onChange={(e) => setNewT({ ...newT, isHomeroom: e.target.checked })} />
+              מחנך/ת הכיתה
+            </label>
             <HoloBtn label="+ שייך" onClick={addTeacher} disabled={busy || !newT.teacherId} />
           </div>
         )}

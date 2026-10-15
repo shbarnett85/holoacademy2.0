@@ -4,7 +4,13 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
-import { hasClassTeachers, hasIsActive, hasGradeLabel, hasQuestSubject, hasDifficultyProfileV2, hasHomeroom, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasFictitious } from '../lib/activeColumn.js'
+import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag } from '../lib/activeColumn.js'
+import {
+  loadViewer, studentScope, requireStudentScope, canPatchLevels, assignmentVisible, questVisible, classAccess,
+  isAggregateOnly, belowMinCell, MIN_CELL_SIZE, logAccess, classIdsOfStudent,
+} from '../lib/authz.js'
+import { subjectByCode, questSubjectOut } from '../lib/subjects.js'
+import { applyTeacherLevels } from '../lib/profileCalibration.js'
 import { claude } from '../lib/claude.js'
 import { callGeminiText } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
@@ -36,25 +42,38 @@ const STRUGGLE_RATE = 0.6     /* 🔴 מתקשה (אחוז הצלחה נמוך) 
 const SKIP_AVG_SCENE_MS = 5000 /* ⚡ חשד לדילוג — מהיר מדי לכל סצנה */
 const SLOW_AVG_SCENE_MS = 90000 /* איטי מאוד לכל סצנה (התקשות בזמן) */
 
-/* גישת הצוות לכיתה: super_admin → תמיד; admin → בית ספרו; מורה → קישור class_teachers (או teacher_id). */
+/* גישת הצוות לכיתה (רמת אגרגט) — דרך מודול ההרשאות המרכזי (lib/authz.ts). */
 async function assertClassAccess(req: Request, classId: string): Promise<{ id: string; school_id: string | null }> {
-  const { data, error } = await supabaseAdmin.from('classes').select('id, school_id, teacher_id').eq('id', classId).single()
+  const { data, error } = await supabaseAdmin.from('classes').select('id, school_id').eq('id', classId).single()
   if (error || !data) throw new AppError(404, 'כיתה לא נמצאה')
-  const cls = data as { id: string; school_id: string | null; teacher_id?: string | null }
-  const s = req.staff!
-  if (s.role === 'super_admin') return cls
-  if (isAdmin(req)) {
-    if (cls.school_id !== s.schoolId) throw new AppError(403, 'הכיתה אינה בבית ספרך')
-    return cls
+  const cls = data as { id: string; school_id: string | null }
+  const viewer = await loadViewer(req)
+  if (classAccess(viewer, cls) === 'none') throw new AppError(403, 'אין לך גישה לכיתה זו')
+  return cls
+}
+
+/* האם לסנן החוצה נתונים סינתטיים: כל צופה מחוץ לארגון הדגמה (demo_data_enabled) רואה נתוני אמת בלבד */
+async function excludeSynthetic(req: Request): Promise<boolean> {
+  const viewer = await loadViewer(req)
+  if (viewer.seesSynthetic) return false
+  return hasSyntheticFlag()
+}
+
+/* מטא להדמיות: מקצוע + יוצר + כותרת (שאילתה אחת) */
+interface QuestMeta { subject_id: string | null; created_by: string | null; subject: string | null; title: string }
+async function questMeta(ids: string[]): Promise<Map<string, QuestMeta>> {
+  const map = new Map<string, QuestMeta>()
+  const uniq = [...new Set(ids)]
+  if (uniq.length === 0) return map
+  const withId = await hasQuestSubjectId()
+  const withText = await hasQuestSubject()
+  const cols = 'id, title, created_by' + (withId ? ', subject_id' : '') + (withText ? ', subject' : '')
+  const { data } = await supabaseAdmin.from('quests').select(cols).in('id', uniq)
+  for (const q of (data ?? []) as unknown as { id: string; title: string; created_by: string | null; subject_id?: string | null; subject?: string | null }[]) {
+    const out = await questSubjectOut({ subject: withId ? undefined : q.subject, subject_id: withId ? (q.subject_id ?? null) : undefined })
+    map.set(q.id, { subject_id: withId ? (q.subject_id ?? null) : null, created_by: q.created_by ?? null, subject: out.subject, title: q.title ?? '' })
   }
-  /* מורה — dual-path */
-  if (await hasClassTeachers()) {
-    const { data: link } = await supabaseAdmin.from('class_teachers').select('class_id').eq('class_id', classId).eq('teacher_id', s.userId).limit(1)
-    if (link && link.length > 0) return cls
-  } else if (cls.teacher_id === s.userId) {
-    return cls
-  }
-  throw new AppError(403, 'אין לך גישה לכיתה זו')
+  return map
 }
 
 /* תלמידים פעילים בכיתה */
@@ -80,15 +99,16 @@ interface SessionRow {
 }
 
 /* ה-session האחרון לכל תלמיד עבור הדמיה מסוימת (לפי quest_id — זרימת המשחק אינה נושאת assignment_id) */
-async function latestSessionsByStudent(questId: string, studentIds: string[]): Promise<Map<string, SessionRow>> {
+async function latestSessionsByStudent(questId: string, studentIds: string[], excludeSyn = false): Promise<Map<string, SessionRow>> {
   const map = new Map<string, SessionRow>()
   if (studentIds.length === 0) return map
-  const { data } = await supabaseAdmin
+  let sq = supabaseAdmin
     .from('sessions')
     .select('id, user_id, quest_id, started_at, completed_at, total_score, max_score')
     .eq('quest_id', questId)
     .in('user_id', studentIds)
-    .order('started_at', { ascending: false })
+  if (excludeSyn) sq = sq.eq('is_synthetic', false)
+  const { data } = await sq.order('started_at', { ascending: false })
   for (const s of (data ?? []) as SessionRow[]) {
     if (!map.has(s.user_id)) map.set(s.user_id, s) /* הראשון = האחרון (ordered desc) */
   }
@@ -202,6 +222,13 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
       .single()
     if (error || !asg) throw new AppError(404, 'מטלה לא נמצאה')
     await assertClassAccess(req, asg.class_id)
+    const viewer = await loadViewer(req)
+    const qm = (await questMeta([asg.quest_id])).get(asg.quest_id)
+    if (!assignmentVisible(viewer, asg.class_id, { subject_id: qm?.subject_id ?? null, created_by: qm?.created_by ?? null })) {
+      throw new AppError(403, 'אין לך גישה להדמיה זו — היא אינה במקצוע שלך בכיתה הזו')
+    }
+    const exSyn = await excludeSynthetic(req)
+    const aggOnly = isAggregateOnly(viewer)
 
     const [{ data: questRow }, { data: clsRow }, students] = await Promise.all([
       supabaseAdmin.from('quests').select('title, game_data').eq('id', asg.quest_id).single(),
@@ -211,7 +238,7 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
     const challenges = questChallenges(questRow?.game_data)
     const { objectives, sceneToObjective } = questObjectives(questRow?.game_data)
     const studentIds = students.map((s) => s.id)
-    const sessions = await latestSessionsByStudent(asg.quest_id, studentIds)
+    const sessions = await latestSessionsByStudent(asg.quest_id, studentIds, exSyn)
     const sessionIds = [...sessions.values()].map((s) => s.id)
     /* מיפוי session→תלמיד — לזיהוי מתקשים פר-יעד */
     const sessionToStudent = new Map<string, string>()
@@ -299,12 +326,18 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
       const strugglers = hardest.failed
       insights.push(`${strugglers} תלמידים התקשו באתגר "${hardest.title}" (${Math.round((hardest.successRate ?? 0) * 100)}% הצלחה) — שווה לחזור עליו בכיתה.`)
     }
-    const strugglingStudents = perStudent.filter((s) => s.flags.includes('struggling')).length
-    if (strugglingStudents > 0) insights.push(`${strugglingStudents} תלמידים מתקשים בהדמיה — כדאי לבדוק איתם אישית.`)
-    const skips = perStudent.filter((s) => s.flags.includes('skip_suspect')).length
-    if (skips > 0) insights.push(`${skips} תלמידים סיימו מהר מאוד עם הצלחה נמוכה — ייתכן שדילגו על התוכן.`)
+    /* תובנות על תלמידים בודדים — למורים בלבד; מנהלים מקבלים רק תובנות ברמת הכיתה (חוק 8) */
+    if (!aggOnly) {
+      const strugglingStudents = perStudent.filter((s) => s.flags.includes('struggling')).length
+      if (strugglingStudents > 0) insights.push(`${strugglingStudents} תלמידים מתקשים בהדמיה — כדאי לבדוק איתם אישית.`)
+      const skips = perStudent.filter((s) => s.flags.includes('skip_suspect')).length
+      if (skips > 0) insights.push(`${skips} תלמידים סיימו מהר מאוד עם הצלחה נמוכה — ייתכן שדילגו על התוכן.`)
+    }
     if (notStarted.length > 0) insights.push(`${notStarted.length} תלמידים עוד לא התחילו את ההדמיה.`)
     if (avgSuccessRate !== null && avgSuccessRate >= EXCEL_RATE) insights.push('הכיתה שלטה בחומר — אחוז הצלחה ממוצע מצוין! 🎉')
+
+    /* מנהלים: אגרגט בלבד + סף מינימום לתא. מתחת לסף — "אין עדיין מספיק נתונים". */
+    const insufficient = aggOnly && belowMinCell(completed.length)
 
     res.json({
       assignment: { id: asg.id, dueDate: asg.due_date },
@@ -316,15 +349,21 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
         inProgress: inProgress.length,
         notStarted: notStarted.length,
         completionRate: students.length ? completed.length / students.length : 0,
-        avgSuccessRate,
-        avgCompletionMs,
-        flaggedCount,
+        avgSuccessRate: insufficient ? null : avgSuccessRate,
+        avgCompletionMs: insufficient ? null : avgCompletionMs,
+        flaggedCount: aggOnly ? 0 : flaggedCount,
       },
-      distribution,
-      perChallenge,
-      perObjective,
-      students: perStudent,
-      insights,
+      distribution: insufficient ? { low: 0, mid: 0, high: 0 } : distribution,
+      perChallenge: insufficient ? perChallenge.map((c) => ({ ...c, attempts: 0, solved: 0, failed: 0, successRate: null })) : perChallenge,
+      perObjective: aggOnly
+        ? perObjective.map((o) => ({ ...o, weakStudents: [], ...(insufficient ? { attempts: 0, successRate: null, masteryLevel: null } : {}) }))
+        : perObjective,
+      /* מנהלים לא רואים תלמידים בודדים */
+      students: aggOnly ? [] : perStudent,
+      insights: insufficient ? [] : insights,
+      aggregateOnly: aggOnly,
+      insufficientData: insufficient,
+      minCellSize: MIN_CELL_SIZE,
     })
   } catch (err) {
     next(err)
@@ -339,12 +378,21 @@ analyticsRouter.get('/class/:classId/assignments', async (req, res, next) => {
       return
     }
     await assertClassAccess(req, req.params.classId)
-    const { data: asgs, error } = await supabaseAdmin
+    const viewer = await loadViewer(req)
+    const exSyn = await excludeSynthetic(req)
+    const aggOnly = isAggregateOnly(viewer)
+    const { data: asgsAll, error } = await supabaseAdmin
       .from('assignments')
       .select('id, quest_id, due_date, created_at, quests(title)')
       .eq('class_id', req.params.classId)
       .order('created_at', { ascending: false })
     if (error) throw new AppError(500, 'שגיאה בשליפת מטלות: ' + error.message)
+    /* מורה רואה רק מטלות במקצועו (או שיצר / מחנך הכיתה) */
+    const metaByQuest = await questMeta((asgsAll ?? []).map((a) => a.quest_id))
+    const asgs = (asgsAll ?? []).filter((a) => {
+      const m = metaByQuest.get(a.quest_id)
+      return assignmentVisible(viewer, req.params.classId, { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null })
+    })
 
     const students = await activeStudents(req.params.classId)
     const studentIds = students.map((s) => s.id)
@@ -353,12 +401,13 @@ analyticsRouter.get('/class/:classId/assignments', async (req, res, next) => {
     /* כל ה-sessions של תלמידי הכיתה על ההדמיות המוקצות — שאילתה אחת, אגרגציה ב-JS */
     const byQuest = new Map<string, SessionRow[]>()
     if (questIds.length && studentIds.length) {
-      const { data } = await supabaseAdmin
+      let sq = supabaseAdmin
         .from('sessions')
         .select('id, user_id, quest_id, started_at, completed_at, total_score, max_score')
         .in('quest_id', questIds)
         .in('user_id', studentIds)
-        .order('started_at', { ascending: false })
+      if (exSyn) sq = sq.eq('is_synthetic', false)
+      const { data } = await sq.order('started_at', { ascending: false })
       for (const s of (data ?? []) as SessionRow[]) {
         const arr = byQuest.get(s.quest_id) ?? []
         arr.push(s)
@@ -382,7 +431,7 @@ analyticsRouter.get('/class/:classId/assignments', async (req, res, next) => {
         students: students.length,
         completed: completed.length,
         completionRate: students.length ? completed.length / students.length : 0,
-        avgSuccessRate: rates.length ? rates.reduce((x, y) => x + y, 0) / rates.length : null,
+        avgSuccessRate: aggOnly && belowMinCell(completed.length) ? null : (rates.length ? rates.reduce((x, y) => x + y, 0) / rates.length : null),
       }
     })
     res.json({ assignments })
@@ -405,14 +454,7 @@ async function accessibleClasses(req: Request): Promise<{ id: string; gradeLabel
     const { data } = await q
     rows = (data ?? []) as Record<string, unknown>[]
   } else {
-    let ids: string[]
-    if (await hasClassTeachers()) {
-      const { data } = await supabaseAdmin.from('class_teachers').select('class_id').eq('teacher_id', s.userId)
-      ids = (data ?? []).map((l) => l.class_id)
-    } else {
-      const { data } = await supabaseAdmin.from('classes').select('id').eq('teacher_id', s.userId)
-      ids = (data ?? []).map((c) => c.id)
-    }
+    const ids = [...(await loadViewer(req)).grants.keys()]
     if (ids.length === 0) return []
     const { data } = await supabaseAdmin.from('classes').select('*').in('id', ids)
     rows = (data ?? []) as Record<string, unknown>[]
@@ -421,13 +463,11 @@ async function accessibleClasses(req: Request): Promise<{ id: string; gradeLabel
 }
 
 /* כיתות שהמורה הוא *מחנך* שלהן (is_homeroom=true). מושג של מורה בלבד —
-   admin/super_admin ניגשים לפי בית ספר ולא צריכים את ההבחנה. עמיד לפני המיגרציה (ריק). */
+   admin/super_admin ניגשים לפי בית ספר ולא צריכים את ההבחנה. */
 async function homeroomClassIds(req: Request): Promise<Set<string>> {
-  const s = req.staff!
-  if (s.role !== 'teacher') return new Set()
-  if (!(await hasHomeroom())) return new Set()
-  const { data } = await supabaseAdmin.from('class_teachers').select('class_id').eq('teacher_id', s.userId).eq('is_homeroom', true)
-  return new Set((data ?? []).map((r) => r.class_id as string))
+  const viewer = await loadViewer(req)
+  if (viewer.role !== 'teacher') return new Set()
+  return new Set([...viewer.grants.values()].filter((g) => g.homeroom).map((g) => g.classId))
 }
 
 /* ── GET /api/analytics/assignments — כל המטלות בכל הכיתות הנגישות (לרשימה המלאה + סינון) ── */
@@ -456,18 +496,16 @@ analyticsRouter.get('/assignments', async (req, res, next) => {
     const allStudentIds = [...new Set([...studentsByClass.values()].flat().map((s) => s.id))]
     const questIds = [...new Set((asgs ?? []).map((a) => a.quest_id))]
 
-    /* מטא להדמיות: יוצר (לשיוך בעלות) + מקצוע. נשלף בשאילתה אחת. */
-    const withSubject = await hasQuestSubject()
+    /* מטא להדמיות: יוצר (לשיוך בעלות) + מקצוע (subject_id). נשלף בשאילתה אחת. */
+    const metaByQuest = await questMeta(questIds)
     const subjectByQuest = new Map<string, string>()
     const authorByQuest = new Map<string, string | null>()
-    if (questIds.length) {
-      const cols = 'id, created_by' + (withSubject ? ', subject' : '')
-      const { data } = await supabaseAdmin.from('quests').select(cols).in('id', questIds)
-      for (const q of (data ?? []) as unknown as { id: string; created_by: string | null; subject?: string | null }[]) {
-        authorByQuest.set(q.id, q.created_by ?? null)
-        if (q.subject) subjectByQuest.set(q.id, q.subject)
-      }
+    for (const [qid, m] of metaByQuest) {
+      authorByQuest.set(qid, m.created_by)
+      if (m.subject) subjectByQuest.set(qid, m.subject)
     }
+    const viewer = await loadViewer(req)
+    const exSyn = await excludeSynthetic(req)
     /* שמות היוצרים — לתווית הבידול אצל מחנך ("כיתתי · <מקצוע> · <מורה>") */
     const authorIds = [...new Set([...authorByQuest.values()].filter((x): x is string => !!x))]
     const authorName = new Map<string, string>()
@@ -476,20 +514,21 @@ analyticsRouter.get('/assignments', async (req, res, next) => {
       for (const u of (data ?? []) as { id: string; name: string }[]) authorName.set(u.id, u.name)
     }
 
-    /* סקופ: מורה מקצועי → ההקצאות שלו בלבד (quest.created_by === הוא);
-       מחנך → בנוסף הקצאות מורים אחרים שהוקצו לכיתת-החינוך שלו (הרשאה B). admin/super → הכול. */
+    /* סקופ (authz): מורה מקצועי → הקצאות שיצר או במקצוע שלו בכיתה; מחנך → כל ההקצאות לכיתתו
+       (גם של מורים אחרים); admin/super → הכול (אגרגט). */
     const homeroomSet = await homeroomClassIds(req)
     const myId = req.staff!.userId
 
     /* sessions לכל ההדמיות + התלמידים — שאילתה אחת */
     const sessions: SessionRow[] = []
     if (questIds.length && allStudentIds.length) {
-      const { data } = await supabaseAdmin
+      let sq = supabaseAdmin
         .from('sessions')
         .select('id, user_id, quest_id, started_at, completed_at, total_score, max_score')
         .in('quest_id', questIds)
         .in('user_id', allStudentIds)
-        .order('started_at', { ascending: false })
+      if (exSyn) sq = sq.eq('is_synthetic', false)
+      const { data } = await sq.order('started_at', { ascending: false })
       sessions.push(...((data ?? []) as SessionRow[]))
     }
 
@@ -514,10 +553,11 @@ analyticsRouter.get('/assignments', async (req, res, next) => {
         title: (q as { title?: string } | null)?.title ?? '', subject: subjectByQuest.get(a.quest_id) ?? null, dueDate: a.due_date, createdAt: a.created_at,
         students: clsStudents.length, completed: completed.length,
         completionRate: clsStudents.length ? completed.length / clsStudents.length : 0,
-        avgSuccessRate: rates.length ? rates.reduce((x, y) => x + y, 0) / rates.length : null,
+        avgSuccessRate: adminLike && belowMinCell(completed.length) ? null : (rates.length ? rates.reduce((x, y) => x + y, 0) / rates.length : null),
         own, homeroom, teacherName: homeroom && author ? (authorName.get(author) ?? null) : null,
+        _visible: assignmentVisible(viewer, a.class_id, { subject_id: metaByQuest.get(a.quest_id)?.subject_id ?? null, created_by: author }),
       }
-    }).filter((a) => a.own || a.homeroom) /* מורה מקצועי: רק שלו; מחנך: + של כיתתו; admin: הכול (own=true) */
+    }).filter((a) => a._visible).map(({ _visible, ...rest }) => { void _visible; return rest }) /* מורה מקצועי: שיצר/במקצועו; מחנך: + כל כיתתו; admin: הכול */
     res.json({ assignments })
   } catch (err) {
     next(err)
@@ -535,42 +575,36 @@ analyticsRouter.get('/students', async (req, res, next) => {
       res.json(demoStudentsLens(new Date()))
       return
     }
-    const s = req.staff!
-    const adminLike = isAdmin(req)
+    const viewer = await loadViewer(req)
+    /* מנהלים: אגרגטים בלבד — אין רשימת תלמידים בודדים (חוק 8) */
+    if (isAggregateOnly(viewer)) { res.json({ students: [], canCompare: false, aggregateOnly: true }); return }
     const classes = await accessibleClasses(req)
     if (classes.length === 0) { res.json({ students: [], canCompare: false }); return }
-    const homeroomSet = await homeroomClassIds(req)
+    const exSyn = await excludeSynthetic(req)
 
-    /* הדמיות שהמורה יצר — לסקופ "ביצועים מההקצאות שלו" (מורה מקצועי) */
-    let ownQuestIds = new Set<string>()
-    if (!adminLike) {
-      const { data } = await supabaseAdmin.from('quests').select('id').eq('created_by', s.userId)
-      ownQuestIds = new Set((data ?? []).map((q) => q.id as string))
-    }
-
-    /* תלמיד → כיתה מייצגת (מעדיף כיתת-חינוך אם התלמיד בכמה כיתות נגישות) */
-    const studentClass = new Map<string, { name: string; classId: string; gradeLabel: string; isFictitious: boolean }>()
+    /* תלמיד → כיתה מייצגת (מעדיף כיתת-חינוך) + כל הכיתות הנגישות שלו (לחישוב טווח) */
+    const studentClass = new Map<string, { name: string; classId: string; gradeLabel: string; isFictitious: boolean; classIds: string[] }>()
     for (const c of classes) {
       for (const st of await activeStudents(c.id)) {
         const cur = studentClass.get(st.id)
-        const isHome = homeroomSet.has(c.id)
-        if (!cur || (isHome && !homeroomSet.has(cur.classId))) studentClass.set(st.id, { name: st.name, classId: c.id, gradeLabel: c.gradeLabel, isFictitious: st.isFictitious })
+        if (!cur) { studentClass.set(st.id, { name: st.name, classId: c.id, gradeLabel: c.gradeLabel, isFictitious: st.isFictitious, classIds: [c.id] }); continue }
+        cur.classIds.push(c.id)
+        if (viewer.grants.get(c.id)?.homeroom && !viewer.grants.get(cur.classId)?.homeroom) { cur.classId = c.id; cur.gradeLabel = c.gradeLabel }
       }
     }
     const studentIds = [...studentClass.keys()]
     if (studentIds.length === 0) { res.json({ students: [], canCompare: false }); return }
 
-    /* תמונה מלאה לתלמיד = admin/super, או שהתלמיד בכיתת-חינוך של המורה */
-    const isFull = (classId: string) => adminLike || homeroomSet.has(classId)
-
-    const { data: sessRows } = await supabaseAdmin
+    let sessQ = supabaseAdmin
       .from('sessions')
       .select('id, user_id, quest_id, started_at, completed_at, total_score, max_score')
       .in('user_id', studentIds)
-      .order('started_at', { ascending: false })
+    if (exSyn) sessQ = sessQ.eq('is_synthetic', false)
+    const { data: sessRows } = await sessQ.order('started_at', { ascending: false })
     const sessions = (sessRows ?? []) as SessionRow[]
+    const qmeta = await questMeta(sessions.map((x) => x.quest_id))
 
-    /* פרופיל קושי (חוצה-מקצוע) — מוצג רק בתמונה מלאה */
+    /* פרופיל קושי (חוצה-מקצוע) — מוצג רק בתמונה מלאה (מחנך) */
     const v2 = await hasDifficultyProfileV2()
     const profCols = v2 ? 'user_id, text_level, sessions_count' : 'user_id, writing_level, sessions_count'
     const { data: profRows } = await supabaseAdmin.from('difficulty_profiles').select(profCols).in('user_id', studentIds)
@@ -579,8 +613,13 @@ analyticsRouter.get('/students', async (req, res, next) => {
 
     const students = studentIds.map((sid) => {
       const meta = studentClass.get(sid)!
-      const full = isFull(meta.classId)
-      const mySess = sessions.filter((se) => se.user_id === sid && (full || ownQuestIds.has(se.quest_id)))
+      const scope = studentScope(viewer, meta.classIds)
+      const full = scope.kind === 'scoped' && scope.full
+      const mySess = sessions.filter((se) => {
+        if (se.user_id !== sid) return false
+        const m = qmeta.get(se.quest_id)
+        return questVisible(scope, { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null }, viewer.userId)
+      })
       const latest = new Map<string, SessionRow>()
       for (const se of mySess) if (!latest.has(se.quest_id)) latest.set(se.quest_id, se)
       const list = [...latest.values()]
@@ -601,8 +640,9 @@ analyticsRouter.get('/students', async (req, res, next) => {
       }
     }).sort((a, b) => a.name.localeCompare(b.name, 'he'))
 
-    /* גרף ההשוואה (מבלוק מודל ההשוואה) זמין רק בתמונה מלאה — מחנך/מנהל */
-    res.json({ students, canCompare: adminLike || homeroomSet.size > 0 })
+    /* גרף ההשוואה זמין רק בתמונה מלאה — מחנך */
+    void logAccess(viewer, { scope: 'students_lens', endpoint: 'GET /api/analytics/students' })
+    res.json({ students, canCompare: viewer.role === 'super_admin' || viewer.grants.size > 0 && [...viewer.grants.values()].some((g) => g.homeroom) })
   } catch (err) {
     next(err)
   }
@@ -617,21 +657,32 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       res.json(demo)
       return
     }
-    /* ודא שהתלמיד באחת מכיתות הצוות */
-    const { data: memberships } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', req.params.studentId)
-    const classIds = (memberships ?? []).map((m) => m.class_id)
-    let allowed = req.staff!.role === 'super_admin'
-    if (!allowed) {
-      for (const cid of classIds) {
-        try { await assertClassAccess(req, cid); allowed = true; break } catch { /* נסה את הבא */ }
-      }
-    }
-    if (!allowed) throw new AppError(403, 'אין לך גישה לתלמיד זה')
+    /* authz: מנהלים נחסמים (אגרגטים בלבד); מורה מקצועי מוגבל למקצועותיו; מחנך — הכול */
+    const { viewer, scope } = await requireStudentScope(req, req.params.studentId)
+    if (scope.kind !== 'scoped') throw new AppError(403, 'אין לך גישה לתלמיד זה')
+    const exSyn = await excludeSynthetic(req)
+    const studentId = req.params.studentId
 
     const stuCols = (await hasFictitious()) ? 'id, name, is_fictitious' : 'id, name'
-    const { data: stu } = await supabaseAdmin.from('users').select(stuCols).eq('id', req.params.studentId).single()
+    const { data: stu } = await supabaseAdmin.from('users').select(stuCols).eq('id', studentId).single()
 
-    /* פרופיל הקושי — המבנה החדש (per-type) אם המיגרציה רצה, אחרת המבנה הישן */
+    /* סשנים — כל התלמיד, ואז סינון לפי טווח הצופה (מקצועות אחרים → שמות בלבד) */
+    let sq = supabaseAdmin
+      .from('sessions')
+      .select('id, quest_id, started_at, completed_at, total_score, max_score')
+      .eq('user_id', studentId)
+    if (exSyn) sq = sq.eq('is_synthetic', false)
+    const { data: allSessions } = await sq.order('started_at', { ascending: false }).limit(200)
+    const qmeta = await questMeta((allSessions ?? []).map((x) => x.quest_id as string))
+    const visible = (allSessions ?? []).filter((x) => {
+      const m = qmeta.get(x.quest_id as string)
+      return questVisible(scope, { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null }, viewer.userId)
+    })
+    const hidden = (allSessions ?? []).filter((x) => !visible.includes(x))
+    const otherSubjects = [...new Set(hidden.map((x) => qmeta.get(x.quest_id as string)?.subject).filter((n): n is string => !!n))]
+      .map((name) => ({ name }))
+
+    /* פרופיל הקושי הגלובלי — לתמונה מלאה בלבד (מחנך/מנהל-על). מורה מקצועי מקבל רמות פר-מקצוע. */
     const v2 = await hasDifficultyProfileV2()
     const withRolling = v2 && (await hasRollingTallies())
     const profileCols = v2
@@ -639,35 +690,39 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
           ...(withRolling ? ['rolling_tallies'] : []),
         ].join(', ')
       : 'writing_level, puzzle_difficulty, avg_success_rate, avg_time_per_scene, sessions_count, last_updated'
-    const { data: profile } = await supabaseAdmin
-      .from('difficulty_profiles')
-      .select(profileCols)
-      .eq('user_id', req.params.studentId)
-      .maybeSingle()
+    let profile: unknown = null
+    if (scope.full) {
+      const { data } = await supabaseAdmin.from('difficulty_profiles').select(profileCols).eq('user_id', studentId).maybeSingle()
+      profile = data ?? null
+    }
 
-    /* דגל "דילוג" — מה-session_completed האחרון */
-    const { data: lastCompleted } = await supabaseAdmin
-      .from('events')
-      .select('payload, created_at')
-      .eq('user_id', req.params.studentId)
-      .eq('type', 'session_completed')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
+    /* רמות פר-מקצוע — רק המקצועות שהצופה רשאי לראות */
+    const subjectLevels: { subjectCode: string; subjectName: string; textLevel: number; perType: Record<string, number>; teacherLocked: boolean }[] = []
+    if (await hasSubjectLevels()) {
+      const { data: lv } = await supabaseAdmin.from('student_subject_levels').select('subject_id, text_level, per_type, teacher_locked').eq('student_id', studentId)
+      const allowed = new Set<string>(scope.subjectIds)
+      for (const x of visible) { const sid = qmeta.get(x.quest_id as string)?.subject_id; if (sid) allowed.add(sid) }
+      for (const r of (lv ?? []) as { subject_id: string; text_level: number; per_type: Record<string, number> | null; teacher_locked: boolean }[]) {
+        if (!scope.full && !allowed.has(r.subject_id)) continue
+        const srow = await questSubjectOut({ subject: undefined, subject_id: r.subject_id })
+        if (!srow.subjectCode) continue
+        subjectLevels.push({ subjectCode: srow.subjectCode, subjectName: srow.subject ?? '', textLevel: Number(r.text_level), perType: r.per_type ?? {}, teacherLocked: r.teacher_locked })
+      }
+    }
 
-    const { data: sessions } = await supabaseAdmin
-      .from('sessions')
-      .select('id, quest_id, started_at, completed_at, total_score, max_score, quests(title)')
-      .eq('user_id', req.params.studentId)
-      .order('started_at', { ascending: false })
-      .limit(50)
+    /* דגל "דילוג" — מה-session_completed של הסשן המושלם האחרון שבטווח */
+    const lastDone = visible.find((x) => x.completed_at)
+    let skipping = false
+    if (lastDone) {
+      const { data: lastCompleted } = await supabaseAdmin
+        .from('events').select('payload').eq('session_id', lastDone.id).eq('type', 'session_completed').limit(1).maybeSingle()
+      skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
+    }
 
-    const history = (sessions ?? []).map((s) => {
-      const q = Array.isArray(s.quests) ? s.quests[0] : s.quests
-      const successRate = s.max_score ? (s.total_score ?? 0) / s.max_score : null
+    const history = visible.slice(0, 50).map((s) => {
+      const successRate = s.max_score ? ((s.total_score as number | null) ?? 0) / (s.max_score as number) : null
       return {
-        sessionId: s.id, questId: s.quest_id, questTitle: (q as { title?: string } | null)?.title ?? '',
+        sessionId: s.id, questId: s.quest_id, questTitle: qmeta.get(s.quest_id as string)?.title ?? '',
         startedAt: s.started_at, completedAt: s.completed_at,
         status: s.completed_at ? 'completed' : 'in_progress', successRate,
       }
@@ -677,62 +732,55 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       .reverse()
       .map((h) => ({ date: h.completedAt, successRate: h.successRate }))
 
-    const profileAny = profile as Record<string, unknown> | null
+    void logAccess(viewer, { studentId, scope: 'student_detail', endpoint: 'GET /api/analytics/student/:id' })
     res.json({
       student: {
-        id: req.params.studentId,
+        id: studentId,
         name: (stu as { name?: string } | null)?.name ?? '',
         isFictitious: (stu as { is_fictitious?: boolean } | null)?.is_fictitious === true,
       },
-      profile: profileAny ?? null,
+      profile,
       profileVersion: v2 ? 2 : 1,
       skipping,
       history,
       trend,
+      subjectLevels,
+      otherSubjects,
+      visibility: { full: scope.full },
     })
   } catch (err) {
     next(err)
   }
 })
 
-/* ── PATCH /api/analytics/student/:studentId/profile — עקיפת מורה לפרופיל קושי ── */
+/* ── PATCH /api/analytics/student/:studentId/profile — עקיפת מורה לרמות ──
+   רק מחנך (כל מקצוע + הגלובלי) או מורה שמלמד את התלמיד באותו מקצוע (subjectCode חובה).
+   כותב teacher_locked=true — הכיול האוטומטי לא דורס עד ש-unlock:true משחרר. נרשם ב-level_history. */
 analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
   try {
     const { studentId } = req.params
-    /* בדיקת גישה בסיסית */
-    const { data: memberships } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId)
-    const classIds = (memberships ?? []).map((m: { class_id: string }) => m.class_id)
-    let allowed = req.staff!.role === 'super_admin'
-    if (!allowed) {
-      for (const cid of classIds) {
-        try { await assertClassAccess(req, cid); allowed = true; break } catch { /* נסה */ }
-      }
+    const { viewer, scope, classIds } = await requireStudentScope(req, studentId)
+
+    const body = (req.body ?? {}) as { perPuzzleLevel?: Record<string, number>; textLevel?: number; subjectCode?: string; unlock?: boolean }
+    let subjectId: string | null = null
+    if (body.subjectCode !== undefined && body.subjectCode !== null && body.subjectCode !== '') {
+      const row = await subjectByCode(body.subjectCode)
+      if (!row) throw new AppError(400, 'מקצוע לא מוכר')
+      subjectId = row.id
     }
-    if (!allowed) throw new AppError(403, 'אין לך גישה לתלמיד זה')
-
-    const body = req.body as {
-      perPuzzleLevel?: Record<string, number>
-      textLevel?: number
+    if (!canPatchLevels(scope, subjectId)) {
+      throw new AppError(403, subjectId === null
+        ? 'עדכון הרמה הכללית מותר למחנך הכיתה בלבד — ציינו מקצוע שאתם מלמדים'
+        : 'אפשר לעדכן רמות רק במקצוע שאתם מלמדים את התלמיד, או כמחנכים')
     }
+    if (body.textLevel !== undefined && typeof body.textLevel !== 'number') throw new AppError(400, 'textLevel לא תקין')
 
-    const v2 = await hasDifficultyProfileV2()
-    const { data: existing, error: selErr } = await supabaseAdmin
-      .from('difficulty_profiles').select('id').eq('user_id', studentId).maybeSingle()
-    if (selErr) throw new AppError(500, `שגיאת DB בטעינת פרופיל: ${selErr.message}`)
-    const existingRow = existing as { id?: string } | null
-
-    const patch: Record<string, unknown> = { last_updated: new Date().toISOString() }
-    if (typeof body.textLevel === 'number') patch.text_level = Math.max(1, Math.min(20, Math.round(body.textLevel)))
-    if (body.perPuzzleLevel && v2) patch.per_puzzle_level = body.perPuzzleLevel
-
-    if (existingRow?.id) {
-      const { error: updErr } = await supabaseAdmin.from('difficulty_profiles').update(patch).eq('id', existingRow.id)
-      if (updErr) throw new AppError(500, `שגיאת DB בעדכון פרופיל: ${updErr.message}`)
-    } else {
-      const { error: insErr } = await supabaseAdmin.from('difficulty_profiles').insert({ user_id: studentId, ...patch })
-      if (insErr) throw new AppError(500, `שגיאת DB ביצירת פרופיל: ${insErr.message}`)
-    }
-    res.json({ ok: true })
+    const result = await applyTeacherLevels({
+      studentId, classId: classIds[0] ?? null, subjectId, actorId: viewer.userId,
+      textLevel: body.textLevel, perPuzzleLevel: body.perPuzzleLevel, unlock: body.unlock === true,
+    })
+    void logAccess(viewer, { studentId, scope: 'profile_patch', endpoint: 'PATCH /api/analytics/student/:id/profile' })
+    res.json({ ok: true, locked: result.locked })
   } catch (err) {
     next(err)
   }
@@ -746,16 +794,13 @@ analyticsRouter.patch('/student/:studentId/profile', async (req, res, next) => {
 
 /* דליי הזמן עברו ל-lib/trendBuckets.ts (year/term/month/custom) — משותף גם לדמו */
 
-/* כיתות הזמינות לגרף ההתקדמות (הרשאה A): super→הכול, admin→בית ספרו, מורה→כיתות-החינוך שלו */
+/* כיתות הזמינות לגרף ההתקדמות: super→הכול, admin→בית ספרו (כיתות בלבד, ללא תלמידים),
+   מורה→כיתות-החינוך שלו. מורה מקצועי (בלי כיתת-חינוך) לא רואה התקדמות חוצת-מקצוע. */
 async function snapshotClasses(req: Request): Promise<{ id: string; gradeLabel: string }[]> {
   const s = req.staff!
   if (s.role === 'super_admin' || isAdmin(req)) return accessibleClasses(req)
   const hr = await homeroomClassIds(req)
-  if (hr.size > 0) return (await accessibleClasses(req)).filter((c) => hr.has(c.id))
-  /* dual-path: לפני מיגרציית class_teachers/is_homeroom אין הבחנת מחנך — נופלים לכיתות
-     המורה (classes.teacher_id, דרך accessibleClasses). משתמרת ההפרדה homeroom/מקצועי לאחר המיגרציה. */
-  if (!(await hasHomeroom())) return accessibleClasses(req)
-  return []
+  return (await accessibleClasses(req)).filter((c) => hr.has(c.id))
 }
 
 /* ── GET /api/analytics/trends?metric=&entities=&range= — סדרות לגרף ההתקדמות ── */
@@ -778,6 +823,9 @@ analyticsRouter.get('/trends', async (req, res, next) => {
     /* עמיד לפני המיגרציה — אין טבלה → גרף ריק עם דגל notReady */
     if (!(await hasProgressSnapshots())) { res.json({ labels, series: [], notReady: true }); return }
 
+    const viewer = await loadViewer(req)
+    const aggOnly = isAggregateOnly(viewer)
+    const exSyn = await excludeSynthetic(req)
     const classes = await snapshotClasses(req)
     const classMap = new Map(classes.map((c) => [c.id, c.gradeLabel]))
     const studentsByClass = new Map<string, { id: string; name: string }[]>()
@@ -788,28 +836,44 @@ analyticsRouter.get('/trends', async (req, res, next) => {
     type Ent = { id: string; name: string; kind: 'student' | 'class'; studentIds: string[] }
     const ents: Ent[] = []
     for (const id of entities) {
-      if (classMap.has(id)) ents.push({ id, name: 'כיתה ' + classMap.get(id), kind: 'class', studentIds: (studentsByClass.get(id) ?? []).map((s) => s.id) })
-      else if (studentName.has(id)) ents.push({ id, name: studentName.get(id)!, kind: 'student', studentIds: [id] })
-      /* אחרת — מחוץ לסקופ של המשתמש (RLS) → מדלגים בשקט */
+      if (classMap.has(id)) {
+        const ids = (studentsByClass.get(id) ?? []).map((s) => s.id)
+        /* מנהלים: קו כיתתי רק מעל סף המינימום */
+        if (aggOnly && belowMinCell(ids.length)) continue
+        ents.push({ id, name: 'כיתה ' + classMap.get(id), kind: 'class', studentIds: ids })
+      } else if (studentName.has(id) && !aggOnly) {
+        ents.push({ id, name: studentName.get(id)!, kind: 'student', studentIds: [id] })
+      }
+      /* אחרת — מחוץ לסקופ של המשתמש (או תלמיד בודד למנהל) → מדלגים בשקט */
     }
-    /* happy-path ברירת מחדל — שני התלמידים הראשונים אם לא נבחרו ישויות */
+    /* ברירת מחדל: מנהל → שתי הכיתות הראשונות (מעל הסף); מורה → שני התלמידים הראשונים */
     if (ents.length === 0) {
-      for (const [id, name] of [...studentName.entries()].slice(0, 2)) ents.push({ id, name, kind: 'student', studentIds: [id] })
+      if (aggOnly) {
+        for (const c of classes) {
+          const ids = (studentsByClass.get(c.id) ?? []).map((s) => s.id)
+          if (belowMinCell(ids.length)) continue
+          ents.push({ id: c.id, name: 'כיתה ' + c.gradeLabel, kind: 'class', studentIds: ids })
+          if (ents.length >= 2) break
+        }
+      } else {
+        for (const [id, name] of [...studentName.entries()].slice(0, 2)) ents.push({ id, name, kind: 'student', studentIds: [id] })
+      }
     }
 
     const needIds = [...new Set(ents.flatMap((e) => e.studentIds))]
-    if (needIds.length === 0) { res.json({ labels, series: [] }); return }
+    if (needIds.length === 0) { res.json({ labels, series: [], aggregateOnly: aggOnly }); return }
 
     const start = buckets[0].start.toISOString()
     const end = buckets[buckets.length - 1].end.toISOString()
     /* רמות פר-סוג חיות ב-per_puzzle_level (jsonb) — נשלף רק כשהמדד דורש */
     const snapCols = 'student_id, taken_at, text_level, overall_success' + (puzzleMetric ? ', per_puzzle_level' : '')
-    const { data: snaps } = await supabaseAdmin
+    let snapQ = supabaseAdmin
       .from('progress_snapshots')
       .select(snapCols)
       .in('student_id', needIds)
       .gte('taken_at', start).lt('taken_at', end)
-      .order('taken_at', { ascending: true })
+    if (exSyn) snapQ = snapQ.eq('is_synthetic', false)
+    const { data: snaps } = await snapQ.order('taken_at', { ascending: true })
 
     /* student → אינדקס-דלי → הערך האחרון בדלי (ordered asc → last wins).
        השיוך לפי טווח [start,end) של הדלי — עובד לדלי חודשי ושבועי כאחד. */
@@ -833,7 +897,7 @@ analyticsRouter.get('/trends', async (req, res, next) => {
         return Math.round((vals.reduce((a, c) => a + c, 0) / vals.length) * 100) / 100
       }),
     }))
-    res.json({ labels, series })
+    res.json({ labels, series, aggregateOnly: aggOnly })
   } catch (err) {
     next(err)
   }
@@ -848,38 +912,42 @@ analyticsRouter.get('/challenge-types', async (req, res, next) => {
     const subject = ((req.query.subject as string) || '').trim()
     if (isDemoGuest(req)) { res.json(demoChallengeTypes(subject)); return }
 
-    const adminLike = isAdmin(req)
+    const viewer = await loadViewer(req)
+    const aggOnly = isAggregateOnly(viewer)
+    const exSyn = await excludeSynthetic(req)
     const classes = await accessibleClasses(req)
     if (!classes.length) { res.json({ types: [], subjects: [] }); return }
-    const homeroomSet = await homeroomClassIds(req)
-    const full = adminLike || homeroomSet.size > 0
-    let ownQuestIds = new Set<string>()
-    if (!full) {
-      const { data } = await supabaseAdmin.from('quests').select('id').eq('created_by', req.staff!.userId)
-      ownQuestIds = new Set((data ?? []).map((q) => q.id as string))
+    const studentClassIds = new Map<string, string[]>()
+    for (const c of classes) {
+      for (const st of await activeStudents(c.id)) {
+        const arr = studentClassIds.get(st.id) ?? []
+        arr.push(c.id)
+        studentClassIds.set(st.id, arr)
+      }
     }
-    const studentIds: string[] = []
-    for (const c of classes) for (const st of await activeStudents(c.id)) studentIds.push(st.id)
-    const uniqIds = [...new Set(studentIds)]
+    const uniqIds = [...studentClassIds.keys()]
     if (!uniqIds.length) { res.json({ types: [], subjects: [] }); return }
 
-    const { data: sessRows } = await supabaseAdmin
+    let sessQ = supabaseAdmin
       .from('sessions')
-      .select('id, quest_id, started_at')
+      .select('id, user_id, quest_id, started_at')
       .in('user_id', uniqIds)
       .not('completed_at', 'is', null)
-      .order('started_at', { ascending: false })
-      .limit(600)
-    let sessions = (sessRows ?? []) as { id: string; quest_id: string }[]
-    if (!full) sessions = sessions.filter((s) => ownQuestIds.has(s.quest_id))
-
-    /* מקצוע פר-הדמיה — לרשימת הסינון ולסינון עצמו */
-    const questIds = [...new Set(sessions.map((s) => s.quest_id))]
-    const subjByQuest = new Map<string, string | null>()
-    if (questIds.length && (await hasQuestSubject())) {
-      const { data } = await supabaseAdmin.from('quests').select('id, subject').in('id', questIds)
-      for (const q of (data ?? []) as { id: string; subject: string | null }[]) subjByQuest.set(q.id, q.subject)
+    if (exSyn) sessQ = sessQ.eq('is_synthetic', false)
+    const { data: sessRows } = await sessQ.order('started_at', { ascending: false }).limit(600)
+    let sessions = (sessRows ?? []) as { id: string; user_id: string; quest_id: string }[]
+    const qmeta = await questMeta(sessions.map((x) => x.quest_id))
+    /* מורה: רק sessions על הדמיות שבטווח שלו (מקצוע/יוצר/כיתת-חינוך) */
+    if (!aggOnly && viewer.role !== 'super_admin') {
+      sessions = sessions.filter((x) => {
+        const m = qmeta.get(x.quest_id)
+        return questVisible(studentScope(viewer, studentClassIds.get(x.user_id) ?? []), { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null }, viewer.userId)
+      })
     }
+
+    /* מקצוע פר-הדמיה — לרשימת הסינון ולסינון עצמו (לפי subject_id → שם) */
+    const subjByQuest = new Map<string, string | null>()
+    for (const q of sessions) subjByQuest.set(q.quest_id, qmeta.get(q.quest_id)?.subject ?? null)
     const subjects = [...new Set([...subjByQuest.values()].filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'he'))
     if (subject) sessions = sessions.filter((s) => subjByQuest.get(s.quest_id) === subject)
 
@@ -899,13 +967,18 @@ analyticsRouter.get('/challenge-types', async (req, res, next) => {
         if (typeof e.payload?.difficulty === 'number') { s0.diffSum += e.payload.difficulty; s0.diffN++ }
       }
     }
+    /* מנהלים: מתחת לסף תלמידים בתא — לא מציגים */
+    if (aggOnly && belowMinCell(new Set(sessions.map((x) => x.user_id)).size)) {
+      res.json({ types: [], subjects, insufficientData: true, minCellSize: MIN_CELL_SIZE, aggregateOnly: true })
+      return
+    }
     const types = [...stats.entries()]
       .map(([type, s0]) => {
         const attempts = s0.solved + s0.failed
         return { type, attempts, solved: s0.solved, failed: s0.failed, successRate: attempts ? Math.round((s0.solved / attempts) * 100) / 100 : null, avgDifficulty: s0.diffN ? Math.round((s0.diffSum / s0.diffN) * 10) / 10 : null }
       })
       .sort((a, b) => (a.successRate ?? 2) - (b.successRate ?? 2))
-    res.json({ types, subjects })
+    res.json({ types, subjects, aggregateOnly: aggOnly })
   } catch (err) {
     next(err)
   }
@@ -928,20 +1001,21 @@ async function classLabel(classId: string): Promise<string> {
   return (withGrade ? c.grade_label : null) ?? c.name ?? ''
 }
 
-/* גוזר את נתוני הקלט לסיכום + אוכף RLS (הרשאות A/B). מחזיר label אנושי, JSON מצרפי, ו-N (גודל מדגם). */
-async function gatherSummary(req: Request, scope: SummaryScope, entityId: string): Promise<{ label: string; data: Record<string, unknown>; sampleSize: number }> {
-  const adminLike = isAdmin(req)
-  const homeroomSet = await homeroomClassIds(req)
+/* גוזר את נתוני הקלט לסיכום + אוכף הרשאות (authz) לפני כל קריאת AI. מחזיר label אנושי (ללא שם
+   תלמיד — רק כינוי), JSON מצרפי, ו-N (גודל מדגם). השם האמיתי חוזר רק בשרת אחרי תשובת ה-LLM. */
+const STUDENT_ALIAS = 'תלמיד/ה 1'
+async function gatherSummary(req: Request, scope: SummaryScope, entityId: string): Promise<{ label: string; data: Record<string, unknown>; sampleSize: number; studentName?: string }> {
+  const viewer = await loadViewer(req)
+  const aggOnly = isAggregateOnly(viewer)
+  const exSyn = await excludeSynthetic(req)
 
   if (scope === 'assignment') {
     const { data: asg } = await supabaseAdmin.from('assignments').select('id, quest_id, class_id').eq('id', entityId).single()
     if (!asg) throw new AppError(404, 'מטלה לא נמצאה')
     await assertClassAccess(req, asg.class_id)
-    /* מורה מקצועי: רק הקצאה משלו (יוצר ההדמיה) או של כיתת-החינוך שלו */
-    if (!adminLike) {
-      const { data: q } = await supabaseAdmin.from('quests').select('created_by').eq('id', asg.quest_id).single()
-      const own = (q as { created_by?: string } | null)?.created_by === req.staff!.userId
-      if (!own && !homeroomSet.has(asg.class_id)) throw new AppError(403, 'אין לך גישה לסכם הקצאה זו')
+    const qm = (await questMeta([asg.quest_id])).get(asg.quest_id)
+    if (!assignmentVisible(viewer, asg.class_id, { subject_id: qm?.subject_id ?? null, created_by: qm?.created_by ?? null })) {
+      throw new AppError(403, 'אין לך גישה לסכם הקצאה זו')
     }
     const [{ data: questRow }, students] = await Promise.all([
       supabaseAdmin.from('quests').select('title, game_data').eq('id', asg.quest_id).single(),
@@ -949,7 +1023,7 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     ])
     const challenges = questChallenges(questRow?.game_data)
     const studentIds = students.map((s) => s.id)
-    const sessions = await latestSessionsByStudent(asg.quest_id, studentIds)
+    const sessions = await latestSessionsByStudent(asg.quest_id, studentIds, exSyn)
     const sessionIds = [...sessions.values()].map((s) => s.id)
     const [summaries, chStats] = await Promise.all([completedSummaries(sessionIds), challengeStats(sessionIds)])
     let completed = 0, inProgress = 0
@@ -963,6 +1037,9 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
         const r = sum?.successRate ?? (sess.max_score ? (sess.total_score ?? 0) / sess.max_score : null)
         if (r !== null && r !== undefined) rates.push(r)
       } else inProgress++
+    }
+    if (aggOnly && belowMinCell(completed)) {
+      throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים שהשלימו`)
     }
     const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
     const perChallenge = challenges.map((c) => {
@@ -988,17 +1065,20 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
   if (scope === 'class') {
     await assertClassAccess(req, entityId)
     /* סיכום כיתה — למחנך הכיתה ולמנהל בלבד */
-    if (!adminLike && !homeroomSet.has(entityId)) throw new AppError(403, 'סיכום כיתה זמין למחנך הכיתה ולמנהל בלבד')
+    const grant = viewer.grants.get(entityId)
+    if (viewer.role === 'teacher' && !grant?.homeroom) throw new AppError(403, 'סיכום כיתה זמין למחנך הכיתה ולמנהל בלבד')
     const students = await activeStudents(entityId)
     const studentIds = students.map((s) => s.id)
     const perStudentRate = new Map<string, number>()
     let completedSessions = 0
     if (studentIds.length) {
-      const { data } = await supabaseAdmin
+      let q = supabaseAdmin
         .from('sessions')
         .select('user_id, quest_id, completed_at, total_score, max_score')
         .in('user_id', studentIds)
         .not('completed_at', 'is', null)
+      if (exSyn) q = q.eq('is_synthetic', false)
+      const { data } = await q
       const byStudent = new Map<string, number[]>()
       for (const s of (data ?? []) as { user_id: string; total_score: number | null; max_score: number | null }[]) {
         const r = s.max_score ? (s.total_score ?? 0) / s.max_score : null
@@ -1009,8 +1089,11 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
       for (const [uid, arr] of byStudent) perStudentRate.set(uid, arr.reduce((a, b) => a + b, 0) / arr.length)
     }
     const rates = [...perStudentRate.values()]
-    const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
     const played = perStudentRate.size
+    if (aggOnly && belowMinCell(played)) {
+      throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים ששיחקו`)
+    }
+    const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
     return {
       label: `כיתה ${await classLabel(entityId)}`,
       sampleSize: completedSessions,
@@ -1025,49 +1108,51 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     }
   }
 
-  /* scope === 'student' */
-  const { data: memberships } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', entityId)
-  const classIds = (memberships ?? []).map((m) => m.class_id)
-  let accessibleClass: string | null = null
-  if (req.staff!.role === 'super_admin') accessibleClass = classIds[0] ?? '__'
-  else for (const cid of classIds) { try { await assertClassAccess(req, cid); accessibleClass = cid; break } catch { /* הבא */ } }
-  if (!accessibleClass) throw new AppError(403, 'אין לך גישה לתלמיד זה')
-  const isHomeroomStudent = classIds.some((c) => homeroomSet.has(c))
-  const full = adminLike || isHomeroomStudent
-  /* מורה מקצועי: רק תלמיד מתוך הקצאותיו (יש לו סשן על הדמיה שהמורה יצר) */
-  let ownIds: string[] = []
-  if (!full) {
-    const { data: ownQ } = await supabaseAdmin.from('quests').select('id').eq('created_by', req.staff!.userId)
-    ownIds = (ownQ ?? []).map((q) => q.id as string)
-    const { data: sess } = await supabaseAdmin.from('sessions').select('id').eq('user_id', entityId).in('quest_id', ownIds.length ? ownIds : ['__']).limit(1)
-    if (!sess || sess.length === 0) throw new AppError(403, 'אין לך גישה לסכם תלמיד זה — הוא אינו בהקצאותיך')
-  }
+  /* scope === 'student' — דרך authz: מנהלים נחסמים; מורה מקצועי רק במקצועותיו */
+  const { scope: sScope, classIds } = await requireStudentScope(req, entityId)
+  if (sScope.kind !== 'scoped') throw new AppError(403, 'אין לך גישה לתלמיד זה')
+  const accessibleClass = classIds.find((c) => viewer.grants.has(c)) ?? classIds[0] ?? '__'
 
   const { data: stu } = await supabaseAdmin.from('users').select('name').eq('id', entityId).single()
   const v2 = await hasDifficultyProfileV2()
-  const { data: profile } = await supabaseAdmin
-    .from('difficulty_profiles')
-    .select(v2 ? 'text_level, per_puzzle_level, last_avg_scene_ms, sessions_count' : 'writing_level, puzzle_difficulty, avg_success_rate')
-    .eq('user_id', entityId)
-    .maybeSingle()
-  /* סשנים — מורה מקצועי רואה רק על הדמיות שיצר */
-  let sq = supabaseAdmin.from('sessions').select('id, quest_id, completed_at, total_score, max_score, started_at').eq('user_id', entityId).order('started_at', { ascending: false }).limit(50)
-  if (!full && ownIds.length) sq = sq.in('quest_id', ownIds)
-  const { data: sessions } = await sq
-  const completed = (sessions ?? []).filter((s) => s.completed_at)
-  const rates = completed.map((s) => (s.max_score ? (s.total_score ?? 0) / s.max_score : null)).filter((r): r is number => r !== null)
+  let profile: unknown = null
+  if (sScope.full) {
+    const { data } = await supabaseAdmin
+      .from('difficulty_profiles')
+      .select(v2 ? 'text_level, per_puzzle_level, last_avg_scene_ms, sessions_count' : 'writing_level, puzzle_difficulty, avg_success_rate')
+      .eq('user_id', entityId)
+      .maybeSingle()
+    profile = data
+  }
+  let sq = supabaseAdmin.from('sessions').select('id, quest_id, completed_at, total_score, max_score, started_at').eq('user_id', entityId)
+  if (exSyn) sq = sq.eq('is_synthetic', false)
+  const { data: allSessions } = await sq.order('started_at', { ascending: false }).limit(200)
+  const qmeta = await questMeta((allSessions ?? []).map((x) => x.quest_id as string))
+  const sessions = (allSessions ?? []).filter((x) => {
+    const m = qmeta.get(x.quest_id as string)
+    return questVisible(sScope, { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null }, viewer.userId)
+  }).slice(0, 50)
+  const completed = sessions.filter((s) => s.completed_at)
+  const rates = completed.map((s) => (s.max_score ? ((s.total_score as number | null) ?? 0) / (s.max_score as number) : null)).filter((r): r is number => r !== null)
   const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
-  const trend = [...completed].reverse().map((s) => (s.max_score ? Math.round(((s.total_score ?? 0) / s.max_score) * 100) : null)).filter((x) => x !== null)
-  const { data: lastCompleted } = await supabaseAdmin.from('events').select('payload').eq('user_id', entityId).eq('type', 'session_completed').order('created_at', { ascending: false }).limit(1).maybeSingle()
-  const skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
+  const trend = [...completed].reverse().map((s) => (s.max_score ? Math.round((((s.total_score as number | null) ?? 0) / (s.max_score as number)) * 100) : null)).filter((x) => x !== null)
+  const lastDone = completed[0]
+  let skipping = false
+  if (lastDone) {
+    const { data: lastCompleted } = await supabaseAdmin.from('events').select('payload').eq('session_id', lastDone.id).eq('type', 'session_completed').limit(1).maybeSingle()
+    skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
+  }
   const p = (profile ?? {}) as Record<string, unknown>
+  void logAccess(viewer, { studentId: entityId, scope: 'summary_student', endpoint: 'analytics/summary' })
   return {
-    label: `תלמיד/ה: ${(stu as { name?: string } | null)?.name ?? ''} · כיתה ${await classLabel(accessibleClass)}`,
+    /* חוק 12: אין שם תלמיד ב-LLM חיצוני — רק כינוי. השם האמיתי מוחזר בשרת אחרי התשובה. */
+    label: `${STUDENT_ALIAS} · כיתה ${await classLabel(accessibleClass)}`,
+    studentName: (stu as { name?: string } | null)?.name ?? '',
     sampleSize: completed.length,
     data: {
-      סוג: full ? 'סיכום תלמיד (חוצה-מקצוע)' : 'סיכום תלמיד (מההקצאות שלך בלבד)',
-      רמת_טקסט: v2 ? (p.text_level ?? null) : (p.writing_level ?? null),
-      רמות_לפי_סוג_אתגר: v2 ? (p.per_puzzle_level ?? null) : null,
+      סוג: sScope.full ? 'סיכום תלמיד (חוצה-מקצוע)' : 'סיכום תלמיד (במקצוע/ות שלך בלבד)',
+      רמת_טקסט: sScope.full ? (v2 ? (p.text_level ?? null) : (p.writing_level ?? null)) : null,
+      רמות_לפי_סוג_אתגר: sScope.full && v2 ? (p.per_puzzle_level ?? null) : null,
       מספר_הדמיות_שהושלמו: completed.length,
       אחוז_הצלחה_ממוצע: pctStr(avg),
       מגמת_הצלחה_אחרונה: trend.slice(0, 6),
@@ -1087,6 +1172,7 @@ function buildPedagogicalPrompt(label: string, data: Record<string, unknown>, sa
 4. **טון מכבד, בונה וממוקד-פעולה**: ציין מה הולך טוב, היכן נראה קושי, והצע 1-2 צעדים מעשיים להמשך. לעולם לא טון מאשים.
 5. אם המדגם קטן (מעט הדמיות), ציין במפורש שהתמונה חלקית ויש להתייחס אליה בזהירות.
 6. 2-4 פסקאות קצרות. עברית בלבד. **אל תוסיף כותרת** (היא תיווסף ע"י המערכת) ואל תחתום בשם.
+7. כשמדובר בתלמיד בודד, הכינוי בהקשר ("תלמיד/ה 1") הוא כינוי זמני — השתמש בו כפי שהוא (בלי להמציא שם).
 
 ## ההקשר
 ${label}
@@ -1117,6 +1203,8 @@ async function callSonnetSummary(prompt: string): Promise<string> {
 }
 
 const SUMMARY_MODEL = 'claude-sonnet-4-5'
+/* גרסת הפרומפט — נשמרת לצד הסיכום כדי שאפשר יהיה לשחזר איך נוצר */
+const PEDAGOGICAL_PROMPT_VERSION = 'ped-summary-v2-alias'
 
 /* GET /api/analytics/summary?scope=&id= — שליפת סיכום שמור (אם קיים) */
 analyticsRouter.get('/summary', async (req, res, next) => {
@@ -1167,7 +1255,7 @@ analyticsRouter.post('/summary', async (req, res, next) => {
     if (isDemoGuest(req)) { res.json(demoSummary(scope, id, new Date())); return }
     const stored = await hasPedagogicalSummaries()
     /* גוזר נתונים + אוכף RLS לפני כל קריאת AI */
-    const { label, data, sampleSize } = await gatherSummary(req, scope, id)
+    const { label, data, sampleSize, studentName } = await gatherSummary(req, scope, id)
 
     /* cache — אם קיים ולא ביקשו רענון, החזר בלי לחייב שוב */
     if (stored && !regenerate) {
@@ -1175,9 +1263,15 @@ analyticsRouter.post('/summary', async (req, res, next) => {
       if (existing) { res.json({ summary: existing, cached: true }); return }
     }
 
-    const content = await callSonnetSummary(buildPedagogicalPrompt(label, data, sampleSize))
+    const rawContent = await callSonnetSummary(buildPedagogicalPrompt(label, data, sampleSize))
+    /* הכינוי הזמני → השם האמיתי, בשרת בלבד (המיפוי חי רק בבקשה הזו) */
+    const content = studentName ? rawContent.split(STUDENT_ALIAS).join(studentName) : rawContent
     const now = new Date().toISOString()
-    const row = { scope, entity_id: id, content, model: SUMMARY_MODEL, sample_size: sampleSize, created_by: req.staff!.userId, created_at: now, updated_at: now }
+    const modelUsed = engineFor('summary') === 'gemini' ? (process.env.GEMINI_CONTENT_MODEL?.trim() || 'gemini') : SUMMARY_MODEL
+    const row = {
+      scope, entity_id: id, content, model: modelUsed, prompt_version: PEDAGOGICAL_PROMPT_VERSION, input_data: data,
+      sample_size: sampleSize, created_by: req.staff!.userId, created_at: now, updated_at: now,
+    }
 
     if (stored) {
       /* upsert לפי (scope, entity_id) — שמירת edited_content רק אם לא רעננו */
@@ -1208,6 +1302,7 @@ analyticsRouter.get('/review-suggestions', async (req, res, next) => {
     const now = Date.now()
     /* מצב הדגמה — בלי הצעות חזרה (יצירת הדמיית-חזרה היא פעולת כתיבה, והדמו לקריאה בלבד) */
     if (isDemoGuest(req)) { res.json({ suggestions: [] }); return }
+    if (isAggregateOnly(await loadViewer(req))) { res.json({ suggestions: [] }); return }
     const classes = await accessibleClasses(req)
     if (classes.length === 0) { res.json({ suggestions: [] }); return }
     const classNames = new Map(classes.map((c) => [c.id, c.gradeLabel]))

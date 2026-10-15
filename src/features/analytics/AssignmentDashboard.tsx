@@ -28,6 +28,10 @@ interface AssignmentAnalytics {
   perObjective?: PerObjective[]
   students: PerStudent[]
   insights: string[]
+  /* מנהלים: אגרגט בלבד (בלי תלמידים בודדים) ובסף מינימום לתא */
+  aggregateOnly?: boolean
+  insufficientData?: boolean
+  minCellSize?: number
 }
 
 function MetricCard({ label, value, accent }: { label: string; value: string; accent?: string }) {
@@ -255,7 +259,7 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
         <MetricCard label="אחוז השלמה" value={pct(t.completionRate)} />
         <MetricCard label="הצלחה ממוצעת" value={pct(t.avgSuccessRate)} accent={t.avgSuccessRate !== null && t.avgSuccessRate >= 0.85 ? 'var(--t3)' : undefined} />
         <MetricCard label="זמן ממוצע" value={duration(t.avgCompletionMs)} />
-        <MetricCard label="דגלים" value={String(t.flaggedCount)} accent={t.flaggedCount ? 'var(--t4)' : undefined} />
+        {!data.aggregateOnly && <MetricCard label="דגלים" value={String(t.flaggedCount)} accent={t.flaggedCount ? 'var(--t4)' : undefined} />}
       </div>
 
       {/* תובנות */}
@@ -287,7 +291,20 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
 
       <ChallengeBreakdown challenges={data.perChallenge} />
 
-      {/* טבלת תלמידים */}
+      {data.insufficientData && (
+        <Panel title="אין עדיין מספיק נתונים">
+          <p style={{ fontSize: 13, color: 'var(--t6)', margin: 0 }}>
+            כדי להציג תמונה כיתתית נדרשים לפחות {data.minCellSize ?? 5} תלמידים שהשלימו את ההדמיה. זה מגן על פרטיות התלמידים.
+          </p>
+        </Panel>
+      )}
+
+      {/* טבלת תלמידים — מנהלים לא רואים תלמידים בודדים (רק תמונה כיתתית) */}
+      {data.aggregateOnly ? (
+        <Panel title="תלמידים">
+          <p style={{ fontSize: 13, color: 'var(--t6)', margin: 0 }}>לתפקיד זה מוצגות תמונות רחבות ומגמות בלבד — נתוני תלמיד בודד זמינים למורי הכיתה.</p>
+        </Panel>
+      ) : (
       <Panel title="תלמידים">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {data.students.map((s) => {
@@ -313,6 +330,7 @@ export default function AssignmentDashboard({ assignmentId, onBack, onStudent }:
           })}
         </div>
       </Panel>
+      )}
     </div>
   )
 }

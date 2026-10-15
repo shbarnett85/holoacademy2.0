@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../shared/lib/api'
 import { playSound } from '../../shared/lib/sound'
-import { SUBJECTS } from '../../shared/lib/subjects'
+import { SUBJECTS, subjectName } from '../../shared/lib/subjects'
 import { ART_STYLES, PUZZLE_TYPES, useCreatorStore } from './creatorStore'
 import HoloIcon, { type HoloIconName } from '../../shared/ui/HoloIcon'
 import GeneratingScreen from './GeneratingScreen'
@@ -138,7 +138,8 @@ function Studio() {
     }
   }
 
-  const canSubmit = s.title.trim().length > 0
+  /* מקצוע הוא שדה חובה — קובע את הפרומפט, את הסיווג ואת פרופיל הרמות של התלמיד */
+  const canSubmit = s.title.trim().length > 0 && s.subject !== ''
   const activePuzzles = PUZZLE_TYPES.filter((p) => s.puzzleTypes[p.key]).length + (s.puzzleTypes.finalQuiz ? 1 : 0)
   const artLabel = ART_STYLES.find((a) => a.key === s.artStyle)?.label
   const simLabel = SIM_TYPES.find((t) => t.key === s.questType)?.label
@@ -240,7 +241,7 @@ function Studio() {
             <div style={{ textAlign: 'center', minWidth: 0 }}>
               <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--t13)', lineHeight: 1.1, textShadow: '0 0 20px var(--t36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || 'נושא ההדמיה'}</div>
               <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {s.subject && <span style={{ ...chip, color: 'var(--t105)', background: 'var(--t106)', borderColor: 'var(--t107)' }}>{s.subject}</span>}
+                {s.subject && <span style={{ ...chip, color: 'var(--t105)', background: 'var(--t106)', borderColor: 'var(--t107)' }}>{subjectName(s.subject)}</span>}
                 <span style={chip}>{simLabel}</span>
                 <span style={chip}>{s.questLength} סצנות</span>
                 <span style={chip}>{activePuzzles} סוגי חידות</span>
@@ -262,12 +263,12 @@ function Studio() {
                 </Tooltip>
               </div>
               <div style={{ flex: '0 0 170px', position: 'relative' }}>
-                <label style={fieldLabel}>מקצוע</label>
+                <label style={fieldLabel}>מקצוע <span style={{ color: 'var(--t18)' }} aria-hidden>*</span></label>
                 <Tooltip text={TT.subject} block>
-                <select className="cf-in" value={s.subject} onChange={(e) => s.set({ subject: e.target.value })}
+                <select className="cf-in" value={s.subject} required aria-required="true" onChange={(e) => s.set({ subject: e.target.value })}
                   style={{ ...inputBase, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingLeft: 28, color: s.subject ? 'var(--t68)' : 'var(--t108)' }}>
                   <option value="">בחרו מקצוע…</option>
-                  {SUBJECTS.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
+                  {SUBJECTS.map((sub) => <option key={sub.code} value={sub.code}>{sub.nameHe}</option>)}
                 </select>
                 </Tooltip>
                 <div style={{ position: 'absolute', left: 11, bottom: 12, pointerEvents: 'none', color: 'var(--t15)', fontSize: 10 }}>▾</div>
@@ -360,6 +361,9 @@ function Studio() {
             </span>
           </button>
           </Tooltip>
+          {s.title.trim().length > 0 && s.subject === '' && (
+            <p role="status" style={{ margin: '8px 2px 0', fontSize: 12.5, color: 'var(--t18)' }}>בחרו מקצוע כדי ליצור את ההדמיה.</p>
+          )}
         </div>
 
         {/* התאמות (שמאל ב-RTL) */}

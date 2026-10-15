@@ -6,7 +6,10 @@ import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender, hasFictitious } from '../lib/activeColumn.js'
+import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { loadViewer } from '../lib/authz.js'
+import { subjectByCode, subjectById } from '../lib/subjects.js'
+import { isSubjectCode, subjectName as subjectNameOf } from '../../../src/shared/lib/subjects.js'
 
 /* שורת כיתה — שדות שעשויים להיות קיימים לפי מצב המיגרציה */
 interface ClassRow {
@@ -79,20 +82,25 @@ async function loadClassForAccess(req: Request, classId: string): Promise<ClassR
 }
 
 /* מפת מורים לכל כיתה: classId → [{teacherId, name, subject}] (dual-path) */
-async function teachersByClass(classIds: string[]): Promise<Map<string, { teacherId: string; name: string; subject: string }[]>> {
-  const map = new Map<string, { teacherId: string; name: string; subject: string }[]>()
+type ClassTeacherOut = { teacherId: string; name: string; subject: string; subjectCode: string | null; isHomeroom: boolean }
+async function teachersByClass(classIds: string[]): Promise<Map<string, ClassTeacherOut[]>> {
+  const map = new Map<string, ClassTeacherOut[]>()
   if (classIds.length === 0) return map
   if (await hasClassTeachers()) {
-    const { data: links } = await supabaseAdmin.from('class_teachers').select('class_id, teacher_id, subject').in('class_id', classIds)
+    const { data: links } = await supabaseAdmin.from('class_teachers').select('*').in('class_id', classIds)
     const tIds = [...new Set((links ?? []).map((l) => l.teacher_id))]
     const names = new Map<string, string>()
     if (tIds.length) {
       const { data: ts } = await supabaseAdmin.from('users').select('id, name').in('id', tIds)
       for (const t of (ts ?? []) as { id: string; name: string }[]) names.set(t.id, t.name)
     }
-    for (const l of (links ?? []) as { class_id: string; teacher_id: string; subject: string }[]) {
+    for (const l of (links ?? []) as { class_id: string; teacher_id: string; subject: string; subject_id?: string | null; is_homeroom?: boolean }[]) {
       const arr = map.get(l.class_id) ?? []
-      arr.push({ teacherId: l.teacher_id, name: names.get(l.teacher_id) ?? '—', subject: l.subject ?? '' })
+      const sj = l.subject_id ? await subjectById(l.subject_id) : null
+      arr.push({
+        teacherId: l.teacher_id, name: names.get(l.teacher_id) ?? '—',
+        subject: sj?.nameHe ?? l.subject ?? '', subjectCode: sj?.code ?? null, isHomeroom: l.is_homeroom === true,
+      })
       map.set(l.class_id, arr)
     }
   } else {
@@ -105,7 +113,7 @@ async function teachersByClass(classIds: string[]): Promise<Map<string, { teache
       for (const t of (ts ?? []) as { id: string; name: string }[]) names.set(t.id, t.name)
     }
     for (const c of (cs ?? []) as ClassRow[]) {
-      if (c.teacher_id) map.set(c.id, [{ teacherId: c.teacher_id, name: names.get(c.teacher_id) ?? '—', subject: '' }])
+      if (c.teacher_id) map.set(c.id, [{ teacherId: c.teacher_id, name: names.get(c.teacher_id) ?? '—', subject: '', subjectCode: null, isHomeroom: true }])
     }
   }
   return map
@@ -306,7 +314,8 @@ staffRouter.post('/classes', async (req, res, next) => {
 
     /* מודל חדש — היוצר (אם מורה) משויך דרך class_teachers */
     if (withCT && !isAdmin(req)) {
-      await supabaseAdmin.from('class_teachers').insert({ class_id: (cls as ClassRow).id, teacher_id: req.staff!.userId, subject: '' })
+      /* מורה שפותח כיתה הוא מחנך שלה (כמו המודל הקודם: מורה הכיתה רואה הכול) */
+      await supabaseAdmin.from('class_teachers').insert({ class_id: (cls as ClassRow).id, teacher_id: req.staff!.userId, subject: '', is_homeroom: true })
     }
     res.status(201).json({ ok: true, class: { id: (cls as ClassRow).id, name: (cls as ClassRow).name, slug: (cls as ClassRow).slug, url_code: (cls as ClassRow).url_code } })
   } catch (err) {
@@ -353,20 +362,52 @@ staffRouter.post('/classes/:id/promote', async (req, res, next) => {
 })
 
 /* ── שיוך מורים לכיתה (רבים-לרבים) ── */
-const addClassTeacherSchema = z.object({ teacherId: z.string().uuid(), subject: z.string().optional() })
+const addClassTeacherSchema = z.object({
+  teacherId: z.string().uuid(),
+  /* מקצוע מהרשימה המשותפת (dropdown). subject טקסטואלי חופשי — legacy, מתקבל רק כשאין subjectCode. */
+  subjectCode: z.string().optional(),
+  subject: z.string().optional(),
+  isHomeroom: z.boolean().optional(),
+})
+
+/* מי מנהל שיוך מורים בכיתה: מנהל/מנהל-על, או מחנך הכיתה. מורה מקצועי לא יכול להעניק לעצמו גישה. */
+async function requireClassStaffManager(req: Request, classId: string): Promise<void> {
+  if (isAdmin(req) || req.staff!.role === 'super_admin') return
+  const viewer = await loadViewer(req)
+  if (viewer.grants.get(classId)?.homeroom) return
+  throw new AppError(403, 'שיוך מורים לכיתה זמין למחנך הכיתה או למנהל בלבד')
+}
 
 staffRouter.post('/classes/:id/teachers', async (req, res, next) => {
   try {
     const cls = await loadClassForAccess(req, req.params.id)
     const parsed = addClassTeacherSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
-    if (!(await hasClassTeachers())) throw new AppError(400, 'שיוך מורים מרובים דורש את טבלת class_teachers — הרץ את server/schema.sql')
+    if (!(await hasClassTeachers())) throw new AppError(400, 'שיוך מורים מרובים דורש את טבלת class_teachers — הרץ את migrations/analytics_foundations.sql')
+    await requireClassStaffManager(req, cls.id)
+    /* דגל מחנך מעניק גישה לכל המקצועות — רק מנהל יכול לסמן */
+    if (parsed.data.isHomeroom && !isAdmin(req) && req.staff!.role !== 'super_admin') {
+      throw new AppError(403, 'סימון מחנך/ת זמין למנהל בלבד')
+    }
+    if (parsed.data.subjectCode !== undefined && parsed.data.subjectCode !== '' && !isSubjectCode(parsed.data.subjectCode)) {
+      throw new AppError(400, 'מקצוע לא מוכר')
+    }
     /* המורה חייב להיות בבית הספר של הכיתה */
     const { data: t } = await supabaseAdmin.from('users').select('id, school_id, role').eq('id', parsed.data.teacherId).single()
     if (!t || (t as { role: string }).role !== 'teacher' || (t as { school_id: string | null }).school_id !== cls.school_id) {
       throw new AppError(400, 'המורה אינו שייך לבית הספר של הכיתה')
     }
-    const { error } = await supabaseAdmin.from('class_teachers').insert({ class_id: cls.id, teacher_id: parsed.data.teacherId, subject: parsed.data.subject?.trim() ?? '' })
+    const code = parsed.data.subjectCode || null
+    const subjRow = code ? await subjectByCode(code) : null
+    const row: Record<string, unknown> = {
+      class_id: cls.id,
+      teacher_id: parsed.data.teacherId,
+      /* עמודת הטקסט נשמרת מסונכרנת עם שם המקצוע (תאימות לקוד/דוחות ישנים) */
+      subject: code ? (subjRow?.nameHe ?? subjectNameOf(code)) : (parsed.data.subject?.trim() ?? ''),
+    }
+    if (subjRow && (await hasClassTeacherSubjectId())) row.subject_id = subjRow.id
+    if (parsed.data.isHomeroom && (await hasHomeroom())) row.is_homeroom = true
+    const { error } = await supabaseAdmin.from('class_teachers').insert(row)
     if (error && !/duplicate key/i.test(error.message)) throw new AppError(500, 'שיוך המורה נכשל: ' + error.message)
     res.status(201).json({ ok: true })
   } catch (err) {
@@ -377,7 +418,8 @@ staffRouter.post('/classes/:id/teachers', async (req, res, next) => {
 staffRouter.delete('/classes/:id/teachers/:teacherId', async (req, res, next) => {
   try {
     const cls = await loadClassForAccess(req, req.params.id)
-    if (!(await hasClassTeachers())) throw new AppError(400, 'דורש את טבלת class_teachers — הרץ את server/schema.sql')
+    if (!(await hasClassTeachers())) throw new AppError(400, 'דורש את טבלת class_teachers — הרץ את migrations/analytics_foundations.sql')
+    await requireClassStaffManager(req, cls.id)
     const { error } = await supabaseAdmin.from('class_teachers').delete().eq('class_id', cls.id).eq('teacher_id', req.params.teacherId)
     if (error) throw new AppError(500, 'הסרת השיוך נכשלה: ' + error.message)
     res.json({ ok: true })

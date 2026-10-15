@@ -35,6 +35,8 @@ export interface LearningObjective {
 
 export interface QuestGenerationParams {
   title: string
+  /* שם המקצוע בעברית (מהרשימה המשותפת) — מוזרק לפרומפט; נגזר בשרת מ-subjectCode */
+  subjectName?: string
   curriculum: string
   questLength: number
   puzzlePreferences?: PuzzlePreferences
@@ -578,7 +580,7 @@ export function buildQuestPrompt(params: QuestGenerationParams): { system: strin
      (דיוק עובדתי, הסברים, תמונות, שפה, פורמט JSON) חיים ב-GENERATION_SYSTEM המקושש. */
   const user = `## פרטי הקווסט
 - כותרת: ${params.title}
-- נושא לימודי (תוכנית לימודים): ${params.curriculum}
+${params.subjectName ? `- מקצוע: ${params.subjectName} — התוכן, המונחים וסוגי החשיבה מתאימים לתחום הדעת הזה\n` : ''}- נושא לימודי (תוכנית לימודים): ${params.curriculum}
 - אורך: ${params.questLength} סצנות
 - סוג קווסט: ${params.questType ?? 'standard'}
 - סגנון אמנותי: ${params.artStyle ?? 'holographic'}
@@ -638,7 +640,7 @@ export function buildSkeletonPrompt(params: QuestGenerationParams): string {
 
 ## פרטים
 - כותרת: ${params.title}
-- נושא לימודי: ${params.curriculum}
+${params.subjectName ? `- מקצוע: ${params.subjectName}\n` : ''}- נושא לימודי: ${params.curriculum}
 - שכבת גיל: ${grade} (רמה ${level}/20)
 - אורך: **בדיוק ${params.questLength} סצנות**${params.includeDrHolo ? '\n- ד"ר הולו מנחה את המסע' : ''}
 

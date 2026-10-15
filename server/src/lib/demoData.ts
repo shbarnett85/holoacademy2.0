@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from './supabase.js'
 import { AppError } from '../middleware/errors.js'
 import type { StaffContext } from '../middleware/staffAuth.js'
-import { hasClassTeachers, hasFictitious, hasGradeLabel, hasIsActive, hasProgressSnapshots, hasSessionCrystals, hasUserGender } from './activeColumn.js'
+import { hasClassTeachers, hasFictitious, hasGradeLabel, hasIsActive, hasProgressSnapshots, hasQuestSubjectId, hasSessionCrystals, hasSyntheticFlag, hasUserGender } from './activeColumn.js'
 import { recalibrateProfile } from './profileCalibration.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 import {
@@ -37,7 +37,7 @@ export async function requireDemoScope(staff: StaffContext | undefined): Promise
   return { schoolId: staff.schoolId, actorId: staff.userId, role: staff.role }
 }
 
-interface QuestRow { id: string; title: string; game_data: unknown; created_by: string | null }
+interface QuestRow { id: string; title: string; game_data: unknown; created_by: string | null; subject_id?: string | null }
 interface ClassRow { id: string; name: string }
 
 /* הכיתות הפיקטיביות בהיקף: מורה — אלה שמקושרות אליו; מנהל עירוני — כל הארגון */
@@ -64,11 +64,11 @@ async function readyQuests(scope: DemoScope): Promise<QuestRow[]> {
   if (creators.length === 0) return []
   const { data } = await supabaseAdmin
     .from('quests')
-    .select('id, title, game_data, created_by')
+    .select((await hasQuestSubjectId()) ? 'id, title, game_data, created_by, subject_id' : 'id, title, game_data, created_by')
     .in('created_by', creators)
     .order('created_at', { ascending: false })
     .limit(30)
-  return ((data ?? []) as QuestRow[])
+  return ((data ?? []) as unknown as QuestRow[])
     .filter((q) => {
       const gd = q.game_data as { generating?: boolean; genError?: unknown } | null
       if (!gd || gd.generating || gd.genError) return false
@@ -104,10 +104,12 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
   const jitterMs = (hashStr(studentId + quest.id) % 8) * 3_600_000
   const startedAt = new Date(Date.now() - sim.dayOffset * 86_400_000 - 2 * 3_600_000 - jitterMs)
 
+  const synthetic = await hasSyntheticFlag()
   const sess: Record<string, unknown> = {
     user_id: studentId, quest_id: quest.id, started_at: startedAt.toISOString(),
     max_score: puzzles.length, inventory: [], visited_scenes: sceneIds, is_fictitious: true,
   }
+  if (synthetic) sess.is_synthetic = true
   if (sim.status === 'in_progress') {
     sess.current_scene_id = sceneIds[Math.max(1, Math.floor(sceneIds.length / 2))] ?? sceneIds[0]
     sess.visited_scenes = sceneIds.slice(0, Math.max(1, Math.floor(sceneIds.length / 2)))
@@ -124,12 +126,14 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
   const perType = perTypeFromChallenges(sim.challenges)
   const perTypeSuccess: Record<string, number> = {}
   for (const [t, s] of Object.entries(perType)) if (s && s.total > 0) perTypeSuccess[t] = Math.round((s.solved / s.total) * 100) / 100
-  const base = { session_id: row.id, user_id: studentId, quest_id: quest.id }
+  const base: Record<string, unknown> = { session_id: row.id, user_id: studentId, quest_id: quest.id }
+  if (synthetic) base.is_synthetic = true
   const events: Record<string, unknown>[] = []
   for (const c of sim.challenges) {
+    /* בדיוק השדות שהזרימה האמיתית כותבת. התשובה שנבחרה (c.extra) תחזור בשלב 1B לטבלת answers. */
     events.push({
       ...base, type: c.correct ? 'puzzle_solved' : 'puzzle_failed', scene_id: c.sceneId,
-      payload: { puzzleType: c.puzzleType, difficulty: c.difficulty, attempts: c.attempts, solveTimeMs: c.solveTimeMs, shards: c.shards, ...c.extra },
+      payload: { puzzleType: c.puzzleType, difficulty: c.difficulty, attempts: c.attempts, solveTimeMs: c.solveTimeMs, shards: c.shards },
     })
   }
   for (const s of sim.sceneTimes) events.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: { dwellMs: s.dwellMs } })
@@ -137,13 +141,17 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
   await supabaseAdmin.from('events').insert(events)
 
   /* כיול פרופיל + snapshot — בדיוק כמו במסלול האמיתי */
-  const cal = await recalibrateProfile(studentId, classId, perType, summary.avgSceneMs)
+  const cal = await recalibrateProfile(studentId, classId, perType, summary.avgSceneMs, {
+    subjectId: quest.subject_id ?? null, sessionId: row.id, isSynthetic: true,
+  })
   if (cal && (await hasProgressSnapshots())) {
     const { error: snapErr } = await supabaseAdmin.from('progress_snapshots').insert({
       student_id: studentId, class_id: classId, session_id: row.id,
       text_level: cal.profile.textLevel, per_puzzle_level: cal.profile.perPuzzleLevel,
       success_rates: perTypeSuccess, overall_success: summary.successRate,
       taken_at: sess.completed_at,
+      ...(synthetic ? { is_synthetic: true } : {}),
+      ...(quest.subject_id ? { subject_id: quest.subject_id } : {}),
     })
     if (snapErr) throw new Error('כתיבת snapshot נכשלה: ' + snapErr.message)
   }
@@ -275,6 +283,10 @@ export async function deleteDemoData(scope: DemoScope) {
     }
     await supabaseAdmin.from('progress_snapshots').delete().in('student_id', studentIds)
     await supabaseAdmin.from('difficulty_profiles').delete().in('user_id', studentIds)
+    /* טבלאות 1A — אם טרם נוצרו, השגיאה מתעלמת (אין מה למחוק) */
+    await supabaseAdmin.from('answers').delete().in('student_id', studentIds)
+    await supabaseAdmin.from('level_history').delete().in('student_id', studentIds)
+    await supabaseAdmin.from('student_subject_levels').delete().in('student_id', studentIds)
   }
   await supabaseAdmin.from('assignments').delete().in('class_id', classIds)
   await supabaseAdmin.from('class_members').delete().in('class_id', classIds)

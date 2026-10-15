@@ -6,7 +6,7 @@ const h = vi.hoisted(() => {
   const db: Record<string, Row[]> = {}
   const reset = () => {
     for (const k of Object.keys(db)) delete db[k]
-    for (const t of ['schools', 'users', 'classes', 'class_members', 'class_teachers', 'quests', 'assignments', 'sessions', 'events', 'difficulty_profiles', 'progress_snapshots']) db[t] = []
+    for (const t of ['schools', 'users', 'classes', 'class_members', 'class_teachers', 'quests', 'assignments', 'sessions', 'events', 'difficulty_profiles', 'progress_snapshots', 'answers', 'level_history', 'student_subject_levels']) db[t] = []
   }
   let seq = 0
   const uuid = () => `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`
@@ -69,6 +69,7 @@ vi.mock('./activeColumn.js', () => {
   return {
     hasClassTeachers: yes, hasFictitious: yes, hasGradeLabel: yes, hasIsActive: yes,
     hasProgressSnapshots: yes, hasSessionCrystals: yes, hasUserGender: yes,
+    hasQuestSubjectId: yes, hasSyntheticFlag: yes,
   }
 })
 vi.mock('./profileCalibration.js', () => ({
@@ -193,12 +194,22 @@ describe('יצירת כיתת דוגמה', () => {
     expect(h.db.difficulty_profiles.length).toBeGreaterThan(0)
   })
 
-  it('נשמרת התשובה בפועל וסוג האתגר ב-payload', async () => {
+  it('ה-payload זהה בדיוק למה שהזרימה האמיתית כותבת (שדות הבחירה אינם נכתבים; יחזרו ב-1B ל-answers)', async () => {
     seedQuest('t1')
     await createFictitiousClass(scope)
     const mc = h.db.events.filter((e) => (e.payload as { puzzleType?: string } | undefined)?.puzzleType === 'multipleChoice')
     expect(mc.length).toBeGreaterThan(10)
-    expect(mc.every((e) => typeof (e.payload as Record<string, unknown>).selectedChoiceId === 'string')).toBe(true)
+    const allowed = ['puzzleType', 'difficulty', 'attempts', 'solveTimeMs', 'shards'].sort()
+    for (const e of mc) expect(Object.keys(e.payload as Record<string, unknown>).sort()).toEqual(allowed)
+  })
+
+  it('כל מה שנכתב מסומן is_synthetic (סשנים, אירועים, snapshots) והסקירה האמיתית יכולה לסנן', async () => {
+    seedQuest('t1')
+    await createFictitiousClass(scope)
+    expect(h.db.sessions.length).toBeGreaterThan(0)
+    expect(h.db.sessions.every((x) => x.is_synthetic === true)).toBe(true)
+    expect(h.db.events.every((x) => x.is_synthetic === true)).toBe(true)
+    expect(h.db.progress_snapshots.every((x) => x.is_synthetic === true)).toBe(true)
   })
 })
 

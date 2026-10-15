@@ -24,7 +24,7 @@ const METRICS: { v: Metric; label: string }[] = [
   { v: 'text_level', label: 'רמת קריאה' },
   { v: 'overall_success', label: 'אחוז הצלחה' },
 ]
-/* מדדים פר-סוג-אתגר — הרמה (1-10) של כל סוג לאורך זמן, מ-per_puzzle_level שבסנפשוטים */
+/* מדדים פר-סוג-אתגר — הרמה (1-20) של כל סוג לאורך זמן, מ-per_puzzle_level שבסנפשוטים */
 const TYPE_METRICS: { v: Metric; label: string }[] = PROFILE_PUZZLE_TYPES.map((t) => ({ v: `puzzle:${t}`, label: puzzleTypeLabel(t) }))
 const RANGES: { v: Range; label: string }[] = [
   { v: 'year', label: 'שנה' },
@@ -113,10 +113,13 @@ export default function ProgressLens() {
   const [data, setData] = useState<TrendsResp | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [drillId, setDrillId] = useState<string | null>(null)
+  /* מנהלים: תמונה מצרפית בלבד (כיתות, עם סף מינימום) — אין תלמידים בודדים */
+  const [aggregateOnly, setAggregateOnly] = useState(false)
 
   /* רשימות הבחירה — תלמידים (לצ'יפים) + כיתות (לקו ממוצע כיתתי) */
   useEffect(() => {
-    apiJson<{ students: StudentOpt[] }>('/api/analytics/students').then((b) => {
+    apiJson<{ students: StudentOpt[]; aggregateOnly?: boolean }>('/api/analytics/students').then((b) => {
+      setAggregateOnly(b.aggregateOnly === true)
       setStudents(b.students)
       if (b.students.length) setSelected(b.students.slice(0, 2).map((s) => s.studentId)) /* happy-path: 2 ראשונים */
     }).catch((e: Error) => setError(e.message))
@@ -142,6 +145,7 @@ export default function ProgressLens() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0 }}>
       {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
+      {aggregateOnly && <p style={{ ...micro, fontSize: 11, color: 'var(--t22)' }}>תצוגה מצרפית: מוצגים קווי כיתות בלבד (מ-5 תלמידים ומעלה). נתוני תלמיד בודד אינם מוצגים לתפקיד זה.</p>}
 
       {/* בקרות: מטריקה (כללית / פר-סוג-אתגר) + טווח (שנה/מחצית/חודש/מותאם) */}
       <div style={{ ...glass, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', flex: '0 0 auto' }}>
@@ -201,7 +205,7 @@ export default function ProgressLens() {
         {range === 'custom' && (!fromDate || !toDate) && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 12, fontSize: 11 }}>בחרו תאריך התחלה וסיום להצגת הטווח המותאם.</p>}
         {!data && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30 }}>טוען…</p>}
         {data?.notReady && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 30, fontSize: 11 }}>טבלת ההתקדמות (progress_snapshots) עדיין לא הוקמה — הרץ את המיגרציה ואת ה-seed.</p>}
-        {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30, fontSize: 11 }}>אין עדיין נתוני התקדמות לישויות שנבחרו.</p>}
+        {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30, fontSize: 11 }}>{aggregateOnly ? 'אין עדיין מספיק נתונים — נדרשים לפחות 5 תלמידים בכיתה.' : 'אין עדיין נתוני התקדמות לישויות שנבחרו.'}</p>}
         {hasData && <LineChart labels={data!.labels} series={data!.series} metric={metric} isMobile={isMobile} />}
         {/* מקרא */}
         {hasData && (

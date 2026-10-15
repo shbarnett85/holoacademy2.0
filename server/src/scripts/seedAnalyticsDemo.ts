@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { supabaseAdmin } from '../lib/supabase.js'
+import { hasSyntheticFlag } from '../lib/activeColumn.js'
 
 /* סקריפט בדיקה לאנליטיקה — מזריק מטלה + sessions מגוונים לכיתת ההדגמה (demo-7b)
    על הדמיה אחת, כדי לבדוק את הדשבורד (התפלגות, נקודות קושי, דגלים). idempotent. */
@@ -17,6 +18,7 @@ const PROFILES: Record<string, { status: 'completed' | 'in_progress' | 'none'; s
 }
 
 async function main() {
+  const synthetic = await hasSyntheticFlag() /* נתוני seed מסומנים is_synthetic — האנליטיקה האמיתית מסננת אותם */
   const { data: cls } = await supabaseAdmin.from('classes').select('id, school_id, teacher_id').eq('url_code', 'demo-7b').single()
   if (!cls) throw new Error('כיתת demo-7b לא נמצאה — הרץ npm run seed קודם')
 
@@ -49,7 +51,7 @@ async function main() {
     if (!p || p.status === 'none') continue
 
     const startedAt = new Date(Date.now() - 3600e3).toISOString()
-    const sessRow: Record<string, unknown> = { user_id: stu.id, quest_id: QUEST_ID, started_at: startedAt, max_score: maxScore, inventory: [], visited_scenes: sceneIds }
+    const sessRow: Record<string, unknown> = { user_id: stu.id, quest_id: QUEST_ID, started_at: startedAt, max_score: maxScore, inventory: [], visited_scenes: sceneIds, ...(synthetic ? { is_synthetic: true } : {}) }
     if (p.status === 'in_progress') { sessRow.current_scene_id = sceneIds[1] ?? sceneIds[0] }
     if (p.status === 'completed') {
       const correct = (p.scene1 ? 1 : 0) + (p.scene2 ? 1 : 0)
@@ -60,7 +62,7 @@ async function main() {
     if (!sess) continue
 
     if (p.status === 'completed') {
-      const base = { session_id: sess.id, user_id: stu.id, quest_id: QUEST_ID }
+      const base: Record<string, unknown> = { session_id: sess.id, user_id: stu.id, quest_id: QUEST_ID, ...(synthetic ? { is_synthetic: true } : {}) }
       const rows: Record<string, unknown>[] = []
       /* רשומת אתגר תמציתית לכל אתגר */
       for (const ps of puzzleScenes) {

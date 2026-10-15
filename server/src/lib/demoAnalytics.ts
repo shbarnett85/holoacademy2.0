@@ -10,7 +10,7 @@
      נדגם בזמן בניית המודול-נתונים — לא Math.random בזמן ריצה).
    · אותו קוד קליינט: הפונקציות מחזירות בדיוק את צורות התגובה של נקודות
      הקצה האמיתיות ב-analytics.ts/staff.ts.
-   הסולם תואם למודל האמיתי: text_level ‏1-20, רמות אתגר 1-10, כלל 60/80
+   הסולם תואם למודל האמיתי: text_level ‏1-20, רמות אתגר 1-20, כלל 60/80
    (רמה יורדת מתחת ל-60% הצלחה, עולה מעל 80%), ספי דגלים 60/85. */
 
 import { buildTrendBuckets } from './trendBuckets.js'
@@ -344,11 +344,11 @@ export function demoStudentDetail(studentId: string, now: Date) {
   const recent = completed.slice(0, 12)
   const lastRates: Record<string, number> = {}
   const perType: Record<string, number> = {}
-  /* רמות פר-סוג (1-10) — נגזרות דטרמיניסטית מרמת הטקסט + גיוון קבוע פר-סוג */
+  /* רמות פר-סוג (1-20, כמו המודל האמיתי) — נגזרות דטרמיניסטית מרמת הטקסט + גיוון קבוע פר-סוג */
   const types = ['multipleChoice', 'trueFalse', 'finalQuiz', 'wordCompletion', 'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory']
   const trnd = mulberry32(hashStr(p.id))
   for (const t of types) {
-    perType[t] = clamp(Math.round(lastLevel / 2 + (trnd() * 2 - 1)), 1, 10)
+    perType[t] = clamp(Math.round(lastLevel + (trnd() * 4 - 2)), 1, 20)
     lastRates[t] = round2(clamp(p.curve(1) + (trnd() * 0.2 - 0.1), 0.1, 1))
   }
   const history = mine.slice(0, 50).map((s, i) => ({
