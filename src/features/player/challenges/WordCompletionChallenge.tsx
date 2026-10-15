@@ -4,10 +4,13 @@ import { playSound } from '../../../shared/lib/sound'
 import { scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult; אופציונלי ולעולם לא משפיע על הלוגיקה */
+  tel?: PuzzleTelemetry
 }
 
 /* נירמול להשוואה — הסרת רווחים מיותרים וסימני פיסוק בקצוות */
@@ -20,7 +23,7 @@ function norm(s: string): string {
    הריק) — נכונה מתמלאת וננעלת ועוברים לחלל הבא; שגויה מנקבת את מד הניסיונות.
    אין כפתור בדיקה. **מצב הקלדה** (רמות גבוהות, ללא בנק): נשאר עם שדות + בדיקה.
    מספר החללים, גודל הבנק ומספר הניסיונות נקבעים לפי הרמה (scaleWordCompletion). */
-export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
+export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props) {
   const sentence = puzzle.sentence ?? puzzle.question
   /* רשימת התשובות לפי סדר החללים — answers (רב-חללי) או answer בודד (תאימות לאחור) */
   const answers = puzzle.answers && puzzle.answers.length > 0
@@ -59,6 +62,7 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
     if (locked || usedBankIdx.has(bankIdx)) return
     const idx = activeIdx
     if (idx === -1) return
+    tel?.act('attempt', { value: word, blank: idx, correct: norm(word) === norm(answers[idx] ?? '') })
     if (norm(word) === norm(answers[idx] ?? '')) {
       /* נכון — החלל מתמלא וננעל, עוברים לחלל הבא */
       setBlank(idx, word)
@@ -85,6 +89,7 @@ export default function WordCompletionChallenge({ puzzle, onResult }: Props) {
   function submitTyped() {
     if (locked || !allFilled) return
     const correct = values.every((v, i) => norm(v) === norm(answers[i] ?? ''))
+    tel?.act('attempt', { values: [...values], correct })
     if (correct) {
       setLocked(true)
       setTimeout(() => onResult({ correct: true, score: 1 }), 350)

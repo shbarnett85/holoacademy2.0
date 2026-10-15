@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChallengeRecord, SceneTime, AnalyticsSummary } from './sessionTracker'
+import {
+  slideWordCount, GATE_EVENT_TYPES,
+  type AnswerRecord, type MoralChoiceRecord, type GateEvent, type GateEventType, type PresentationRecord, type TelemetrySnapshot,
+} from '../../shared/lib/answerTelemetry'
 
 /* סוגי האירועים הנאספים מקומית (תואם enum event_type בשרת) */
 type LocalEventType =
@@ -21,6 +25,8 @@ export interface EngineInitialState {
      ומסמן את האתגרים שכבר נוסו (אין ניסיון חוזר). הדמיות/שמירות ישנות בלי
      השדה — מתחילות ריק, כמו קודם. */
   challengeResults?: ChallengeResult[]
+  /* טלמטריית תשובות שנאספה לפני ה-refresh (1B) */
+  telemetry?: TelemetrySnapshot
 }
 
 export interface EngineOptions {
@@ -32,6 +38,10 @@ export interface GameAnalytics {
   summary: Omit<AnalyticsSummary, 'crystalsEarned' | 'completed'>
   challenges: ChallengeRecord[]
   sceneTimes: SceneTime[]
+  /* 1B — לכידת תשובות/שערים; נשלחים כמערכים נפרדים ב-complete */
+  answers: AnswerRecord[]
+  moralChoices: MoralChoiceRecord[]
+  gateEvents: GateEvent[]
 }
 
 export interface CollectableItem {
@@ -164,9 +174,24 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   /* צבירת אנליטיקה מקומית — אין שום קריאת רשת במהלך המשחק.
      כל event נצבר ב-ref עם חותמת זמן לקוח מדויקת (לחישוב זמני שהייה). */
   const eventsRef = useRef<LocalEvent[]>([])
+  /* ── טלמטריה (1B) — רפים נפרדים; eventsRef (ומה שמוזן ממנו לכיול) נשאר בדיוק כמו קודם ── */
+  const answersRef = useRef<AnswerRecord[]>(init?.telemetry?.answers ? [...init.telemetry.answers] : [])
+  const moralRef = useRef<MoralChoiceRecord[]>(init?.telemetry?.moral ? [...init.telemetry.moral] : [])
+  const gateRef = useRef<GateEvent[]>(init?.telemetry?.gate ? [...init.telemetry.gate] : [])
+  const seqRef = useRef<Record<string, number>>({ ...(init?.telemetry?.seqs ?? {}) })
+  /* סגירת סצנה: חותמת הסגירה האחרונה + זמן שהלשונית הייתה מוסתרת (פר-כניסה לסצנה) */
+  const closeTsRef = useRef<number>(0)
+  const hiddenAtRef = useRef<number | null>(null)
+  const hiddenByEnterRef = useRef<Map<number, number>>(new Map())
+  const currentEnterTsRef = useRef<number>(0)
   const track = useCallback(
     (type: LocalEventType, sceneId?: string | null, payload: Record<string, unknown> = {}) => {
-      eventsRef.current.push({ type, sceneId: sceneId ?? null, payload: { ...payload, clientTs: Date.now() } })
+      const clientTs = Date.now()
+      eventsRef.current.push({ type, sceneId: sceneId ?? null, payload: { ...payload, clientTs } })
+      if (type === 'scene_enter') currentEnterTsRef.current = clientTs
+      if ((GATE_EVENT_TYPES as readonly string[]).includes(type) && gateRef.current.length < 300) {
+        gateRef.current.push({ type: type as GateEventType, sceneId: sceneId ?? null, payload: { ...payload }, clientTs })
+      }
     },
     [],
   )
@@ -285,6 +310,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const finishQuest = useCallback(() => {
     if (!completedOnceRef.current) {
       completedOnceRef.current = true
+      closeTsRef.current = Date.now() /* סגירת הסצנה האחרונה (לשהייה הסגורה) */
       track('session_completed', currentSceneId, {})
     }
     setTransitionType('wormhole')
@@ -509,12 +535,52 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   /* תיעוד תחילת ניסיון פתרון — נקרא בעת פתיחת מודאל האתגר */
   const trackPuzzleAttempt = useCallback(() => {
     if (!scene.puzzle) return
+    seqRef.current[scene.id] = (seqRef.current[scene.id] ?? 0) + 1 /* הצגה חדשה של האתגר (טלמטריה) */
     puzzleStartRef.current = Date.now()
     track('puzzle_attempt', scene.id, {
       puzzleType: scene.puzzle.type ?? 'multipleChoice',
       difficulty: scene.puzzle.difficulty ?? null,
     })
   }, [scene, track])
+
+  /* ── טלמטריית תשובות (1B): API קטן, כולו best-effort ── */
+  const getPresentationSeq = useCallback(() => seqRef.current[scene.id] ?? 1, [scene.id])
+  const recordPresentation = useCallback((rec: PresentationRecord) => {
+    try {
+      for (const a of rec.answers) {
+        if (answersRef.current.length >= 400) break
+        if (!answersRef.current.some((x) => x.localId === a.localId)) answersRef.current.push(a)
+      }
+      if (rec.moral && moralRef.current.length < 40) moralRef.current.push(rec.moral)
+    } catch { /* טלמטריה לא חוסמת */ }
+  }, [])
+  const exportTelemetry = useCallback((): TelemetrySnapshot => ({
+    answers: answersRef.current, moral: moralRef.current, gate: gateRef.current, seqs: seqRef.current,
+  }), [])
+  /* סימון סגירת הסצנה הנוכחית (יציאה באמצע) — לא נוסף ל-eventsRef כדי שחישובי ההיסטוריה לא יזוזו */
+  const markSceneExit = useCallback(() => { closeTsRef.current = Date.now() }, [])
+
+  /* שהייה אמיתית בסצנה האחרונה: הלשונית מוסתרת / הדף נסגר → חותמת סגירה, ובניכוי זמן הסתרה */
+  useEffect(() => {
+    const onVis = () => {
+      const now = Date.now()
+      if (document.visibilityState === 'hidden') {
+        closeTsRef.current = now
+        hiddenAtRef.current = now
+      } else if (hiddenAtRef.current !== null) {
+        const key = currentEnterTsRef.current
+        hiddenByEnterRef.current.set(key, (hiddenByEnterRef.current.get(key) ?? 0) + (now - hiddenAtRef.current))
+        hiddenAtRef.current = null
+      }
+    }
+    const onHide = () => { closeTsRef.current = Date.now() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pagehide', onHide)
+    }
+  }, [])
 
   /* ── חישוב קריסטלים: סך האתגרים מתחלק ל-5 קריסטלים לפי משקל ──
      מבחן סיכום (finalQuiz) שוקל קריסטל שלם אחד; שאר האתגרים חולקים את היתר.
@@ -572,7 +638,17 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     const sceneTimes: SceneTime[] = enters.map((e, i) => {
       const next = enters[i + 1]
       const end = next ? ts(next) : lastTs
-      return { sceneId: e.sceneId ?? '', dwellMs: Math.max(0, end - ts(e)) }
+      /* 1B: שהייה סגורה — הסצנה האחרונה נסגרת בחותמת הסגירה (exit/hidden/pagehide/סיום), לא באירוע
+         האחרון; בניכוי זמן הסתרה. dwellMs ההיסטורי נשאר זהה (מזין כיול). */
+      const closeEnd = next ? ts(next) : Math.max(lastTs, closeTsRef.current)
+      const hidden = hiddenByEnterRef.current.get(ts(e)) ?? 0
+      const sc = sceneById.get(e.sceneId ?? '')
+      return {
+        sceneId: e.sceneId ?? '',
+        dwellMs: Math.max(0, end - ts(e)),
+        wordCount: sc ? slideWordCount(sc) : 0,
+        closedDwellMs: Math.max(0, closeEnd - ts(e) - hidden),
+      }
     })
 
     const totalChallenges = challenges.length
@@ -585,8 +661,11 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       summary: { totalChallenges, correctChallenges, successRate, avgSceneMs, scenesVisited: visitedScenes.length, durationMs },
       challenges,
       sceneTimes,
+      answers: answersRef.current,
+      moralChoices: moralRef.current,
+      gateEvents: gateRef.current,
     }
-  }, [visitedScenes])
+  }, [visitedScenes, sceneById])
 
   /* אתחול session — "צא למסע שוב" */
   const restart = useCallback(() => {
@@ -608,6 +687,13 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     completedOnceRef.current = false
     puzzleStartRef.current = 0
     eventsRef.current = []
+    answersRef.current = []
+    moralRef.current = []
+    gateRef.current = []
+    seqRef.current = {}
+    closeTsRef.current = 0
+    hiddenAtRef.current = null
+    hiddenByEnterRef.current = new Map()
     enteredOnceRef.current = false
   }, [gameData.entrySceneId])
 
@@ -643,6 +729,10 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     skipUnlock,
     solvePuzzle,
     trackPuzzleAttempt,
+    getPresentationSeq,
+    recordPresentation,
+    exportTelemetry,
+    markSceneExit,
     getAnalytics,
     collectCurrentItem,
     restart,

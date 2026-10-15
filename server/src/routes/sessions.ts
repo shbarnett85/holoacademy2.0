@@ -9,6 +9,7 @@ import { questSubjectOut } from '../lib/subjects.js'
 import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
 import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels } from '../lib/activeColumn.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
+import { parseAnswers, parseMoral, parseGateEvents, toGateEventRow, writeAnswerTelemetry } from '../lib/answerWriter.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
 export const sessionsRouter = Router()
@@ -304,7 +305,13 @@ const challengeSchema = z.object({
   solveTimeMs: z.number().nullable().optional(),
   shards: z.number().optional(),
 })
-const sceneTimeSchema = z.object({ sceneId: z.string(), dwellMs: z.number().nonnegative() })
+const sceneTimeSchema = z.object({
+  sceneId: z.string(),
+  dwellMs: z.number().nonnegative(),
+  /* 1B — שדות טלמטריה: פגומים לא מפילים את ה-complete (catch → undefined) */
+  wordCount: z.number().int().min(0).max(20000).optional().catch(undefined),
+  closedDwellMs: z.number().min(0).max(86_400_000).optional().catch(undefined),
+})
 const summarySchema = z.object({
   totalChallenges: z.number().int().nonnegative(),
   correctChallenges: z.number().int().nonnegative(),
@@ -321,6 +328,11 @@ const completeSchema = z.object({
   summary: summarySchema.optional(),
   challenges: z.array(challengeSchema).max(100).optional(),
   sceneTimes: z.array(sceneTimeSchema).max(200).optional(),
+  /* 1B — טלמטריית תשובות. unknown בכוונה: הפרסור פר-שורה וסובלני (answerWriter) כך ששורה פגומה
+     לעולם לא גורמת ל-400 ואובדן הכיול. challenges (מוגבל ל-100) נשאר בדיוק כמו קודם. */
+  answers: z.unknown().optional(),
+  moralChoices: z.unknown().optional(),
+  gateEvents: z.unknown().optional(),
 })
 
 sessionsRouter.post('/:id/complete', async (req, res, next) => {
@@ -329,6 +341,9 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     const parsed = completeSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
     const { totalScore, crystalsFull, summary, challenges, sceneTimes } = parsed.data
+    const tAnswers = parseAnswers(parsed.data.answers)
+    const tMoral = parseMoral(parsed.data.moralChoices)
+    const tGate = parseGateEvents(parsed.data.gateEvents)
 
     /* מדדים לכיול — שיעור הצלחה פר סוג + זמן ממוצע לסצנה (זמני קריאה) */
     const perType = perTypeFromChallenges(challenges ?? [])
@@ -353,10 +368,23 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
       })
     }
     for (const s of sceneTimes ?? []) {
-      rows.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: { dwellMs: s.dwellMs } })
+      /* dwellMs נשאר כמו שהיה; word_count/closed_dwell_ms נוספים (1B) */
+      const sp: Record<string, unknown> = { dwellMs: s.dwellMs }
+      if (s.wordCount !== undefined) sp.word_count = s.wordCount
+      if (s.closedDwellMs !== undefined) sp.closed_dwell_ms = Math.round(s.closedDwellMs)
+      rows.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: sp })
     }
     if (summary) {
       rows.push({ ...base, type: 'session_completed', scene_id: null, payload: { ...summary, skipping, perType: perTypeSuccess } })
+    }
+    /* 1B: שערים/מפתחות/בחירות שהיו נזרקים — נכתבים באותה אצווה (אידמפוטנטי יחד עם שאר ה-events) */
+    for (const g of tGate) rows.push(toGateEventRow(g, base))
+
+    /* האם זו שליחה חוזרת (כבר נכתב session_completed)? — לדילמות מוסריות (בלי מפתח אידמפוטנטי) */
+    let isRetry = false
+    if (tMoral.length > 0) {
+      const { count } = await supabaseAdmin.from('events').select('id', { count: 'exact', head: true }).eq('session_id', session.id).eq('type', 'session_completed')
+      isRetry = (count ?? 0) > 0
     }
 
     if (rows.length > 0) {
@@ -418,6 +446,15 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
       }
     } catch (e) {
       warn('[calibrate] כיול הפרופיל נכשל ל-session', session.id, '—', e instanceof Error ? e.message : e)
+    }
+    /* טלמטריית תשובות (1B) — אחרי הליבה; best-effort מוחלט: לעולם לא משנה את התוצאה ולא חוסם */
+    try {
+      await writeAnswerTelemetry({
+        sessionId: session.id, studentId: session.user_id, classId: req.student!.classId ?? null, questId: session.quest_id,
+        answers: tAnswers, moral: tMoral, isRetry,
+      })
+    } catch (e) {
+      warn('[telemetry] כתיבת answers נכשלה ל-session', session.id, '—', e instanceof Error ? e.message : e)
     }
     res.json({ ok: true, profileUpdated })
   } catch (err) {

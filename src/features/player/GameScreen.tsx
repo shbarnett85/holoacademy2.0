@@ -124,7 +124,7 @@ interface Props {
   /* תיעוד אנליטיקה — מודל מרוכז: צבירה מקומית, שליחה אחת בסיום (best-effort) */
   initialState?: EngineInitialState
   /* שמירת מצב ביניים ל-resume — מקומי בלבד, ללא רשת */
-  saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number; challengeResults?: unknown[] }) => void
+  saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number; challengeResults?: unknown[]; telemetry?: unknown }) => void
   /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע */
   onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
@@ -282,7 +282,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => { initSound() }, [])
 
   useEffect(() => {
-    saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull, challengeResults: engine.challengeResults })
+    saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull, challengeResults: engine.challengeResults, telemetry: engine.exportTelemetry() })
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     setAdvancing(false)
     setContentVisible(true) /* סצנה חדשה מתחילה גלויה (לא באמצע fade של החלפת אתגר) */
@@ -348,6 +348,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   function handleExit() {
     if (!completedRef.current) {
       completedRef.current = true
+      engine.markSceneExit() /* סגירת הסצנה הנוכחית — שהייה סגורה (טלמטריה) */
       const totalScore = engine.challengeResults.filter((r) => r.correct).length
       onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
     }
@@ -563,6 +564,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         puzzle={scene.puzzle!}
         imageUrl={scene.imageUrl}
         onSolve={engine.solvePuzzle}
+        sceneId={scene.id}
+        presentationSeq={engine.getPresentationSeq()}
+        onTelemetry={engine.recordPresentation}
         onClose={() => fadeSwap(() => setPuzzleOpen(false))}
         onContinue={() => {
           const hasItem = !!scene.collectableItem

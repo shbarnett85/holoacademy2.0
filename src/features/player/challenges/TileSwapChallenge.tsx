@@ -5,6 +5,7 @@ import type { Puzzle } from '../useGameEngine'
 import { scaleTileSwap } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 const prefersReduced = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -13,6 +14,8 @@ interface Props {
   puzzle: Puzzle
   imageUrl?: string
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult */
+  tel?: PuzzleTelemetry
 }
 
 /* ערבוב Fisher-Yates שמבטיח שהמצב ההתחלתי אינו פתור */
@@ -29,7 +32,7 @@ function shuffled(count: number): number[] {
 }
 
 /* פאזל הזזה — התמונה מחולקת לרשת מעורבבת; מחליפים אריחים עד שהתמונה שלמה */
-export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props) {
+export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: Props) {
   /* גודל הרשת נקבע לפי רמת הקושי (2x2 → 5x5); נפילה ל-gridSize מהנתונים אם אין difficulty */
   const scale = puzzle.difficulty != null ? scaleTileSwap(puzzle.difficulty) : null
   const n = scale ? scale.gridSize : Math.min(5, Math.max(2, puzzle.gridSize ?? 3))
@@ -57,6 +60,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
     ;[next[selected], next[pos]] = [next[pos], next[selected]]
     setSelected(null)
     setOrder(next)
+    tel?.act('swap', { from: selected, to: pos, tiles: [order[selected], order[pos]], bad: !(next[selected] === selected || next[pos] === pos) && !next.every((v, i) => v === i) })
     if (next.every((v, i) => v === i)) {
       setDone('win')
       if (imageUrl && !prefersReduced()) {
@@ -190,7 +194,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult }: Props)
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => onResult({ correct: false })}
+            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
           >
             אני מוותר/ת 🏳️
           </button>

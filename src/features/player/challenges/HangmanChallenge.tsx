@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react'
 import { playSound } from '../../../shared/lib/sound'
 import type { Puzzle } from '../useGameEngine'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult; אופציונלי ולעולם לא משפיע על הלוגיקה */
+  tel?: PuzzleTelemetry
 }
 
 /* סופיות → צורת הבסיס, כדי שניחוש אות אחת יחשוף גם את צורתה הסופית */
@@ -15,7 +18,7 @@ const HEB_KEYBOARD = 'אבגדהוזחטיכלמנסעפצקרשת'.split('')
 const isHebLetter = (ch: string) => /[א-ת]/.test(ch)
 
 /* זיהוי קוד / איש תלוי — ניחוש אות-אות בעברית, מד ניסיונות הולוגרפי */
-export default function HangmanChallenge({ puzzle, onResult }: Props) {
+export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
   const answer = (puzzle.answer ?? '').trim()
   const maxWrong = Math.max(3, Math.min(10, puzzle.maxWrong ?? 6))
 
@@ -35,6 +38,7 @@ export default function HangmanChallenge({ puzzle, onResult }: Props) {
 
   function guess(letter: string) {
     if (done || guessed.has(letter)) return
+    tel?.act('letter', { letter, correct: needed.has(letter) })
     const next = new Set(guessed).add(letter)
     setGuessed(next)
     if (needed.has(letter)) {

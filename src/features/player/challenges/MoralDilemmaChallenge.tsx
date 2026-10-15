@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
@@ -7,18 +8,21 @@ interface Props {
   onResolve: () => void
   /* מעבר לסצנה הבאה אחרי קריאת ההשלכה */
   onContinue: () => void
+  /* טלמטריה (1B): הבחירה נכתבת רק ל-moral_choices, בלי student_id */
+  tel?: PuzzleTelemetry
 }
 
 /* ── שאלת מוסר (moralDilemma) ── דילמה ערכית ללא תשובה נכונה.
    שתי פאזות: בחירה → השלכה. כל בחירה מתקבלת ומזכה בקריסטלים. עיצוב "דילמה"
    (סגול/ענבר) שונה ויזואלית מחידת ידע ("מבחן" כחול-ציאן). */
-export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue }: Props) {
+export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, tel }: Props) {
   const situation = puzzle.situation ?? puzzle.question
   const choices = puzzle.moralChoices ?? []
   const [chosen, setChosen] = useState<number | null>(null)
 
   function choose(i: number) {
     if (chosen !== null) return
+    tel?.act('moral_choice', { index: i })
     setChosen(i)
     onResolve() /* רסיסי הקריסטל מוענקים מיד — כל בחירה מתקבלת */
   }

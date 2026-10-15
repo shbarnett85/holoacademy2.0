@@ -36,6 +36,8 @@ interface ProfilePending {
 
 interface DiffPending {
   studentId: string
+  /* מקצוע שהרמות שייכות לו; null = הפרופיל הגלובלי (הדמיות "לא סווג") */
+  subjectCode: string | null
   origTextLevel: number
   origPerPuzzleLevel: Record<string, number>
   textLevel: number
@@ -238,8 +240,12 @@ interface StudentProfile {
   sessions_count?: number | null
 }
 
+interface SubjectLevelRow { subjectCode: string; subjectName: string; textLevel: number; perType: Record<string, number>; teacherLocked: boolean }
 interface ProfileApiResponse {
   profile: StudentProfile | null
+  subjectLevels?: SubjectLevelRow[]
+  /* אילו מקצועות הצופה רשאי לעדכן (מחנך: הכול + גלובלי; מקצועי: שלו בלבד) */
+  editable?: { global: boolean; subjects: { code: string; name: string }[] }
 }
 
 
@@ -256,6 +262,10 @@ function DifficultyModal({
   const [profile, setProfile] = useState<StudentProfile | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [resp, setResp] = useState<ProfileApiResponse | null>(null)
+  /* המקצוע הנערך: קוד מקצוע, או null = גלובלי. נבחר אחרי הטעינה (ראו ה-effect). */
+  const [subject, setSubject] = useState<string | null | undefined>(diffPending ? diffPending.subjectCode : undefined)
+  const [unlocking, setUnlocking] = useState(false)
 
   /* דיפולט (אין פרופיל) = רמת שכבת-הגיל על סקאלת 1-20 (כיתה א'→5, ג'→7). */
   const gradeDefault = gradeToLevel(student.class) ?? 10
@@ -263,19 +273,46 @@ function DifficultyModal({
   useEffect(() => {
     apiJson<ProfileApiResponse>(`/api/analytics/student/${student.id}`)
       .then((r) => {
-        const p = r.profile
-        setProfile(p)
+        setResp(r)
+        setProfile(r.profile)
         setLoaded(true)
-        if (!diffPending) {
-          const textLevel = p?.text_level ?? gradeDefault
-          const perPuzzleLevel: Record<string, number> = {}
-          for (const t of PROFILE_PUZZLE_TYPES) perPuzzleLevel[t] = p?.per_puzzle_level?.[t] ?? gradeDefault
-          onDiffChange({ textLevel, perPuzzleLevel, origTextLevel: textLevel, origPerPuzzleLevel: { ...perPuzzleLevel } })
+        /* ברירת מחדל לבורר: מורה מקצועי — המקצוע הראשון שלו; מחנך — הפרופיל הגלובלי */
+        if (subject === undefined) {
+          const ed = r.editable
+          setSubject(ed?.global ? null : (ed?.subjects[0]?.code ?? null))
         }
       })
       .catch((e: Error) => { setErr(e.message); setLoaded(true) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id])
+
+  /* טעינת הרמות של המקצוע הנבחר לתוך ה-pending (פעם אחת לכל החלפת מקצוע, כשאין שינוי ממתין) */
+  useEffect(() => {
+    if (!resp || subject === undefined) return
+    if (diffPending && diffPending.subjectCode === subject) return
+    const row = subject ? resp.subjectLevels?.find((l) => l.subjectCode === subject) : null
+    const p = subject ? null : resp.profile
+    const textLevel = subject ? (row?.textLevel ?? gradeDefault) : (p?.text_level ?? gradeDefault)
+    const perPuzzleLevel: Record<string, number> = {}
+    for (const t of PROFILE_PUZZLE_TYPES) perPuzzleLevel[t] = subject ? (row?.perType?.[t] ?? gradeDefault) : (p?.per_puzzle_level?.[t] ?? gradeDefault)
+    onDiffChange({ subjectCode: subject, textLevel, perPuzzleLevel, origTextLevel: textLevel, origPerPuzzleLevel: { ...perPuzzleLevel } })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resp, subject])
+
+  const currentRow = subject ? resp?.subjectLevels?.find((l) => l.subjectCode === subject) : undefined
+  const subjectOptions = [
+    ...(resp?.editable?.global ? [{ code: '', name: 'גלובלי — הדמיות "לא סווג"' }] : []),
+    ...(resp?.editable?.subjects ?? []).map((s) => ({ code: s.code, name: s.name })),
+  ]
+  async function unlockLevels() {
+    if (!subject || unlocking) return
+    setUnlocking(true)
+    try {
+      await apiJson(`/api/analytics/student/${student.id}/profile`, { method: 'PATCH', body: JSON.stringify({ subjectCode: subject, unlock: true }) })
+      const r = await apiJson<ProfileApiResponse>(`/api/analytics/student/${student.id}`)
+      setResp(r)
+    } catch (e) { setErr((e as Error).message) } finally { setUnlocking(false) }
+  }
 
   const textLevel = diffPending?.textLevel ?? gradeDefault
   const levels = diffPending?.perPuzzleLevel ?? Object.fromEntries(PROFILE_PUZZLE_TYPES.map((t) => [t, gradeDefault]))
@@ -284,10 +321,10 @@ function DifficultyModal({
   const moralDepth = moralDilemmaDepth(gradeDefault, textLevel)
 
   function setTextLevel(v: number) {
-    onDiffChange({ textLevel: v, perPuzzleLevel: levels })
+    onDiffChange({ subjectCode: subject ?? null, textLevel: v, perPuzzleLevel: levels })
   }
   function setLevel(t: ProfilePuzzleType, v: number) {
-    onDiffChange({ textLevel, perPuzzleLevel: { ...levels, [t]: v } })
+    onDiffChange({ subjectCode: subject ?? null, textLevel, perPuzzleLevel: { ...levels, [t]: v } })
   }
 
   return (
@@ -315,8 +352,42 @@ function DifficultyModal({
           </div>
         </div>
 
+        {/* ── בורר מקצוע: מורה מקצועי — רק מקצועותיו; מחנך — כל מקצוע או גלובלי ── */}
+        {loaded && subjectOptions.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ ...micro, fontSize: 9, color: 'var(--t135)', marginBottom: 8 }}>מקצוע</div>
+            <select
+              aria-label="מקצוע לעדכון רמות"
+              value={subject ?? ''}
+              onChange={(e) => setSubject(e.target.value === '' ? null : e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, background: 'var(--t70)', border: '1px solid var(--t62)', color: 'var(--t12)', fontFamily: 'var(--font-display)', fontSize: 13 }}>
+              {subjectOptions.map((o) => <option key={o.code || 'global'} value={o.code}>{o.name}</option>)}
+            </select>
+            {/* הרמה הנוכחית במקצוע + נעילת מורה */}
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12, color: 'var(--t274)' }}>
+              {subject
+                ? (currentRow
+                  ? <span>רמת טקסט נוכחית במקצוע: <b style={{ color: 'var(--t15)' }}>{Math.round(currentRow.textLevel)}</b>/20</span>
+                  : <span>עוד אין פרופיל במקצוע זה — יוצג רמת פתיחה לפי שכבת הכיתה ({gradeDefault}).</span>)
+                : <span>הפרופיל הגלובלי משמש הדמיות שלא סווגו למקצוע.</span>}
+              {currentRow?.teacherLocked && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <b style={{ color: 'var(--t264)' }}>🔒 נעול על ידי מורה</b>
+                  <button onClick={unlockLevels} disabled={unlocking}
+                    style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 7, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t62)', color: 'var(--t12)' }}>
+                    {unlocking ? 'משחרר…' : 'שחרר נעילה'}
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        {loaded && resp && subjectOptions.length === 0 && (
+          <p style={{ color: 'var(--t265)', fontSize: 12 }}>אין לך הרשאה לעדכן רמות לתלמיד זה (נדרש מחנך או מורה המקצוע).</p>
+        )}
+
         {!loaded && !err && <p style={{ color: 'var(--t274)', fontSize: 13 }}>טוען…</p>}
-        {loaded && !profile && <p style={{ color: 'var(--t265)', fontSize: 12 }}>אין עדיין פרופיל אישי — הסליידרים יציגו ברירת מחדל; הכיול יתחיל אחרי הדמיה ראשונה.</p>}
+        {loaded && !profile && !subject && <p style={{ color: 'var(--t265)', fontSize: 12 }}>אין עדיין פרופיל אישי — הסליידרים יציגו ברירת מחדל; הכיול יתחיל אחרי הדמיה ראשונה.</p>}
         {err && <p style={{ color: 'var(--t263)', fontSize: 13 }}>⚠️ {err}</p>}
 
         {/* ── רמת טקסט ── */}
@@ -510,10 +581,11 @@ export default function Students() {
 
   function handleDiffChange(
     studentId: string,
-    d: { textLevel: number; perPuzzleLevel: Record<string, number>; origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> },
+    d: { subjectCode: string | null; textLevel: number; perPuzzleLevel: Record<string, number>; origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> },
   ) {
     setDiffPending((prev) => ({
       studentId,
+      subjectCode: d.subjectCode,
       textLevel: d.textLevel,
       perPuzzleLevel: d.perPuzzleLevel,
       origTextLevel: d.origTextLevel ?? prev?.origTextLevel ?? d.textLevel,
@@ -539,7 +611,7 @@ export default function Students() {
       if (diffPending) {
         await apiJson(`/api/analytics/student/${pendingStudentId}/profile`, {
           method: 'PATCH',
-          body: JSON.stringify({ textLevel: diffPending.textLevel, perPuzzleLevel: diffPending.perPuzzleLevel }),
+          body: JSON.stringify({ subjectCode: diffPending.subjectCode ?? undefined, textLevel: diffPending.textLevel, perPuzzleLevel: diffPending.perPuzzleLevel }),
         })
       }
       /* עדכון רשימה מקומית */

@@ -3,10 +3,13 @@ import type { Puzzle } from '../useGameEngine'
 import { scaleSequenceOrder } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult; אופציונלי ולעולם לא משפיע על הלוגיקה */
+  tel?: PuzzleTelemetry
 }
 
 /* ערבוב שמבטיח שהסדר ההתחלתי אינו הסדר הנכון */
@@ -30,7 +33,7 @@ const ORDER_HINTS: Record<string, string> = {
 }
 
 /* חידת סדר — גרירה לסידור פריטים ברצף הנכון (רשימה אנכית, תמיכת מגע, RTL) */
-export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
+export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props) {
   const items = useMemo(() => puzzle.items ?? [], [puzzle.items])
   const correctOrder = useMemo(() => puzzle.correctOrder ?? items.map((i) => i.id), [puzzle.correctOrder, items])
   const textById = useMemo(() => new Map(items.map((i) => [i.id, i.text])), [items])
@@ -44,6 +47,8 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
   const [wrong, setWrong] = useState(0)
   /* הגרירה מנוהלת ב-ref (מיידי, ללא תלות ב-re-render) — המאזינים תמיד מחוברים */
   const draggingRef = useRef<string | null>(null)
+  /* סדר ההצגה ההתחלתי — לטלמטריה בלבד */
+  useEffect(() => { tel?.setDisplay(order, -1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function startDrag(id: string) {
     draggingRef.current = id
@@ -89,6 +94,7 @@ export default function SequenceOrderChallenge({ puzzle, onResult }: Props) {
   function check() {
     if (finished) return
     const ok = order.length === correctOrder.length && order.every((id, i) => id === correctOrder[i])
+    tel?.act('submit', { order: [...order], correct: ok })
     if (ok) {
       setResult('correct')
       setFinished('win')

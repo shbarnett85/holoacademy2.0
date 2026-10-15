@@ -14,7 +14,12 @@ export interface ChallengeRecord {
 
 export interface SceneTime {
   sceneId: string
+  /* הזמן ההיסטורי (לא משתנה — מזין את כיול הקריאה 60/80) */
   dwellMs: number
+  /* 1B: ספירת מילים של השקופית (narrative + drHoloDialog) ושהייה "סגורה":
+     עד scene_exit/סגירה (ולא עד האירוע האחרון), בניכוי זמן שהלשונית הייתה מוסתרת */
+  wordCount?: number
+  closedDwellMs?: number
 }
 
 export interface AnalyticsSummary {
@@ -28,6 +33,23 @@ export interface AnalyticsSummary {
   durationMs: number
 }
 
+/* שורת answers כפי שנשלחת (השרת מוסיף student/class/subject/variant) */
+export interface AnswerWire {
+  clientEventId: string
+  sceneId: string
+  itemIndex: number
+  puzzleType: string
+  selectedOptionId: string | null
+  selectedPosition: number | null
+  correctPosition: number | null
+  displayedOrder: string[] | null
+  isCorrect: boolean
+  attemptNo: number
+  responseMs: number | null
+  outcome: 'correct' | 'wrong' | 'timeout' | 'gave_up' | 'closed'
+  interaction: Record<string, unknown> | null
+}
+
 /* האובייקט התמציתי שנשלח פעם אחת ב-complete */
 export interface CompletePayload {
   totalScore: number
@@ -35,6 +57,10 @@ export interface CompletePayload {
   summary: AnalyticsSummary
   challenges: ChallengeRecord[]
   sceneTimes: SceneTime[]
+  /* 1B — מערך נפרד מ-challenges (שמזין כיול ומוגבל ל-100): מבחן סיכום מכפיל שורות */
+  answers?: AnswerWire[]
+  moralChoices?: { sceneId: string; optionId: string }[]
+  gateEvents?: { type: string; sceneId: string | null; payload: Record<string, unknown>; clientTs: number }[]
 }
 
 export interface SessionStart {
@@ -134,6 +160,8 @@ interface LocalResume {
   inventory: unknown[]
   visitedScenes: unknown[]
   crystals: number
+  /* טלמטריית תשובות (1B) — כדי שלא תאבד ברענון */
+  telemetry?: unknown
   /* מילוי הקריסטלים (כולל חלקי) — נשמר כדי ש-resume לא יאפס את ההתקדמות */
   challengeResults?: unknown[]
 }

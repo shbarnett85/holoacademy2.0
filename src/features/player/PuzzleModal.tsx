@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Placement } from '../player/stageRouting'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import type { Puzzle } from './useGameEngine'
@@ -14,6 +14,10 @@ import { triggerErrorFlash } from './challenges/errorFlash'
 import { shatterToCrystals } from './challenges/successShatter'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { playSound } from '../../shared/lib/sound'
+import {
+  createPuzzleTelemetry, buildPresentation, presentChoices, isTrueFalse, PUZZLE_READY_DELAY_MS,
+  type PuzzleTelemetry, type PresentationRecord,
+} from '../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
@@ -29,6 +33,12 @@ interface Props {
   /* 'panel' = תשובת טקסט/בחירה, בתוך הפאנל הצדדי (המשך דברי הדוקטור).
      'stage'  = אתגר מניפולציה, במרכז הבמה. ראו stageRouting.ts */
   placement?: Placement
+  /* ── טלמטריית תשובות (שלב 1B) — hook נפרד לצד onSolve; לא משפיע על מהלך המשחק ── */
+  sceneId?: string
+  /* הצגה מס' N של האתגר בסצנה (פתיחה/סגירה חוזרת = הצגה חדשה) */
+  presentationSeq?: number
+  /* נקרא פעם אחת בסיום ההצגה (תשובה / סגירה) עם השורות שיש לשמור */
+  onTelemetry?: (rec: PresentationRecord) => void
 }
 
 interface Result { correct: boolean; score: number }
@@ -51,8 +61,50 @@ function maxWidthFor(type?: string): string {
 }
 
 /* מודאל אתגר הולוגרפי — אתגר אינטראקטיבי → פאנל תוצאה/הסבר → המשך */
-export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel'}: Props) {
+export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel', sceneId = '', presentationSeq = 1, onTelemetry }: Props) {
   const [result, setResult] = useState<Result | null>(null)
+  /* טלמטריה להצגה הזו — נוצרת פעם אחת לכל mount (= הצגה) */
+  const telRef = useRef<PuzzleTelemetry | null>(null)
+  if (telRef.current === null) telRef.current = createPuzzleTelemetry()
+  const tel = telRef.current
+  const finalizedRef = useRef(false)
+  useEffect(() => {
+    const t = window.setTimeout(() => tel.markReady(), PUZZLE_READY_DELAY_MS)
+    return () => window.clearTimeout(t)
+  }, [tel])
+
+  /* ערבוב בזמן ההצגה — בחירה מרובה בלבד (נכון/לא-נכון נשאר בסדר קבוע). נבנה פעם אחת להצגה;
+     האובייקטים נשארים אותם אובייקטים (id/isCorrect), ולכן בדיקת הנכונות נשארת זהה. */
+  const presented = useMemo(() => {
+    const t = puzzle.type
+    const isChoiceType = !t || t === 'multipleChoice' || t === 'trueFalse'
+    if (!isChoiceType || !puzzle.choices || puzzle.choices.length === 0) return null
+    return presentChoices(puzzle.choices, { fixed: isTrueFalse(t, puzzle.choices) })
+  }, [puzzle])
+  /* רישום הסדר שהוצג — ב-effect ולא בתוך ה-memo: React (StrictMode) מריץ memo פעמיים בערבוב אקראי,
+     ותופעת-לוואי בתוכו תרשום סדר שונה מזה שנבחר להצגה. */
+  useEffect(() => {
+    if (presented) tel.setDisplay(presented.displayedOrder, presented.correctPosition)
+  }, [presented, tel])
+
+  /* סגירת ההצגה → שורות answers. עטוף ב-try: כשל טלמטריה לעולם לא משפיע על האתגר. */
+  function finalize(res: { correct: boolean; score?: number } | null) {
+    if (finalizedRef.current) return
+    finalizedRef.current = true
+    try {
+      if (!onTelemetry) return
+      const rec = buildPresentation(tel, {
+        sceneId, puzzleType: puzzle.type ?? 'multipleChoice', seq: presentationSeq, result: res,
+        puzzle: { choices: puzzle.choices, items: puzzle.items, correctOrder: puzzle.correctOrder, questions: puzzle.questions, moralChoices: puzzle.moralChoices },
+      })
+      onTelemetry(rec)
+    } catch { /* ignore */ }
+  }
+  function handleClose() {
+    tel.act('closed')
+    finalize(null)
+    onClose()
+  }
   /* הגנה מלחיצה כפולה — ה-state אסינכרוני, ה-ref מיידי */
   const lockedRef = useRef(false)
   /* התפוגגות לרסיסים בהצלחה — הפאנל כולו מתנפץ לתכלת שעפה אל מד הקריסטלים */
@@ -75,6 +127,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     if (r.correct) playSound('good')
     setResult({ correct: r.correct, score })
     onSolve(r.correct, score)
+    finalize({ correct: r.correct, score })
   }
 
   const type = puzzle.type
@@ -145,19 +198,19 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     switch (type) {
       case 'tileSwap':
       case 'slidingPuzzle':
-        return <TileSwapChallenge puzzle={puzzle} imageUrl={imageUrl} onResult={handleResult} />
+        return <TileSwapChallenge puzzle={puzzle} imageUrl={imageUrl} onResult={handleResult} tel={tel} />
       case 'wordSearch':
-        return <WordSearchChallenge puzzle={puzzle} onResult={handleResult} />
+        return <WordSearchChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'memory':
-        return <MemoryChallenge puzzle={puzzle} onResult={handleResult} />
+        return <MemoryChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'wordCompletion':
-        return <WordCompletionChallenge puzzle={puzzle} onResult={handleResult} />
+        return <WordCompletionChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'sequenceOrder':
-        return <SequenceOrderChallenge puzzle={puzzle} onResult={handleResult} />
+        return <SequenceOrderChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'hangman':
-        return <HangmanChallenge puzzle={puzzle} onResult={handleResult} />
+        return <HangmanChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'finalQuiz':
-        return <FinalQuizChallenge puzzle={puzzle} onResult={handleResult} />
+        return <FinalQuizChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       default:
         /* multipleChoice / trueFalse / ברירת מחדל — שאלה + תשובות */
         if (puzzle.choices && puzzle.choices.length > 0) {
@@ -165,8 +218,8 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             <>
               <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
               <div className="flex flex-col gap-3 mt-5 holo-answers">
-                {puzzle.choices.map((c) => (
-                  <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => { if (!c.isCorrect) triggerErrorFlash(); handleResult({ correct: c.isCorrect }) }}>
+                {(presented?.choices ?? puzzle.choices).map((c, pos) => (
+                  <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => { tel.act('select', { optionId: c.id, position: pos }); if (!c.isCorrect) triggerErrorFlash(); handleResult({ correct: c.isCorrect }) }}>
                     {c.text}
                   </button>
                 ))}
@@ -213,7 +266,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
-          <MoralDilemmaChallenge puzzle={puzzle} onResolve={() => onSolve(true, 1)} onContinue={() => continueAfterSuccess(onCollect ?? onContinue, true)} />
+          <MoralDilemmaChallenge puzzle={puzzle} tel={tel} onResolve={() => { onSolve(true, 1); finalize({ correct: true, score: 1 }) }} onContinue={() => continueAfterSuccess(onCollect ?? onContinue, true)} />
         ) : result === null ? (
           <>
             {renderChallenge()}
@@ -222,7 +275,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
               <button
                 className="text-sm mt-4 cursor-pointer block mx-auto"
                 style={{ background: 'none', border: 'none', color: 'var(--holo-text)', opacity: 0.5 }}
-                onClick={onClose}
+                onClick={handleClose}
               >
                 סגירה
               </button>

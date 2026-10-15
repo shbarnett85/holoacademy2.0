@@ -6,7 +6,8 @@ import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasClassTeachers, hasGradeLabel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { hasIsActive, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
 import { subjectByCode, subjectById } from '../lib/subjects.js'
 import { isSubjectCode, subjectName as subjectNameOf } from '../../../src/shared/lib/subjects.js'
@@ -248,7 +249,7 @@ staffRouter.get('/classes', async (req, res, next) => {
     }
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת כיתות: ' + error.message)
-    const classes = (data ?? []) as unknown as (ClassRow & { is_active?: boolean; is_fictitious?: boolean })[]
+    const classes = (data ?? []) as unknown as (ClassRow & { is_active?: boolean; is_fictitious?: boolean; grade_level?: number | null })[]
 
     const ids = classes.map((c) => c.id)
     const teacherMap = await teachersByClass(ids)
@@ -263,6 +264,7 @@ staffRouter.get('/classes', async (req, res, next) => {
       classes: classes.map((c) => ({
         id: c.id, name: c.name, slug: c.slug, url_code: c.url_code,
         gradeLabel: (withGrade ? c.grade_label : null) ?? c.name,
+        gradeLevel: isValidGradeLevel(c.grade_level) ? c.grade_level : null,
         teachers: teacherMap.get(c.id) ?? [],
         studentCount: studentCount.get(c.id) ?? 0,
         is_active: c.is_active !== false,
@@ -286,7 +288,13 @@ async function uniqueUrlCode(schoolSlug: string, classSlug: string): Promise<str
 }
 
 /* slug/url_code יציבים לאורך שנים; grade_label היא השכבה הנוכחית. ללא teacher_id (שיוך נפרד) */
-const createClassSchema = z.object({ name: z.string().min(1), slug: z.string().min(1).regex(/^[a-z0-9-]+$/), gradeLabel: z.string().optional() })
+const createClassSchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1).regex(/^[a-z0-9-]+$/),
+  gradeLabel: z.string().optional(),
+  /* שכבה כמספר 1–12 (א׳–י״ב); אופציונלי — אם חסר, נגזר מהתווית כשאפשר */
+  gradeLevel: z.number().int().min(1).max(12).nullable().optional(),
+})
 
 staffRouter.post('/classes', async (req, res, next) => {
   try {
@@ -306,6 +314,10 @@ staffRouter.post('/classes', async (req, res, next) => {
     const payload: Record<string, unknown> = { name, slug, school_id: schoolId, url_code }
     if (withActive) payload.is_active = true
     if (withGrade) payload.grade_label = gradeLabel
+    if (await hasGradeLevel()) {
+      const lvl = parsed.data.gradeLevel ?? gradeLevelFromLabel(gradeLabel)
+      if (lvl !== null && lvl !== undefined) payload.grade_level = lvl
+    }
     /* לפני המיגרציה teacher_id עדיין קיים (אולי NOT NULL) — משבצים את היוצר כברירת מחדל */
     if (!withCT) payload.teacher_id = req.staff!.userId
 
@@ -314,8 +326,15 @@ staffRouter.post('/classes', async (req, res, next) => {
 
     /* מודל חדש — היוצר (אם מורה) משויך דרך class_teachers */
     if (withCT && !isAdmin(req)) {
-      /* מורה שפותח כיתה הוא מחנך שלה (כמו המודל הקודם: מורה הכיתה רואה הכול) */
-      await supabaseAdmin.from('class_teachers').insert({ class_id: (cls as ClassRow).id, teacher_id: req.staff!.userId, subject: '', is_homeroom: true })
+      /* היוצר מחנך הכיתה (is_homeroom=true, בלי מקצוע) — אחרת היה מאבד גישה לכיתה של עצמו.
+         חל גם על מורה שנרשם לבד בלי מנהל. אם השיוך נכשל — מבטלים את הכיתה (לא משאירים כיתה יתומה). */
+      const { error: linkErr } = await supabaseAdmin.from('class_teachers').insert({
+        class_id: (cls as ClassRow).id, teacher_id: req.staff!.userId, subject: '', is_homeroom: true,
+      })
+      if (linkErr) {
+        await supabaseAdmin.from('classes').delete().eq('id', (cls as ClassRow).id)
+        throw new AppError(500, 'שיוך המורה לכיתה נכשל: ' + linkErr.message)
+      }
     }
     res.status(201).json({ ok: true, class: { id: (cls as ClassRow).id, name: (cls as ClassRow).name, slug: (cls as ClassRow).slug, url_code: (cls as ClassRow).url_code } })
   } catch (err) {
@@ -323,7 +342,11 @@ staffRouter.post('/classes', async (req, res, next) => {
   }
 })
 
-const patchClassSchema = z.object({ name: z.string().min(1).optional(), gradeLabel: z.string().min(1).optional() })
+const patchClassSchema = z.object({
+  name: z.string().min(1).optional(),
+  gradeLabel: z.string().min(1).optional(),
+  gradeLevel: z.number().int().min(1).max(12).nullable().optional(),
+})
 
 staffRouter.patch('/classes/:id', async (req, res, next) => {
   try {
@@ -336,6 +359,10 @@ staffRouter.patch('/classes/:id', async (req, res, next) => {
       if (!(await hasGradeLabel())) throw new AppError(400, 'עדכון שכבה דורש את עמודת grade_label — הרץ את server/schema.sql')
       patch.grade_label = parsed.data.gradeLabel
     }
+    if (parsed.data.gradeLevel !== undefined) {
+      if (!(await hasGradeLevel())) throw new AppError(503, 'שדה השכבה דורש את migrations/analytics_capture.sql')
+      patch.grade_level = parsed.data.gradeLevel
+    }
     if (Object.keys(patch).length === 0) throw new AppError(400, 'אין שדות לעדכון')
     const { error } = await supabaseAdmin.from('classes').update(patch).eq('id', req.params.id)
     if (error) throw new AppError(500, 'שגיאה בעדכון הכיתה: ' + error.message)
@@ -346,16 +373,41 @@ staffRouter.patch('/classes/:id', async (req, res, next) => {
 })
 
 /* POST /api/staff/classes/:id/promote — קידום שכבה בתחילת שנה (עדכון grade_label בלבד) */
-const promoteSchema = z.object({ gradeLabel: z.string().min(1) })
+/* קידום שכבה בתחילת שנה: בלי גוף → +1 (תקרה י״ב). אפשר לציין gradeLevel/gradeLabel מפורשים. */
+const promoteSchema = z.object({ gradeLabel: z.string().min(1).optional(), gradeLevel: z.number().int().min(1).max(12).optional() })
 staffRouter.post('/classes/:id/promote', async (req, res, next) => {
   try {
-    await loadClassForAccess(req, req.params.id)
-    const parsed = promoteSchema.safeParse(req.body)
-    if (!parsed.success) throw new AppError(400, 'נדרש gradeLabel')
-    if (!(await hasGradeLabel())) throw new AppError(400, 'קידום שכבה דורש את עמודת grade_label — הרץ את server/schema.sql')
-    const { error } = await supabaseAdmin.from('classes').update({ grade_label: parsed.data.gradeLabel }).eq('id', req.params.id)
+    const cls = await loadClassForAccess(req, req.params.id)
+    const parsed = promoteSchema.safeParse(req.body ?? {})
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    const withLevel = await hasGradeLevel()
+    const withLabel = await hasGradeLabel()
+    if (!withLevel && !withLabel) throw new AppError(503, 'קידום שכבה דורש את migrations/analytics_capture.sql')
+
+    const row = cls as unknown as { name: string; grade_label?: string | null; grade_level?: number | null }
+    const currentLabel = (withLabel ? row.grade_label : null) ?? row.name
+    const currentLevel = isValidGradeLevel(row.grade_level) ? row.grade_level : gradeLevelFromLabel(currentLabel)
+
+    let newLevel: number | null
+    let newLabel: string | undefined = parsed.data.gradeLabel
+    if (parsed.data.gradeLevel !== undefined) {
+      newLevel = parsed.data.gradeLevel
+    } else if (newLabel) {
+      newLevel = gradeLevelFromLabel(newLabel) ?? currentLevel
+    } else {
+      if (currentLevel === null) throw new AppError(400, 'לא הוגדרה שכבה לכיתה — הגדירו שכבה לפני קידום')
+      newLevel = nextGradeLevel(currentLevel)
+      if (newLevel === null) throw new AppError(400, 'הכיתה כבר בשכבת י״ב — אין לאן לקדם (אפשר להשבית את הכיתה)')
+    }
+    if (!newLabel && newLevel !== null) newLabel = labelWithLevel(currentLabel, newLevel)
+
+    const patch: Record<string, unknown> = {}
+    if (withLevel && newLevel !== null) patch.grade_level = newLevel
+    if (withLabel && newLabel) patch.grade_label = newLabel
+    if (Object.keys(patch).length === 0) throw new AppError(400, 'אין מה לעדכן')
+    const { error } = await supabaseAdmin.from('classes').update(patch).eq('id', req.params.id)
     if (error) throw new AppError(500, 'שגיאה בקידום השכבה: ' + error.message)
-    res.json({ ok: true })
+    res.json({ ok: true, gradeLevel: newLevel, gradeLabel: newLabel ?? currentLabel })
   } catch (err) {
     next(err)
   }

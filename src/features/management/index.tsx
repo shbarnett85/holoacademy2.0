@@ -9,7 +9,7 @@ import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
 export interface ClassTeacher { teacherId: string; name: string; subject: string; subjectCode?: string | null; isHomeroom?: boolean }
-export interface ClassRow { id: string; name: string; slug: string; url_code: string; gradeLabel: string; teachers: ClassTeacher[]; studentCount: number; is_active: boolean; is_fictitious?: boolean }
+export interface ClassRow { id: string; name: string; slug: string; url_code: string; gradeLabel: string; gradeLevel?: number | null; teachers: ClassTeacher[]; studentCount: number; is_active: boolean; is_fictitious?: boolean }
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--t253)', border: '1px solid var(--t219)',

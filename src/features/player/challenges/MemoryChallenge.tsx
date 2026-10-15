@@ -4,10 +4,13 @@ import type { Puzzle } from '../useGameEngine'
 import { scaleMemory } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult; אופציונלי ולעולם לא משפיע על הלוגיקה */
+  tel?: PuzzleTelemetry
 }
 
 interface Card {
@@ -68,7 +71,7 @@ function fitFontSize(texts: string[], innerW: number, innerH: number, family: st
 }
 
 /* משחק זיכרון — התאמת זוגות (מושג↔הגדרה). תקציב טעויות מוגבל = אתגר אמיתי */
-export default function MemoryChallenge({ puzzle, onResult }: Props) {
+export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
   const deck = useMemo(() => buildDeck(puzzle.pairs ?? []), [puzzle.pairs])
   /* תקציב הפסילות נקבע לפי רמת הקושי של אתגר הזיכרון (per_puzzle_level.memory) */
   const mistakeBudget = scaleMemory(puzzle.difficulty ?? 5).maxMistakes
@@ -83,11 +86,13 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
   function flip(idx: number) {
     if (over || busy) return
     if (matched.has(idx) || flipped.includes(idx)) return
+    tel?.act('flip', { card: deck[idx].id, pair: deck[idx].pairId })
     const next = [...flipped, idx]
     setFlipped(next)
     if (next.length < 2) return
 
     const [aIdx, bIdx] = next
+    tel?.act('pair', { a: deck[aIdx].id, b: deck[bIdx].id, match: deck[aIdx].pairId === deck[bIdx].pairId })
     if (deck[aIdx].pairId === deck[bIdx].pairId) {
       /* התאמה */
       const m = new Set(matched).add(aIdx).add(bIdx)
@@ -247,7 +252,7 @@ export default function MemoryChallenge({ puzzle, onResult }: Props) {
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => onResult({ correct: false })}
+            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
           >
             אני מוותר/ת 🏳️
           </button>

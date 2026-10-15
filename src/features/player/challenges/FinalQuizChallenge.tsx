@@ -1,16 +1,23 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { triggerErrorFlash } from './errorFlash'
+import { presentQuizQuestion, quizOptionId, PUZZLE_READY_DELAY_MS, type PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult; אופציונלי ולעולם לא משפיע על הלוגיקה */
+  tel?: PuzzleTelemetry
 }
 
 /* מבחן סיכום — רצף שאלות רב-ברירה אינטגרטיביות עם מד התקדמות,
    הסבר רספונסיבי לכל שאלה, ובסוף מחזיר ציון חלקי (נכונות/סה"כ). */
-export default function FinalQuizChallenge({ puzzle, onResult }: Props) {
-  const questions = puzzle.questions ?? []
+export default function FinalQuizChallenge({ puzzle, onResult, tel }: Props) {
+  /* ערבוב אפשרויות בזמן ההצגה: options מעורבבים ו-correctIndex מוטמע מחדש, כך שהלוגיקה
+     שלמטה (i === q.correctIndex) ממשיכה לעבוד ללא שינוי על הנתונים המוצגים. */
+  const questions = useMemo(() => (puzzle.questions ?? []).map((q) => presentQuizQuestion(q)), [puzzle.questions])
+  /* מתי השאלה הנוכחית הוצגה (לזמן תגובה פר-שאלה) */
+  const shownAtRef = useRef(Date.now() + PUZZLE_READY_DELAY_MS)
   const total = questions.length
   const [idx, setIdx] = useState(0)
   const [picked, setPicked] = useState<number | null>(null)
@@ -24,6 +31,10 @@ export default function FinalQuizChallenge({ puzzle, onResult }: Props) {
 
   function pick(i: number) {
     if (answered) return
+    tel?.quizItem({
+      itemIndex: idx, selectedOptionId: quizOptionId(q.order[i]), selectedPosition: i, correctPosition: q.correctIndex,
+      displayedOrder: q.order.map(quizOptionId), isCorrect: i === q.correctIndex, shownAt: shownAtRef.current, answeredAt: Date.now(),
+    })
     setPicked(i)
     if (i === q.correctIndex) setCorrectCount((c) => c + 1)
     else triggerErrorFlash()
@@ -35,6 +46,7 @@ export default function FinalQuizChallenge({ puzzle, onResult }: Props) {
       onResult({ correct: score >= 0.5, score })
       return
     }
+    shownAtRef.current = Date.now()
     setIdx((n) => n + 1)
     setPicked(null)
   }

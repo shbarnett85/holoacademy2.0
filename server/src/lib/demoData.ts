@@ -5,8 +5,10 @@ import type { StaffContext } from '../middleware/staffAuth.js'
 import { hasClassTeachers, hasFictitious, hasGradeLabel, hasIsActive, hasProgressSnapshots, hasQuestSubjectId, hasSessionCrystals, hasSyntheticFlag, hasUserGender } from './activeColumn.js'
 import { recalibrateProfile } from './profileCalibration.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
+import { ANSWER_SCHEMA_VERSION } from '../../../src/shared/lib/answerTelemetry.js'
+import { capJsonBytes } from './answerWriter.js'
 import {
-  extractPuzzles, fakeStudentName, hashStr, simulateSession, tierForIndex,
+  extractPuzzles, fakeStudentName, hashStr, simulateSession, tierForIndex, behaviorForIndex,
   type SimSession, type Tier,
 } from './demoSim.js'
 
@@ -136,9 +138,30 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
       payload: { puzzleType: c.puzzleType, difficulty: c.difficulty, attempts: c.attempts, solveTimeMs: c.solveTimeMs, shards: c.shards },
     })
   }
-  for (const s of sim.sceneTimes) events.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: { dwellMs: s.dwellMs } })
+  for (const s of sim.sceneTimes) {
+    /* כמו הזרימה האמיתית (1B): dwellMs ההיסטורי + word_count + closed_dwell_ms */
+    events.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: { dwellMs: s.dwellMs, word_count: s.wordCount, closed_dwell_ms: s.closedDwellMs } })
+  }
   events.push({ ...base, type: 'session_completed', scene_id: null, payload: { ...summary, skipping: false, perType: perTypeSuccess } })
   await supabaseAdmin.from('events').insert(events)
+
+  /* answers — אותה סכמה בדיוק כמו תלמיד אמיתי, is_synthetic=true. דילמות מוסר (sim.moral) לא נכתבות:
+     ל-moral_choices אין is_synthetic ואין student_id, ולכן לא ניתן לסמן/לנקות נתוני דוגמה שם. */
+  if (sim.answers.length > 0) {
+    const ansRows = sim.answers.map((a) => ({
+      client_event_id: `${row.id}:${a.localId}`,
+      session_id: row.id, student_id: studentId, class_id: classId, quest_id: quest.id, variant_id: null,
+      scene_id: a.sceneId, item_index: a.itemIndex, puzzle_type: a.puzzleType,
+      subject_id: quest.subject_id ?? null,
+      selected_option_id: a.selectedOptionId, selected_position: a.selectedPosition,
+      correct_position: a.correctPosition !== null && a.correctPosition < 0 ? null : a.correctPosition,
+      displayed_order: a.displayedOrder, is_correct: a.outcome === 'correct',
+      attempt_no: a.attemptNo, response_ms: a.responseMs === null ? null : Math.round(a.responseMs),
+      outcome: a.outcome, interaction: capJsonBytes(a.interaction as Record<string, unknown> | null),
+      schema_version: ANSWER_SCHEMA_VERSION, is_synthetic: true,
+    }))
+    await supabaseAdmin.from('answers').upsert(ansRows, { onConflict: 'client_event_id', ignoreDuplicates: true })
+  }
 
   /* כיול פרופיל + snapshot — בדיוק כמו במסלול האמיתי */
   const cal = await recalibrateProfile(studentId, classId, perType, summary.avgSceneMs, {
@@ -178,8 +201,13 @@ export async function generateResultsForClass(scope: DemoScope, classId: string)
     const { data: existing } = await supabaseAdmin.from('sessions').select('quest_id').eq('user_id', stu.id)
     const have = new Set((existing ?? []).map((s) => s.quest_id as string))
     /* כרונולוגי (ישן→חדש) כדי שפרופיל הקושי יתפתח כמו אצל תלמיד אמיתי */
+    /* דפוס התנהגות לפי מקום התלמיד בכיתה (לבדיקת מנוע הדפוסים); "משתפר" תלוי במיקום בציר הזמן */
+    const behavior = behaviorForIndex(fictitiousIndexFromName(stu.name))
+    const dayOf = (q: QuestRow, i: number) => simulateSession({ studentId: stu.id, questId: q.id, tier, gameData: q.game_data, questIndex: i }).dayOffset
+    const order = quests.map((q, i) => ({ q, i, day: dayOf(q, i) })).sort((a, b) => b.day - a.day)
+    const progressOf = new Map(order.map((o, k) => [o.q.id, order.length > 1 ? k / (order.length - 1) : 1]))
     const sims = quests
-      .map((q, i) => ({ q, sim: simulateSession({ studentId: stu.id, questId: q.id, tier, gameData: q.game_data, questIndex: i }) }))
+      .map((q, i) => ({ q, sim: simulateSession({ studentId: stu.id, questId: q.id, tier, gameData: q.game_data, questIndex: i, behavior, progress: progressOf.get(q.id) }) }))
       .sort((a, b) => b.sim.dayOffset - a.sim.dayOffset)
     for (const { q, sim } of sims) {
       if (have.has(q.id)) { skipped++; continue }

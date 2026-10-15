@@ -4,10 +4,13 @@ import type { Puzzle } from '../useGameEngine'
 import { scaleWordSearch, type WordSearchScale } from '../../../shared/lib/difficultyScaling'
 import { Countdown } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
+import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 
 interface Props {
   puzzle: Puzzle
   onResult: (r: { correct: boolean; score?: number }) => void
+  /* טלמטריית תשובות (1B) — hook נפרד לצד onResult */
+  tel?: PuzzleTelemetry
 }
 
 const HEB = 'אבגדהוזחטיכלמנסעפצקרשת'
@@ -74,7 +77,7 @@ function buildGrid(rawWords: string[], scale: WordSearchScale): Built {
   return { grid: filled, size, words: placed, answerCells }
 }
 
-export default function WordSearchChallenge({ puzzle, onResult }: Props) {
+export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
   const scale = useMemo(() => scaleWordSearch(puzzle.difficulty ?? 5), [puzzle.difficulty])
   const built = useMemo(() => buildGrid(puzzle.words ?? [], scale), [puzzle.words, scale])
   const { grid, size, words, answerCells } = built
@@ -88,6 +91,7 @@ export default function WordSearchChallenge({ puzzle, onResult }: Props) {
   /* תום הזמן לפני מציאת כל המילים = כישלון; חושפים את כל מיקומי המילים */
   function onTimeout() {
     if (done) return
+    tel?.act('timeout')
     setDone('lose')
     triggerErrorFlash()
     setFoundCells(new Set(answerCells))
@@ -152,6 +156,7 @@ export default function WordSearchChallenge({ puzzle, onResult }: Props) {
       const rev = letters.split('').reverse().join('')
       const hit = words.find((w) => !foundWords.has(w) && (w === letters || w === rev))
       if (hit) {
+        tel?.act('word_found', { word: hit })
         const nf = new Set(foundWords).add(hit)
         setFoundWords(nf)
         setFoundCells((prev) => {
@@ -173,7 +178,7 @@ export default function WordSearchChallenge({ puzzle, onResult }: Props) {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
     }
-  }, [path, grid, words, foundWords, onResult, done])
+  }, [path, grid, words, foundWords, onResult, done, tel])
 
   const inPath = new Set(path.map((c) => key(c.r, c.c)))
 
@@ -264,7 +269,7 @@ export default function WordSearchChallenge({ puzzle, onResult }: Props) {
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => onResult({ correct: false })}
+            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
           >
             אני מוותר/ת 🏳️
           </button>

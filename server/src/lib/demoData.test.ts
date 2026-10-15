@@ -16,12 +16,17 @@ const h = vi.hoisted(() => {
     private filters: ((r: Row) => boolean)[] = []
     private payload: Row[] = []
     private sel = ''
+    private conflictKey: string | null = null
     private lim = Infinity
     private shape: 'many' | 'single' | 'maybe' = 'many'
     constructor(private table: string) {}
     select(cols = '') { this.sel = cols; return this }
     insert(p: Row | Row[]) { this.op = 'insert'; this.payload = Array.isArray(p) ? p : [p]; return this }
     delete() { this.op = 'delete'; return this }
+    /* upsert + ignoreDuplicates לפי עמודת onConflict יחידה */
+    upsert(p: Row | Row[], o?: { onConflict?: string }) {
+      this.op = 'insert'; this.payload = Array.isArray(p) ? p : [p]; this.conflictKey = o?.onConflict ?? null; return this
+    }
     eq(k: string, v: unknown) { this.filters.push((r) => r[k] === v); return this }
     in(k: string, arr: unknown[]) { this.filters.push((r) => arr.includes(r[k])); return this }
     order() { return this }
@@ -38,7 +43,12 @@ const h = vi.hoisted(() => {
       const t = db[this.table]
       if (!t) return { data: null, error: { message: 'no table ' + this.table } }
       if (this.op === 'insert') {
-        const rows = this.payload.map((p) => ({ id: uuid(), created_at: new Date().toISOString(), ...p }))
+        let incoming = this.payload
+        if (this.conflictKey) {
+          const k = this.conflictKey
+          incoming = incoming.filter((p) => !t.some((r) => r[k] === p[k]))
+        }
+        const rows = incoming.map((p) => ({ id: uuid(), created_at: new Date().toISOString(), ...p }))
         t.push(...rows)
         const out = rows
         if (this.shape === 'single') return { data: out[0], error: null }

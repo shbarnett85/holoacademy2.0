@@ -16,6 +16,7 @@ const check = (name: string, ok: boolean, extra = '') => { total++; if (!ok) fai
 
 interface Tok { userId: string; token: string }
 const cleanup = { users: [] as string[], auths: [] as string[], classes: [] as string[], quests: [] as string[], school: '' }
+let selfSchool = ''
 
 async function api(token: string, method: string, p: string, body?: unknown): Promise<{ status: number; json: any }> { // eslint-disable-line
   const r = await fetch(API + p, {
@@ -283,6 +284,62 @@ async function main() {
     const lib = await api(tHome.token, 'GET', '/quests')
     const listed = (lib.json.quests ?? []).find((q: any) => q.id === qNone) // eslint-disable-line
     check('הספרייה מחזירה subjectCode אחרי השיוך', lib.status === 200 && listed?.subjectCode === 'math' && listed?.subject === 'מתמטיקה')
+
+    /* ── 11) שלב 1B: מי רשאי לעדכן אילו מקצועות (חוזה ה-DifficultyModal) ── */
+    console.log('— בורר מקצוע: editable —')
+    const edHome = await api(tHome.token, 'GET', `/analytics/student/${stuA[2]}`)
+    check('מחנך: גלובלי + כל 15 המקצועות', edHome.json.editable?.global === true && edHome.json.editable?.subjects?.length === 15, `n=${edHome.json.editable?.subjects?.length}`)
+    const edMath = await api(tMath.token, 'GET', `/analytics/student/${stuA[2]}`)
+    check('מורה מתמטיקה: רק מתמטיקה, בלי גלובלי', edMath.json.editable?.global === false
+      && edMath.json.editable?.subjects?.length === 1 && edMath.json.editable.subjects[0].code === 'math')
+
+    /* ── 12) שלב 1B: כיתה חדשה — היוצר נרשם כמחנך (גם מורה שנרשם לבד, בלי מנהל) ── */
+    console.log('— יצירת כיתה: היוצר = מחנך —')
+    const slugSelf = 'zz-authz-self-' + randomBytes(3).toString('hex')
+    const selfEmail = `${slugSelf}@example.com`
+    const selfPass = randomBytes(18).toString('base64url')
+    const su = await fetch(API + '/auth/staff-signup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: selfEmail, password: selfPass, name: 'zz-authz self', role: 'teacher', newSchoolName: slugSelf }),
+    })
+    const suJson = (await su.json()) as { user?: { id: string; school_id: string } }
+    check('הרשמה עצמית של מורה בלי מנהל: 201', su.status === 201 && !!suJson.user?.id, 'status=' + su.status)
+    if (suJson.user) {
+      cleanup.users.push(suJson.user.id)
+      selfSchool = suJson.user.school_id
+      const { data: authRow } = await supabaseAdmin.from('users').select('auth_id').eq('id', suJson.user.id).single()
+      if (authRow?.auth_id) cleanup.auths.push(authRow.auth_id as string)
+      const { data: ss } = await supabaseAnon.auth.signInWithPassword({ email: selfEmail, password: selfPass })
+      const selfTok = ss.session!.access_token
+      const mk = await api(selfTok, 'POST', '/staff/classes', { name: 'ז׳1', slug: 'zz' + randomBytes(2).toString('hex'), gradeLevel: 7 })
+      check('מורה שנרשם לבד יוצר כיתה: 201', mk.status === 201, 'status=' + mk.status)
+      const newClassId = mk.json.class?.id as string
+      if (newClassId) cleanup.classes.push(newClassId)
+      const { data: link } = await supabaseAdmin.from('class_teachers').select('is_homeroom, subject_id, teacher_id').eq('class_id', newClassId)
+      check('נרשם ב-class_teachers: is_homeroom=true ו-subject_id=NULL', (link ?? []).length === 1 && link![0].is_homeroom === true && link![0].subject_id === null && link![0].teacher_id === suJson.user.id)
+      const list = await api(selfTok, 'GET', '/staff/classes')
+      check('הכיתה מופיעה אצל היוצר (לא איבד גישה)', (list.json.classes ?? []).some((c: any) => c.id === newClassId && c.gradeLevel === 7)) // eslint-disable-line
+      const add = await api(selfTok, 'POST', `/staff/classes/${newClassId}/students`, { name: 'zz-authz stu self' })
+      check('היוצר מוסיף תלמיד לכיתה שלו', add.status === 201, 'status=' + add.status)
+      const lens = await api(selfTok, 'GET', '/analytics/students')
+      check('היוצר רואה את התלמיד באנליטיקה (מחנך)', lens.status === 200 && (lens.json.students ?? []).length === 1)
+      /* שכבה + קידום */
+      const prom = await api(selfTok, 'POST', `/staff/classes/${newClassId}/promote`, {})
+      check('קידום שכבה אוטומטי: 7 → 8 והתווית מתעדכנת', prom.status === 200 && prom.json.gradeLevel === 8 && prom.json.gradeLabel === 'ח׳1', JSON.stringify(prom.json))
+      const set12 = await api(selfTok, 'PATCH', `/staff/classes/${newClassId}`, { gradeLevel: 12 })
+      check('עדכון שכבה ל-12', set12.status === 200)
+      const prom12 = await api(selfTok, 'POST', `/staff/classes/${newClassId}/promote`, {})
+      check('קידום מי״ב: 400 עם הסבר', prom12.status === 400)
+      const clr = await api(selfTok, 'PATCH', `/staff/classes/${newClassId}`, { gradeLevel: null })
+      const promLabel = await api(selfTok, 'POST', `/staff/classes/${newClassId}/promote`, {})
+      check('בלי שכבה מוגדרת אך עם תווית ח׳1: השכבה נגזרת מהתווית ומקודמת ל-9', clr.status === 200 && promLabel.status === 200 && promLabel.json.gradeLevel === 9, JSON.stringify(promLabel.json))
+      const mk2 = await api(selfTok, 'POST', '/staff/classes', { name: 'כיתת ניסוי', slug: 'zz' + randomBytes(2).toString('hex') })
+      if (mk2.json.class?.id) cleanup.classes.push(mk2.json.class.id as string)
+      const prom0 = await api(selfTok, 'POST', `/staff/classes/${mk2.json.class?.id}/promote`, {})
+      check('תווית שאין ממנה שכבה (וללא grade_level): 400 "הגדירו שכבה"', mk2.status === 201 && prom0.status === 400)
+      const bad = await api(selfTok, 'PATCH', `/staff/classes/${newClassId}`, { gradeLevel: 13 })
+      check('שכבה מחוץ ל-1–12: 400', bad.status === 400)
+    }
   } finally {
     /* ניקוי: כל השורות שנוצרו (סדר: תלות → הורה) */
     const { data: sess } = await supabaseAdmin.from('sessions').select('id').in('quest_id', cleanup.quests.length ? cleanup.quests : ['00000000-0000-0000-0000-000000000000'])
@@ -305,6 +362,11 @@ async function main() {
       await supabaseAdmin.from('assignments').delete().in('quest_id', cleanup.quests)
       await supabaseAdmin.from('quests').delete().in('id', cleanup.quests)
     }
+    /* כיתות שנוצרו אוטומטית ע"י משתמשי-הבדיקה (למשל כיתה לדוגמה בהרשמה) — לא נרשמו ב-cleanup.classes */
+    if (cleanup.users.length) {
+      const { data: auto } = await supabaseAdmin.from('classes').select('id').in('teacher_id', cleanup.users)
+      for (const c of auto ?? []) if (!cleanup.classes.includes(c.id as string)) cleanup.classes.push(c.id as string)
+    }
     if (cleanup.classes.length) {
       await supabaseAdmin.from('class_teachers').delete().in('class_id', cleanup.classes)
       await supabaseAdmin.from('class_members').delete().in('class_id', cleanup.classes)
@@ -313,6 +375,7 @@ async function main() {
     if (cleanup.users.length) await supabaseAdmin.from('users').delete().in('id', cleanup.users)
     for (const a of cleanup.auths) await supabaseAdmin.auth.admin.deleteUser(a).catch(() => {})
     if (cleanup.school) await supabaseAdmin.from('schools').delete().eq('id', cleanup.school)
+    if (selfSchool) await supabaseAdmin.from('schools').delete().eq('id', selfSchool)
     console.log('\n(נוקו הארגון, המשתמשים, הכיתות וההדמיות הזמניים)')
   }
   console.log(failed === 0 ? `\nכל ${total} הבדיקות עברו` : `\n${failed} מתוך ${total} בדיקות נכשלו`)

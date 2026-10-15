@@ -7,6 +7,7 @@ import PedagogicalSummary from '../analytics/PedagogicalSummary'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 import type { ClassRow, ClassTeacher } from './index'
 import { SUBJECTS } from '../../shared/lib/subjects'
+import { GRADE_LAYER_NAMES, nextGradeLevel, labelWithLevel } from '../../shared/lib/gradeLevels'
 
 type Gender = 'male' | 'female' | null
 interface Student { id: string; name: string; is_active: boolean; gender: Gender; is_fictitious?: boolean }
@@ -83,6 +84,8 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   const [copiedLink, setCopiedLink] = useState(false)
   const [teachers, setTeachers] = useState<ClassTeacher[]>(cls.teachers)
   const [gradeLabel, setGradeLabel] = useState(cls.gradeLabel)
+  /* שכבה כמספר 1–12 (א׳–י״ב); null = לא הוגדרה */
+  const [gradeLevel, setGradeLevel] = useState<number | null>(cls.gradeLevel ?? null)
   const [schoolTeachers, setSchoolTeachers] = useState<SchoolTeacher[]>([])
   const [newT, setNewT] = useState({ teacherId: '', subjectCode: '', isHomeroom: false })
 
@@ -94,7 +97,7 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   function refreshClass() {
     apiJson<{ classes: ClassRow[] }>('/api/staff/classes').then((b) => {
       const me = b.classes.find((c) => c.id === cls.id)
-      if (me) { setTeachers(me.teachers); setGradeLabel(me.gradeLabel) }
+      if (me) { setTeachers(me.teachers); setGradeLabel(me.gradeLabel); setGradeLevel(me.gradeLevel ?? null) }
     }).catch(() => {})
   }
   useEffect(() => {
@@ -117,10 +120,21 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
     try { await apiJson(`/api/staff/classes/${cls.id}/teachers/${teacherId}`, { method: 'DELETE' }); refreshClass() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') }
   }
+  async function saveGradeLevel(level: number | null) {
+    setError(null)
+    try {
+      await apiJson(`/api/staff/classes/${cls.id}`, { method: 'PATCH', body: JSON.stringify({ gradeLevel: level }) })
+      setGradeLevel(level)
+      refreshClass()
+    } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה בעדכון השכבה') }
+  }
   async function promote() {
-    const label = window.prompt('שכבה חדשה (למשל ד׳3):', gradeLabel)
-    if (!label?.trim() || label.trim() === gradeLabel) return
-    try { await apiJson(`/api/staff/classes/${cls.id}/promote`, { method: 'POST', body: JSON.stringify({ gradeLabel: label.trim() }) }); refreshClass() }
+    /* קידום אוטומטי +1 (תקרה י״ב); בלי שכבה מוגדרת — מבקשים להגדיר קודם */
+    const next = nextGradeLevel(gradeLevel)
+    if (gradeLevel === null) { setError('הגדירו שכבה לכיתה לפני קידום'); return }
+    if (next === null) { setError('הכיתה כבר בשכבת י״ב — אין לאן לקדם'); return }
+    if (!window.confirm(`לקדם את הכיתה ל-${labelWithLevel(gradeLabel, next)}?`)) return
+    try { await apiJson(`/api/staff/classes/${cls.id}/promote`, { method: 'POST', body: JSON.stringify({}) }); refreshClass() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') }
   }
   async function addSingle() {
@@ -170,7 +184,17 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← כיתות</button>
         <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t13)', textShadow: '0 0 18px var(--t23)' }}>כיתה {gradeLabel}</div>
-        <HoloBtn label="קדם שכבה ⬆️" onClick={promote} color="var(--t4)" rgb="255,206,94" />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12, color: 'var(--t12)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            שכבה
+            <select aria-label="שכבה" value={gradeLevel ?? ''} onChange={(e) => saveGradeLevel(e.target.value === '' ? null : Number(e.target.value))}
+              style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
+              <option value="">לא מוגדרת</option>
+              {GRADE_LAYER_NAMES.slice(1).map((n, i) => <option key={i + 1} value={i + 1}>{n}</option>)}
+            </select>
+          </label>
+          <HoloBtn label="קדם שכבה ⬆️" onClick={promote} color="var(--t4)" rgb="255,206,94" />
+        </div>
       </div>
 
       {error && <div style={{ ...glass, padding: '10px 14px', borderColor: 'var(--t10)', color: 'var(--t18)', fontSize: 13 }}>⚠️ {error}</div>}

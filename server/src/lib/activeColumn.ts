@@ -75,6 +75,11 @@ export async function hasGradeLabel(): Promise<boolean> {
   return check('__grade_label', () => supabaseAdmin.from('classes').select('grade_label').limit(1))
 }
 
+/* האם classes.grade_level קיימת — שכבה כמספר 1–12 (migrations/analytics_capture.sql) */
+export async function hasGradeLevel(): Promise<boolean> {
+  return check('__grade_level', () => supabaseAdmin.from('classes').select('grade_level').limit(1))
+}
+
 /* האם עמודת sessions.crystals קיימת */
 export async function hasSessionCrystals(): Promise<boolean> {
   return check('__session_crystals', () => supabaseAdmin.from('sessions').select('crystals').limit(1))

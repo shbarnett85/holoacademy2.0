@@ -9,7 +9,7 @@ import {
   loadViewer, studentScope, requireStudentScope, canPatchLevels, assignmentVisible, questVisible, classAccess,
   isAggregateOnly, belowMinCell, MIN_CELL_SIZE, logAccess, classIdsOfStudent,
 } from '../lib/authz.js'
-import { subjectByCode, questSubjectOut } from '../lib/subjects.js'
+import { subjectByCode, subjectById, allSubjects, questSubjectOut } from '../lib/subjects.js'
 import { applyTeacherLevels } from '../lib/profileCalibration.js'
 import { claude } from '../lib/claude.js'
 import { callGeminiText } from '../lib/gemini.js'
@@ -710,6 +710,17 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       }
     }
 
+    /* אילו מקצועות הצופה רשאי לעדכן ברמות (נאכף שוב ב-PATCH): מחנך — הכול + גלובלי; מקצועי — שלו */
+    const editable: { global: boolean; subjects: { code: string; name: string }[] } = { global: scope.full, subjects: [] }
+    if (scope.full) {
+      editable.subjects = (await allSubjects()).filter((s) => s.id).map((s) => ({ code: s.code, name: s.nameHe }))
+    } else {
+      for (const sid of scope.subjectIds) {
+        const r = await subjectById(sid)
+        if (r) editable.subjects.push({ code: r.code, name: r.nameHe })
+      }
+    }
+
     /* דגל "דילוג" — מה-session_completed של הסשן המושלם האחרון שבטווח */
     const lastDone = visible.find((x) => x.completed_at)
     let skipping = false
@@ -746,6 +757,7 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       trend,
       subjectLevels,
       otherSubjects,
+      editable,
       visibility: { full: scope.full },
     })
   } catch (err) {
