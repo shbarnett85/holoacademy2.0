@@ -1,8 +1,12 @@
+import { lazy, Suspense, useEffect, useState } from 'react'
 import StudioTopBar from '../creator/StudioTopBar'
 import { micro } from '../creator/studioStyles'
 import ProgressLens from './ProgressLens'
 import LessonsPane from './LessonsPane'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import { apiJson } from '../../shared/lib/api'
+
+const AnalyticsV2App = lazy(() => import('../analyticsV2/AnalyticsV2App'))
 
 /* שכבה = תווית הכיתה ללא מספר הכיתה בסוף (למשל "ז׳2" → "ז׳") */
 export const layerOf = (gradeLabel: string) => gradeLabel.replace(/\s*\d+$/, '').trim() || gradeLabel
@@ -24,7 +28,7 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
 /* מסך אנליטיקה — split כמו ספריית ההדמיות (ללא סאב-טאבים):
    ימין = סיכום שיעורים (אנליטיקת ההדמיות); שמאל = התקדמות (גרף רב-ישויות + drill-down).
    נערם אנכית במסך צר (flexWrap + flex-basis, לא 50/50 כפוי). הסקופ מהשרת (הרשאה A לשמאל, B/הקיים לימין). */
-export default function AnalyticsPanel() {
+function LegacyAnalyticsPanel() {
   const { isGuest } = useStaffAuth()
   const pane: React.CSSProperties = { flex: '1 1 380px', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
   return (
@@ -55,4 +59,20 @@ export default function AnalyticsPanel() {
       </div>
     </div>
   )
+}
+
+/* האנליטיקה החדשה (analyticsV2) מוצגת רק כשהשרת מדליק את הדגל (מורה אורח / ארגון הדגמה).
+   כל משתמש אחר ממשיך במסכים הקיימים; כל כשל בבדיקת הדגל = המסכים הקיימים. */
+export default function AnalyticsPanel() {
+  const [flag, setFlag] = useState<'loading' | 'on' | 'off'>('loading')
+  useEffect(() => {
+    let cancelled = false
+    apiJson<{ data?: { enabled?: boolean } }>('/api/analytics-v2/config')
+      .then((r) => { if (!cancelled) setFlag(r.data?.enabled === true ? 'on' : 'off') })
+      .catch(() => { if (!cancelled) setFlag('off') })
+    return () => { cancelled = true }
+  }, [])
+  if (flag === 'loading') return <div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />
+  if (flag === 'on') return <Suspense fallback={<div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />}><AnalyticsV2App /></Suspense>
+  return <LegacyAnalyticsPanel />
 }
