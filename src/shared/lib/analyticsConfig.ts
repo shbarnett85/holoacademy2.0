@@ -87,3 +87,20 @@ export type BehaviorVectorKey = (typeof BEHAVIOR_VECTOR_KINDS)[number]['key']
 
 export const contentVectorLabel = (k: string): string => CONTENT_VECTOR_KINDS.find((v) => v.key === k)?.labelHe ?? k
 export const behaviorVectorLabel = (k: string): string => BEHAVIOR_VECTOR_KINDS.find((v) => v.key === k)?.labelHe ?? k
+
+/* ── תוצאות (טאב "תוצאות") ── */
+
+/* "תשומת לב" בתוצאות — כלל עובדתי בלבד (לא מסקנה): לא התחיל/ה, ויתר/ה על לפחות 2 אתגרים,
+   או הצליח/ה בפחות מחצי מהאתגרים. עריכה כאן משנה את כל המסכים והסבר "איך חישבנו?". */
+export const ATTENTION_RULE = {
+  notStarted: true,
+  gaveUpAtLeast: 2,
+  /* חלק האתגרים שנפתרו (מתוך כל אתגרי ההדמיה) מתחת לערך הזה = תשומת לב; נבדק רק למי שסיים/ה */
+  solvedShareBelow: 0.5,
+} as const
+
+/* טעות נפוצה מוצגת באתגר/בהדמיה כשלפחות כך וכך תלמידים בחרו במסיח המתויג שלה */
+export const COMMON_ERROR_MIN_STUDENTS = 2
+
+/* סף לניסוח "רוב הכיתה הצליחה" (חלק האתגרים שנפתרו בממוצע בין מי שסיימו) */
+export const CLASS_SUCCESS_BANDS = { most: 0.75, some: 0.5 } as const

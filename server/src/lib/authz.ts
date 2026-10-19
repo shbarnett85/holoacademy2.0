@@ -100,6 +100,25 @@ export function assignmentVisible(v: Viewer, classId: string, quest: { subject_i
   return quest.subject_id !== null && g.subjectIds.has(quest.subject_id)
 }
 
+/* ── תוצאות (טאב "תוצאות", שלב UX): מי רואה שליחה — הקצאה (הדמיה × כיתה).
+   · המורה ששלח/ה (assignments.user_id) או יצר/ה את ההדמיה, אך רק בכיתה שהוא/היא מקושר/ת אליה.
+   · מחנך/ת הכיתה — כל השליחות לכיתה.
+   · מורה מקצוע בכיתה — שליחות במקצוע שלו/ה בלבד.
+   · admin / municipal_admin — אין תוצאות (המידע ברמת תלמיד); התמונה המצטברת שלהם באנליטיקה.
+   · super_admin — מפעיל פלטפורמה: גישה מלאה (נרשם ביומן ברמת תלמיד). ── */
+export const canUseResults = (v: Viewer): boolean => v.role === 'teacher' || v.role === 'super_admin'
+
+export function submissionVisible(v: Viewer, classId: string, quest: { subject_id: string | null; created_by: string | null }, senderId: string | null = null): boolean {
+  if (!canUseResults(v)) return false
+  if (isSuper(v)) return true
+  const g = v.grants.get(classId)
+  if (!g) return false
+  if (g.homeroom) return true
+  if (senderId !== null && senderId === v.userId) return true
+  if (quest.created_by !== null && quest.created_by === v.userId) return true
+  return quest.subject_id !== null && g.subjectIds.has(quest.subject_id)
+}
+
 /* תא קטן מדי — לא מציגים (מנהלים) */
 export function belowMinCell(n: number): boolean {
   return n < MIN_CELL_SIZE

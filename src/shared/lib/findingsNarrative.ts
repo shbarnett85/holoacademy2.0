@@ -8,7 +8,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import type { Evidence, InsufficientReason } from '../types/analyticsV2'
 import type { FindingKind } from './analyticsConfig'
-import { contentVectorLabel } from './analyticsConfig'
+import { ATTENTION_RULE, CLASS_SUCCESS_BANDS, contentVectorLabel } from './analyticsConfig'
 import { subjectName } from './subjects'
 
 /* ── תאריכים: שמות חודשים ומחציות — מחושבים מהתאריך, לא נכתבים ידנית ── */
@@ -219,3 +219,104 @@ export const ERR_NOT_FOUND = 'לא נמצא'
 export const normBandLine = (low: number, high: number): string => `רצועת הנורמה: ${low}–${high}`
 export const needMoreLine = (n: number, minN: number): string => `N = ${n}, נדרש לפחות ${minN}`
 export const exposuresLine = (minExposures: number): string => `${minExposures}+ חשיפות לתלמיד`
+
+/* ══════════════════════════════════════════════════════════════════════════
+   תוצאות (שלב UX) — משפטי סיכום ותוויות לטאב "תוצאות". עובדות בלבד, בעברית פשוטה.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* "11 מתוך 24" — כך מוצגים מספרים; אחוז רק בנוסף */
+export const countOf = (x: number, y: number): string => `${x} מתוך ${y}`
+export const withPct = (x: number, y: number): string => (y > 0 ? `${countOf(x, y)} (${Math.round((100 * x) / y)}%)` : countOf(x, y))
+
+export const dateHe = (iso: string): string => {
+  const d = new Date(iso)
+  return `${d.getUTCDate()} ב${monthName(iso)} ${d.getUTCFullYear()}`
+}
+
+export interface ClassSummaryInput {
+  total: number
+  completed: number
+  inProgress: number
+  notStarted: number
+  /* חלק האתגרים שנפתרו בממוצע בקרב מי שסיימו (0..1), או null אם אין מי שסיים */
+  avgSolvedShare: number | null
+  hardest: { title: string; attempted: number; wrong: number; topErrorOptionText: string | null; topErrorCount: number } | null
+}
+
+const classLead = (share: number): string =>
+  share >= CLASS_SUCCESS_BANDS.most ? 'רוב הכיתה הצליחה.' : share >= CLASS_SUCCESS_BANDS.some ? 'חלק מהכיתה התקשה.' : 'הכיתה התקשתה בהדמיה.'
+
+const NO_RESULTS_YET = 'התוצאות יופיעו כאן כשתלמידים יסיימו.'
+
+/* משפט הסיכום של מסך ההדמיה (מצב "כל הכיתה") */
+export function narrateClassSummary(i: ClassSummaryInput): string {
+  if (i.completed === 0 || i.avgSolvedShare === null) {
+    return i.inProgress > 0
+      ? `${i.inProgress === 1 ? 'תלמיד/ה אחד/ת באמצע' : `${i.inProgress} תלמידים באמצע`} ההדמיה. ${NO_RESULTS_YET}`
+      : `עוד אף תלמיד לא התחיל את ההדמיה. ${NO_RESULTS_YET}`
+  }
+  const parts = [classLead(i.avgSolvedShare)]
+  const h = i.hardest
+  if (h && h.wrong > 0) {
+    let s = `האתגר הקשה ביותר: ${h.title}. ${countOf(h.wrong, h.attempted)} טעו`
+    if (h.topErrorOptionText && h.topErrorCount >= 2) {
+      s += h.topErrorCount * 2 > h.wrong ? `, ורובם בחרו ${h.topErrorOptionText}.` : `, ו-${h.topErrorCount} מהם בחרו ${h.topErrorOptionText}.`
+    } else s += '.'
+    parts.push(s)
+  }
+  if (i.completed < i.total) parts.push(`${countOf(i.completed, i.total)} סיימו עד עכשיו.`)
+  return parts.join(' ')
+}
+
+/* משפט קצר אחד לשורה ברשימת השליחות */
+export function narrateListSummary(i: ClassSummaryInput): string {
+  if (i.completed === 0 || i.avgSolvedShare === null) {
+    return i.inProgress > 0 ? 'התלמידים באמצע ההדמיה — עוד אין תוצאות.' : 'עוד לא התחילו — התוצאות יופיעו כשתלמידים יסיימו.'
+  }
+  const h = i.hardest
+  return h && h.wrong > 0 ? `${classLead(i.avgSolvedShare)} הקשה ביותר: ${h.title}.` : classLead(i.avgSolvedShare)
+}
+
+export const attentionBadgeText = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת לתשומת לב' : `${n} תלמידים לתשומת לב`)
+export const attentionReasonText = (r: 'not_started' | 'gave_up_often' | 'low_success'): string =>
+  r === 'not_started' ? 'עוד לא התחיל/ה' : r === 'gave_up_often' ? 'ויתר/ה על כמה אתגרים' : 'הצליח/ה בפחות מחצי מהאתגרים'
+
+export interface StudentSummaryInput {
+  firstName: string
+  status: 'completed' | 'in_progress' | 'not_started'
+  totalChallenges: number
+  attempted: number
+  solved: number
+  gaveUp: number
+}
+export function narrateStudentSummary(i: StudentSummaryInput): string {
+  if (i.status === 'not_started') return `${i.firstName} עוד לא התחיל/ה את ההדמיה. התוצאות יופיעו כאן כשיסיימו.`
+  if (i.status === 'in_progress') return `${i.firstName} באמצע ההדמיה: פתר/ה ${countOf(i.solved, i.attempted)} אתגרים עד עכשיו.`
+  const base = `${i.firstName} פתר/ה ${countOf(i.solved, i.totalChallenges)} אתגרים.`
+  return i.gaveUp > 0 ? `${base} ויתר/ה על ${i.gaveUp}.` : base
+}
+
+export const detailAvailableLine = (iso: string): string => `פירוט התשובות זמין להדמיות שנשלחו מ-${dateHe(iso)}`
+export const slideFactText = (order: number, words: number, seconds: number): string => `בשקף ${order} (${words} מילים) עבר/ה אחרי ${seconds} שניות`
+
+export const RESULTS_TEXT = {
+  listTitle: 'מה התלמידים עשו בהדמיות ששלחתי?',
+  emptyList: 'עוד לא שלחת הדמיות לתלמידים. שליחה נעשית מספריית ההדמיות.',
+  emptyListCta: 'לספריית ההדמיות',
+  noMatch: 'לא נמצאו שליחות שמתאימות לסינון.',
+  classQuestion: 'איך הכיתה הצליחה בהדמיה?',
+  studentQuestion: 'איך התלמיד/ה הצליח/ה בהדמיה?',
+  noCommonErrors: 'אין עדיין טעויות נפוצות מתויגות בהדמיה הזאת.',
+  noChallengeData: 'עדיין אין תוצאות לאתגר הזה. הן יופיעו כאן כשתלמידים יסיימו.',
+  howWeCalcLabel: 'איך חישבנו?',
+} as const
+
+/* שורות "איך חישבנו?" לתוצאות — המקום היחיד שבו מותר פירוט חישובי */
+export function howWeCalcResultsLines(): string[] {
+  return [
+    `אתגר נחשב ל"הצליחו" כשהתלמיד/ה פתר/ה אותו. "ויתרו" = לחצו על "אני מוותר/ת" או סגרו את האתגר בלי לענות.`,
+    `תלמיד/ה מופיע/ה ב"תשומת לב" אם: עוד לא התחיל/ה, או ויתר/ה על ${ATTENTION_RULE.gaveUpAtLeast} אתגרים או יותר, או סיים/ה והצליח/ה בפחות מחצי מהאתגרים. זה כלל עובדתי בלבד — הוא לא מסביר למה.`,
+    'התוצאות נספרות לפי ההרצה האחרונה של כל תלמיד/ה בהדמיה.',
+  ]
+}
+
+export const LOCKED_SUBJECT_TEXT = 'זמין למורה המקצוע ולמחנך/ת'

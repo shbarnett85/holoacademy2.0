@@ -12,7 +12,8 @@ import { isSubjectCode, type SubjectCode } from '../../../src/shared/lib/subject
 import { EP, QuerySchema, type Envelope } from '../../../src/shared/types/analyticsV2.js'
 import { loadViewer } from '../lib/authz.js'
 import { DEMO_HOMEROOM_CLASS, DEMO_SUBJECT_PERSONAS, type V2Viewer } from '../lib/analyticsV2/access.js'
-import { demoProvider, demoViewerClasses } from '../lib/analyticsV2/demoProvider.js'
+import { demoProvider } from '../lib/analyticsV2/demoProvider.js'
+import { resolveV2Viewer } from '../lib/analyticsV2/viewer.js'
 import { realProvider, type AnalyticsV2Provider } from '../lib/analyticsV2/provider.js'
 import { subjectById } from '../lib/subjects.js'
 import { AppError } from '../middleware/errors.js'
@@ -21,37 +22,8 @@ import { isDemoGuest, requireStaff } from '../middleware/staffAuth.js'
 export const analyticsV2Router = Router()
 analyticsV2Router.use(requireStaff)
 
-/* kill-switch גלובלי: ANALYTICS_V2=0 */
-const flagOn = (): boolean => process.env.ANALYTICS_V2 !== '0'
-
-/* גזירת הצופה: מורה אורח — מבורר העדשה; ארגון הדגמה — מהתפקיד האמיתי; אחרת null (הדגל כבוי) */
-export async function resolveV2Viewer(req: Request): Promise<V2Viewer | null> {
-  if (!flagOn()) return null
-  const q = QuerySchema.safeParse(req.query)
-  const query = q.success ? q.data : {}
-
-  if (isDemoGuest(req)) {
-    const lens = query.lens ?? 'homeroom'
-    if (lens === 'admin') return { lens, guest: true, homeroomClassId: null, teachingClassIds: [], subjectCodes: [] }
-    if (lens === 'homeroom') return { lens, guest: true, homeroomClassId: DEMO_HOMEROOM_CLASS, teachingClassIds: [], subjectCodes: [] }
-    const subject: SubjectCode = query.subject && DEMO_SUBJECT_PERSONAS.includes(query.subject as SubjectCode) ? (query.subject as SubjectCode) : 'math'
-    return { lens, guest: true, homeroomClassId: null, teachingClassIds: demoViewerClasses([subject]), subjectCodes: [subject] }
-  }
-
-  const viewer = await loadViewer(req)
-  if (!viewer.seesSynthetic) return null
-  if (viewer.role === 'admin' || viewer.role === 'municipal_admin') return { lens: 'admin', guest: false, homeroomClassId: null, teachingClassIds: [], subjectCodes: [] }
-  if (viewer.role !== 'teacher') return null
-  const homeroom = [...viewer.grants.values()].some((g) => g.homeroom)
-  if (homeroom) return { lens: 'homeroom', guest: false, homeroomClassId: DEMO_HOMEROOM_CLASS, teachingClassIds: [], subjectCodes: [] }
-  const codes: SubjectCode[] = []
-  for (const g of viewer.grants.values()) for (const sid of g.subjectIds) {
-    const row = await subjectById(sid)
-    if (row && isSubjectCode(row.code) && !codes.includes(row.code)) codes.push(row.code)
-  }
-  const subjectCodes = codes.length ? codes : ['math' as SubjectCode]
-  return { lens: 'subject_teacher', guest: false, homeroomClassId: null, teachingClassIds: demoViewerClasses(subjectCodes), subjectCodes }
-}
+/* kill-switch גלובלי: ANALYTICS_V2=0 (ב-viewer.ts) */
+export { resolveV2Viewer }
 
 /* ספק לפי צופה (בהמשך: ספק אמיתי לארגונים אמיתיים). ANALYTICS_V2_PROVIDER=real מכריח ספק אמיתי (בדיקות). */
 function providerFor(): AnalyticsV2Provider {
