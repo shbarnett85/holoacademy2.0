@@ -1,10 +1,11 @@
-/* מעטפת מסכי האנליטיקה: ScreenShell של הערכה + תג "נתוני הדגמה" (כשהחוזה מסמן) + בורר העדשה המשותף (אורח). */
+/* מעטפת מסכי האנליטיקה: ScreenShell של הערכה + תג "נתוני הדגמה" (כשהחוזה מסמן) + בורר העדשה המשותף (אורח)
+   + "איך חישבנו?" — כפתור אחד קבוע בשורת הכותרת, בכל מסך (שורות ההסבר המשותפות מ-HOW_WE_CALC; howExtra = שורות נוספות של המסך). */
 import type { ReactNode } from 'react'
+import { HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
 import { GuestLensSwitcher, Icon, ScreenShell, T } from '../teacherUi'
 import type { BreadcrumbItem } from '../teacherUi'
 import { useV2Env } from './context'
 import { L } from './labels'
-import { HWC_CSS } from './ui'
 
 export function DemoChip() {
   return (
@@ -15,7 +16,7 @@ export function DemoChip() {
   )
 }
 
-export function AnalyticsShell({ title, breadcrumb, children }: { title: string; breadcrumb?: BreadcrumbItem[]; children: ReactNode }) {
+export function AnalyticsShell({ title, breadcrumb, howExtra, children }: { title: string; breadcrumb?: BreadcrumbItem[]; howExtra?: ReactNode; children: ReactNode }) {
   const env = useV2Env()
   /* החלפת עדשה/מקצוע חוזרת למסך הכניסה כדי להישאר במסך תקף; הערך נכתב למאגר המשותף על ידי הבורר */
   const lensSwitcher = env.guest
@@ -24,8 +25,8 @@ export function AnalyticsShell({ title, breadcrumb, children }: { title: string;
   return (
     <ScreenShell active="analytics" title={title} breadcrumb={breadcrumb}
       titleAside={env.cfg.dataNotice && !env.guest ? <DemoChip /> : undefined}
-      lensSwitcher={lensSwitcher}>
-      <style>{HWC_CSS}</style>
+      lensSwitcher={lensSwitcher}
+      howWeCalc={{ lines: HOW_WE_CALC.lines, children: howExtra }}>
       {children}
     </ScreenShell>
   )

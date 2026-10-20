@@ -8,8 +8,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { subjectStyle } from '../../shared/lib/subjectStyle'
 import type { Position, Trend } from '../../shared/lib/analyticsConfig'
 import type { SubjectRef } from '../../shared/types/analyticsV2'
-import { HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
-import { FONT, HowWeCalc, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
+import { FONT, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { IconName, Tone } from '../teacherUi'
 import { L } from './labels'
 
@@ -65,11 +64,18 @@ export function LinkButton({ to, children, kind = 'secondary', style, icon }: Bu
   )
 }
 
-/* ── תג קצר (מילה או מספר + מילה, 16px) ── */
+/* ── תג קצר (מילה או מספר + מילה, 16px) ──
+   בלי טון: תווית שטוחה (מילוי עדין, פינות חדות, בלי מסגרת) — כך היא לא נראית ככפתור. עם טון: מסגרת בצבע הטון (ותמיד מילה/אייקון לידה). */
 export function Tag({ children, tone, style }: { children: ReactNode; tone?: Tone; style?: CSSProperties }) {
-  const color = tone ? TONE_META[tone].color : T.controlBorder
+  if (!tone) {
+    return (
+      <span data-label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 600, padding: '1px 8px', borderRadius: 4, background: T.surfaceSoft, color: T.textSoft, lineHeight: 1.5, ...style }}>
+        {children}
+      </span>
+    )
+  }
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${color}`, color: T.text, lineHeight: 1.5, ...style }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}`, color: T.text, lineHeight: 1.5, ...style }}>
       {children}
     </span>
   )
@@ -170,17 +176,6 @@ export function ErrorBlock({ message, onRetry, backTo }: { message: string; onRe
 export function Columns({ children, template, gap = 12, style }: { children: ReactNode; template: string; gap?: number; style?: CSSProperties }) {
   return <div style={{ display: 'grid', gridTemplateColumns: template, gap, alignItems: 'start', ...style }}>{children}</div>
 }
-
-/* "איך חישבנו?" — המקום היחיד לפירוט חישובי. סגור כברירת מחדל ויושב בשורת הכלים (לא תופס שורה משלו);
-   כשנפתח הוא תופס שורה מלאה (ראו HWC_CSS). השורות מ-HOW_WE_CALC (findingsNarrative). */
-export function HowCalc({ extra }: { extra?: ReactNode }) {
-  return (
-    <div className="v2-hwc">
-      <HowWeCalc lines={[...HOW_WE_CALC.lines]}>{extra}</HowWeCalc>
-    </div>
-  )
-}
-export const HWC_CSS = '.v2-hwc{flex:0 0 auto;min-width:0}.v2-hwc:has(details[open]){flex:1 1 100%;order:99}@media (max-width:1100px){.v2-cols3{grid-template-columns:1fr !important}}'
 
 /* "X מתוך Y תלמידים (42%)": הטקסט מגיע מהחוזה (countText) והבר הוא תוספת חזותית בלבד — המספרים תמיד גלויים כטקסט */
 export function CountBar({ done, total, text, tone = 'attention', barHeight = 10 }: { done: number; total: number; text: string; tone?: Tone | 'accent'; barHeight?: number }) {

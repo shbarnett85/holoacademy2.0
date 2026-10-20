@@ -8,9 +8,12 @@ vi.mock('../lib/authz.js', async (orig) => {
 vi.mock('../lib/subjects.js', () => ({ subjectById: vi.fn(async (id: string) => (id === 'sid-history' ? { id, code: 'history', nameHe: 'היסטוריה' } : null)) }))
 
 import { loadViewer, type Viewer } from '../lib/authz.js'
+import { ANALYTICS_CAVEATS, FEEDBACK_INTRO_TEXT } from '../../../src/shared/lib/findingsNarrative.js'
 import { EP } from '../../../src/shared/types/analyticsV2.js'
+import { getAnalysis } from '../lib/analyticsV2/demoProvider.js'
 import { analyticsV2Router, resolveV2Viewer } from './analyticsV2.js'
 
+const A_STUDENT = getAnalysis().classById.get('c-v2')!.studentIds[0]
 const req = (staff: Record<string, unknown>, query: Record<string, string> = {}): Request => ({ staff, query } as unknown as Request)
 const viewer = (over: Partial<Viewer>): Viewer => ({ userId: 'u1', role: 'teacher', schoolId: 's1', grants: new Map(), seesSynthetic: false, ...over })
 
@@ -102,7 +105,8 @@ describe('נתיבי האנליטיקה החדשה: חיווט', () => {
     expect(EP.entry.response.safeParse(hr.body).success).toBe(true)
 
     const ad = await callRoute('/entry', guestReq({ lens: 'admin' }))
-    expect((ad.body as { data: unknown }).data).toEqual({ classes: [], alerts: [] })
+    expect((ad.body as { data: unknown }).data).toMatchObject({ classes: [], alerts: [], alertsTotal: 0, alertsMore: null })
+    expect(EP.entry.response.safeParse(ad.body).success).toBe(true)
   })
 
   it('GET /class/:classId/overview: מחנך — כן; מורה מקצועי ומנהל — 403', async () => {
@@ -116,6 +120,33 @@ describe('נתיבי האנליטיקה החדשה: חיווט', () => {
     expect(a.error?.status).toBe(403)
     const other = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v1' }))
     expect(other.error?.status).toBe(403)
+  })
+
+  it('התגובות נושאות את השדות החדשים (alertsTotal · tabSummaries · intro) ועוברות את הסכמה', async () => {
+    const entry = await callRoute('/entry', guestReq({ lens: 'homeroom' }))
+    const e = (entry.body as { data: { alertsTotal: number; alerts: unknown[]; alertsTitle: string; alertsMore: string | null } }).data
+    expect(e.alertsTotal).toBeGreaterThan(e.alerts.length)
+    expect(e.alertsTitle).toBe(`${e.alerts.length} מתוך ${e.alertsTotal} התלמידים לתשומת לב — הדחופים ביותר`)
+    expect(e.alertsMore).toMatch(/^ועוד \d+ תלמידים בכיתה$/)
+
+    const subject = await callRoute('/class/:classId/subject/:subject', guestReq({ lens: 'homeroom' }, { classId: 'c-v2', subject: 'math' }))
+    expect(subject.error).toBeUndefined()
+    const tabs = (subject.body as { data: { tabSummaries: Record<string, string> } }).data.tabSummaries
+    expect(Object.keys(tabs).sort()).toEqual(['misconceptions', 'progress', 'students'])
+    expect(EP.classSubject.response.safeParse(subject.body).success).toBe(true)
+
+    const fb = await callRoute('/student/:id/feedback', guestReq({ lens: 'homeroom' }, { id: A_STUDENT }))
+    expect(fb.error).toBeUndefined()
+    expect((fb.body as { data: { intro: string } }).data.intro).toBe(FEEDBACK_INTRO_TEXT)
+  })
+
+  it('config כשהדגל כבוי נושא את אותן הסתייגויות כמו בכל מסך', async () => {
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: {} } as unknown as Request
+    const cfg = await callRoute('/config', real)
+    expect((cfg.body as { data: { enabled: boolean; caveats: unknown } }).data.enabled).toBe(false)
+    expect((cfg.body as { data: { caveats: unknown } }).data.caveats).toEqual(ANALYTICS_CAVEATS)
+    expect((cfg.body as { data: { caveats: { crossSubject: string } } }).data.caveats.crossSubject).toBe('הרמות של מקצועות שונים אינן ניתנות להשוואה ישירה.')
   })
 
   it('משתמש אמיתי (הדגל כבוי): entry ו-overview מחזירים 403', async () => {

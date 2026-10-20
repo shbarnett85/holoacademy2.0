@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { apiJson } from '../../shared/lib/api'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
+import { legacySubjectToCode } from '../../shared/lib/subjects'
 import FilterButtons from '../results/FilterButtons'
 import { card, panelTitle, soft } from '../results/styles'
-import { FONT, ProgressBar, T } from '../teacherUi'
+import { bySubjectOrderOf, FONT, ProgressBar, T } from '../teacherUi'
 
 interface TypeRow { type: string; attempts: number; solved: number; failed: number; successRate: number | null; avgDifficulty: number | null }
 interface TypesResponse { types: TypeRow[]; subjects: string[] }
@@ -32,7 +33,7 @@ export default function ChallengeTypesPanel() {
       <h2 style={panelTitle}>איך הלך לתלמידים בכל סוג אתגר?</h2>
       <p style={{ ...soft, margin: 0 }}>כל שורה היא סוג אתגר, מכל ההדמיות: בכמה מהפעמים שתלמידים ניסו אותו הם הצליחו. הקשה ביותר למעלה.</p>
       {subjects.length > 1 && (
-        <FilterButtons label="מקצוע" allLabel="כל המקצועות" options={subjects.map((s) => ({ id: s, label: s }))} value={subject} onChange={setSubject} />
+        <FilterButtons label="מקצוע" allLabel="כל המקצועות" options={bySubjectOrderOf(subjects, (s) => legacySubjectToCode(s) ?? s).map((s) => ({ id: s, label: s }))} value={subject} onChange={setSubject} />
       )}
       {rows.length === 0 ? (
         <p style={{ ...soft, margin: 0 }}>אין עדיין נתונים למקצוע הזה. הם יופיעו כאן כשתלמידים יסיימו הדמיות.</p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
-import { howWeCalcObjectivesLines, howWeCalcResultsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
+import { countNb, howWeCalcObjectivesLines, howWeCalcResultsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
   analyzeSubmission, buildClassView, buildListRow, buildStudentView, extractChallenges, questObjectives, questThumbUrl, subjectOfCode,
@@ -101,9 +101,11 @@ describe('מספרים וסיכום: "X מתוך Y"', () => {
     expect(row.subject).toEqual({ code: 'science', nameHe: 'מדעים' })
   })
 
-  it('משפט הסיכום הכיתתי מכיל "3 מתוך 6 סיימו עד עכשיו"', () => {
+  it('משפט הסיכום הכיתתי אומר "עד עכשיו סיימו 3 מתוך 6" (רווחים צמודים) ומדבר רק על מי שסיימו', () => {
     const v = buildClassView(base)
-    expect(v.summary).toContain('3 מתוך 6 סיימו עד עכשיו')
+    expect(v.summary).toContain(`עד עכשיו סיימו ${countNb(3, 6)}.`)
+    expect(v.summary).toContain('רובם הצליחו')
+    expect(v.summary).not.toContain('רוב הכיתה')
     expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
   })
 
@@ -195,10 +197,10 @@ describe('טעויות נפוצות — מתגיות בלבד', () => {
     expect(v.challenges[0].items[0].options!.every((o) => o.errorTag === null)).toBe(true)
   })
 
-  it('משפט הסיכום מזכיר את המסיח השגוי הנבחר ביותר ("רובם בחרו")', () => {
+  it('משפט הסיכום מזכיר את המסיח השגוי הנבחר ביותר, במרכאות ("ורובם בחרו ב״…״")', () => {
     const v = buildClassView(rows(['b', 'b', 'b', 'a']))
-    expect(v.summary).toContain('האתגר הקשה ביותר: שאלת המים. 3 מתוך 4 טעו')
-    expect(v.summary).toContain('רובם בחרו נוזל')
+    expect(v.summary).toContain(`האתגר הקשה ביותר: שאלת המים. ${countNb(3, 4)} לא הצליחו`)
+    expect(v.summary).toContain('ורובם בחרו ב״נוזל״')
   })
 })
 
@@ -286,11 +288,19 @@ describe('מבחן סיכום, פתרון טקסט האפשרויות, ודיל�
     expect(quiz.items[0].errorTag).toEqual({ id: 'm-quiz', title: 'טעות במבחן' })
   })
 
-  it('דילמה מוסרית: נפתר = ניסה; התפלגות ללא שמות', () => {
-    const v = buildClassView(data)
-    const m = v.challenges.find((c) => c.type === 'moralDilemma')!
-    expect(m).toMatchObject({ attempted: 2, solved: 2, gaveUp: 0 })
-    expect(m.items[0].options!.map((o) => [o.text, o.count, o.isCorrect])).toEqual([['להחזיר', 2, false], ['לשמור', 1, false]])
+  it('דילמה מוסרית: נפתר = ניסה; התפלגות ללא שמות — ורק כשיש מספיק שורות ותלמידים שסיימו', () => {
+    /* שלוש בחירות ושני תלמידים שסיימו: מתחת לסף — אין התפלגות (אחרת אפשר לזהות מי בחר מה) */
+    const small = buildClassView(data).challenges.find((c) => c.type === 'moralDilemma')!
+    expect(small).toMatchObject({ attempted: 2, solved: 2, gaveUp: 0 })
+    expect(small.items[0].options).toBeNull()
+    /* חמישה תלמידים שסיימו וחמש בחירות: מוצגת ההתפלגות, בלי שמות */
+    const five = [0, 1, 2, 3, 4]
+    const big = buildClassView(input({
+      sessions: five.map((i) => sess(i, true)), events: five.map((i) => pev(i, 's5', true)),
+      moral: [...Array(3).fill({ sceneId: 's5', optionId: 'm0' }), ...Array(2).fill({ sceneId: 's5', optionId: 'm1' })],
+    }))
+    const m = big.challenges.find((c) => c.type === 'moralDilemma')!
+    expect(m.items[0].options!.map((o) => [o.text, o.count, o.isCorrect])).toEqual([['להחזיר', 3, false], ['לשמור', 2, false]])
     expect(m.items[0].options!.every((o) => o.students.length === 0)).toBe(true)
     const sv = buildStudentView(data, 'st0')!
     const ms = sv.challenges.find((c) => c.type === 'moralDilemma')!
@@ -320,14 +330,35 @@ describe('הצגות חוזרות והכרעה', () => {
   })
 })
 
-describe('session אחרון לכל תלמיד', () => {
-  it('שני sessions: נספר המאוחר (גם אם הקודם הושלם והמאוחר באמצע)', () => {
+describe('ההרצה שנספרת לכל תלמיד', () => {
+  it('הרצה חדשה שנפתחה (ריקה, עוד לא הסתיימה) אינה מוחקת הרצה שהושלמה: הסטטוס נשאר "סיים" והתוצאות מההרצה שהושלמה', () => {
     const v = buildClassView(input({
       sessions: [{ ...sess(0, true, '2026-10-11T08:00:00Z'), id: 'old' }, { ...sess(0, false, '2026-10-12T08:00:00Z'), id: 'new' }],
       events: [{ sessionId: 'old', type: 'puzzle_solved', sceneId: 's1', payload: {} }],
     }))
-    expect(v.head.counts).toMatchObject({ completed: 0, inProgress: 1 })
-    expect(v.challenges[0].attempted).toBe(0)
+    expect(v.head.counts).toMatchObject({ completed: 1, inProgress: 0 })
+    expect(v.challenges[0]).toMatchObject({ attempted: 1, solved: 1 })
+    expect(v.roster.completed.map((c) => c.id)).toEqual(['st0'])
+  })
+
+  it('סדר ה-sessions בקלט לא משנה', () => {
+    const a = { ...sess(0, true, '2026-10-11T08:00:00Z'), id: 'old' }
+    const b = { ...sess(0, false, '2026-10-12T08:00:00Z'), id: 'new' }
+    const ev: CoreEventRow[] = [{ sessionId: 'old', type: 'puzzle_solved', sceneId: 's1', payload: {} }]
+    expect(buildClassView(input({ sessions: [b, a], events: ev })).head.counts).toEqual(buildClassView(input({ sessions: [a, b], events: ev })).head.counts)
+  })
+
+  it('שתי הרצות שהושלמו: המאוחרת; שתי הרצות פתוחות: המאוחרת ("באמצע")', () => {
+    const done = (id: string, at: string): CoreSession => ({ ...sess(0, true, at), id })
+    const open = (id: string, at: string): CoreSession => ({ ...sess(0, false, at), id })
+    const evs: CoreEventRow[] = [
+      { sessionId: 'd1', type: 'puzzle_failed', sceneId: 's1', payload: {} },
+      { sessionId: 'd2', type: 'puzzle_solved', sceneId: 's1', payload: {} },
+    ]
+    const two = buildClassView(input({ sessions: [done('d1', '2026-10-11T08:00:00Z'), done('d2', '2026-10-12T08:00:00Z')], events: evs }))
+    expect(two.challenges[0]).toMatchObject({ attempted: 1, solved: 1 })
+    const opens = buildClassView(input({ sessions: [open('o1', '2026-10-11T08:00:00Z'), open('o2', '2026-10-12T08:00:00Z')] }))
+    expect(opens.head.counts).toMatchObject({ completed: 0, inProgress: 1 })
   })
 })
 
@@ -352,7 +383,7 @@ describe('תלמיד: רשימה א-ב, הקודם/הבא, סיכום ושקפי
   })
 
   it('סיכום תלמיד מ-findingsNarrative: סיים / באמצע / לא התחיל', () => {
-    expect(buildStudentView(data, 'st0')!.summary).toBe('אבי פתר/ה 5 מתוך 5 אתגרים.')
+    expect(buildStudentView(data, 'st0')!.summary).toBe(`אבי פתר/ה ${countNb(5, 5)} אתגרים.`)
     expect(buildStudentView(data, 'st2')!.summary).toContain('באמצע ההדמיה')
     expect(buildStudentView(data, 'st4')!.summary).toContain('עוד לא התחיל/ה')
   })
@@ -385,7 +416,7 @@ describe('תלמיד: רשימה א-ב, הקודם/הבא, סיכום ושקפי
 describe('אין תוצאות עדיין', () => {
   it('אף אחד לא התחיל / יש באמצע — משפט שמסביר מה יקרה', () => {
     const none = buildClassView(input())
-    expect(none.summary).toContain('התוצאות יופיעו כאן כשתלמידים יסיימו')
+    expect(none.summary).toContain('התוצאות יופיעו כאן כשיסיימו')
     expect(none.summary).toContain('עוד אף תלמיד לא התחיל')
     expect(none.head.counts).toEqual({ total: 6, completed: 0, inProgress: 0, notStarted: 6 })
     expect(none.challenges.every((c) => c.attempted === 0)).toBe(true)

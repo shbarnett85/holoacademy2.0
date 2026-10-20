@@ -63,7 +63,8 @@ export default function DevGallery() {
       title="איך נראית ערכת הממשק למסכי מורה?"
       breadcrumb={[{ label: 'תוצאות', to: '/results' }, { label: 'המהפכה הצרפתית', onClick: () => undefined }, { label: 'ו2' }]}
       titleAside={<span style={{ fontSize: 14, fontWeight: 700, color: T.muted }}>({light ? 'מצב בהיר' : 'מצב כהה'} · DEV)</span>}
-      lensSwitcher={<ModeToggle ariaLabel="צפייה בתור" value={mode} onChange={setMode} options={[{ id: 'class', label: 'כל הכיתה' }, { id: 'student', label: 'לפי תלמיד' }]} />}
+      lensSwitcher={<ModeToggle compact ariaLabel="צפייה בתור" value={mode} onChange={setMode} options={[{ id: 'class', label: 'כל הכיתה' }, { id: 'student', label: 'לפי תלמיד' }]} />}
+      howWeCalc={{ lines: howWeCalcResultsLines() }}
     >
       <Sentence tone="attention" label="במשפט אחד">
         {narrateClassSummary({ total: 24, completed: 18, inProgress: 3, notStarted: 3, avgSolvedShare: 0.62, hardest: { title: 'סדר האירועים', attempted: 18, wrong: 11, topErrorOptionText: 'התשובה השלישית', topErrorCount: 7 } })}
@@ -128,7 +129,7 @@ export default function DevGallery() {
         <SampleChart />
       </Block>
 
-      <Block title="HowWeCalc">
+      <Block title="HowWeCalc — בכל מסך הוא הכפתור בראש העמוד (prop howWeCalc של ScreenShell); כאן גם הגרסה הפנימית (details) למסמכים">
         <HowWeCalc lines={howWeCalcResultsLines()} />
       </Block>
 

@@ -3,10 +3,10 @@
 import { Link } from 'react-router-dom'
 import { attentionBadgeText } from '../../shared/lib/findingsNarrative'
 import type { ClassOverview } from '../../shared/types/analyticsV2'
-import { EmptyState, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
+import { bySubjectOrderOf, EmptyState, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
 import { useV2Env } from './context'
 import { L } from './labels'
-import { AreasText, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, ToneMark, TrendWord } from './ui'
+import { AreasText, ErrorBlock, LoadingBlock, Note, PositionWord, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
 const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
@@ -19,11 +19,13 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
   if (error) return <ErrorBlock message={error} onRetry={reload} />
   if (!data) return null
   const anyAlert = data.rows.some((r) => r.alerts > 0)
+  /* אותו סדר מקצועות כמו בטאבים (shared/lib/subjects) */
+  const rows = bySubjectOrderOf(data.rows, (r) => r.subject.code)
 
   return (
     <>
       <Sentence tone={anyAlert ? 'attention' : 'neutral'}>{data.summary}</Sentence>
-      {data.rows.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState title={`עוד אין נתונים על כיתה ${className}.`} whatNext="הסקירה תופיע כאן כשתלמידי הכיתה ישחקו בהדמיות." />
       ) : (
         <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, overflow: 'hidden' }}>
@@ -41,7 +43,7 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
               </tr>
             </thead>
             <tbody>
-              {data.rows.map((r) => (
+              {rows.map((r) => (
                 <tr key={r.subject.code}>
                   <th scope="row" style={{ ...td, fontWeight: 400, padding: '2px 8px' }}>
                     <SubjectLinkButton code={r.subject.code} label={r.subject.nameHe} to={env.href(`/analytics/class/${classId}`, { tab: r.subject.code, sub: 'summary' })} />
@@ -67,10 +69,7 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
           </table>
         </div>
       )}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <Note style={{ flex: '1 1 520px' }}>{data.caveats.crossSubject} {data.caveats.ageNorm}</Note>
-        <HowCalc />
-      </div>
+      <Note>{data.caveats.crossSubject} {data.caveats.ageNorm}</Note>
     </>
   )
 }

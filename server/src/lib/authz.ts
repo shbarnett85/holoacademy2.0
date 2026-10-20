@@ -89,6 +89,11 @@ export function classAccess(v: Viewer, cls: { id: string; school_id: string | nu
   return v.grants.has(cls.id) ? 'teacher' : 'none'
 }
 
+/* הקצאת הדמיה לכיתה (POST /quests/:id/assign): רק מי שיש לו גישה לכיתה — מורה עם קישור כלשהו אליה (מחנך / מקצוע / שיוך כללי), מנהל או מנהל עירוני
+   של בית הספר של הכיתה, ומנהל-על. מי שיצר את ההדמיה אך אינו קשור לכיתה אינו יכול לשלוח אליה (אחרת הכיתה "הקורבן" הייתה מקבלת הדמיה זרה,
+   ומחנכה היה רואה אותה ואת שם השולח בתוצאות). */
+export const canAssignToClass = (v: Viewer, cls: { id: string; school_id: string | null }): boolean => classAccess(v, cls) !== 'none'
+
 /* הדמיה גלויה לצופה ברמת כיתה (דשבורד מטלה): מחנך הכיתה / מקצוע מתאים / יוצר ההדמיה.
    מנהלים רואים אגרגט של כל מטלה בבית הספר. */
 export function assignmentVisible(v: Viewer, classId: string, quest: { subject_id: string | null; created_by: string | null }): boolean {
@@ -184,18 +189,39 @@ export async function requireStudentScope(req: Request, studentId: string): Prom
   return { viewer, scope, classIds }
 }
 
-/* ── יומן גישה: כל צפייה/שינוי ברמת תלמיד. best-effort — לעולם לא מפיל בקשה. ── */
-export async function logAccess(viewer: Viewer, entry: { studentId?: string | null; scope: string; endpoint: string }): Promise<void> {
+/* ── יומן גישה: כל צפייה/שינוי ברמת תלמיד. ──
+   ברירת מחדל: best-effort — כשל בכתיבה לעולם לא מפיל בקשה.
+   studentLevel=true (קריאת נתוני תלמיד): מנהל-על — מפעיל הפלטפורמה, הגישה הרחבה ביותר — נכשל סגור: אם אי אפשר לכתוב ליומן, הבקשה נחסמת
+   (503) *לפני* שהנתונים מוחזרים. שאר התפקידים נשארים best-effort. */
+export interface AccessEntry { studentId?: string | null; scope: string; endpoint: string }
+export const MSG_ACCESS_LOG_UNAVAILABLE = 'לא ניתן לתעד את הצפייה כרגע — הבקשה נחסמה. נסו שוב בעוד כמה שניות.'
+const LOG_BATCH = 500
+
+export async function logAccessMany(viewer: Viewer, entries: AccessEntry[], opts: { studentLevel?: boolean } = {}): Promise<void> {
+  if (entries.length === 0) return
+  const failClosed = opts.studentLevel === true && isSuper(viewer)
   try {
-    if (!(await hasDataAccessLog())) return
-    await supabaseAdmin.from('data_access_log').insert({
+    if (!(await hasDataAccessLog())) {
+      if (failClosed) throw new Error('data_access_log missing')
+      return
+    }
+    const rows = entries.map((e) => ({
       viewer_id: viewer.userId,
       viewer_role: viewer.role,
-      student_id: entry.studentId ?? null,
-      scope: entry.scope,
-      endpoint: entry.endpoint,
-    })
+      student_id: e.studentId ?? null,
+      scope: e.scope,
+      endpoint: e.endpoint,
+    }))
+    for (let i = 0; i < rows.length; i += LOG_BATCH) {
+      const { error } = await supabaseAdmin.from('data_access_log').insert(rows.slice(i, i + LOG_BATCH))
+      if (error) throw new Error(error.message)
+    }
   } catch {
+    if (failClosed) throw new AppError(503, MSG_ACCESS_LOG_UNAVAILABLE)
     /* יומן — best-effort */
   }
+}
+
+export async function logAccess(viewer: Viewer, entry: AccessEntry, opts: { studentLevel?: boolean } = {}): Promise<void> {
+  return logAccessMany(viewer, [entry], opts)
 }

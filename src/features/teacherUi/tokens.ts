@@ -21,6 +21,8 @@ export const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const
 
 /* רוחב התוכן במסך 1366: padding צדדי של 24px משני הצדדים */
 export const GUTTER = 24
+/* רווח בתחתית העמוד (מתחת לאזור התוכן). קטן מהרווח הצדדי כדי שכל טאב ייכנס במסך אחד ב-1366×768 */
+export const PAGE_BOTTOM = 16
 export const CONTENT_MAX_WIDTH = 1500
 
 /* פלטה סמנטית — רק טוקני הערכה (var(--tN)). ערכי הטוקנים נמדדו בשתי הערכות:

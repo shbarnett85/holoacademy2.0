@@ -7,7 +7,7 @@
    · כל בחירה נכתבת למאגר (holo_guest_lens) לפני ש-onChange נקרא, כך שהעדשה שורדת מעבר בין הטאבים הראשיים.
    · רשימת המקצועות: מ-GET /api/analytics-v2/config?lens=subject_teacher (נטען פעם אחת, נשמר בזיכרון). אם הקריאה נכשלת —
      נשארים כפתורי התפקיד, ובורר המקצוע יופיע רק כשיש רשימה; אין הודעת שגיאה (התצוגה עצמה לא תלויה בו).
-   · הנבחר מסומן בוי + מילה (לא בצבע בלבד), המקצוע בבורר עם תווית גלויה, ומשפט הסבר אחד.
+   · שורה אחת בלבד (גובה 48px): משפט הסבר קצר, המתג הצפוף, ובורר המקצוע באותה שורה. הנבחר מסומן בוי + מילה (לא בצבע בלבד).
    ────────────────────────────────────────────────────────────────────────── */
 import { useEffect, useState } from 'react'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
@@ -84,19 +84,19 @@ export default function GuestLensSwitcher({ value, onChange, lenses = GUEST_LENS
   }
 
   return (
-    <div data-lens-switcher style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-      <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, maxWidth: 320, fontSize: 16, lineHeight: 1.4, color: T.textSoft }}>
-        <span style={{ color: T.accent, display: 'inline-flex' }}><Icon name="info" size={20} /></span>
+    <div data-lens-switcher style={{ display: 'flex', alignItems: 'center', gap: '4px 14px', flexWrap: 'wrap' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, fontWeight: 600, color: T.textSoft, whiteSpace: 'nowrap' }}>
+        <span style={{ color: T.accent, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
         {GUEST_LENS_TEXT.sentence}
-      </p>
-      <ModeToggle ariaLabel={GUEST_LENS_TEXT.groupLabel} value={current.lens}
+      </span>
+      <ModeToggle compact ariaLabel={GUEST_LENS_TEXT.groupLabel} value={current.lens}
         onChange={(id) => { if (id !== current.lens) pick(id as GuestLens, id === 'subject_teacher' ? subjectValue : lastSubject) }}
         options={lenses.map((l) => ({ id: l, label: GUEST_LENS_TEXT.names[l] }))} />
       {current.lens === 'subject_teacher' && options.length > 0 && (
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700, color: T.text }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text }}>
           {GUEST_LENS_TEXT.subject}:
           <select value={subjectValue ?? ''} onChange={(e) => pick('subject_teacher', e.target.value)}
-            style={{ minHeight: MIN_TARGET + 4, padding: '0 12px', borderRadius: RADIUS.md, border: `2px solid ${T.controlBorder}`, background: T.surface, color: T.text, fontFamily: FONT, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+            style={{ minHeight: MIN_TARGET, padding: '0 10px', borderRadius: RADIUS.md, border: `2px solid ${T.controlBorder}`, background: T.surface, color: T.text, fontFamily: FONT, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
             {options.map((s) => <option key={s.code} value={s.code}>{s.nameHe}</option>)}
           </select>
         </label>

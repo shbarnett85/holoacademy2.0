@@ -13,7 +13,7 @@
 import type { Evidence, InsufficientReason } from '../types/analyticsV2'
 import type { FindingKind, Position, Trend } from './analyticsConfig'
 import {
-  AGE_NORM, AREA_MIN_DELTA, ATTENTION_RULE, CLASS_SUCCESS_BANDS, CURRENT_LEVEL_SESSIONS, MIN_CELL_SIZE, MISCONCEPTION_RULE,
+  AGE_NORM, AREA_MIN_DELTA, ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, CURRENT_LEVEL_SESSIONS, MIN_CELL_SIZE, MISCONCEPTION_RULE,
   TREND_LABEL_MIN_DELTA, TREND_WINDOWS, contentVectorLabel,
 } from './analyticsConfig'
 import { subjectName } from './subjects'
@@ -45,14 +45,22 @@ const levelsWord = (n: number): string => {
   const a = Math.abs(Math.round(n * 10) / 10)
   return a === 1 ? 'רמה אחת' : `${fmt1(a)} רמות`
 }
+/* "ברמה אחת" / "ב-0.6 רמות" — בלי מקף לפני מילה ("ב-רמה אחת" אינו עברית) */
+const byLevels = (n: number): string => {
+  const a = Math.abs(Math.round(n * 10) / 10)
+  return a === 1 ? 'ברמה אחת' : `ב-${fmt1(a)} רמות`
+}
 const studentsWord = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת' : `${n} תלמידים`)
 /* "אין עדיין מספיק נתונים" — הניסוח האחיד בכל מקום שבו אין מה לדווח */
 export const NO_DATA_YET = 'אין עדיין מספיק נתונים'
 
 /* ── הסתייגויות קבועות (חוקים 7, 11) ── */
 export const CAVEAT_AGE_NORM = 'משווים לרמה המיועדת לשכבה בסולם ההדמיות, לא למבחן ארצי. הטווח נועד להקשר בלבד ואינו ציון.'
-export const CAVEAT_CROSS_SUBJECT = 'לכל מקצוע סולם רמות משלו, ולכן אי אפשר להשוות ישירות בין הרמות של מקצועות שונים. אין כאן ציון אחד מאוחד; התצוגה זה לצד זה נועדה לתת תמונה, לא דירוג.'
+/* משפט אחד קצר, זהה בכל מסך. ההסבר המלא (סולם משלו לכל מקצוע, אין ציון מאוחד) חי ב-HOW_WE_CALC.lines. */
+export const CAVEAT_CROSS_SUBJECT = 'הרמות של מקצועות שונים אינן ניתנות להשוואה ישירה.'
 export const CAVEAT_TREND = 'המערכת מתארת מה שנצפה בנתונים ואינה קובעת מה גרם לכך. כל מגמה היא נקודת התחלה לשיחה, לא פסק דין.'
+/* ההסתייגויות כפי שהן מגיעות בחוזה — מקור יחיד לכל הספקים והמסכים */
+export const ANALYTICS_CAVEATS = { ageNorm: CAVEAT_AGE_NORM, crossSubject: CAVEAT_CROSS_SUBJECT, trend: CAVEAT_TREND } as const
 
 /* הודעות מצב קבועות (נתוני הדגמה; מיפוי תוכנית לימודים לדוגמה) */
 export const NOTICE_DEMO_DATA = 'נתוני הדגמה — בית ספר, כיתות ותלמידים בדויים. בחשבון אמיתי יוצגו כאן התלמידים שלכם.'
@@ -112,7 +120,8 @@ export function narrateInsufficient(kind: FindingKind, reason: InsufficientReaso
 /* שם המקצוע לרשימת cross_subject — הקורא מספק מחרוזת מוכנה */
 export function joinSubjectNames(names: string[]): string {
   if (names.length <= 1) return names.join('')
-  return names.slice(0, -1).join(', ') + ' ו' + names[names.length - 1]
+  const last = names[names.length - 1]
+  return names.slice(0, -1).join(', ') + (/^\d/.test(last) ? ' ו-' : ' ו') + last /* "ו-3 תלמידים", אבל "ומדעים" */
 }
 
 const wordsPerSecond = (msPerWord: number): number => Math.max(1, Math.round(1000 / msPerWord))
@@ -133,7 +142,7 @@ export function narrateFinding(e: Evidence, c: NarrativeCtx = {}): string {
       const since = `${termLabel(e.term)} (${monthYear(e.sinceDate)})`
       const where = `${c.subjectName ? `ב${c.subjectName}, ` : ''}${c.className ? `בכיתה ${c.className}` : 'בכיתה'}`
       if (e.meanDelta < 0) {
-        return `${where} נצפתה ירידה ב${e.conceptTitle} מאז תחילת ${since}: רק ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו, ובממוצע הרמה ירדה ב-${levelsWord(e.meanDelta)}.`
+        return `${where} נצפתה ירידה ב${e.conceptTitle} מאז תחילת ${since}: רק ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו, ובממוצע הרמה ירדה ${byLevels(e.meanDelta)}.`
       }
       return `${where} נצפה שיפור ב${e.conceptTitle} מאז תחילת ${since}: ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו, ובממוצע עלו ${levelsWord(e.meanDelta)}.`
     }
@@ -153,25 +162,30 @@ export function narrateFinding(e: Evidence, c: NarrativeCtx = {}): string {
   }
 }
 
-/* משפט קצר אחד — להתרעות במסך הכניסה, לסיכום המקצוע ולציר ההתקדמות */
-export function narrateShort(e: Evidence, c: NarrativeCtx = {}): string {
-  const name = who(c)
+/* גוף המשפט הקצר — בלי הפתיח (שם התלמיד/ה או הכיתה) ובלי נקודה: "ירידה ברמה בהיסטוריה מאז יוני".
+   המקצוע (אם יש) כלול בגוף, כדי שאפשר יהיה לשלב אותו בכותרות ("הדחוף ביותר: …"). */
+export function narrateShortBody(e: Evidence, c: NarrativeCtx = {}): string {
+  const sub = inSubject(c)
   switch (e.kind) {
     case 'level_trend':
-      return e.direction === 'down'
-        ? `${name}${inSubject(c)}: ירידה ברמה מאז ${monthName(e.changeDate)}.`
-        : `${name}${inSubject(c)}: עלייה ברמה מאז ${monthName(e.changeDate)}.`
+      return `${e.direction === 'down' ? 'ירידה' : 'עלייה'} ברמה${sub} מאז ${monthName(e.changeDate)}`
     case 'class_concept_improvement':
-      return `${c.className ? `בכיתה ${c.className}` : 'בכיתה'}: ${e.meanDelta < 0 ? 'ירידה' : 'שיפור'} ב${e.conceptTitle} מאז תחילת ${termLabel(e.term)} — ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו.`
+      return `${e.meanDelta < 0 ? 'ירידה' : 'שיפור'} ב${e.conceptTitle} מאז תחילת ${termLabel(e.term)} — ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו`
     case 'memory_random_pattern':
-      return `${name}${inSubject(c)}: דפוס הלחיצות במשחק הזיכרון ראוי לבדיקה.`
+      return `דפוס הלחיצות במשחק הזיכרון${sub} ראוי לבדיקה`
     case 'position_bias':
-      return `${name}${inSubject(c)}: נטייה לבחור בתשובה הראשונה.`
+      return `נטייה לבחור בתשובה הראשונה${sub}`
     case 'reading_skip':
-      return `${name}${inSubject(c)}: מעבר מהיר מאוד בין שקפים — ייתכן שהטקסט נקרא בחטף.`
+      return `מעבר מהיר מאוד בין שקפים${sub} — ייתכן שהטקסט נקרא בחטף`
     case 'cross_subject_dip':
-      return `${name}: ירידה ברמה בכמה מקצועות יחד (${joinSubjectNames(e.subjects.map((s) => subjectName(s.code)))}).`
+      return `ירידה ברמה בכמה מקצועות יחד (${joinSubjectNames(e.subjects.map((s) => subjectName(s.code)))})`
   }
+}
+
+/* משפט קצר אחד — להתרעות במסך הכניסה, לסיכום המקצוע ולציר ההתקדמות: "אלון: ירידה ברמה בהיסטוריה מאז יוני." */
+export function narrateShort(e: Evidence, c: NarrativeCtx = {}): string {
+  const lead = e.kind === 'class_concept_improvement' ? (c.className ? `בכיתה ${c.className}` : 'בכיתה') : who(c)
+  return `${lead}: ${narrateShortBody(e, c)}.`
 }
 
 /* ── טעויות נפוצות והמלצות ── */
@@ -210,11 +224,16 @@ export function narrateStrengthAbove(subjectName: string, level: number, normCen
 export function narrateDifficultyBelow(subjectName: string, level: number, normCenter: number): string {
   return `ב${subjectName} הרמה הנוכחית (${fmt1(level)}) נמוכה מהרמה המיועדת לשכבה בסולם ההדמיות (${fmt1(normCenter)}); זו נקודת ייחוס להקשר ולא מדד ליכולת.`
 }
+/* "בתחום "ידע עובדתי"" — ושם תחום שכבר מסתיים ב"בתחום" ("הבנת הנקרא בתחום") לא מקבל "בתחום" כפול: ב"הבנת הנקרא בתחום" */
+export function areaRef(vectorKey: string): string {
+  const label = contentVectorLabel(vectorKey)
+  return /בתחום$/.test(label.trim()) ? `ב"${label}"` : `בתחום "${label}"`
+}
 export function narrateVectorStrength(vectorKey: string, subjectName: string, level: number, subjectLevel: number): string {
-  return `ב${subjectName}, בתחום "${contentVectorLabel(vectorKey)}" הרמה (${fmt1(level)}) גבוהה מהרמה הכללית במקצוע (${fmt1(subjectLevel)}).`
+  return `ב${subjectName}, הרמה ${areaRef(vectorKey)} (${fmt1(level)}) גבוהה מהרמה הכללית במקצוע (${fmt1(subjectLevel)}).`
 }
 export function narrateVectorGap(vectorKey: string, subjectName: string, level: number, subjectLevel: number): string {
-  return `ב${subjectName}, בתחום "${contentVectorLabel(vectorKey)}" הרמה (${fmt1(level)}) נמוכה מהרמה הכללית במקצוע (${fmt1(subjectLevel)}).`
+  return `ב${subjectName}, הרמה ${areaRef(vectorKey)} (${fmt1(level)}) נמוכה מהרמה הכללית במקצוע (${fmt1(subjectLevel)}).`
 }
 export function narrateRecommendationFromFinding(e: Evidence, c: NarrativeCtx): string {
   const sub = c.subjectName ?? 'המקצוע'
@@ -240,7 +259,7 @@ export function narrateUnknown(kind: FindingKind, n: number, minN: number, c: Na
 }
 /* ירידה ברמה — ניסוח קצר לסעיף "קשיים" בתדריך (הפירוט המלא בסעיף "מגמה") */
 export function narrateDifficultyFromTrend(subjectName: string, changeIso: string, deltaLevels: number): string {
-  return `ב${subjectName}: הרמה ירדה ב-${levelsWord(deltaLevels)} מאז ${monthName(changeIso)} (הפירוט בסעיף המגמה).`
+  return `ב${subjectName}: הרמה ירדה ${byLevels(deltaLevels)} מאז ${monthName(changeIso)} (הפירוט בסעיף המגמה).`
 }
 export const EVIDENCE_LIMITS_NOTE =
   'מידע שאינו זמין למערכת: התנהגות בכיתה, ציונים במבחנים, ידע קודם והקשר אישי או משפחתי. יש להצליב את הנתונים עם התרשמות המורה לפני כל החלטה.'
@@ -276,6 +295,8 @@ export function narrateFeedbackNextStep(subjectName: string, conceptTitle: strin
     ? `הצעד הבא ב${subjectName}: עוד תרגול קצר ב${conceptTitle}. כל תרגול מקרב אותך להצלחה.`
     : `הצעד הבא ב${subjectName}: להמשיך לשחק ולנסות אתגרים חדשים. כל ניסיון מלמד משהו.`
 }
+/* פתיח תצוגת "כך התלמיד/ה רואה" — מופיע למורה בלבד, מעל מה שהתלמיד/ה רואה */
+export const FEEDBACK_INTRO_TEXT = 'כך נראה המסך לתלמיד/ה. אין בו השוואה לתלמידים אחרים.'
 export function narrateFeedbackHeadline(firstName: string, hasGrowth: boolean): string {
   return hasGrowth ? `שלום ${firstName}, הנה מה שהשתפר אצלך לאחרונה` : `שלום ${firstName}, הנה סיכום הפעילות שלך`
 }
@@ -301,22 +322,124 @@ export function narrateOverviewSummary(i: OverviewSummaryInput): string {
   return `בכיתה ${i.className}, מתוך ${measured} מקצועות: ${parts.join(', ')}. ${attentionSentence(i.attentionStudents)}`
 }
 
+/* מילת החיבור בין המיקום למגמה: "ו" כששניהם באותו כיוון (או כשהמגמה יציבה), "אך" כשהם מנוגדים.
+   מיקום "מעל" ו"בתוך" הטווח נחשבים טובים, "מתחת" גרוע; מגמה "בעלייה" טובה, "בירידה" גרועה, "יציבה" ניטרלית. */
+export type Connective = 'ו' | 'אך'
+export function trendConnective(position: Position, trend: Trend): Connective | null {
+  if (trend === 'insufficient') return null
+  const positionGood = position !== 'below'
+  return (positionGood && trend === 'declining') || (!positionGood && trend === 'improving') ? 'אך' : 'ו'
+}
+const TREND_CLAUSE: Record<Exclude<Trend, 'insufficient'>, string> = { improving: 'המגמה בעלייה', steady: 'המגמה יציבה', declining: 'המגמה בירידה' }
+
 export interface SubjectHeadlineInput { className: string; subject: string; position: Position | null; trend: Trend; attentionStudents: number }
 /* משפט הסיכום של מקצוע בכיתה */
 export function narrateSubjectHeadline(i: SubjectHeadlineInput): string {
   if (!i.position) return `בכיתה ${i.className}: ${NO_DATA_YET} על הרמה ב${i.subject}. התמונה תופיע כשתלמידים יסיימו הדמיות.`
-  const trendClause =
-    i.trend === 'improving' ? ', והמגמה בעלייה' : i.trend === 'steady' ? ', והמגמה יציבה' : i.trend === 'declining' ? ', אך המגמה בירידה' : ''
+  const joiner = trendConnective(i.position, i.trend)
+  /* "ו" נצמד למילה ("והמגמה"); "אך" עומד לבדו ("אך המגמה") */
+  const trendClause = joiner && i.trend !== 'insufficient' ? `, ${joiner === 'ו' ? `ו${TREND_CLAUSE[i.trend]}` : `אך ${TREND_CLAUSE[i.trend]}`}` : ''
   return `בכיתה ${i.className} הרמה ב${i.subject} ${POSITION_TEXT[i.position]}${trendClause}. ${attentionSentence(i.attentionStudents)}`
 }
 
-export interface StudentHeadlineInput { firstName: string; attention: number; positive: number; crossSubject: boolean }
-/* משפט הסיכום של עמוד התלמיד */
+export interface StudentHeadlineInput {
+  firstName: string
+  attention: number
+  positive: number
+  crossSubject: boolean
+  /* הממצא החשוב ביותר בטון "תשומת לב" (גוף משפט מ-narrateShortBody, בלי שם); כשחסר — ניסוח כללי */
+  topAttention?: string | null
+}
+/* משפט הסיכום של עמוד התלמיד: אומר מה נצפה, לא "יש משהו לבדוק".
+   אחד: "אלון: ירידה ברמה בהיסטוריה מאז יוני." · כמה: "… יש 3 דברים שכדאי לבדוק. הדחוף ביותר: …" */
 export function narrateStudentHeadline(i: StudentHeadlineInput): string {
-  if (i.crossSubject) return `${i.firstName}: נצפתה ירידה ברמה בכמה מקצועות יחד — כדאי לשוחח.`
-  if (i.attention > 0) return i.attention === 1 ? `${i.firstName}: יש דבר אחד שכדאי לבדוק.` : `${i.firstName}: יש ${i.attention} דברים שכדאי לבדוק.`
+  const top = i.topAttention ?? null
+  if (i.crossSubject) return top ? `${i.firstName}: ${top} — כדאי לשוחח.` : `${i.firstName}: נצפתה ירידה ברמה בכמה מקצועות יחד — כדאי לשוחח.`
+  if (i.attention > 0) {
+    if (i.attention === 1) return top ? `${i.firstName}: ${top}.` : `${i.firstName}: יש דבר אחד שכדאי לבדוק.`
+    return top ? `${i.firstName}: יש ${i.attention} דברים שכדאי לבדוק. הדחוף ביותר: ${top}.` : `${i.firstName}: יש ${i.attention} דברים שכדאי לבדוק.`
+  }
   if (i.positive > 0) return `${i.firstName}: נצפתה התקדמות.`
   return `${i.firstName}: אין כרגע דבר חריג לדווח.`
+}
+
+/* ── מסך הכניסה: כותרת רצועת "דורש תשומת לב" והמשך הרשימה ──
+   shown = כמה התרעות מוצגות ברצועה; total = כמה תלמידים לתשומת לב יש בהיקף שהצופה רשאי לראות (אותו מספר כמו בכרטיסי הכיתות). */
+export function narrateAlertsTitle(shown: number, total: number): string {
+  if (total <= 0) return ANALYTICS_TEXT.alertsTitle /* אין רצועה להציג; תווית ניטרלית (גם למנהל, שלא מקבל נתוני תלמידים) */
+  if (total <= shown) return attentionBadgeText(total)
+  return `${countOf(shown, total)} התלמידים לתשומת לב — הדחופים ביותר`
+}
+/* "ועוד 2 תלמידים בכיתה" — או null כשהכול מוצג */
+export function narrateAlertsMore(shown: number, total: number, manyClasses = false): string | null {
+  const rest = total - shown
+  if (rest <= 0) return null
+  const where = manyClasses ? 'בכיתות' : 'בכיתה'
+  return rest === 1 ? `ועוד תלמיד/ה אחד/ת ${where}` : `ועוד ${rest} תלמידים ${where}`
+}
+
+/* ── משפט אחד לכל תת-טאב של מקצוע בכיתה (טעויות נפוצות · התקדמות · תלמידים) ── */
+export interface StudentsTabInput { total: number; improving: number; steady: number; declining: number }
+/* "20 מתוך 22 תלמידים בירידה." — הקבוצה הגדולה ראשונה, ואחריה השאר */
+export function narrateStudentsTabSummary(i: StudentsTabInput): string {
+  if (i.total <= 0) return EMPTY_TEXT.noStudents
+  const measured = i.improving + i.steady + i.declining
+  if (measured === 0) return `${NO_DATA_YET} על מגמות התלמידים. הן יופיעו כשתלמידים יסיימו עוד הדמיות.`
+  const one = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת' : `${n} תלמידים`)
+  /* סדר ההשוואה בשוויון: ירידה, אחר כך שיפור, אחר כך יציבות — מה שדורש תשומת לב קודם */
+  const groups = [
+    { n: i.declining, label: () => 'בירידה' },
+    { n: i.improving, label: (n: number) => (n === 1 ? 'משתפר/ת' : 'משתפרים') },
+    { n: i.steady, label: (n: number) => (n === 1 ? 'יציב/ה' : 'יציבים') },
+  ].filter((g) => g.n > 0).sort((a, b) => b.n - a.n)
+  const [first, ...others] = groups
+  const lead = first.n === i.total && i.total > 1 ? `כל ${i.total} התלמידים ${first.label(first.n)}` : `${countOf(first.n, i.total)} תלמידים ${first.label(first.n)}`
+  const unknown = i.total - measured
+  const tail = [
+    others.length ? `, ${joinSubjectNames(others.map((g) => `${one(g.n)} ${g.label(g.n)}`))}` : '',
+    unknown > 0 ? `, ולגבי ${one(unknown)} ${NO_DATA_YET}` : '',
+  ].join('')
+  return `${lead}${tail}.`
+}
+
+export interface ProgressTabInput {
+  /* n = כמה תלמידים תרמו נתון באותו חודש (אם ידוע) */
+  series: { date: string; level: number; n?: number }[]
+}
+/* "הרמה הממוצעת עלתה ב-0.6 רמות מאז ספטמבר." — מהחודש הראשון בגרף לאחרון.
+   חודש שתרמו לו פחות ממחצית מהתלמידים שתרמו בחודש העמוס ביותר לא משמש נקודת קצה (חודש עם תלמיד/ה בודד/ת היה מטעה). */
+export function narrateProgressTabSummary(i: ProgressTabInput): string {
+  const maxN = Math.max(1, ...i.series.map((p) => p.n ?? 0))
+  const usable = i.series.filter((p) => p.n === undefined || p.n * 2 >= maxN)
+  if (usable.length < 2) return EMPTY_TEXT.noProgress
+  const first = usable[0]
+  const last = usable[usable.length - 1]
+  const delta = Math.round((last.level - first.level) * 10) / 10
+  /* שם החודש לבדו ("מאז ספטמבר"); רק כשעברה כמעט שנה שלמה מוסיפים שנה, כדי שלא יהיה ספק איזה ספטמבר */
+  const f = new Date(first.date)
+  const l = new Date(last.date)
+  const monthsApart = (l.getUTCFullYear() - f.getUTCFullYear()) * 12 + (l.getUTCMonth() - f.getUTCMonth())
+  const since = monthsApart >= 11 ? monthYear(first.date) : monthName(first.date)
+  if (delta === 0) return `הרמה הממוצעת של הכיתה כמעט לא השתנתה מאז ${since}.`
+  return `הרמה הממוצעת ${delta > 0 ? 'עלתה' : 'ירדה'} ${byLevels(delta)} מאז ${since}.`
+}
+
+export interface ErrorsTabInput {
+  /* שמות הטעויות הנפוצות בכיתה, מהנפוצה ביותר */
+  common: string[]
+  /* האם יש לפחות טעות אחת עם מספיק נתונים לדיווח */
+  anyReported: boolean
+  /* כמה שמות לקרוא במשפט (השאר: "ועוד N") */
+  maxTitles: number
+}
+/* "2 טעויות נפוצות: "א" ו"ב"." */
+export function narrateErrorsTabSummary(i: ErrorsTabInput): string {
+  if (!i.anyReported) return EMPTY_TEXT.noCommonErrors
+  if (i.common.length === 0) return 'אין כרגע טעות שחוזרת אצל חלק גדול מהכיתה.'
+  const titles = i.common.slice(0, Math.max(1, i.maxTitles)).map((t) => `"${t}"`)
+  const hidden = i.common.length - titles.length
+  const count = i.common.length === 1 ? 'טעות נפוצה אחת' : `${i.common.length} טעויות נפוצות`
+  return `${count}: ${joinSubjectNames(titles)}${hidden > 0 ? ` ועוד ${hidden}` : ''}.`
 }
 
 /* ── מנהל: משפטים ללא שם/מזהה תלמיד וללא מידע על מורים ── */
@@ -353,7 +476,7 @@ export const BRIEFING_SECTION_TITLES = {
   trend: 'מגמה',
   recommendations: 'המלצות',
   unknowns: 'מה עדיין לא ידוע',
-  evidence_basis: 'בסיס ראייתי לתל״א',
+  evidence_basis: 'על מה זה מבוסס',
   how_we_calculated: 'איך חישבנו?',
 } as const
 export const briefingTitleStudent = (name: string): string => `תדריך לישיבה פדגוגית — ${name}`
@@ -364,7 +487,10 @@ export const briefingSubtitleClass = (subjectNames: string[]): string => subject
 export const ERR_AGGREGATE_ONLY = 'נתוני תלמידים ברמה האישית אינם זמינים לתפקיד זה — רק תמונות רחבות ומגמות'
 export const ERR_NO_ACCESS = 'אין הרשאה לצפות בנתון זה'
 export const ERR_NOT_FOUND = 'לא נמצא'
-export const normBandLine = (low: number, high: number): string => `הטווח המיועד לשכבה: ${low}–${high}`
+/* טווח מספרי נכתב במילים ("מ-8.5 עד 11.5") ולא במקף בין שני מספרים: בתוך פסקה מימין לשמאל המקף היה הופך את הסדר ל-"11.5–8.5".
+   כל טקסט מספרי חדש עם טווח עובר דרך numberRange. */
+export const numberRange = (low: number, high: number): string => `מ-${fmt1(low)} עד ${fmt1(high)}`
+export const normBandLine = (low: number, high: number): string => `הטווח המיועד לשכבה: ${numberRange(low, high)}`
 /* "יש עד עכשיו 3 הדמיות; כדי לדווח צריך לפחות 8" */
 export const needMoreLine = (kind: FindingKind, n: number, minN: number): string => `יש עד עכשיו ${unitCount(kind, n)}; כדי לדווח צריך לפחות ${minN}`
 export const exposuresLine = (minExposures: number): string => `לפחות ${minExposures} שאלות בנושא לכל תלמיד/ה`
@@ -403,7 +529,7 @@ export const ANALYTICS_TEXT = {
    (ובתדריך — בסעיף how_we_calculated). כל מחרוזת מחוץ לקבוצה הזאת נקייה ממונחים טכניים.
    ══════════════════════════════════════════════════════════════════════════ */
 function evidenceLinesTechnical(n: number, pAdj: number | null, effect: number | null, startIso: string, endIso: string): string[] {
-  const out = [`N = ${n}`, `חלון: ${monthYear(startIso)} – ${monthYear(endIso)}`]
+  const out = [`N = ${n}`, `חלון: מ${monthYear(startIso)} עד ${monthYear(endIso)}`]
   if (pAdj !== null) out.push(`p מתוקן (BH) = ${pAdj < 0.001 ? '< 0.001' : (Math.round(pAdj * 1000) / 1000).toString()}`)
   if (effect !== null) out.push(`גודל אפקט = ${fmt1(effect)}`)
   return out
@@ -425,6 +551,8 @@ export const HOW_WE_CALC = {
     `תחום חזק או מאתגר = תחום שהרמה בו שונה מהרמה הכללית במקצוע ב-${AREA_MIN_DELTA} רמה או יותר, ורק אם נאספו בו מספיק תשובות.`,
     `טעות נפוצה = לפחות ${MISCONCEPTION_RULE.minExposuresPerStudent} שאלות בנושא, שבהן התלמיד/ה בחר/ה בתשובה השגויה המתויגת לפחות ${MISCONCEPTION_RULE.minHitsPerStudent} פעמים ובמחצית מהשאלות או יותר. אחוז מוצג רק כשיש לפחות ${MIN_CELL_SIZE} תלמידים.`,
     'דפוס או שינוי מדווחים רק כשיש מספיק תצפיות, כשהשינוי אינו נראה מקרי (בדיקה סטטיסטית עם תיקון לבדיקות מרובות) והוא גדול מספיק כדי להיות משמעותי.',
+    /* ההסבר המלא להסתייגות "הרמות של מקצועות שונים אינן ניתנות להשוואה ישירה" (במסכים מופיע רק המשפט הקצר) */
+    'לכל מקצוע סולם רמות משלו, ולכן אי אפשר להשוות ישירות בין הרמות של מקצועות שונים. אין כאן ציון אחד מאוחד; התצוגה של כמה מקצועות זה לצד זה נועדה לתת תמונה, לא דירוג.',
   ] as readonly string[],
 } as const
 /* כינוי לתאימות אחורה (מסכי שלב D); ההגדרה היחידה היא בתוך HOW_WE_CALC */
@@ -437,10 +565,33 @@ export const evidenceLines = HOW_WE_CALC.evidenceLines
 export const countOf = (x: number, y: number): string => `${x} מתוך ${y}`
 export const withPct = (x: number, y: number): string => (y > 0 ? `${countOf(x, y)} (${Math.round((100 * x) / y)}%)` : countOf(x, y))
 
-export const dateHe = (iso: string): string => {
+/* ── תאריכי תוצאות: יום בלוח השנה של ישראל (Asia/Jerusalem), לא רגע UTC ──
+   שליחה ב-20 באוקטובר 01:30 שעון ישראל נשמרת ב-DB כ-19 באוקטובר 22:30Z. גם הניסוח ("זמין מ-…") וגם ההשוואה "נשלח אחרי שהלכידה
+   התחילה" נעשים לפי היום הישראלי, ולכן הטקסט והשער תמיד מסכימים. */
+const IL_TIME_ZONE = 'Asia/Jerusalem'
+const IL_DAY_FORMAT = new Intl.DateTimeFormat('en-GB', { timeZone: IL_TIME_ZONE, year: 'numeric', month: 'numeric', day: 'numeric' })
+export function israelDay(iso: string): { year: number; month: number; day: number } | null {
   const d = new Date(iso)
-  return `${d.getUTCDate()} ב${monthName(iso)} ${d.getUTCFullYear()}`
+  if (Number.isNaN(d.getTime())) return null
+  const parts = IL_DAY_FORMAT.formatToParts(d)
+  const part = (type: string): number => Number(parts.find((p) => p.type === type)?.value)
+  return { year: part('year'), month: part('month'), day: part('day') }
 }
+/* מפתח יום ישראלי להשוואה (YYYY-MM-DD; השוואת מחרוזות = השוואת ימים); null אם התאריך אינו תקין */
+export function israelDayKey(iso: string): string | null {
+  const p = israelDay(iso)
+  const pad = (n: number, w: number): string => String(n).padStart(w, '0')
+  return p ? `${pad(p.year, 4)}-${pad(p.month, 2)}-${pad(p.day, 2)}` : null
+}
+export const dateHe = (iso: string): string => {
+  const p = israelDay(iso)
+  return p ? `${p.day} ב${MONTHS[p.month - 1] ?? ''} ${p.year}` : ''
+}
+
+/* "X מתוך Y" צמוד — רווחים לא-שוברים (U+00A0), כדי שהמספר לא יתנתק מ"מתוך" בגבול שורה. למשפטי הסיכום בלבד: countOf (לממשק) נשאר כפי שהיה. */
+const NBSP = '\u00A0'
+export const countNb = (x: number, y: number): string => `${x}${NBSP}מתוך${NBSP}${y}`
+const challengesWord = (n: number): string => (n === 1 ? 'אתגר' : 'אתגרים')
 
 export interface ClassSummaryInput {
   total: number
@@ -449,41 +600,63 @@ export interface ClassSummaryInput {
   notStarted: number
   /* חלק האתגרים שנפתרו בממוצע בקרב מי שסיימו (0..1), או null אם אין מי שסיים */
   avgSolvedShare: number | null
+  /* מספר האתגרים בהדמיה. 0 = אין בה אתגרים שאפשר למדוד (אז "סיימו" הוא כל מה שיש לומר); חסר = לא ידוע */
+  totalChallenges?: number
+  /* wrong = כמה מתוך מי שניסו את האתגר לא הצליחו (טעו, ויתרו או נגמר הזמן) */
   hardest: { title: string; attempted: number; wrong: number; topErrorOptionText: string | null; topErrorCount: number } | null
 }
 
+/* כשכולם סיימו: משפט על הכיתה כולה */
 const classLead = (share: number): string =>
   share >= CLASS_SUCCESS_BANDS.most ? 'רוב הכיתה הצליחה.' : share >= CLASS_SUCCESS_BANDS.some ? 'חלק מהכיתה התקשה.' : 'הכיתה התקשתה בהדמיה.'
+/* כשעדיין לא כולם סיימו: המשפט מדבר רק על מי שסיימו (אחרי "עד עכשיו סיימו X מתוך Y.") */
+const partialLead = (share: number): string =>
+  share >= CLASS_SUCCESS_BANDS.most ? 'רובם הצליחו.' : share >= CLASS_SUCCESS_BANDS.some ? 'חלקם התקשו.' : 'הם התקשו בהדמיה.'
+const partialLeadShort = (share: number): string =>
+  share >= CLASS_SUCCESS_BANDS.most ? 'רוב מי שסיימו עד עכשיו הצליחו.' : share >= CLASS_SUCCESS_BANDS.some ? 'חלק ממי שסיימו עד עכשיו התקשו.' : 'מי שסיימו עד עכשיו התקשו בהדמיה.'
 
-const NO_RESULTS_YET = 'התוצאות יופיעו כאן כשתלמידים יסיימו.'
+/* מספיק תוצאות כדי לסכם את הכיתה במשפט כללי: כולם סיימו, או לפחות CLASS_SUMMARY_MIN_COMPLETED */
+const canSummarize = (i: ClassSummaryInput): boolean => i.completed >= i.total || i.completed >= CLASS_SUMMARY_MIN_COMPLETED
+
+/* משפט אחיד לכל רמה (כיתה / רשימה / תלמיד/ה): עוד אין תוצאות, ומה יקרה */
+export const NO_RESULTS_YET = 'התוצאות יופיעו כאן כשיסיימו.'
+
+const noChallengesLine = (i: ClassSummaryInput): string => `${countNb(i.completed, i.total)} סיימו את ההדמיה; אין בה אתגרים שאפשר למדוד.`
 
 /* משפט הסיכום של מסך ההדמיה (מצב "כל הכיתה") */
 export function narrateClassSummary(i: ClassSummaryInput): string {
+  if (i.totalChallenges === 0 && i.completed > 0) return noChallengesLine(i)
   if (i.completed === 0 || i.avgSolvedShare === null) {
     return i.inProgress > 0
-      ? `${i.inProgress === 1 ? 'תלמיד/ה אחד/ת באמצע' : `${i.inProgress} תלמידים באמצע`} ההדמיה. ${NO_RESULTS_YET}`
+      ? `${i.inProgress === 1 ? 'אחד התלמידים באמצע' : `${i.inProgress} תלמידים באמצע`} ההדמיה. ${NO_RESULTS_YET}`
       : `עוד אף תלמיד לא התחיל את ההדמיה. ${NO_RESULTS_YET}`
   }
-  const parts = [classLead(i.avgSolvedShare)]
+  const enough = canSummarize(i)
+  const parts: string[] = []
+  if (i.completed >= i.total) parts.push(classLead(i.avgSolvedShare))
+  else parts.push(`עד עכשיו סיימו ${countNb(i.completed, i.total)}.`, enough ? partialLead(i.avgSolvedShare) : 'עוד אין מספיק תוצאות כדי לסכם את הכיתה.')
   const h = i.hardest
-  if (h && h.wrong > 0) {
-    let s = `האתגר הקשה ביותר: ${h.title}. ${countOf(h.wrong, h.attempted)} טעו`
+  if (enough && h && h.wrong > 0) {
+    let s = `האתגר הקשה ביותר: ${h.title}. ${countNb(h.wrong, h.attempted)} לא הצליחו`
     if (h.topErrorOptionText && h.topErrorCount >= 2) {
-      s += h.topErrorCount * 2 > h.wrong ? `, ורובם בחרו ${h.topErrorOptionText}.` : `, ו-${h.topErrorCount} מהם בחרו ${h.topErrorOptionText}.`
+      const chosen = `ב״${h.topErrorOptionText}״`
+      s += h.topErrorCount * 2 > h.wrong ? `, ורובם בחרו ${chosen}.` : `, ו-${h.topErrorCount} מהם בחרו ${chosen}.`
     } else s += '.'
     parts.push(s)
   }
-  if (i.completed < i.total) parts.push(`${countOf(i.completed, i.total)} סיימו עד עכשיו.`)
   return parts.join(' ')
 }
 
-/* משפט קצר אחד לשורה ברשימת השליחות */
+/* משפט קצר אחד לשורה ברשימת השליחות — אותו כלל כמו הסיכום הכיתתי: לא מכליל מעבר למי שסיימו */
 export function narrateListSummary(i: ClassSummaryInput): string {
+  if (i.totalChallenges === 0 && i.completed > 0) return `${countNb(i.completed, i.total)} סיימו את ההדמיה.`
   if (i.completed === 0 || i.avgSolvedShare === null) {
-    return i.inProgress > 0 ? 'התלמידים באמצע ההדמיה — עוד אין תוצאות.' : 'עוד לא התחילו — התוצאות יופיעו כשתלמידים יסיימו.'
+    return i.inProgress > 0 ? 'התלמידים באמצע ההדמיה — עוד אין תוצאות.' : `עוד לא התחילו. ${NO_RESULTS_YET}`
   }
+  if (!canSummarize(i)) return `עד עכשיו סיימו ${countNb(i.completed, i.total)}.`
+  const lead = i.completed >= i.total ? classLead(i.avgSolvedShare) : partialLeadShort(i.avgSolvedShare)
   const h = i.hardest
-  return h && h.wrong > 0 ? `${classLead(i.avgSolvedShare)} הקשה ביותר: ${h.title}.` : classLead(i.avgSolvedShare)
+  return h && h.wrong > 0 ? `${lead} הקשה ביותר: ${h.title}.` : lead
 }
 
 export const attentionBadgeText = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת לתשומת לב' : `${n} תלמידים לתשומת לב`)
@@ -497,17 +670,27 @@ export interface StudentSummaryInput {
   attempted: number
   solved: number
   gaveUp: number
+  /* סיבות "תשומת לב" של התלמיד/ה (analyticsConfig.ATTENTION_RULE) — מנוסחות במילים בסוף המשפט */
+  attentionReasons?: ('not_started' | 'gave_up_often' | 'low_success')[]
 }
 export function narrateStudentSummary(i: StudentSummaryInput): string {
-  if (i.status === 'not_started') return `${i.firstName} עוד לא התחיל/ה את ההדמיה. התוצאות יופיעו כאן כשיסיימו.`
+  if (i.status === 'not_started') return `${i.firstName} עוד לא התחיל/ה את ההדמיה. ${NO_RESULTS_YET}`
   if (i.status === 'in_progress') {
     return i.attempted > 0
-      ? `${i.firstName} באמצע ההדמיה: פתר/ה ${countOf(i.solved, i.attempted)} אתגרים עד עכשיו.`
-      : `${i.firstName} באמצע ההדמיה. התוצאות יופיעו כאן כשיסיימו.`
+      ? `${i.firstName} באמצע ההדמיה: פתר/ה ${countNb(i.solved, i.attempted)} ${challengesWord(i.attempted)} עד עכשיו.`
+      : `${i.firstName} באמצע ההדמיה. ${NO_RESULTS_YET}`
   }
-  const base = `${i.firstName} פתר/ה ${countOf(i.solved, i.totalChallenges)} אתגרים.`
-  return i.gaveUp > 0 ? `${base} ויתר/ה על ${i.gaveUp}.` : base
+  if (i.totalChallenges === 0) return `${i.firstName} סיים/ה את ההדמיה; אין בה אתגרים שאפשר למדוד.`
+  let s = `${i.firstName} פתר/ה ${countNb(i.solved, i.totalChallenges)} ${challengesWord(i.totalChallenges)}.`
+  if (i.gaveUp > 0) s += ` ויתר/ה על ${i.gaveUp}.`
+  /* "עוד לא התחיל/ה" כבר נאמר במשפט עצמו (not_started); כאן רק סיבות למי שסיים/ה */
+  const why = (i.attentionReasons ?? []).filter((r) => r !== 'not_started').map(attentionReasonText)
+  if (why.length > 0) s += ` לתשומת לב: ${why.join(', ')}.`
+  return s
 }
+
+/* תרגול חזרה: המטלה שנשלחה אינה של ההדמיה שביקשו ממנה חזרה */
+export const ERR_REVIEW_WRONG_QUEST = 'המטלה אינה שייכת להדמיה זו'
 
 export const detailAvailableLine = (iso: string): string => `פירוט התשובות זמין להדמיות שנשלחו מ-${dateHe(iso)}`
 export const slideFactText = (order: number, words: number, seconds: number): string => `בשקף ${order} (${words} מילים) עבר/ה אחרי ${seconds} שניות`
@@ -567,6 +750,21 @@ export function howWeCalcObjectivesLines(bands: { strong: number; partial: numbe
     `תלמיד/ה נחשב/ת כמי שהצליח/ה ביעד כשהצליח/ה לפחות ב-${partial}% מהאתגרים והשאלות שלו. מי שהצליח/ה בפחות מזה מופיע/ה ברשימת המתקשים.`,
     `"${OBJECTIVE_LEVEL_TEXT.strong}" = ${strong}% מהתלמידים שניסו, או יותר, הצליחו ביעד. "${OBJECTIVE_LEVEL_TEXT.partial}" = בין ${partial}% ל-${strong}%. "${OBJECTIVE_LEVEL_TEXT.weak}" = פחות מ-${partial}%.`,
   ]
+}
+
+/* משפט אחד מעל רשימת השליחות: "5 הדמיות נשלחו; ב-4 מהן יש תלמידים לתשומת לב."
+   total = כמה שליחות מוצגות, withAttention = בכמה מהן יש לפחות תלמיד/ה אחד/ת לתשומת לב. מחזיר '' כשאין שליחות. */
+export function narrateSubmissionsSummary(total: number, withAttention: number): string {
+  if (total <= 0) return ''
+  const sent = total === 1 ? 'הדמיה אחת נשלחה' : `${total} הדמיות נשלחו`
+  const w = Math.min(Math.max(0, withAttention), total)
+  const attention =
+    total === 1 ? (w > 0 ? 'יש בה תלמידים לתשומת לב' : 'אין בה תלמידים לתשומת לב')
+      : w === 0 ? 'אין בהן תלמידים לתשומת לב'
+        : w === total ? 'בכולן יש תלמידים לתשומת לב'
+          : w === 1 ? 'באחת מהן יש תלמידים לתשומת לב'
+            : `ב-${w} מהן יש תלמידים לתשומת לב`
+  return `${sent}; ${attention}.`
 }
 
 export const LOCKED_SUBJECT_TEXT = 'זמין למורה המקצוע ולמחנך/ת'

@@ -26,64 +26,98 @@ const HOMEROOM: Who[] = ['guest-homeroom', 'real-homeroom']
 const SUBJECT: Who[] = ['guest-subject-math', 'guest-subject-hebrew', 'real-subject']
 const TEACHERS: Who[] = [...HOMEROOM, ...SUBJECT]
 const TEACHERS_AND_UNLINKED: Who[] = [...TEACHERS, 'real-unlinked']
+/* אנליטיקה v2 (מסכי הדמו) פעילה למורה אורח בלבד; מורה אמיתי רואה את האנליטיקה הקיימת (התקדמות + סוגי אתגרים) */
+const GUEST_TEACHERS: Who[] = ['guest-homeroom', 'guest-subject-math', 'guest-subject-hebrew']
+const REAL_TEACHERS: Who[] = ['real-homeroom', 'real-subject', 'real-unlinked']
 const ADMINS: Who[] = ['guest-admin', 'real-admin']
 
 export const SCENARIOS: Scenario[] = [
   /* ───────────── תוצאות (/results) ───────────── */
   {
     name: 'results-list', group: 'results', who: TEACHERS_AND_UNLINKED,
-    url: '/results', clicksFromMainTab: 0,
+    url: '/results', clicksFromMainTab: 0, ready: '[data-submission-row], [data-empty-state]',
     note: 'רשימת השליחות. real-unlinked = מצב ריק (עיקרון 9)',
   },
   {
     name: 'results-class', group: 'results', who: TEACHERS,
-    url: '/results/{submissionId}', inner: true, clicksFromMainTab: 1,
+    url: '/results/{submissionId}', inner: true, clicksFromMainTab: 1, ready: '[data-people-panel]',
     note: 'מצב "כל הכיתה" של שליחה',
   },
   {
     name: 'results-student', group: 'results', who: TEACHERS,
-    url: '/results/{submissionId}/student/{resultsStudentId}', inner: true, clicksFromMainTab: 2,
+    url: '/results/{submissionId}/student/{resultsStudentId}', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
     note: 'תלמיד/ה בתוך שליחה',
   },
   {
+    name: 'results-class-objectives', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=objectives', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'טאב יעדי הלמידה (סט הטאבים קבוע: עם יעדים — הרשימה; בלי — מצב ריק מסביר)',
+  },
+  {
+    name: 'results-class-errors', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=errors', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'טאב טעויות נפוצות (עם תגיות — כרטיסים; בלי — מצב ריק מסביר)',
+  },
+  {
+    name: 'results-class-review', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=review', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'טאב תרגול חזרה (יש תחומים חלשים — כפתור יצירה; אין — מצב ריק מסביר)',
+  },
+  {
+    name: 'results-class-how-we-calc', group: 'results', who: HOMEROOM,
+    url: '/results/{submissionId}', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    steps: [{ click: { role: 'button', name: 'איך חישבנו?' } }, { waitFor: { role: 'dialog' } }],
+    note: '"איך חישבנו?" פתוח: חלון קטן מעל התוכן (לא דוחף נתונים), עם כפתור סגירה',
+  },
+  {
+    name: 'results-student-slides', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}/student/{resultsStudentId}?tab=slides', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'תלמיד/ה › זמן בשקפים',
+  },
+  {
     name: 'results-student-attention', group: 'results', who: TEACHERS,
-    url: '/results/{submissionId}/student/{resultsAttentionStudentId}', inner: true, clicksFromMainTab: 2,
+    url: '/results/{submissionId}/student/{resultsAttentionStudentId}', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
     note: 'תלמיד/ה שמסומן/ת "דורש תשומת לב" (אם יש)',
   },
 
   /* ───────────── אנליטיקה (/analytics) ───────────── */
   {
-    name: 'analytics-entry', group: 'analytics', who: TEACHERS_AND_UNLINKED,
+    name: 'analytics-entry', group: 'analytics', who: GUEST_TEACHERS,
+    url: '/analytics', clicksFromMainTab: 0, ready: '[data-class-id]',
+    note: 'כניסה — "איזו כיתה תרצו לראות?". הכרטיסים (כולל קיצורי המקצועות) מופיעים רק אחרי ששתי הקריאות חזרו, ולכן [data-class-id] הוא סימן המוכנות',
+  },
+  {
+    name: 'analytics-entry-real', group: 'analytics', who: REAL_TEACHERS,
     url: '/analytics', clicksFromMainTab: 0,
-    note: 'כניסה — "בחרו כיתה". לפני הבנייה מחדש זה מסך האנליטיקה הקיים',
+    note: 'מורה אמיתי (בלי ANALYTICS_V2): האנליטיקה הקיימת — התקדמות + ביצועים לפי סוג אתגר. real-unlinked = מצב ריק (עיקרון 9)',
   },
   {
     name: 'analytics-class-overview', group: 'analytics', who: HOMEROOM,
-    url: '/analytics/class/{classId}?tab=overview', inner: true, clicksFromMainTab: 1,
+    url: '/analytics/class/{classId}?tab=overview', inner: true, clicksFromMainTab: 1, ready: '[role="tablist"]',
   },
   {
     name: 'analytics-class-summary', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=summary', inner: true, clicksFromMainTab: 1,
+    url: '/analytics/class/{classId}?tab={subject}&sub=summary', inner: true, clicksFromMainTab: 1, ready: '[role="tablist"]',
     note: 'טאב מקצוע › סיכום. לחיצה אחת: כפתור המקצוע בכרטיס הכיתה במסך הכניסה (נתיב: אנליטיקה › כיתה › מקצוע)',
   },
   {
     name: 'analytics-class-errors', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=errors', inner: true, clicksFromMainTab: 2,
+    url: '/analytics/class/{classId}?tab={subject}&sub=errors', inner: true, clicksFromMainTab: 2, ready: '[role="tablist"]',
     note: 'טעויות נפוצות. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "טעויות נפוצות"',
   },
   {
     name: 'analytics-class-progress', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=progress', inner: true, clicksFromMainTab: 2,
+    url: '/analytics/class/{classId}?tab={subject}&sub=progress', inner: true, clicksFromMainTab: 2, ready: '[role="tablist"]',
     note: 'התקדמות. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "התקדמות"',
   },
   {
     name: 'analytics-class-students', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=students', inner: true, clicksFromMainTab: 2,
+    url: '/analytics/class/{classId}?tab={subject}&sub=students', inner: true, clicksFromMainTab: 2, ready: '[role="tablist"]',
     note: 'תלמידים. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "תלמידים"',
   },
   {
     name: 'analytics-student', group: 'analytics', who: TEACHERS,
-    url: '/analytics/student/{studentId}?class={classId}', inner: true, clicksFromMainTab: 2,
+    url: '/analytics/student/{studentId}?class={classId}', inner: true, clicksFromMainTab: 2, ready: '[role="tablist"]',
     note: 'כל המקצועות זה לצד זה (מחנך) / מקצוע אחד + אפור (מורה מקצועי)',
   },
 

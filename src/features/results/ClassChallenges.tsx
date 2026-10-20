@@ -1,20 +1,14 @@
-/* האתגרים בהדמיה — מצב "כל הכיתה". לפי סדר ההדמיה: שם האתגר, "X מתוך Y הצליחו" עם בר, הטעות הנפוצה במילים (אם יש תגית),
-   ו"פירוט" שפותח את התפלגות התשובות — מי בחר מה (בשמות) ומי ויתר. שאלות מוסר: אין נכון/שגוי ואין שמות (לפי עיצוב המערכת). */
-import { useId, useState } from 'react'
-import { countOf, detailAvailableLine, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
+/* האתגרים בהדמיה — מצב "כל הכיתה". שורה אחת לכל אתגר לפי סדר ההדמיה: שם האתגר וסוגו, "X מתוך Y הצליחו" עם בר, והטעות הנפוצה במילים (אם יש תגית).
+   "פירוט" פותח את התפלגות התשובות — מי בחר מה (בשמות) ומי ויתר. שאלות מוסר: אין נכון/שגוי ואין שמות (לפי עיצוב המערכת). */
+import { countNb, detailAvailableLine, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ChallengeResult, ClassSubmissionView, ItemResult, OptionCount } from '../../shared/types/resultsV1'
-import { EmptyState, FONT, Icon, ProgressBar, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import { EmptyState, FONT, Icon, ProgressBar, RADIUS, T } from '../teacherUi'
+import ChallengeRowShell from './ChallengeRow'
 import { ExtraIcon } from './marks'
-import { caption, secondaryButton, soft } from './styles'
+import { soft } from './styles'
 import { UI } from './text'
 
 const MORAL = 'moralDilemma'
-
-function NumberBadge({ n }: { n: number }) {
-  return (
-    <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 34, height: 34, borderRadius: '50%', flexShrink: 0, border: `2px solid ${T.controlBorder}`, fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text, background: T.surfaceSoft }}>{n}</span>
-  )
-}
 
 function OptionRow({ o, moral }: { o: OptionCount; moral: boolean }) {
   const names = o.students.map((s) => s.name).join(', ')
@@ -43,7 +37,7 @@ function ItemDetail({ item, moral, showPrompt }: { item: ItemResult; moral: bool
   return (
     <div data-item={item.itemIndex} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {showPrompt && <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text, lineHeight: 1.5 }}>{item.prompt}</div>}
-      {!moral && <div style={soft}>{countOf(item.solved, item.attempted)} {UI.succeeded}</div>}
+      {!moral && <div style={soft}>{countNb(item.solved, item.attempted)} {UI.succeeded}</div>}
       {item.options && item.options.length > 0 && (
         <ul style={{ listStyle: 'none', margin: '2px 0 0', padding: 0 }}>
           {item.options.map((o) => <OptionRow key={o.optionId} o={o} moral={moral} />)}
@@ -53,14 +47,14 @@ function ItemDetail({ item, moral, showPrompt }: { item: ItemResult; moral: bool
   )
 }
 
-function Detail({ c, id }: { c: ChallengeResult; id: string }) {
+function Detail({ c }: { c: ChallengeResult }) {
   const moral = c.type === MORAL
   const showPrompts = c.items.length > 1 || c.items.some((i) => !!i.options)
   return (
-    <div id={id} data-challenge-detail style={{ margin: '0 0 2px', padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {moral && <p style={{ ...soft, margin: 0 }}>{UI.moralNote}</p>}
       {c.items.map((item) => <ItemDetail key={item.itemIndex} item={item} moral={moral} showPrompt={showPrompts} />)}
-      {c.items.length === 0 && c.attempted > 0 && <div style={soft}>{countOf(c.solved, c.attempted)} {UI.succeeded}</div>}
+      {c.items.length === 0 && c.attempted > 0 && <div style={soft}>{countNb(c.solved, c.attempted)} {UI.succeeded}</div>}
       {c.gaveUp > 0 && (
         <div style={{ fontFamily: FONT, fontSize: 16, lineHeight: 1.5, color: T.text }}>
           <span style={{ fontWeight: 800 }}>{UI.gaveUpLine(c.gaveUp)}</span>
@@ -72,50 +66,27 @@ function Detail({ c, id }: { c: ChallengeResult; id: string }) {
 }
 
 function ChallengeRow({ c }: { c: ChallengeResult }) {
-  const [open, setOpen] = useState(false)
-  const detailId = useId()
   const moral = c.type === MORAL
-  const canExpand = c.attempted > 0
   return (
-    <li data-challenge={c.sceneId} style={{ listStyle: 'none', padding: '10px 14px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <NumberBadge n={c.order} />
-        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-          <div style={{ fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
-            <VisuallyHidden>{UI.challengeWord} {c.order}: </VisuallyHidden>{c.title}
-          </div>
-          <div style={caption}>{c.typeLabel}</div>
-        </div>
-        {c.attempted > 0 ? (
-          <div style={{ flex: '1 1 250px', maxWidth: 360, minWidth: 220 }}>
-            <ProgressBar done={c.solved} total={c.attempted} label={moral ? UI.answered : UI.succeeded} showPercent={!moral} />
-          </div>
-        ) : (
-          <p style={{ ...soft, margin: 0, flex: '1 1 250px' }}>{RESULTS_TEXT.noChallengeData}</p>
-        )}
-        {canExpand && (
-          <button type="button" data-tu-press aria-expanded={open} aria-controls={detailId} onClick={() => setOpen((o) => !o)}
-            style={{ ...secondaryButton, background: open ? T.accentFill : T.surface, borderColor: open ? T.accent : T.controlBorder }}>
-            {UI.detail}
-            <span style={{ display: 'inline-flex', transform: open ? 'rotate(180deg)' : undefined }}><Icon name="chevDown" size={18} /></span>
-          </button>
-        )}
-      </div>
-      {c.commonError && !moral && (
-        <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
+    <ChallengeRowShell sceneId={c.sceneId} order={c.order} title={c.title} typeLabel={c.typeLabel} canExpand={c.attempted > 0}
+      summary={c.attempted > 0
+        ? <div style={{ flex: 1, minWidth: 0 }}><ProgressBar done={c.solved} total={c.attempted} label={moral ? UI.answered : UI.succeeded} showPercent={!moral} /></div>
+        : <p style={{ ...soft, margin: 0, lineHeight: 1.35 }}>{RESULTS_TEXT.noChallengeData}</p>}
+      footer={c.commonError && !moral ? (
+        <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 0 4px 0', paddingInlineStart: 46, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {c.commonError.title} — {countOf(c.commonError.count, c.attempted)} {UI.studentsPlural}</span>
+          <span><strong>{UI.commonErrorShort}:</strong> {c.commonError.title} — {countNb(c.commonError.count, c.attempted)} {UI.studentsPlural}</span>
         </div>
-      )}
-      {open && <Detail c={c} id={detailId} />}
-    </li>
+      ) : undefined}>
+      <Detail c={c} />
+    </ChallengeRowShell>
   )
 }
 
 export default function ClassChallenges({ view }: { view: ClassSubmissionView }) {
   const anyAttempt = view.challenges.some((c) => c.attempted > 0)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {!view.hasAnswerDetail && view.detailAvailableFrom && (
         <p data-detail-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
@@ -127,11 +98,10 @@ export default function ClassChallenges({ view }: { view: ClassSubmissionView })
       ) : !anyAttempt ? (
         <EmptyState title={UI.noAttemptsYet} whatNext={UI.noAttemptsYetNext} />
       ) : (
-        <ol style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }} aria-label={UI.challengesTitle}>
+        <ol style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }} aria-label={UI.challengesTitle}>
           {view.challenges.map((c) => <ChallengeRow key={c.sceneId} c={c} />)}
         </ol>
       )}
     </div>
   )
 }
-

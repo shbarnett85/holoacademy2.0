@@ -1,6 +1,6 @@
 /* תוויות הממשק של מסכי התוצאות — עברית פשוטה למורה שלא רגילה/רגיל למחשבים: מילה אחת ברורה לכל כפתור, בלי ז'רגון.
    משפטי הסיכום, הטעויות הנפוצות והסבר "איך חישבנו?" מגיעים מהחוזה / מ-findingsNarrative — לא נכתבים כאן. */
-import { countOf } from '../../shared/lib/findingsNarrative'
+import { countNb } from '../../shared/lib/findingsNarrative'
 import { inTopics } from './logic'
 
 export const UI = {
@@ -36,7 +36,7 @@ export const UI = {
   allSubjects: 'כל המקצועות',
   clearFilter: 'ניקוי הסינון',
   countLine: (shown: number, total: number): string =>
-    shown === total ? (total === 1 ? 'הדמיה אחת' : `${total} הדמיות`) : `מוצגות ${shown} מתוך ${total} הדמיות`,
+    shown === total ? (total === 1 ? 'הדמיה אחת' : `${total} הדמיות`) : `מוצגות ${countNb(shown, total)} הדמיות`,
   classWord: (name: string): string => `כיתה ${name}`,
   sentOn: (date: string): string => `נשלחה ב-${date}`,
   sentBy: (name: string): string => `נשלחה על ידי ${name}`,
@@ -74,7 +74,7 @@ export const UI = {
   groupNotStarted: 'עוד לא התחילו',
   attentionWord: 'לתשומת לב',
   studentsTitle: 'תלמידים בכיתה',
-  studentPosition: (i: number, n: number): string => `תלמיד/ה ${i} מתוך ${n}`,
+  studentPosition: (i: number, n: number): string => `תלמיד/ה ${countNb(i, n)}`,
   prev: 'הקודם',
   next: 'הבא',
 
@@ -117,6 +117,7 @@ export const UI = {
   noSlides: 'עוד אין נתונים על זמן בשקפים. הם יופיעו כאן אחרי שהתלמיד/ה יפתח/תפתח את ההדמיה.',
 
   /* טעויות נפוצות */
+  errorsEmptyNext: 'טעות נפוצה מופיעה כאן כשכמה תלמידים בוחרים באותה תשובה שגויה.',
   /* משפט הסיכום של הטאב (במקום כותרת שחוזרת על שם הטאב) */
   commonErrorsSummary: (n: number): string =>
     n === 1 ? 'יש בהדמיה הזאת טעות אחת שכמה תלמידים בחרו בה.' : `יש בהדמיה הזאת ${n} טעויות שכמה תלמידים בחרו בהן.`,
@@ -128,11 +129,13 @@ export const UI = {
 
   /* יעדי הלמידה */
   tabObjectives: 'יעדי הלמידה',
+  objectivesEmpty: 'אין עדיין יעדים להדמיה הזאת.',
+  objectivesEmptyNext: 'יעדי למידה נקבעים כשיוצרים את ההדמיה. כשיהיו יעדים, תראו כאן כמה תלמידים הצליחו בכל אחד מהם.',
   objectivesLabel: 'יעדי הלמידה של ההדמיה',
   objectiveNoData: 'התוצאות ביעד הזה יופיעו כאן כשתלמידים יסיימו.',
   objectiveNobodyWeak: 'אף תלמיד/ה לא מתקשה ביעד הזה.',
   /* "מתקשים ביעד הזה: 6 מתוך 22" */
-  objectiveWeakHead: (weak: number, attempted: number): string => `מתקשים ביעד הזה: ${countOf(weak, attempted)}`,
+  objectiveWeakHead: (weak: number, attempted: number): string => `מתקשים ביעד הזה: ${countNb(weak, attempted)}`,
   objectiveWeakNames: 'התלמידים שמתקשים ביעד הזה',
   openStudentHidden: 'לפתיחת התוצאות שלו/ה',
   moreStudents: (n: number): string => (n === 1 ? 'עוד תלמיד/ה אחד/ת' : `עוד ${n} תלמידים`),
@@ -140,6 +143,8 @@ export const UI = {
 
   /* תרגול חזרה */
   reviewTitle: 'תרגול חזרה',
+  reviewEmpty: 'אין כרגע מה לתרגל.',
+  reviewEmptyNext: 'כשהכיתה תתקשה בתחום מסוים בהדמיה הזאת, אפשר יהיה ליצור כאן הדמיית חזרה קצרה.',
   reviewIntro: (weakCount: number): string =>
     `הכיתה התקשתה ${inTopics(weakCount)} בהדמיה הזאת. אפשר ליצור הדמיית חזרה קצרה שתחזק את החומר מזווית חדשה.`,
   reviewCreate: 'צור הדמיית חזרה',

@@ -134,7 +134,7 @@ export function FeedbackOverlay({ studentId, params, onClose }: { studentId: str
     <Sheet onClose={onClose} label={L.studentPreview}>
       <div style={{ maxWidth: 460, margin: '24px auto 60px', padding: '0 16px' }}>
         <p className="v2-noprint" style={{ textAlign: 'center', fontSize: 16, lineHeight: 1.6, color: T.textSoft, margin: '0 0 12px' }}>
-          כך נראה המסך לתלמיד/ה. המורה לא רואה כאן השוואה לתלמידים אחרים.
+          {data?.intro ?? ''}
         </p>
         <div style={{ border: `2px solid ${T.accent}`, borderRadius: 24, padding: 22, background: T.surface }}>
           {loading && !data && <LoadingBlock />}

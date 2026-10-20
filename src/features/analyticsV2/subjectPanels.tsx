@@ -1,7 +1,7 @@
 /* ארבעת התכנים של מקצוע בכיתה. כולם צורכים את אותה תגובה (ClassSubjectView) ונכנסים במסך אחד ב-1366×768. */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { EMPTY_TEXT, dateHe } from '../../shared/lib/findingsNarrative'
+import { EMPTY_TEXT, countNb, dateHe, numberRange } from '../../shared/lib/findingsNarrative'
 import type { ClassSubjectView, MisconceptionRow } from '../../shared/types/analyticsV2'
 import { FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { Tone } from '../teacherUi'
@@ -79,7 +79,7 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
       {m.curriculumGoal && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 16, color: T.text, lineHeight: 1.5 }}>
           <span><strong>{L.curriculumGoal}:</strong> {m.curriculumGoal.title}</span>
-          {m.curriculumGoal.mappingStatus === 'sample' && <Tag tone="neutral">{L.sampleMapping}</Tag>}
+          {m.curriculumGoal.mappingStatus === 'sample' && <Tag>{L.sampleMapping}</Tag>}
         </div>
       )}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -103,7 +103,7 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
               <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: m.subjectCode })} data-tu-press
                 style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: MIN_TARGET, padding: '2px 10px', borderRadius: RADIUS.sm, border: `1.5px solid ${T.controlBorder}`, textDecoration: 'none', color: T.text, fontFamily: FONT }}>
                 <span style={{ fontSize: 16, fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, color: T.accentStrong }}>{s.displayName}</span>
-                <span style={{ fontSize: 16, color: T.textSoft }}>{s.hits} מתוך {s.exposures} שאלות</span>
+                <span style={{ fontSize: 16, color: T.textSoft }}>{countNb(s.hits, s.exposures)} שאלות</span>
               </Link>
             </li>
           ))}
@@ -115,12 +115,19 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
 
 export function ErrorsPanel({ d, classId }: { d: ClassSubjectView; classId: string }) {
   const env = useV2Env()
+  const reported = d.misconceptions.some((m) => m.status === 'reported')
   if (d.misconceptions.length === 0) {
-    return <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noCommonErrors}</Note></Card>
+    return (
+      <>
+        <Sentence compact>{d.tabSummaries.misconceptions}</Sentence>
+        <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noCommonErrors}</Note></Card>
+      </>
+    )
   }
   const hasSample = d.misconceptions.some((m) => m.curriculumGoal?.mappingStatus === 'sample')
   return (
     <>
+      <Sentence compact tone={reported ? 'attention' : 'neutral'}>{d.tabSummaries.misconceptions}</Sentence>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 400px), 1fr))', gap: 12, alignItems: 'start' }}>
         {d.misconceptions.map((m) => <ErrorCard key={m.id} m={m} classId={classId} />)}
       </div>
@@ -132,15 +139,25 @@ export function ErrorsPanel({ d, classId }: { d: ClassSubjectView; classId: stri
 /* ── התקדמות ── */
 export function ProgressPanel({ d }: { d: ClassSubjectView }) {
   const { series, events, ageNorm } = d.progress
-  if (series.length === 0) return <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noProgress}</Note></Card>
+  const progressTone: Tone = d.trend === 'declining' ? 'attention' : d.trend === 'improving' ? 'positive' : 'neutral'
+  if (series.length === 0) {
+    return (
+      <>
+        <Sentence compact>{d.tabSummaries.progress}</Sentence>
+        <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noProgress}</Note></Card>
+      </>
+    )
+  }
   const markers: ChartMarker[] = events.map((e, i) => ({ n: i + 1, date: e.date, tone: e.tone }))
   return (
+    <>
+    <Sentence compact tone={progressTone}>{d.tabSummaries.progress}</Sentence>
     <Card>
       <CardTitle aside={<TrendWord trend={d.trend} text={`מגמת הכיתה: ${d.trendText}`} size={16} />}>התקדמות הכיתה לאורך הזמן</CardTitle>
       <LevelChart series={series} ageNorm={ageNorm} markers={markers} height={events.length ? 236 : 220} label={`${L.level} ממוצע של הכיתה ב${d.subject.nameHe} לפי חודש`} />
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0 8px' }}>
         <LineSwatch index={0}>{L.chartLegendClass}</LineSwatch>
-        <BandSwatch>הטווח המיועד לשכבה {ageNorm.gradeLabel}: <bdi dir="ltr">{ageNorm.low}–{ageNorm.high}</bdi></BandSwatch>
+        <BandSwatch>הטווח המיועד לשכבה {ageNorm.gradeLabel}: {numberRange(ageNorm.low, ageNorm.high)}</BandSwatch>
       </div>
       {events.length === 0 ? (
         <Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noRecent}</Note>
@@ -156,15 +173,28 @@ export function ProgressPanel({ d }: { d: ClassSubjectView }) {
         </ol>
       )}
     </Card>
+    </>
   )
 }
 
 /* ── תלמידים ── */
 export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: string }) {
   const env = useV2Env()
-  if (d.students.length === 0) return <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noStudents}</Note></Card>
+  if (d.students.length === 0) {
+    return (
+      <>
+        <Sentence compact>{d.tabSummaries.students}</Sentence>
+        <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noStudents}</Note></Card>
+      </>
+    )
+  }
   const flagged = new Set(d.studentFindings.filter((x) => x.finding.status === 'reported' && x.finding.tone === 'attention').map((x) => x.studentId))
+  const declining = d.students.filter((s) => s.trend === 'declining').length
+  const improving = d.students.filter((s) => s.trend === 'improving').length
+  const studentsTone: Tone = improving > declining ? 'positive' : declining > 0 ? 'attention' : 'neutral'
   return (
+    <>
+    <Sentence compact tone={studentsTone}>{d.tabSummaries.students}</Sentence>
     <ul aria-label={L.studentsInSubject} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(204px, 1fr))', gap: 8 }}>
       {d.students.map((s) => (
         <li key={s.id}>
@@ -182,5 +212,6 @@ export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: st
         </li>
       ))}
     </ul>
+    </>
   )
 }

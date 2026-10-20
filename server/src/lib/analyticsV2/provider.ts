@@ -2,7 +2,7 @@
    provider — הממשק היחיד שהמסכים והנתיבים מכירים. ספק הדגמה מממש אותו כעת; ספק אמיתי בשלבים 5–7.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  CAVEAT_AGE_NORM, CAVEAT_CROSS_SUBJECT, CAVEAT_TREND, NO_DATA_YET, groupTrendText,
+  ANALYTICS_CAVEATS, FEEDBACK_INTRO_TEXT, NO_DATA_YET, groupTrendText, narrateAlertsTitle,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import type {
   AdminOverview, AnalyticsConfig, Briefing, ClassOverview, ClassSubjectView, Entry, Envelope, Roster, StudentFeedback, StudentOverview,
@@ -24,7 +24,7 @@ export interface AnalyticsV2Provider {
   briefing(v: V2Viewer, scope: 'student' | 'class', id: string): Promise<Envelope<Briefing>>
 }
 
-const CAVEATS = { ageNorm: CAVEAT_AGE_NORM, crossSubject: CAVEAT_CROSS_SUBJECT, trend: CAVEAT_TREND }
+const CAVEATS = ANALYTICS_CAVEATS
 const NOW_ISO = (): string => new Date().toISOString()
 const insufficient = <T>(data: T): Envelope<T> => ({ dataState: 'insufficient', data })
 const EMPTY_NORM = { gradeLabel: '', center: 0, low: 0, high: 0 }
@@ -37,7 +37,7 @@ export const realProvider: AnalyticsV2Provider = {
     return insufficient({ enabled: true, lens: v.lens, availableLenses: [], subjects: [], classes: [], dataNotice: null, curriculumNotice: null, caveats: CAVEATS })
   },
   async roster() { return insufficient({ classes: [], students: [] }) },
-  async entry() { return insufficient({ classes: [], alerts: [] }) },
+  async entry() { return insufficient({ classes: [], alerts: [], alertsTotal: 0, alertsTitle: narrateAlertsTitle(0, 0), alertsMore: null }) },
   async student(_v, id) {
     return insufficient({
       student: { id, displayName: DASH, classId: '', className: '', grade: 0, gradeLabel: '' },
@@ -45,7 +45,7 @@ export const realProvider: AnalyticsV2Provider = {
       access: 'subject_only', panels: [], crossSubject: [], caveats: CAVEATS,
     })
   },
-  async feedback() { return insufficient({ firstName: DASH, headline: NO_DATA_YET, items: [] }) },
+  async feedback() { return insufficient({ firstName: DASH, intro: FEEDBACK_INTRO_TEXT, headline: NO_DATA_YET, items: [] }) },
   async classOverview(_v, classId) {
     return insufficient({ class: { id: classId, name: DASH, gradeLabel: '', studentCount: 0 }, summary: NO_DATA_YET, rows: [], caveats: CAVEATS })
   },
@@ -55,6 +55,7 @@ export const realProvider: AnalyticsV2Provider = {
       subject: { code: subject, nameHe: subjectName(subject) },
       classLevel: { mean: null, ageNorm: EMPTY_NORM },
       summary: { headline: NO_DATA_YET, recent: [], whatToTeach: [] },
+      tabSummaries: { misconceptions: NO_DATA_YET, progress: NO_DATA_YET, students: NO_DATA_YET },
       misconceptions: [], recommendations: [],
       progress: { series: [], ageNorm: EMPTY_NORM, events: [] },
       classFindings: [], studentFindings: [], students: [],

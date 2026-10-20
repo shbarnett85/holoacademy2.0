@@ -62,6 +62,11 @@ export function firstStudentId(roster: ClassSubmissionView['roster']): string | 
   return sortedStudents(roster)[0]?.id ?? null
 }
 
+/* המקום של התלמיד/ה ברשימה לפי א-ב (0 = הראשון/ה), או -1 */
+export function studentIndex(roster: StudentChip[], id: string): number {
+  return [...roster].sort(byName).findIndex((s) => s.id === id)
+}
+
 export function attentionTotal(roster: ClassSubmissionView['roster']): number {
   return allStudents(roster).filter((s) => s.attention).length
 }
@@ -110,4 +115,13 @@ export function formatSeconds(total: number | null): string {
 
 export function attemptsWord(n: number): string {
   return n === 1 ? 'ניסיון אחד' : `${n} ניסיונות`
+}
+
+/* ── טאבים: סט קבוע לכל שליחה (טאב בלי נתונים נשאר במקומו ומסביר למה ריק — טאבים לא מופיעים ונעלמים) ── */
+export const CLASS_TAB_IDS = ['challenges', 'objectives', 'errors', 'review'] as const
+export const STUDENT_TAB_IDS = ['challenges', 'slides'] as const
+
+/* ?tab= שאינו אחד מטאבי המסך (או חסר) → "האתגרים" */
+export function resolveTab(tab: string | null, ids: readonly string[]): string {
+  return tab !== null && ids.includes(tab) ? tab : 'challenges'
 }

@@ -3,7 +3,7 @@
 import { useRef } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { Icon } from './icons'
-import { FONT, MIN_TARGET, SMALL, T } from './tokens'
+import { FONT, MIN_TARGET, T } from './tokens'
 
 export interface TabItem {
   id: string
@@ -75,7 +75,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
         }
         const base = {
           display: 'inline-flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 2,
-          minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '8px 18px', borderRadius: secondary ? 22 : 12,
+          minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '6px 14px', borderRadius: secondary ? 22 : 12,
           fontFamily: FONT, fontSize: secondary ? 16 : 17, textAlign: 'start' as const, lineHeight: 1.3,
         }
         if (t.locked) {
@@ -88,7 +88,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
                 {t.label}
               </span>
               {/* ההסבר גלוי בתוך הטאב — לא tooltip */}
-              <span style={{ fontSize: SMALL, fontWeight: 500, color: T.muted }}>{t.lockedReason}</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: T.muted, whiteSpace: 'nowrap' }}>{t.lockedReason}</span>
             </button>
           )
         }

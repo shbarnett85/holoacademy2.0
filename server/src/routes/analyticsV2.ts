@@ -7,7 +7,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { Router } from 'express'
 import type { Request } from 'express'
-import { CAVEAT_AGE_NORM, CAVEAT_CROSS_SUBJECT, CAVEAT_TREND } from '../../../src/shared/lib/findingsNarrative.js'
+import { ANALYTICS_CAVEATS } from '../../../src/shared/lib/findingsNarrative.js'
 import { isSubjectCode, type SubjectCode } from '../../../src/shared/lib/subjects.js'
 import { EP, type Envelope } from '../../../src/shared/types/analyticsV2.js'
 import type { V2Viewer } from '../lib/analyticsV2/access.js'
@@ -55,7 +55,7 @@ analyticsV2Router.get('/config', async (req, res, next) => {
     if (!v) {
       res.json({
         dataState: 'ok',
-        data: { enabled: false, lens: null, availableLenses: [], subjects: [], classes: [], dataNotice: null, curriculumNotice: null, caveats: { ageNorm: CAVEAT_AGE_NORM, crossSubject: CAVEAT_CROSS_SUBJECT, trend: CAVEAT_TREND } },
+        data: { enabled: false, lens: null, availableLenses: [], subjects: [], classes: [], dataNotice: null, curriculumNotice: null, caveats: ANALYTICS_CAVEATS },
       })
       return
     }

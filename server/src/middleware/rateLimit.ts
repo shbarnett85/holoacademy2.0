@@ -37,11 +37,26 @@ function increment(key: string, windowMs: number): number {
 
 export const RATE_LIMIT_MESSAGE = 'יותר מדי ניסיונות — נסו שוב בעוד דקה'
 
+const ipOf = (req: Request): string => req.ip ?? req.socket.remoteAddress ?? 'unknown'
+
 /* middleware פר-IP: עד max בקשות בחלון windowMs לכל נתיב+IP */
 export function rateLimitByIp(routeName: string, max: number, windowMs = 60_000) {
   return (req: Request, _res: Response, next: NextFunction) => {
-    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown'
-    if (increment(`ip:${routeName}:${ip}`, windowMs) > max) {
+    if (increment(`ip:${routeName}:${ipOf(req)}`, windowMs) > max) {
+      next(new AppError(429, RATE_LIMIT_MESSAGE))
+      return
+    }
+    next()
+  }
+}
+
+/* middleware פר-משתמש מחובר (אחרי requireStaff): עד max בקשות בחלון windowMs לכל נתיב+משתמש.
+   חשבון ההדגמה המשותף (isGuest) משותף לכל המבקרים, ולכן מוגבל לפי IP ולא לפי משתמש — אחרת מבקר אחד היה חוסם את כולם. */
+export function rateLimitByUser(routeName: string, max: number, windowMs = 60_000) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const s = req.staff
+    const key = s && !s.isGuest ? `user:${routeName}:${s.userId}` : `ip:${routeName}:${ipOf(req)}`
+    if (increment(key, windowMs) > max) {
       next(new AppError(429, RATE_LIMIT_MESSAGE))
       return
     }

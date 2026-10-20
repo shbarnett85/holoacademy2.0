@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { howWeCalcObjectivesLines, narrateObjectivesSummary, objectiveLevelText } from '../../shared/lib/findingsNarrative'
+import { howWeCalcObjectivesLines, narrateObjectivesSummary, narrateSubmissionsSummary, objectiveLevelText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, ObjectiveResult, ResultsSubject, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
-import { attemptsWord, attentionTotal, byAttentionThenName, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, objectiveLevelCounts, ROSTER_GROUP_ORDER, sortedStudents, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
+import { attemptsWord, attentionTotal, byAttentionThenName, CLASS_TAB_IDS, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, objectiveLevelCounts, resolveTab, ROSTER_GROUP_ORDER, sortedStudents, STUDENT_TAB_IDS, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
 import { UI } from './text'
 
 const row = (id: string, title: string, sentAt: string, classId = 'c1', subject: string | null = 'math'): SubmissionRow => ({
@@ -144,5 +144,44 @@ describe('יעדי למידה', () => {
     expect(visibleStudents(list, false, 4)).toEqual({ shown: list, hidden: 0 })
     expect(visibleStudents([], false, 3)).toEqual({ shown: [], hidden: 0 })
     expect(list).toHaveLength(5)
+  })
+})
+
+describe('סט הטאבים הקבוע', () => {
+  it('מסך הכיתה: האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה — תמיד, בכל שליחה', () => {
+    expect([...CLASS_TAB_IDS]).toEqual(['challenges', 'objectives', 'errors', 'review'])
+    expect([...STUDENT_TAB_IDS]).toEqual(['challenges', 'slides'])
+  })
+  it('?tab= תקף נשאר; לא תקף או חסר → האתגרים (גם לטאב שלא קיים במסך תלמיד)', () => {
+    expect(resolveTab('review', CLASS_TAB_IDS)).toBe('review')
+    expect(resolveTab('objectives', CLASS_TAB_IDS)).toBe('objectives')
+    expect(resolveTab('nope', CLASS_TAB_IDS)).toBe('challenges')
+    expect(resolveTab(null, CLASS_TAB_IDS)).toBe('challenges')
+    expect(resolveTab('review', STUDENT_TAB_IDS)).toBe('challenges')
+    expect(resolveTab('slides', STUDENT_TAB_IDS)).toBe('slides')
+  })
+  it('מצבי הריק של הטאבים אומרים מה קורה ומה יקרה (עיקרון 9)', () => {
+    for (const [title, next] of [[UI.objectivesEmpty, UI.objectivesEmptyNext], [UI.reviewEmpty, UI.reviewEmptyNext], [RESULTS_TEXT.noCommonErrors, UI.errorsEmptyNext]]) {
+      expect(title.length).toBeGreaterThan(10)
+      expect(next.length).toBeGreaterThan(20)
+    }
+    expect(UI.objectivesEmpty).toBe('אין עדיין יעדים להדמיה הזאת.')
+  })
+})
+
+describe('narrateSubmissionsSummary — משפט מעל רשימת השליחות', () => {
+  it('"5 הדמיות נשלחו; ב-4 מהן יש תלמידים לתשומת לב."', () => {
+    expect(narrateSubmissionsSummary(5, 4)).toBe('5 הדמיות נשלחו; ב-4 מהן יש תלמידים לתשומת לב.')
+  })
+  it('כולן / אחת / אף אחת / שליחה בודדת', () => {
+    expect(narrateSubmissionsSummary(3, 3)).toBe('3 הדמיות נשלחו; בכולן יש תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(5, 1)).toBe('5 הדמיות נשלחו; באחת מהן יש תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(4, 0)).toBe('4 הדמיות נשלחו; אין בהן תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(1, 1)).toBe('הדמיה אחת נשלחה; יש בה תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(1, 0)).toBe('הדמיה אחת נשלחה; אין בה תלמידים לתשומת לב.')
+  })
+  it('אין שליחות → ריק; ספירה גדולה מהסך נחתכת לסך', () => {
+    expect(narrateSubmissionsSummary(0, 0)).toBe('')
+    expect(narrateSubmissionsSummary(2, 9)).toBe('2 הדמיות נשלחו; בכולן יש תלמידים לתשומת לב.')
   })
 })

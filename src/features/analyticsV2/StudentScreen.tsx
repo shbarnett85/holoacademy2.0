@@ -2,21 +2,22 @@
    מחנך: "סקירה" ואז כל מקצוע. מורה מקצועי: מקצועו פעיל, שאר המקצועות באפור עם מנעול והסבר גלוי.
    בתוך מקצוע: מסלול הרמה עם הטווח המיועד והסתייגות, תחומים, טעויות נפוצות, ואירועים/דפוסים (מדווחים בלבד). */
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { EMPTY_TEXT, HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
-import { SUBJECTS, subjectName } from '../../shared/lib/subjects'
+import { countNb, EMPTY_TEXT, HOW_WE_CALC, numberRange } from '../../shared/lib/findingsNarrative'
+import { subjectName } from '../../shared/lib/subjects'
 import type { Finding, StudentOverview, SubjectPanel } from '../../shared/types/analyticsV2'
-import { EmptyState, FONT, Icon, RADIUS, Sentence, SubjectLinkButton, T, TabBar, tabPanelProps } from '../teacherUi'
+import { bySubjectOrderOf, EmptyState, FONT, Icon, RADIUS, Sentence, SubjectLinkButton, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem, Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, titles } from './labels'
+import { overviewTabItem } from './tabs'
 import { AnalyticsShell } from './Shell'
-import { ActionButton, AreasText, Card, CardTitle, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, SubjectOrb, ToneMark, TrendWord } from './ui'
+import { ActionButton, AreasText, Card, CardTitle, ErrorBlock, LoadingBlock, Note, PositionWord, SubjectOrb, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
 type Visible = Extract<SubjectPanel, { access: 'visible' }>
-const ORDER = new Map<string, number>(SUBJECTS.map((s, i) => [s.code, i]))
-const byOrder = (ps: SubjectPanel[]): SubjectPanel[] => [...ps].sort((a, b) => (ORDER.get(a.subject.code) ?? 99) - (ORDER.get(b.subject.code) ?? 99))
+/* אותו סדר מקצועות כמו בכל המערכת (teacherUi/subjectOrder) */
+const byOrder = (ps: SubjectPanel[]): SubjectPanel[] => bySubjectOrderOf(ps, (p) => p.subject.code)
 
 const reportedOf = (p: Visible): Finding[] => p.findings.filter((f) => f.status === 'reported')
 const attentionOf = (p: Visible): number => reportedOf(p).filter((f) => f.tone === 'attention').length
@@ -57,7 +58,7 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
             <LevelChart series={p.levelSeries} ageNorm={p.ageNorm} height={230} label={`${L.level} של ${firstName} ב${p.subject.nameHe} לפי חודש`} />
             <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center', margin: '4px 0' }}>
               <LineSwatch index={0}>{L.level} בכל חודש</LineSwatch>
-              <BandSwatch>הטווח המיועד לשכבה {p.ageNorm.gradeLabel}: <bdi dir="ltr">{p.ageNorm.low}–{p.ageNorm.high}</bdi></BandSwatch>
+              <BandSwatch>הטווח המיועד לשכבה {p.ageNorm.gradeLabel}: {numberRange(p.ageNorm.low, p.ageNorm.high)}</BandSwatch>
             </div>
           </>
         )}
@@ -81,7 +82,7 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
               {p.commonErrors.map((e) => (
                 <li key={e.id} style={{ fontSize: 16, lineHeight: 1.45, color: T.text }}>
                   <strong>{e.title}</strong>
-                  <div style={{ fontSize: 16, color: T.textSoft }}>{e.hits} מתוך {e.exposures} שאלות</div>
+                  <div style={{ fontSize: 16, color: T.textSoft }}>{countNb(e.hits, e.exposures)} שאלות</div>
                 </li>
               ))}
             </ul>
@@ -113,7 +114,7 @@ const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 
 const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle', fontSize: 16, lineHeight: 1.4, color: T.text } as const
 
 function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; subjectHref: (code: string) => string; crossText: string }) {
-  const visible = data.panels.filter((p): p is Visible => p.access === 'visible')
+  const visible = byOrder(data.panels).filter((p): p is Visible => p.access === 'visible')
   const cross = data.crossSubject.filter((f) => f.status === 'reported')
   return (
     <>
@@ -214,7 +215,8 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   crumbs.push({ label: st.displayName })
 
   const items: TabItem[] = [
-    ...(full ? [{ id: 'overview', label: L.overviewTab }] : []),
+    /* "סקירה" קיימת אצל כולם: למחנך/ת פעילה, ואצל מורה מקצועי באפור עם מנעול והסיבה */
+    overviewTabItem(full),
     ...panels.map((p) => ({ id: p.subject.code, label: p.subject.nameHe, icon: <SubjectOrb code={p.subject.code} size={24} />, locked: p.access === 'greyed', lockedReason: LOCKED_SUBJECT_TEXT })),
   ]
 
@@ -223,14 +225,13 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   const evidenceFor = active ? active.findings : data.crossSubject.concat(data.panels.flatMap((p) => (p.access === 'visible' ? p.findings : [])))
 
   return (
-    <AnalyticsShell title={titles.student(firstName)} breadcrumb={crumbs}>
+    <AnalyticsShell title={titles.student(firstName)} breadcrumb={crumbs} howExtra={<EvidenceBlock findings={evidenceFor} subject={active?.subject.nameHe} />}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 480px', minWidth: 0 }}><Sentence tone={hasAttention ? 'attention' : 'neutral'}>{data.summary}</Sentence></div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <ActionButton kind="primary" onClick={() => env.openBriefing('student', studentId)} >{L.briefing}</ActionButton>
           <ActionButton onClick={() => env.openFeedback(studentId)}>{L.studentPreview}</ActionButton>
         </div>
-        <HowCalc extra={<EvidenceBlock findings={evidenceFor} subject={active?.subject.nameHe} />} />
       </div>
       <TabBar ariaLabel="מקצועות התלמיד/ה" idPrefix="stu" withPanels value={tab} items={items}
         onChange={(id) => navigate(studentHref({ tab: id }))} />

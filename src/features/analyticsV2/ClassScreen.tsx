@@ -10,6 +10,7 @@ import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, SUB_IDS, SUB_LABEL, titles, type SubId } from './labels'
 import { AnalyticsShell } from './Shell'
 import SubjectArea from './SubjectArea'
+import { overviewTabItem } from './tabs'
 import { bySubjectOrder } from './subjectOrder'
 import { ErrorBlock, LoadingBlock, SubjectOrb } from './ui'
 import { useV2 } from './v2api'
@@ -55,7 +56,8 @@ export default function ClassScreen({ classId }: { classId: string }) {
   }
 
   const items: TabItem[] = [
-    ...(homeroom ? [{ id: 'overview', label: L.overviewTab }] : []),
+    /* "סקירה" קיימת אצל כולם: למחנך/ת פעילה, ואצל מורה מקצועי באפור עם מנעול והסיבה (אותו מבנה לכל התפקידים) */
+    overviewTabItem(homeroom),
     ...all.map((s) => ({
       id: s.code, label: s.nameHe, icon: <SubjectOrb code={s.code} size={24} />,
       locked: !open.some((o) => o.code === s.code), lockedReason: LOCKED_SUBJECT_TEXT,

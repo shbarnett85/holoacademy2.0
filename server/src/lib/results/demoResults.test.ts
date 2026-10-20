@@ -1,7 +1,7 @@
 import type { Request } from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ATTENTION_RULE, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
-import { countOf, OBJECTIVE_LEVEL_TEXT, objectiveLevelText } from '../../../../src/shared/lib/findingsNarrative.js'
+import { countNb, OBJECTIVE_LEVEL_TEXT, objectiveLevelText } from '../../../../src/shared/lib/findingsNarrative.js'
 import { RESULTS_EP, type ClassSubmissionView, type StudentChip, type StudentSubmissionView, type SubmissionList } from '../../../../src/shared/types/resultsV1.js'
 import { AppError } from '../../middleware/errors.js'
 import { resultsRouter } from '../../routes/results.js'
@@ -174,7 +174,7 @@ describe('מקרה (א): שליחה שחלק מהתלמידים לא סיימו 
     expect(c.inProgress).toBeGreaterThan(0)
     expect(c.notStarted).toBeGreaterThan(0)
     expect(c.completed + c.inProgress + c.notStarted).toBe(25)
-    expect(cv.summary).toContain(`${countOf(c.completed, c.total)} סיימו עד עכשיו`)
+    expect(cv.summary).toContain(`עד עכשיו סיימו ${countNb(c.completed, c.total)}`)
     /* מי שלא התחיל — תשומת לב (כלל עובדתי); מי שבאמצע — לא */
     for (const chip of cv.roster.notStarted) expect(chip.attentionReasons).toEqual(['not_started'])
     for (const chip of cv.roster.inProgress) expect(chip.attentionReasons).not.toContain('not_started')
@@ -227,7 +227,7 @@ describe('מקרה (ב): ½+⅓ → ⅖ בכיתות ו׳', () => {
       expect(ch.commonError).toMatchObject({ count: expected, optionText: '⅖' })
       /* והסיכום הכיתתי אומר זאת במילים */
       expect(cv.summary).toContain('האתגר הקשה ביותר: גשר החיבור')
-      expect(cv.summary).toContain('ורובם בחרו ⅖')
+      expect(cv.summary).toContain('ורובם בחרו ב״⅖״')
       /* תלמיד מהקבוצה: התשובה והתגית בתצוגת התלמיד */
       const sv = d.studentViews.get(`${subId}|${world(classId).showing[0]}`)!
       expect(sv.challenges[0].items[0]).toMatchObject({ answerText: '⅖', correctText: '⅚', isCorrect: false, errorTag: { id: 'mc-frac-add-straight' } })

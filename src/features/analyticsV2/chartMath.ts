@@ -19,6 +19,23 @@ export function niceScale(min: number, max: number, target = 4): { lo: number; h
   return { lo, hi, ticks }
 }
 
+/* מיקום (y של קו הבסיס של הטקסט) לשם הרצועה "הטווח המיועד": בתוך הרצועה, למעלה או למטה — מה שלא מתנגש בנקודות הסדרה ובערכים שמעליהן.
+   נקודה תופסת תיבה: מ-30px מעליה (תווית הערך) ועד 8px מתחתיה, ברוחב 24px סביבה. אם שני המקומות תפוסים — העליון. */
+export function pickBandLabelY({ top, bottom, fontPx, labelX, points }: { top: number; bottom: number; fontPx: number; labelX: [number, number]; points: { x: number; y: number }[] }): number {
+  const topY = top + 6 + fontPx
+  const bottomY = bottom - 6
+  const hits = (baseline: number): boolean => {
+    const y0 = baseline - fontPx
+    const y1 = baseline + 3
+    return points.some((p) => p.x + 24 >= labelX[0] && p.x - 24 <= labelX[1] && p.y - 30 <= y1 && p.y + 8 >= y0)
+  }
+  /* רצועה נמוכה מדי להכיל את הטקסט בתחתית — נשארים למעלה */
+  const bottomFits = bottomY - fontPx > top + 2
+  if (!hits(topY)) return topY
+  if (bottomFits && !hits(bottomY)) return bottomY
+  return topY
+}
+
 export interface PlacedMarker<T> { m: T; x: number; row: 0 | 1 }
 
 /* סימוני אירועים על הציר: קרובים מדי זה לזה (פחות מ-minGap פיקסלים) עולים לשורה שנייה כדי שהמספרים לא יחפפו.

@@ -1,10 +1,11 @@
-/* האתגרים בהדמיה — מצב "לפי תלמיד". אותה רשימה ואותו מקום כמו במצב הכיתה, אבל עובדות על התלמיד/ה:
-   מה נבחר, מה התשובה הנכונה, כמה ניסיונות, האם ויתר/ה, וכמה זמן. תשובה שגויה עם תגית מציגה את שם הטעות הנפוצה.
-   עובדות בלבד — בלי פרשנות על התלמיד/ה. */
+/* האתגרים בהדמיה — מצב "לפי תלמיד". אותה רשימה ואותו מקום כמו במצב הכיתה: שורה אחת לאתגר עם תג התוצאה (מילה + אייקון),
+   ו"פירוט" שפותח עובדות על התלמיד/ה: מה נבחר, מה התשובה הנכונה, כמה ניסיונות, ואם ויתר/ה — וכמה זמן. תשובה שגויה עם תגית מציגה את שם
+   הטעות הנפוצה. עובדות בלבד — בלי פרשנות על התלמיד/ה. כל השורות סגורות כברירת מחדל כדי שכל האתגרים ייכנסו במסך אחד. */
 import type { ReactNode } from 'react'
 import { detailAvailableLine } from '../../shared/lib/findingsNarrative'
 import type { StudentChallenge, StudentItem, StudentSubmissionView } from '../../shared/types/resultsV1'
 import { EmptyState, FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import ChallengeRowShell from './ChallengeRow'
 import { ExtraIcon, OutcomeTag } from './marks'
 import { attemptsWord, formatSeconds } from './logic'
 import { caption, soft } from './styles'
@@ -59,34 +60,21 @@ function ChallengeRow({ c }: { c: StudentChallenge }) {
   const reached = c.outcome !== 'not_reached'
   const moral = c.type === MORAL
   const multi = c.items.length > 1
+  const canExpand = reached && (moral || c.items.length > 0)
   return (
-    <li data-challenge={c.sceneId} data-outcome={c.outcome} style={{ listStyle: 'none', padding: '10px 14px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 34, height: 34, borderRadius: '50%', flexShrink: 0, border: `2px solid ${T.controlBorder}`, fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text, background: T.surfaceSoft }}>{c.order}</span>
-        <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-          <div style={{ fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
-            <VisuallyHidden>{UI.challengeWord} {c.order}: </VisuallyHidden>{c.title}
-          </div>
-          <div style={caption}>
-            {c.typeLabel}{multi && c.seconds !== null ? ` · ${UI.totalTime}: ${formatSeconds(c.seconds)}` : ''}
-          </div>
-        </div>
-        <OutcomeTag outcome={c.outcome} />
+    <ChallengeRowShell sceneId={c.sceneId} order={c.order} title={c.title} typeLabel={`${c.typeLabel}${multi && c.seconds !== null ? ` · ${UI.totalTime}: ${formatSeconds(c.seconds)}` : ''}`}
+      dataOutcome={c.outcome} canExpand={canExpand} summaryGrows={false} summary={<OutcomeTag outcome={c.outcome} />}>
+      <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {moral ? <p style={{ ...soft, margin: 0 }}>{UI.moralStudentNote}</p> : c.items.map((item) => <ItemFacts key={item.itemIndex} item={item} showPrompt />)}
       </div>
-      {reached && moral && <p style={{ ...soft, margin: 0 }}>{UI.moralStudentNote}</p>}
-      {reached && !moral && c.items.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingInlineStart: 46 }}>
-          {c.items.map((item) => <ItemFacts key={item.itemIndex} item={item} showPrompt />)}
-        </div>
-      )}
-    </li>
+    </ChallengeRowShell>
   )
 }
 
 export default function StudentChallenges({ view }: { view: StudentSubmissionView }) {
   const none = view.challenges.length > 0 && view.challenges.every((c) => c.outcome === 'not_reached')
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {!view.hasAnswerDetail && view.detailAvailableFrom && (
         <p data-detail-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
@@ -98,7 +86,7 @@ export default function StudentChallenges({ view }: { view: StudentSubmissionVie
       ) : none ? (
         <EmptyState title={UI.studentNoResults} whatNext={view.student.status === 'in_progress' ? UI.studentNoResultsMiddle : UI.studentNoResultsNext} />
       ) : (
-        <ol style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }} aria-label={UI.challengesTitle}>
+        <ol style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }} aria-label={UI.challengesTitle}>
           {view.challenges.map((c) => <ChallengeRow key={c.sceneId} c={c} />)}
         </ol>
       )}

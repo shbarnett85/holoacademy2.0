@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { labelEvery, layoutMarkers, niceScale, plotIso } from './chartMath'
+import { labelEvery, layoutMarkers, niceScale, pickBandLabelY, plotIso } from './chartMath'
 
 describe('plotIso', () => {
   it('תחילת חודש (00:00 UTC) נעה לאמצע החודש; תאריך מדויק נשאר כמות שהוא', () => {
@@ -47,5 +47,21 @@ describe('labelEvery', () => {
     expect(labelEvery([0, 25, 50])).toBe(2)
     expect(labelEvery([0, 10, 20])).toBe(3)
     expect(labelEvery([5])).toBe(1)
+  })
+})
+
+describe('pickBandLabelY', () => {
+  const base = { top: 100, bottom: 220, fontPx: 14, labelX: [60, 164] as [number, number] }
+  it('בלי התנגשות — למעלה, בתוך הרצועה', () => {
+    expect(pickBandLabelY({ ...base, points: [{ x: 300, y: 150 }] })).toBe(100 + 6 + 14)
+  })
+  it('נקודה קרובה לקצה העליון בתחילת הגרף — השם יורד לתחתית הרצועה', () => {
+    expect(pickBandLabelY({ ...base, points: [{ x: 70, y: 112 }] })).toBe(220 - 6)
+  })
+  it('נקודות רחוקות אופקית מהשם לא מתנגשות', () => {
+    expect(pickBandLabelY({ ...base, points: [{ x: 400, y: 112 }] })).toBe(100 + 6 + 14)
+  })
+  it('שני המקומות תפוסים — נשאר למעלה', () => {
+    expect(pickBandLabelY({ ...base, points: [{ x: 70, y: 112 }, { x: 100, y: 215 }] })).toBe(100 + 6 + 14)
   })
 })

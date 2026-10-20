@@ -17,7 +17,8 @@ export const GUEST_LENSES: readonly GuestLens[] = ['homeroom', 'subject_teacher'
 
 /** תוויות הבורר (טקסט ממשק קבוע) */
 export const GUEST_LENS_TEXT = {
-  sentence: 'בתצוגת ההדגמה אפשר לבחור תפקיד ולראות איך המסכים נראים לו.',
+  /* משפט הסבר קצר אחד (שורה אחת): מה הבורר עושה */
+  sentence: 'תצוגת הדגמה: בחרו תפקיד',
   groupLabel: 'צפייה בתור',
   subject: 'מקצוע',
   names: { homeroom: 'מחנך/ת', subject_teacher: 'מורה מקצועי/ת', admin: 'מנהל/ת' } satisfies Record<GuestLens, string>,

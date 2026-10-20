@@ -19,11 +19,23 @@ export const isAttention = (f: Finding): f is ReportedFinding => f.status === 'r
 
 const round1 = (v: number): number => Math.round(v * 10) / 10
 
+/* ── השוואת רמות: נקודת ההשוואה היחידה לכל סף בין רמות ──
+   רמות הן מספרים עם ספרה אחת אחרי הנקודה, והפרש של רמה שלמה יוצא בנקודה צפה קצת פחות מ-1
+   (4.1 − 3.1 = 0.9999999999999996), ולכן "לפחות רמה אחת" נכשל על 8 זוגות בין 1 ל-20 ועל 4 זוגות ב"חצי רמה".
+   כל סף (מגמה, תחום חזק/מאתגר, מיקום מול הטווח, צמיחה בתדריך ובמשוב) עובר דרך compareLevels —
+   סבילות של 1e-9, לא עיגול לשתי ספרות (עיגול כזה היה מסווג 0.496 כחצי רמה). */
+export const LEVEL_EPSILON = 1e-9
+export function compareLevels(a: number, b: number): -1 | 0 | 1 {
+  const d = a - b
+  return d > LEVEL_EPSILON ? 1 : d < -LEVEL_EPSILON ? -1 : 0
+}
+export const levelAtLeast = (value: number, threshold: number): boolean => compareLevels(value, threshold) >= 0
+export const levelAtMost = (value: number, threshold: number): boolean => compareLevels(value, threshold) <= 0
+
 /* ── מגמה ── */
 export function trendOfDelta(delta: number | null): Trend {
   if (delta === null || !Number.isFinite(delta)) return 'insufficient'
-  const d = Math.round(delta * 100) / 100 /* ניקוי רעש נקודה צפה בלבד; הסף עצמו חצי רמה */
-  return d >= TREND_LABEL_MIN_DELTA ? 'improving' : d <= -TREND_LABEL_MIN_DELTA ? 'declining' : 'steady'
+  return levelAtLeast(delta, TREND_LABEL_MIN_DELTA) ? 'improving' : levelAtMost(delta, -TREND_LABEL_MIN_DELTA) ? 'declining' : 'steady'
 }
 type TrendInput = Pick<SubjectAnalysis, 'level60' | 'level90to150'>
 export const trendDelta = (sa: TrendInput): number | null => (sa.level60 !== null && sa.level90to150 !== null ? sa.level60 - sa.level90to150 : null)
@@ -37,7 +49,7 @@ export function groupTrend(sas: TrendInput[]): Trend {
 /* ── מיקום מול הטווח המיועד לשכבה ── */
 export function positionOf(level: number | null, norm: AgeNorm): Position | null {
   if (level === null) return null
-  return level > norm.high ? 'above' : level < norm.low ? 'below' : 'within'
+  return compareLevels(level, norm.high) > 0 ? 'above' : compareLevels(level, norm.low) < 0 ? 'below' : 'within'
 }
 
 /* ── תחומים (סוגי תוכן) חזקים / מאתגרים ── */
@@ -45,10 +57,14 @@ export interface AreaKeys { strong: string[]; challenging: string[] }
 type VecInput = { key: string; level: number | null; status: 'reported' | 'insufficient' }
 const orderOfKey = (k: string): number => CONTENT_VECTOR_KINDS.findIndex((v) => v.key === k)
 
+/* תחום חזק / מאתגר לפי הפער (תחום פחות רמת הייחוס) — מול AREA_MIN_DELTA, בהשוואת הרמות הבטוחה */
+export function areaDirection(diff: number): 'strong' | 'challenging' | null {
+  return levelAtLeast(diff, AREA_MIN_DELTA) ? 'strong' : levelAtMost(diff, -AREA_MIN_DELTA) ? 'challenging' : null
+}
 function splitAreas(entries: { key: string; diff: number }[]): AreaKeys {
-  const byGap = (x: { diff: number }, y: { diff: number }): number => Math.abs(y.diff) - Math.abs(x.diff)
-  const strong = entries.filter((e) => e.diff >= AREA_MIN_DELTA).sort((x, y) => byGap(x, y) || orderOfKey(x.key) - orderOfKey(y.key))
-  const challenging = entries.filter((e) => e.diff <= -AREA_MIN_DELTA).sort((x, y) => byGap(x, y) || orderOfKey(x.key) - orderOfKey(y.key))
+  const byGap = (x: { diff: number }, y: { diff: number }): number => compareLevels(Math.abs(y.diff), Math.abs(x.diff))
+  const strong = entries.filter((e) => areaDirection(e.diff) === 'strong').sort((x, y) => byGap(x, y) || orderOfKey(x.key) - orderOfKey(y.key))
+  const challenging = entries.filter((e) => areaDirection(e.diff) === 'challenging').sort((x, y) => byGap(x, y) || orderOfKey(x.key) - orderOfKey(y.key))
   return { strong: strong.map((e) => e.key), challenging: challenging.map((e) => e.key) }
 }
 /* מפתחות הווקטורים (התוויות מתורגמות ב-provider דרך contentVectorLabel) */
@@ -101,6 +117,12 @@ export const compareAlert = (x: ReportedFinding, y: ReportedFinding): number => 
   const [rx, mx] = alertRank(x)
   const [ry, my] = alertRank(y)
   return rx - ry || mx - my || x.id.localeCompare(y.id)
+}
+
+/* ── מיון שמות: א-ב (איסוף עברי), ובשוויון מלא — לפי המזהה, כך שהסדר קבוע בין קריאות ── */
+const HEBREW_COLLATOR = new Intl.Collator('he')
+export function compareHebrewNames(x: { displayName: string; id: string }, y: { displayName: string; id: string }): number {
+  return HEBREW_COLLATOR.compare(x.displayName, y.displayName) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)
 }
 
 /* ממוצע רמה חודשי של הכיתה: לכל תלמיד/ה — ממוצע חודשי שלו/ה; לכל חודש — ממוצע על התלמידים (n = כמה תרמו) */

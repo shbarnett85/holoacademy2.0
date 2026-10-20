@@ -137,7 +137,7 @@ describe('מסך הכניסה "בחרו כיתה"', () => {
 
   it('מנהל: מערכים ריקים, ואין שם/מזהה תלמיד או מידע על מורים באף תגובה (כולל entry)', async () => {
     const e = await demoProvider.entry(admin)
-    expect(e.data).toEqual({ classes: [], alerts: [] })
+    expect(e.data).toMatchObject({ classes: [], alerts: [], alertsTotal: 0, alertsMore: null })
     const config = await demoProvider.config(admin) /* מפתחות העדשות (subject_teacher) הם חלק מהחוזה — לא טקסט */
     const payloads = JSON.stringify([e, await demoProvider.admin(admin), await demoProvider.roster(admin), config])
     for (const st of A.world.students) {

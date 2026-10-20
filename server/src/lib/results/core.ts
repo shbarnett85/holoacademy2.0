@@ -10,7 +10,8 @@
    סמנטיקה (תקציר):
    · אתגר = סצנה עם puzzle, לפי סדר הסצנות. finalQuiz = אתגר אחד שפריטיו הן שאלותיו. moralDilemma אין בו נכון/שגוי
      (נפתר = ניסה), והתפלגות הבחירות שלו מגיעה ללא שמות תלמידים (moral_choices אינה קשורה לתלמיד בכוונה).
-   · לכל תלמיד נספר ה-session האחרון בלבד (כמו באנליטיקה הקיימת).
+   · לכל תלמיד נספרת ההרצה האחרונה **שהושלמה** (session פתוח חדש אינו מוחק הרצה שהושלמה); אם אין הרצה שהושלמה — ה-session הפתוח האחרון ("באמצע").
+   · תלמיד ששיחק בגרסה אישית (answers.variant_id): הפרומפטים/האפשרויות/התשובה הנכונה/התגיות נלקחים מהגרסה שלו, לא מהבסיס.
    · תוצאת אתגר: קודם מ-answers (פירוט מלא), ואם אין — מ-events מסוכמים (puzzle_solved/puzzle_failed; options=null).
      session שלא הושלם אינו כותב events/answers (השליחה מרוכזת בסיום) — אתגריו "לא הגיע".
    · "טעות נפוצה" רק מתגיות מסיחים (option_tags) ורק כשלפחות COMMON_ERROR_MIN_STUDENTS תלמידים בחרו בה.
@@ -20,10 +21,12 @@ import type {
   OptionCount, Outcome, ResultsSubject, SlideFact, StudentChallenge, StudentChip, StudentItem, StudentStatus, StudentSubmissionView,
   SubmissionHead, SubmissionRow,
 } from '../../../../src/shared/types/resultsV1.js'
-import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
+import {
+  ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
+} from '../../../../src/shared/lib/analyticsConfig.js'
 import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
 import {
-  howWeCalcObjectivesLines, howWeCalcResultsLines, narrateClassSummary, narrateListSummary, narrateStudentSummary, objectiveLevelText,
+  howWeCalcObjectivesLines, howWeCalcResultsLines, israelDayKey, narrateClassSummary, narrateListSummary, narrateStudentSummary, objectiveLevelText,
   type ClassSummaryInput,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { puzzleTypeLabel } from '../../../../src/shared/lib/labels.js'
@@ -84,6 +87,9 @@ export interface CoreAnswerRow {
   /* מספר ההצגה (הסיפא של client_event_id = session:scene:item:seq). שורות מאותה אצווה חולקות created_at, ולכן
      הסדר בין הצגות נקבע לפי seq. ברירת מחדל 0 (סדר הקלט). */
   seq?: number
+  /* answers.variant_id: הגרסה האישית של ההדמיה ששוחקה (quest_variants.id). null/חסר = ההדמיה הבסיסית.
+     בגרסה אישית החידות נוצרו מחדש, ולכן selectedOptionId מתייחס לאפשרויות הגרסה ולא לאפשרויות הבסיס. */
+  variantId?: string | null
 }
 
 /* שורת events מסוכמת: puzzle_solved/puzzle_failed (payload: puzzleType/difficulty/attempts/solveTimeMs/shards)
@@ -107,8 +113,12 @@ export interface CoreOptionTag {
   linkedQuest: { questId: string; title: string } | null
 }
 
-/* בחירות בדילמה מוסרית (moral_choices): בלי תלמיד/session, optionId = "m<אינדקס>" */
-export interface CoreMoralRow { sceneId: string; optionId: string }
+/* בחירות בדילמה מוסרית (moral_choices): בלי תלמיד/session, optionId = "m<אינדקס>".
+   variantId = moral_choices.variant_id — בחירה בגרסה אישית אינה ניתנת לשיוך לאפשרויות הבסיס, ולכן אינה נכנסת להתפלגות. */
+export interface CoreMoralRow { sceneId: string; optionId: string; variantId?: string | null }
+
+/* גרסה אישית של ההדמיה (quest_variants): game_data משלה (חידות שנוצרו מחדש), ותגיות מסיחים משלה — לעולם לא ממוזגות לתגיות הבסיס */
+export interface CoreVariant { id: string; studentId: string; gameData: unknown; optionTags?: CoreOptionTag[] }
 
 export interface CoreInput {
   submission: CoreSubmissionInfo
@@ -117,6 +127,8 @@ export interface CoreInput {
   answers: CoreAnswerRow[]
   events: CoreEventRow[]
   optionTags: CoreOptionTag[]
+  /* הגרסאות האישיות שחלק מהתשובות שוחקו בהן (מזוהות לפי answers.variant_id) */
+  variants?: CoreVariant[]
   moral?: CoreMoralRow[]
   /* התאריך (ISO) שממנו קיימת לכידת תשובות במערכת (min answers.created_at), או null אם אין עדיין */
   detailAvailableFrom: string | null
@@ -252,6 +264,8 @@ interface SceneRes {
   detailed: boolean
   items: Map<number, ItemRes>
 }
+/* הגרסה האישית ששוחקה (אם בכלל): הגדרות האתגרים שלה לפי סצנה, תגיות המסיחים שלה, והדמיית הגרסה עצמה (לשקפים) */
+interface StudentVariant { defs: Map<string, ChallengeDef>; tagByKey: Map<string, CoreOptionTag>; gameData: unknown }
 interface StudentAnalysis {
   student: CoreStudent
   status: StudentStatus
@@ -262,6 +276,9 @@ interface StudentAnalysis {
   attempted: number
   gaveUp: number
   reasons: AttentionReason[]
+  /* שורות ה-answers מצביעות על גרסה אישית (variantId). variant = נתוני הגרסה אם נטענו; null עם variantId = לא נטענו (אין לאן לתרגם) */
+  variantId: string | null
+  variant: StudentVariant | null
 }
 interface ItemAgg {
   def: ItemDef
@@ -292,6 +309,43 @@ export interface Analysis {
 
 const tagKey = (sceneId: string, itemIndex: number, optionId: string): string => `${sceneId}|${itemIndex}|${optionId}`
 
+/* ── גרסאות אישיות ──
+   תלמיד/ה ששיחק/ה בגרסה אישית (quest_variants — חידות שנוצרו מחדש לרמה שלו/ה) ענה/תה על שאלות ואפשרויות שאינן בהדמיית הבסיס. לכן:
+   · מסך התלמיד/ה (שאלה, מה ענה/תה, מהי התשובה הנכונה, תגית) נבנה מהגרסה שלו/ה, עם התגיות שלה בלבד.
+   · התפלגות האפשרויות הכיתתית (והטעויות הנפוצות) כוללת בחירה של תלמיד/ה כזה/ת רק כשהשאלה והאפשרות זהות לאלה שבבסיס (אותו טקסט,
+     אותה נכונות) — אחרת היא אינה נספרת בהתפלגות, אך כן נספרת ב"ניסו" ו"הצליחו" (לפי נכונות התשובה).
+   · תגיות הגרסה לעולם לא נכנסות למפת התגיות של הבסיס. */
+function studentVariantOf(v: CoreVariant, base: ChallengeDef[]): StudentVariant {
+  const baseType = new Map(base.map((b) => [b.sceneId, b.type]))
+  const defs = new Map<string, ChallengeDef>()
+  for (const vc of extractChallenges(v.gameData)) if (baseType.get(vc.sceneId) === vc.type) defs.set(vc.sceneId, vc)
+  const tagByKey = new Map<string, CoreOptionTag>()
+  for (const t of v.optionTags ?? []) tagByKey.set(tagKey(t.sceneId, t.itemIndex, t.optionId), t)
+  return { defs, tagByKey, gameData: v.gameData }
+}
+
+/* מה שוחק באתגר: הבסיס; גרסה (עם ההגדרה שלה); או גרסה שאין לנו את התוכן שלה (לא נטענה / חסרה סצנה) */
+type Played = { kind: 'base' } | { kind: 'variant'; def: ChallengeDef } | { kind: 'unknown' }
+function playedOf(s: StudentAnalysis, ch: ChallengeDef): Played {
+  if (!s.variantId) return { kind: 'base' }
+  const def = s.variant?.defs.get(ch.sceneId)
+  return def ? { kind: 'variant', def } : { kind: 'unknown' }
+}
+
+const normText = (t: string): string => t.replace(/\s+/g, ' ').trim()
+
+/* מזהה אפשרות הבסיס שהבחירה של התלמיד/ה מתאימה לה בהתפלגות; null = אינה ניתנת לשיוך לבסיס (לא נספרת בהתפלגות) */
+function basePickOption(s: StudentAnalysis, ch: ChallengeDef, def: ItemDef, selected: string | null): string | null {
+  if (selected === null) return null
+  const played = playedOf(s, ch)
+  if (played.kind === 'base') return selected
+  if (played.kind === 'unknown' || !def.options) return null
+  const vitem = played.def.items.find((it) => it.itemIndex === def.itemIndex)
+  const vopt = vitem?.options?.find((o) => o.id === selected)
+  if (!vitem || !vopt || normText(vitem.prompt) !== normText(def.prompt)) return null
+  return def.options.find((b) => b.isCorrect === vopt.isCorrect && normText(b.text) === normText(vopt.text))?.id ?? null
+}
+
 /* ההכרעה בין הצגות חוזרות של אותו פריט: נכון אם יש; אחרת ההצגה האחרונה שנענתה; אחרת האחרונה (נסגרה) */
 function decide(rows: CoreAnswerRow[]): CoreAnswerRow {
   const ord = rows.map((r, i) => ({ r, i })).sort((a, b) => (a.r.seq ?? 0) - (b.r.seq ?? 0) || a.i - b.i).map((x) => x.r)
@@ -308,14 +362,21 @@ const ts = (iso: string | null): number => {
   return Number.isNaN(t) ? -Infinity : t
 }
 
+/* איזו הרצה נספרת לתלמיד/ה: ההרצה האחרונה **שהושלמה**. session שנפתח עכשיו (ריק — השליחה מרוכזת בסיום, ולכן עד שהוא מסתיים אין לו
+   אירועים או תשובות) אינו מוחק הרצה שהושלמה; רק כשאין שום הרצה שהושלמה נספר ה-session הפתוח האחרון ("באמצע").
+   בין שתי הרצות באותו מצב (שתיהן הושלמו / שתיהן פתוחות) — המאוחרת לפי startedAt. */
+export function preferSession(cur: CoreSession, next: CoreSession): CoreSession {
+  const curDone = !!cur.completedAt
+  const nextDone = !!next.completedAt
+  if (curDone !== nextDone) return nextDone ? next : cur
+  return ts(next.startedAt) > ts(cur.startedAt) ? next : cur
+}
+
 function latestSessions(sessions: CoreSession[]): Map<string, CoreSession> {
   const map = new Map<string, CoreSession>()
   for (const s of sessions) {
     const cur = map.get(s.studentId)
-    if (!cur) { map.set(s.studentId, s); continue }
-    const a = ts(s.startedAt)
-    const b = ts(cur.startedAt)
-    if (a > b || (a === b && !!s.completedAt && !cur.completedAt)) map.set(s.studentId, s)
+    map.set(s.studentId, cur ? preferSession(cur, s) : s)
   }
   return map
 }
@@ -347,18 +408,27 @@ export function analyzeSubmission(input: CoreInput): Analysis {
     puzzleEvBySession.set(e.sessionId, m)
   }
 
+  const variantsById = new Map((input.variants ?? []).map((v) => [v.id, v]))
+
   const out: StudentAnalysis[] = []
   for (const stu of students) {
     const session = latest.get(stu.id) ?? null
     const status: StudentStatus = !session ? 'not_started' : session.completedAt ? 'completed' : 'in_progress'
-    const an: StudentAnalysis = { student: stu, status, session, hasRows: false, scenes: new Map(), solved: 0, attempted: 0, gaveUp: 0, reasons: [] }
+    const an: StudentAnalysis = {
+      student: stu, status, session, hasRows: false, scenes: new Map(), solved: 0, attempted: 0, gaveUp: 0, reasons: [], variantId: null, variant: null,
+    }
     if (session) {
       const rows = answersBySession.get(session.id) ?? []
       an.hasRows = rows.length > 0
+      /* ההרצה שנספרת שוחקה בגרסה אישית? (כל שורות ההרצה חולקות variant_id) — הפרומפטים/האפשרויות/התשובה הנכונה נלקחים ממנה, לא מהבסיס */
+      an.variantId = rows.find((r) => r.variantId)?.variantId ?? null
+      const variant = an.variantId ? variantsById.get(an.variantId) : undefined
+      if (variant && variant.studentId === stu.id) an.variant = studentVariantOf(variant, challenges)
       const rowsByScene = groupBy(rows, (r) => r.sceneId)
       const evByScene = puzzleEvBySession.get(session.id)
       for (const ch of challenges) {
-        const res = sceneResult(ch, rowsByScene.get(ch.sceneId) ?? [], evByScene?.get(ch.sceneId) ?? null)
+        const played = playedOf(an, ch)
+        const res = sceneResult(played.kind === 'variant' ? played.def : ch, rowsByScene.get(ch.sceneId) ?? [], evByScene?.get(ch.sceneId) ?? null)
         if (res) an.scenes.set(ch.sceneId, res)
       }
     }
@@ -448,12 +518,14 @@ function aggregateChallenge(ch: ChallengeDef, students: StudentAnalysis[]): Chal
         if (!ir) continue
         item.attempted++
         if (ir.isCorrect) item.solved++
-        if (picks && ir.selectedOptionId !== null) picks.get(ir.selectedOptionId)?.push(s.student.id)
+        const pick = basePickOption(s, ch, def, ir.selectedOptionId)
+        if (picks && pick !== null) picks.get(pick)?.push(s.student.id)
       } else {
         item.attempted++
         if (r.outcome === 'correct') item.solved++
         const ir = r.items.get(def.itemIndex)
-        if (picks && ir?.selectedOptionId != null) picks.get(ir.selectedOptionId)?.push(s.student.id)
+        const pick = basePickOption(s, ch, def, ir?.selectedOptionId ?? null)
+        if (picks && pick !== null) picks.get(pick)?.push(s.student.id)
       }
     }
     return item
@@ -520,15 +592,17 @@ function countsOf(an: Analysis): Counts {
   return { total, completed, inProgress, notStarted: total - completed - inProgress }
 }
 
-/* האתגר הקשה ביותר = שיעור הטעות הגבוה ביותר (טעו/ניסו); רק אתגר שיש בו טעות */
+/* האתגר הקשה ביותר = החלק הגבוה ביותר של מי שניסו ולא הצליחו — טעו, ויתרו או נגמר להם הזמן. אתגר שכולם נטשו יכול להיות הקשה ביותר.
+   ההשוואה במספרים שלמים (הכפלה צולבת), כך שסדר האתגרים/התלמידים לא משפיע; שוויון — יותר תלמידים שלא הצליחו, ואז האתגר המוקדם. */
 function hardestOf(an: Analysis): ClassSummaryInput['hardest'] {
+  const notSolved = (a: ChallengeAgg): number => a.attempted - a.solved
   let best: ChallengeAgg | null = null
   for (const a of an.aggs) {
-    if (a.attempted === 0 || a.wrong === 0) continue
+    if (a.attempted === 0 || notSolved(a) === 0) continue
     if (!best) { best = a; continue }
-    const ra = a.wrong / a.attempted
-    const rb = best.wrong / best.attempted
-    if (ra > rb || (ra === rb && a.wrong > best.wrong)) best = a
+    const lhs = notSolved(a) * best.attempted
+    const rhs = notSolved(best) * a.attempted
+    if (lhs > rhs || (lhs === rhs && notSolved(a) > notSolved(best))) best = a
   }
   if (!best) return null
   let text: string | null = null
@@ -542,15 +616,17 @@ function hardestOf(an: Analysis): ClassSummaryInput['hardest'] {
       if (n > count) { count = n; text = o.text }
     }
   }
-  return { title: best.def.title, attempted: best.attempted, wrong: best.wrong, topErrorOptionText: text, topErrorCount: count }
+  return { title: best.def.title, attempted: best.attempted, wrong: notSolved(best), topErrorOptionText: text, topErrorCount: count }
 }
 
 function summaryInput(an: Analysis): ClassSummaryInput {
   const c = countsOf(an)
   const done = an.students.filter((s) => s.status === 'completed')
   const total = an.challenges.length
-  const avg = done.length > 0 && total > 0 ? done.reduce((sum, s) => sum + s.solved / total, 0) / done.length : null
-  return { ...c, avgSolvedShare: avg, hardest: hardestOf(an) }
+  /* חלק האתגרים שנפתרו בממוצע = סך הפתרונות חלקי (מי שסיימו × האתגרים): מספרים שלמים, כך שסדר השמות לא משנה את המשפט בגבולות 0.5 / 0.75 */
+  const solvedSum = done.reduce((sum, s) => sum + s.solved, 0)
+  const avg = done.length > 0 && total > 0 ? solvedSum / (done.length * total) : null
+  return { ...c, avgSolvedShare: avg, totalChallenges: total, hardest: hardestOf(an) }
 }
 
 /* יעדי הלמידה שהוגדרו בהדמיה (game_data.objectives), בלי כפילויות ובלי רשומות פגומות */
@@ -576,11 +652,20 @@ export function questObjectives(gameData: unknown): { id: string; text: string }
    · תלמיד/ה "הצליח/ה ביעד" כשהצליח/ה לפחות OBJECTIVE_BANDS.partial מיחידות היעד שניסה; פחות מזה = מתקשה (weakStudents).
    · רמת היעד לפי חלק התלמידים שהצליחו מבין מי שניסה: strong ≥ OBJECTIVE_BANDS.strong, partial ≥ OBJECTIVE_BANDS.partial, אחרת weak.
    · יעד שאף אתגר/שאלה לא תויגו בו (או רק שאלות מוסר) אינו ניתן למדידה ולא מוצג. מי שלא סיים לא נספר (אין לו שורות). */
+/* יחידת מדידה: אתגר שלם (itemIndex=null) או שאלה במבחן סיכום */
+export interface ReviewUnit { sceneId: string; itemIndex: number | null }
+
 function objectiveResults(an: Analysis): ObjectiveResult[] {
+  return objectiveAnalysis(an).results
+}
+
+function objectiveAnalysis(an: Analysis): { results: ObjectiveResult[]; units: Map<string, ReviewUnit[]> } {
+  const units = new Map<string, ReviewUnit[]>()
   const defs = questObjectives(an.input.submission.quest.gameData)
-  if (defs.length === 0) return []
+  if (defs.length === 0) return { results: [], units }
   const known = new Set(defs.map((d) => d.id))
   const measurable = new Set<string>()
+  const addUnit = (objectiveId: string, u: ReviewUnit): void => { units.set(objectiveId, [...(units.get(objectiveId) ?? []), u]) }
   /* יעד → תלמיד → יחידות שניסה / הצליח */
   const perObjective = new Map<string, Map<string, { attempted: number; solved: number }>>()
   const count = (objectiveId: string, studentId: string, solved: boolean): void => {
@@ -599,8 +684,10 @@ function objectiveResults(an: Analysis): ObjectiveResult[] {
       const id = item.objectiveId ?? ch.objectiveId
       return id && known.has(id) ? id : null
     }
-    if (whole) measurable.add(whole)
-    if (ch.type === 'finalQuiz') for (const item of ch.items) { const id = itemObjective(item); if (id) measurable.add(id) }
+    if (whole) { measurable.add(whole); if (ch.type !== 'finalQuiz') addUnit(whole, { sceneId: ch.sceneId, itemIndex: null }) }
+    if (ch.type === 'finalQuiz') {
+      for (const item of ch.items) { const id = itemObjective(item); if (id) { measurable.add(id); addUnit(id, { sceneId: ch.sceneId, itemIndex: item.itemIndex }) } }
+    }
 
     for (const s of an.students) {
       const res = s.scenes.get(ch.sceneId)
@@ -617,7 +704,7 @@ function objectiveResults(an: Analysis): ObjectiveResult[] {
     }
   }
 
-  return defs.filter((d) => measurable.has(d.id)).map((d): ObjectiveResult => {
+  const results = defs.filter((d) => measurable.has(d.id)).map((d): ObjectiveResult => {
     const byStudent = perObjective.get(d.id) ?? new Map<string, { attempted: number; solved: number }>()
     let attempted = 0
     let solved = 0
@@ -631,28 +718,67 @@ function objectiveResults(an: Analysis): ObjectiveResult[] {
     const level: ObjectiveLevel | null = attempted === 0 ? null : share >= OBJECTIVE_BANDS.strong ? 'strong' : share >= OBJECTIVE_BANDS.partial ? 'partial' : 'weak'
     return { id: d.id, text: d.text, attempted, solved, level, levelText: objectiveLevelText(level), weakStudents: weakStudents.sort(byName) }
   })
+  return { results, units }
 }
 
-/* מספר התחומים החלשים — לבוחן ההצעה "הדמיית חזרה" (0 = לא מציגים) */
-function weakCountOf(an: Analysis): number {
-  const objectives = questObjectives(an.input.submission.quest.gameData)
-  const weak = (attempted: number, solved: number): boolean => attempted >= WEAK_MIN_ATTEMPTS && solved / attempted < WEAK_RATE
-  if (objectives.length > 0) {
-    let n = 0
-    for (const o of objectives) {
-      const mine = an.aggs.filter((a) => a.def.objectiveId === o.id)
-      if (mine.length > 0 && weak(mine.reduce((s, a) => s + a.attempted, 0), mine.reduce((s, a) => s + a.solved, 0))) n++
+/* ── תחומים לחיזוק (הצעה ל"תרגול חזרה", ויצירת הדמיית החזרה עצמה) ──
+   מקור אחד לספירה שבמסך ולרשימה שנקודת ההקצאה מקבלת, כך שהם מסכימים תמיד:
+   · יש יעדי למידה שאפשר למדוד (הטאב "יעדי הלמידה" קיים): תחום = יעד ברמה "עדיין קשה" — בדיוק מה שהטאב מציג.
+   · אין: תחום = אתגר שפחות מ-WEAK_RATE ממי שניסו הצליחו בו (לפחות WEAK_MIN_ATTEMPTS ניסו). דילמת מוסר אינה נספרת (אין בה נכון/שגוי);
+     במבחן סיכום (עם פירוט) כל שאלה נספרת בנפרד.
+   · מתחת ל-REVIEW_MIN_COMPLETED תלמידים שסיימו אין הצעה בכלל. */
+export interface ReviewConcept {
+  /* יעד הלמידה, אם התחום הוא יעד */
+  objectiveId: string | null
+  text: string
+  /* חלק ההצלחה (0..1): בין התלמידים שניסו את היעד, או בין מי שניסו את האתגר */
+  successRate: number
+  units: ReviewUnit[]
+}
+
+export function reviewConceptsOf(an: Analysis): ReviewConcept[] {
+  const completed = an.students.filter((s) => s.status === 'completed').length
+  if (completed < REVIEW_MIN_COMPLETED) return []
+  const { results, units } = objectiveAnalysis(an)
+  const out: ReviewConcept[] = []
+  if (results.length > 0) {
+    for (const o of results) {
+      if (o.level === 'weak') out.push({ objectiveId: o.id, text: o.text, successRate: o.attempted > 0 ? o.solved / o.attempted : 0, units: units.get(o.id) ?? [] })
     }
-    return n
+  } else {
+    const weak = (attempted: number, solved: number): boolean => attempted >= WEAK_MIN_ATTEMPTS && solved / attempted < WEAK_RATE
+    for (const agg of an.aggs) {
+      if (agg.def.type === 'moralDilemma') continue
+      if (agg.def.type === 'finalQuiz' && agg.hasDetail) {
+        for (const item of agg.items) {
+          if (weak(item.attempted, item.solved)) {
+            out.push({ objectiveId: null, text: item.def.prompt || agg.def.title, successRate: item.solved / item.attempted, units: [{ sceneId: agg.def.sceneId, itemIndex: item.def.itemIndex }] })
+          }
+        }
+      } else if (weak(agg.attempted, agg.solved)) {
+        out.push({ objectiveId: null, text: agg.def.title, successRate: agg.solved / agg.attempted, units: [{ sceneId: agg.def.sceneId, itemIndex: null }] })
+      }
+    }
   }
-  return an.aggs.filter((a) => weak(a.attempted, a.solved)).length
+  return out.sort((a, b) => a.successRate - b.successRate)
 }
 
-/* האם יש פירוט תשובות לשליחה: נתונים בפועל, או שהיא נשלחה אחרי שהלכידה התחילה */
+/* בסיס הדמיית חזרה לשליחה אחת — לנקודת ההקצאה (review-quest): כמה סיימו, והתחומים לחיזוק */
+export function buildReviewBasis(input: CoreInput): { completed: number; concepts: ReviewConcept[] } {
+  const an = analyzeSubmission(input)
+  return { completed: an.students.filter((s) => s.status === 'completed').length, concepts: reviewConceptsOf(an) }
+}
+
+/* האם יש פירוט תשובות לשליחה: נתונים בפועל, או שהיא נשלחה אחרי שהלכידה התחילה.
+   ההשוואה ביום ישראלי (Asia/Jerusalem) ולא ברגע: שליחה באותו יום ישראלי כמו התשובה הראשונה שנלכדה נחשבת שיש לה פירוט,
+   וזה בדיוק היום שהטקסט "פירוט התשובות זמין מ-…" מציג (dateHe). */
 function submissionDetail(an: Analysis): boolean {
   if (an.hasAnswerRows) return true
   const from = an.input.detailAvailableFrom
-  return from !== null && ts(an.input.submission.sentAt) >= ts(from)
+  if (from === null) return false
+  const sent = israelDayKey(an.input.submission.sentAt)
+  const first = israelDayKey(from)
+  return sent !== null && first !== null && sent >= first
 }
 
 const chipOf = (s: StudentAnalysis): StudentChip => ({
@@ -683,11 +809,16 @@ export function buildListRow(input: CoreInput): SubmissionRow {
   }
 }
 
+/* התפלגות בחירות בדילמה מוסרית. ב-moral_choices אין שם/תלמיד בכוונה — לכן התפלגות על מעט תלמידים הייתה מאפשרת לזהות מי בחר מה
+   (תלמיד/ה בודד/ת ששיחק/ה שוב ושוב נראה כקבוצה). מוצגת רק כשיש לפחות MORAL_MIN_ROWS שורות בחירה **וגם** לפחות MORAL_MIN_COMPLETED
+   תלמידים שסיימו; אחרת options=null ("אין פירוט"). בחירות בגרסה אישית (variantId) אינן ניתנות לשיוך לאפשרויות הבסיס ולא נספרות. */
 function moralOptions(an: Analysis, agg: ChallengeAgg): OptionCount[] | null {
-  const rows = (an.input.moral ?? []).filter((m) => m.sceneId === agg.def.sceneId)
+  const rows = (an.input.moral ?? []).filter((m) => m.sceneId === agg.def.sceneId && !m.variantId)
   const opts = agg.def.items[0]?.options
   /* אין שורות moral_choices (הדמיה ישנה / עוד לא נשלחו) = אין פירוט */
   if (!opts || opts.length === 0 || rows.length === 0) return null
+  const completed = an.students.filter((s) => s.status === 'completed').length
+  if (rows.length < MORAL_MIN_ROWS || completed < MORAL_MIN_COMPLETED) return null
   return opts.map((o) => ({
     optionId: o.id, text: o.text, isCorrect: false, count: rows.filter((m) => m.optionId === o.id).length,
     errorTag: null, students: [],
@@ -746,16 +877,21 @@ export function buildClassView(input: CoreInput): ClassSubmissionView {
     challenges: an.aggs.map((a) => challengeResult(an, a)),
     commonErrors: classCommonErrors(an),
     objectives,
-    review: { weakCount: weakCountOf(an) },
+    review: { weakCount: reviewConceptsOf(an).length },
     howWeCalculated: objectives.length > 0 ? [...howWeCalcResultsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)] : howWeCalcResultsLines(),
   }
 }
 
 /* ── מצב "לפי תלמיד" ── */
-function studentItems(an: Analysis, ch: ChallengeDef, res: SceneRes | undefined, stuOutcome: Outcome): StudentItem[] {
+/* פריטי אתגר אחד של תלמיד/ה. שאלה, אפשרויות, תשובה נכונה ותגית נלקחות מהגרסה ששוחקה (בסיס או גרסה אישית) —
+   ואם שוחקה גרסה שאין לנו את תוכנה, לא מנחשים מהבסיס: מציגים רק נכון/לא נכון, בלי טקסט תשובה. */
+function studentItems(an: Analysis, s: StudentAnalysis, ch: ChallengeDef, res: SceneRes | undefined, stuOutcome: Outcome): StudentItem[] {
   if (!res || stuOutcome === 'not_reached') return []
+  const played = playedOf(s, ch)
+  const defs = played.kind === 'variant' ? played.def.items : ch.items
+  const tags = played.kind === 'variant' ? (s.variant?.tagByKey ?? new Map<string, CoreOptionTag>()) : an.tagByKey
   const out: StudentItem[] = []
-  for (const def of ch.items) {
+  for (const def of defs) {
     const ir = res.items.get(def.itemIndex)
     if (!ir) {
       /* אין פירוט לפריט: events בלבד (או דילמה מוסרית — הבחירה אינה קשורה לתלמיד בכוונה) */
@@ -766,9 +902,13 @@ function studentItems(an: Analysis, ch: ChallengeDef, res: SceneRes | undefined,
       })
       continue
     }
+    if (played.kind === 'unknown') {
+      out.push({ itemIndex: def.itemIndex, prompt: def.prompt, answerText: null, correctText: null, isCorrect: ir.isCorrect, errorTag: null, attempts: ir.attempts, seconds: ir.seconds })
+      continue
+    }
     const opts = def.options
     const selected = ir.selectedOptionId !== null ? opts?.find((o) => o.id === ir.selectedOptionId) : undefined
-    const tag = selected && !selected.isCorrect ? an.tagByKey.get(tagKey(ch.sceneId, def.itemIndex, selected.id)) : undefined
+    const tag = selected && !selected.isCorrect ? tags.get(tagKey(ch.sceneId, def.itemIndex, selected.id)) : undefined
     out.push({
       itemIndex: def.itemIndex, prompt: def.prompt,
       answerText: selected ? selected.text : null,
@@ -782,7 +922,8 @@ function studentItems(an: Analysis, ch: ChallengeDef, res: SceneRes | undefined,
 
 function slideFacts(an: Analysis, s: StudentAnalysis): SlideFact[] {
   if (!s.session) return []
-  const scenes = scenesOf(an.input.submission.quest.gameData)
+  /* תלמיד/ה בגרסה אישית קרא/ה את הנרטיב של הגרסה (כתוב לרמת הקריאה שלו/ה) — ספירת המילים לפיו */
+  const scenes = scenesOf(s.variant?.gameData ?? an.input.submission.quest.gameData)
   const order = new Map(scenes.map((sc, i) => [sc.id, { order: i + 1, scene: sc }]))
   const acc = new Map<string, { words: number | null; ms: number | null }>()
   for (const e of an.input.events) {
@@ -818,7 +959,7 @@ export function buildStudentView(input: CoreInput, studentId: string): StudentSu
   const challenges: StudentChallenge[] = an.challenges.map((ch) => {
     const res = s.scenes.get(ch.sceneId)
     const outcome: Outcome = res ? res.outcome : 'not_reached'
-    const items = studentItems(an, ch, res, outcome)
+    const items = studentItems(an, s, ch, res, outcome)
     return {
       sceneId: ch.sceneId, order: ch.order, title: ch.title, type: ch.type, typeLabel: ch.typeLabel,
       outcome, attempts: res && outcome !== 'not_reached' ? res.attempts : 0, seconds: res && outcome !== 'not_reached' ? res.seconds : null, items,
@@ -832,7 +973,7 @@ export function buildStudentView(input: CoreInput, studentId: string): StudentSu
     nextId: idx < roster.length - 1 ? roster[idx + 1].id : null,
     summary: narrateStudentSummary({
       firstName: firstName(s.student.name), status: s.status, totalChallenges: an.challenges.length,
-      attempted: s.attempted, solved: s.solved, gaveUp: s.gaveUp,
+      attempted: s.attempted, solved: s.solved, gaveUp: s.gaveUp, attentionReasons: s.reasons,
     }),
     detailAvailableFrom: detail ? null : input.detailAvailableFrom,
     hasAnswerDetail: detail,

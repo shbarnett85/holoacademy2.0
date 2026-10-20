@@ -27,8 +27,7 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
   const last = items.length - 1
   return (
     <nav aria-label="נתיב" data-breadcrumb>
-      {/* margin שלילי: הטקסט של הפריט הראשון מיושר לקצה הכותרת, ואזור הלחיצה (עם ה-padding) נשאר 44px */}
-      <ol style={{ listStyle: 'none', margin: 0, marginInlineStart: -8, padding: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
         {items.map((it, i) => {
           const current = i === last
           return (

@@ -11,7 +11,7 @@ import { secondaryButton, soft } from './styles'
 import { UI } from './text'
 
 /* כמה שמות מוצגים לפני "עוד N תלמידים" — כדי שיעד קשה במיוחד לא ידחוק את שאר היעדים אל מחוץ למסך */
-export const CHIPS_COLLAPSED = 3
+export const CHIPS_COLLAPSED = 2
 
 const LEVEL_META: Record<ObjectiveLevel | 'none', { icon: IconName; color: string; tone: Tone }> = {
   strong: { icon: 'check', color: T.good, tone: 'positive' },

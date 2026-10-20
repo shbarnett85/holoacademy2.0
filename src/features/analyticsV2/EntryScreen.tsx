@@ -1,7 +1,10 @@
-/* מסך הכניסה "בחרו כיתה" (GET /entry): רצועת "דורש תשומת לב" (עד 3 התרעות, משפט אחד כל אחת, לחיצה → עמוד התלמיד/ה)
-   ומתחתיה כרטיס לכל כיתה: כפתור גדול (→ סקירת הכיתה למחנך / המקצוע הראשון של המורה המקצועי/ת), עם מספר התלמידים לתשומת לב
-   במילים, ומתחתיו כפתור 44px לכל מקצוע שהצופה רשאי לפתוח (מ-GET /roster) — קיצור ישר ל"סיכום" של המקצוע.
-   כך כל טאב משנה (טעויות נפוצות / התקדמות / תלמידים) במרחק שתי לחיצות מהטאב הראשי: מקצוע ← תת-טאב. */
+/* מסך הכניסה "איזו כיתה תרצו לראות?" (GET /entry): רצועת "דורש תשומת לב" (עד 3 התרעות, משפט אחד כל אחת, לחיצה → עמוד התלמיד/ה;
+   הכותרת "3 מתוך 5 … הדחופים ביותר" וה"ועוד N בכיתה" מגיעות מהחוזה: entry.alertsTitle / alertsMore) ומתחתיה כרטיס לכל כיתה:
+   כפתור גדול (→ סקירת הכיתה למחנך / המקצוע הראשון של המורה המקצועי/ת), עם מספר התלמידים לתשומת לב במילים, ומתחתיו כפתור 44px לכל מקצוע
+   שהצופה רשאי לפתוח (מ-GET /roster) — קיצור ישר ל"סיכום" של המקצוע. כך כל טאב משנה (טעויות נפוצות / התקדמות / תלמידים) במרחק שתי לחיצות
+   מהטאב הראשי: מקצוע ← תת-טאב.
+   הכרטיסים מוצגים רק כששתי הקריאות (כניסה + כיתות) חזרו, כדי שהשורה של קיצורי המקצועות לא תגרום לכרטיס לקפוץ אחרי הצביעה.
+   אם קריאת הכיתות נכשלה — הכרטיסים מוצגים בלי קיצורים (הכפתור הגדול עובד כרגיל). */
 import { Link } from 'react-router-dom'
 import { EMPTY_TEXT, attentionBadgeText } from '../../shared/lib/findingsNarrative'
 import type { Entry, Roster } from '../../shared/types/analyticsV2'
@@ -16,27 +19,28 @@ import { useV2 } from './v2api'
 export default function EntryScreen() {
   const env = useV2Env()
   const { data, loading, error, reload } = useV2<Entry>('/entry', env.params)
-  /* המקצועות שאפשר לפתוח בכל כיתה; אם הקריאה נכשלת — הכרטיסים נשארים בלי קיצורים (הכפתור הגדול עובד כרגיל) */
-  const { data: roster } = useV2<Roster>('/roster', env.params)
-  const subjectsOf = (classId: string) => bySubjectOrder(roster?.classes.find((c) => c.id === classId)?.subjects ?? [])
+  const roster = useV2<Roster>('/roster', env.params)
+  const subjectsOf = (classId: string) => bySubjectOrder(roster.data?.classes.find((c) => c.id === classId)?.subjects ?? [])
+  /* מחכים לשתי הקריאות; כשל בכיתות לא חוסם */
+  const waiting = (loading && !data) || (roster.loading && !roster.data && !roster.error)
 
   return (
     <AnalyticsShell title={titles.entry}>
-      {loading && !data ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={reload} /> : data && (
-        <>
+      {waiting ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={reload} /> : data && (
+        <div data-entry-ready style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {data.alerts.length > 0 && (
-            <Card label={L.alertsTitle} style={{ borderInlineStart: `6px solid ${T.warn}` }}>
-              <CardTitle style={{ marginBottom: 4 }}>
+            <Card label={data.alertsTitle} style={{ borderInlineStart: `6px solid ${T.warn}`, padding: '10px 16px' }}>
+              <CardTitle style={{ marginBottom: 2 }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={22} /></span>
-                  {L.alertsTitle}
+                  {data.alertsTitle}
                 </span>
               </CardTitle>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
                 {data.alerts.map((a, i) => (
                   <li key={`${a.studentId}-${i}`} style={{ borderTop: i === 0 ? 'none' : `1px solid ${T.border}` }}>
                     <Link to={env.href(`/analytics/student/${a.studentId}`, { class: a.classId })} data-tu-press
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: MIN_TARGET + 8, padding: '4px 6px', borderRadius: RADIUS.sm, fontFamily: FONT, fontSize: 17, lineHeight: 1.5, color: T.text, textDecoration: 'none' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: MIN_TARGET + 4, padding: '2px 6px', borderRadius: RADIUS.sm, fontFamily: FONT, fontSize: 17, lineHeight: 1.45, color: T.text, textDecoration: 'none' }}>
                       <ToneMark tone="attention" size={20} />
                       <span style={{ flex: 1, minWidth: 0 }}>{a.text}</span>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
@@ -46,13 +50,14 @@ export default function EntryScreen() {
                   </li>
                 ))}
               </ul>
+              {data.alertsMore && <Note style={{ marginTop: 4, fontWeight: 700, color: T.text }}>{data.alertsMore}</Note>}
             </Card>
           )}
 
           {data.classes.length === 0 ? (
             <EmptyState title={EMPTY_TEXT.noClasses} whatNext="כשיהיו כיתות עם תלמידים שמשחקים בהדמיות, תוכלו לבחור אותן כאן." />
           ) : (
-            <ChoiceGrid ariaLabel={L.entryTitle} minColumn={420}>
+            <ChoiceGrid ariaLabel={L.entryTitle} minColumn={440}>
               {data.classes.map((c) => {
                 const subjects = subjectsOf(c.id)
                 /* מקצוע אחד או שניים (מורה מקצועי): הקיצור לצד הכפתור הגדול, כדי שגם עשר כיתות ייכנסו במסך אחד.
@@ -84,8 +89,8 @@ export default function EntryScreen() {
             </ChoiceGrid>
           )}
 
-          {env.cfg.dataNotice && <Note style={{ marginTop: 4 }}>{env.cfg.dataNotice}</Note>}
-        </>
+          {env.cfg.dataNotice && <Note style={{ marginTop: 2 }}>{env.cfg.dataNotice}</Note>}
+        </div>
       )}
     </AnalyticsShell>
   )

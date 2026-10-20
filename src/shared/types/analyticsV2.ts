@@ -229,10 +229,16 @@ export const EntryAlertSchema = z.object({
   /* משפט קצר אחד בעברית פשוטה (narrateShort) */
   text: z.string().min(1),
 })
+/* · alertsTotal = כמה תלמידים לתשומת לב יש בהיקף שהצופה רשאי לראות (סכום attentionCount של כל הכיתות); alerts מציג רק את הדחופים ביותר,
+     ולכן alertsTotal >= alerts.length. הרצועה אומרת זאת בכותרת: "3 מתוך 5 התלמידים לתשומת לב — הדחופים ביותר".
+   · alertsTitle = כותרת הרצועה (narrateAlertsTitle); alertsMore = "ועוד 2 תלמידים בכיתה", או null כשהכול מוצג. */
 export const EntrySchema = z.object({
   classes: z.array(EntryClassSchema),
   alerts: z.array(EntryAlertSchema).max(ENTRY_MAX_ALERTS),
-})
+  alertsTotal: z.number().int().nonnegative(),
+  alertsTitle: z.string().min(1),
+  alertsMore: z.string().min(1).nullable(),
+}).refine((e) => e.alertsTotal >= e.alerts.length, 'alertsTotal חייב להיות לפחות מספר ההתרעות המוצגות')
 export type Entry = z.infer<typeof EntrySchema>
 
 /* ── תפיסות שגויות והמלצות (מורה מקצועי / מנהל) ── */
@@ -292,12 +298,23 @@ export const ClassSubjectStudentSchema = z.object({
   trendText: z.string().min(1),
 })
 
+/* משפט סיכום אחד לכל אחד משלושת תתי-הטאבים האחרים — כדי שגם בטאב הזה הדבר הראשון שרואים הוא משפט במילים.
+   (טאב "סיכום" נושא את משפטו ב-summary.headline.) דוגמאות: "20 מתוך 22 תלמידים בירידה." · "הרמה הממוצעת עלתה ב-0.6 רמות מאז ספטמבר." ·
+   "2 טעויות נפוצות: …" */
+export const ClassSubjectTabSummariesSchema = z.object({
+  misconceptions: z.string().min(1),
+  progress: z.string().min(1),
+  students: z.string().min(1),
+})
+
 export const ClassSubjectViewSchema = z.object({
   class: z.object({ id: z.string(), name: z.string(), gradeLabel: z.string(), studentCount: z.number().int() }),
   subject: SubjectRefSchema,
   classLevel: z.object({ mean: z.number().nullable(), ageNorm: AgeNormSchema }),
   /* טאב "סיכום" */
   summary: ClassSubjectSummarySchema,
+  /* משפט אחד לכל תת-טאב: טעויות נפוצות / התקדמות / תלמידים */
+  tabSummaries: ClassSubjectTabSummariesSchema,
   /* טאב "טעויות נפוצות" — כל מספר ניתן להצגה כ"X מתוך Y" */
   misconceptions: z.array(MisconceptionRowSchema),
   /* "מה ללמד" — אותו מערך כמו summary.whatToTeach */
@@ -439,6 +456,8 @@ export type Briefing = z.infer<typeof BriefingSchema>
 /* ── משוב לתלמיד/ה ── */
 export const StudentFeedbackSchema = z.object({
   firstName: z.string().min(1),
+  /* פתיח למורה מעל תצוגת התלמיד/ה ("כך נראה המסך לתלמיד/ה. אין בו השוואה לתלמידים אחרים.") */
+  intro: z.string().min(1),
   headline: z.string().min(1),
   items: z.array(z.object({
     subject: SubjectRefSchema,

@@ -3,9 +3,10 @@
    buildTimeAxis + MonthAxis (אותו ציר חודשים בעברית בכל גרף). הכול גלוי: אין מידע במעבר עכבר;
    הערכים מודפסים על הקו, וטווח הגיל מוסבר במילים במקרא. אירועים מסומנים במספרים ומפורטים ברשימה ממוספרת מתחת לגרף.
    ────────────────────────────────────────────────────────────────────────── */
+import { useId } from 'react'
 import type { ReactNode } from 'react'
-import { labelEvery, layoutMarkers, niceScale, plotIso } from './chartMath'
-import { AXIS_LABEL_HEIGHT, ChartFrame, FONT, MonthAxis, T, TONE_META, buildTimeAxis } from '../teacherUi'
+import { labelEvery, layoutMarkers, niceScale, pickBandLabelY, plotIso } from './chartMath'
+import { AXIS_LABEL_HEIGHT, ChartFrame, FONT, MonthAxis, T, TONE_META, buildTimeAxis, sharedAxisRange } from '../teacherUi'
 import type { Tone } from '../teacherUi'
 
 export interface LevelPoint { date: string; level: number; n: number }
@@ -28,6 +29,18 @@ const fmt = (v: number): string => String(Math.round(v * 10) / 10)
 
 export interface ChartMarker { n: number; date: string; tone: Tone }
 
+/* הטווח של ציר הזמן. כשהמסך מצייר כמה גרפים — הוא מחשב טווח אחד (sharedAxisRange על כל התאריכים) ומעביר אותו לכולם.
+   בלי טווח מפורש: 12 החודשים האחרונים עד החודש הנוכחי, ומתרחב אחורה אם יש נתונים מוקדמים יותר (לא רק מהחודש הראשון של הסדרה). */
+export interface AxisRange { from: string; to: string }
+/* "עכשיו" נקבע פעם אחת בטעינת המודול (לא בזמן רינדור) — כך כל הגרפים במסך ובכל המסכים מגיעים לאותו חודש בצד הימני: החודש הנוכחי */
+const CHART_NOW = new Date().toISOString()
+const rangeOf = (dates: string[], explicit?: AxisRange): AxisRange => explicit ?? sharedAxisRange(dates, { now: CHART_NOW }) ?? { from: dates[0], to: dates[0] }
+
+/* מקרא/רצועה: רשת אלכסונית דקה (לא מילוי עמום) + קווי גבול מקווקווים — הרצועה נקראת גם כשהמילוי חיוור (ניגודיות 3:1 של הקווים מול הרקע) */
+const BAND_HATCH = 8
+/* רוחב מקורב של "הטווח המיועד" ב-14px מודגש */
+const BAND_LABEL_W = 104
+
 interface LevelChartProps {
   series: LevelPoint[]
   ageNorm: AgeNorm
@@ -35,16 +48,18 @@ interface LevelChartProps {
   label: string
   /** אירועים מסומנים על הציר, ממוספרים 1..n (הרשימה המלאה מתחת לגרף) */
   markers?: ChartMarker[]
+  /** טווח ציר הזמן המשותף לכל הגרפים במסך (ראו sharedAxisRange) */
+  range?: AxisRange
 }
 
 /* מסלול רמה לאורך החודשים + רצועת הטווח המיועד לשכבה (מסומנת גם במילה בתוך הרצועה, ובמקרא מחוץ ל-SVG) */
-export function LevelChart({ series, ageNorm, height = 250, label, markers = [] }: LevelChartProps) {
+export function LevelChart({ series, ageNorm, height = 250, label, markers = [], range }: LevelChartProps) {
+  const patternId = `v2-band-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   if (series.length === 0) return null
   const vals = series.map((p) => p.level)
   const { lo, hi, ticks } = niceScale(Math.min(ageNorm.low, ...vals), Math.max(ageNorm.high, ...vals))
   const dates = [...series.map((p) => plotIso(p.date)), ...markers.map((m) => m.date)]
-  const from = dates.reduce((a, b) => (a < b ? a : b))
-  const to = dates.reduce((a, b) => (a > b ? a : b))
+  const { from, to } = rangeOf(dates, range)
   const sortedMarkers = [...markers].sort((a, b) => a.date.localeCompare(b.date))
 
   return (
@@ -62,11 +77,21 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
         const path = series.map((_, i) => `${i === 0 ? 'M' : 'L'} ${xs[i].toFixed(1)} ${y(series[i].level).toFixed(1)}`).join(' ')
         /* תוויות ערך: כל נקודה כשיש מקום, אחרת כל שנייה (והאחרונה תמיד) */
         const every = labelEvery(xs)
+        /* שם הרצועה: בפינה העליונה או התחתונה שלה — זו שלא מתנגשת בנקודות/בערכים שליד תחילת הגרף */
+        const bandLabelY = pickBandLabelY({ top: y(ageNorm.high), bottom: y(ageNorm.low), fontPx: FONT_PX, labelX: [x0 + 8, x0 + 8 + BAND_LABEL_W], points: series.map((p, i) => ({ x: xs[i], y: y(p.level) })) })
         return (
           <>
-            {/* רצועת הטווח המיועד לשכבה */}
-            <rect x={x0} y={y(ageNorm.high)} width={x1 - x0} height={Math.max(2, y(ageNorm.low) - y(ageNorm.high))} rx="4" style={{ fill: T.grid }} opacity="0.65" />
-            <text x={x0 + 8} y={y(ageNorm.high) + 6 + FONT_PX} textAnchor="start" fontSize={FONT_PX} fontWeight="700" style={{ fill: T.textSoft, fontFamily: FONT, ...halo }}>הטווח המיועד</text>
+            {/* רצועת הטווח המיועד לשכבה: מילוי חיוור + רשת אלכסונית + קו מקווקו למעלה ולמטה */}
+            <defs>
+              <pattern id={patternId} width={BAND_HATCH} height={BAND_HATCH} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2={BAND_HATCH} strokeWidth="1.5" style={{ stroke: T.axis }} />
+              </pattern>
+            </defs>
+            <rect x={x0} y={y(ageNorm.high)} width={x1 - x0} height={Math.max(2, y(ageNorm.low) - y(ageNorm.high))} style={{ fill: T.grid }} opacity="0.65" />
+            <rect data-age-band x={x0} y={y(ageNorm.high)} width={x1 - x0} height={Math.max(2, y(ageNorm.low) - y(ageNorm.high))} fill={`url(#${patternId})`} opacity="0.55" />
+            <line x1={x0} x2={x1} y1={y(ageNorm.high)} y2={y(ageNorm.high)} strokeWidth="1.5" strokeDasharray="7 4" style={{ stroke: T.axis }} />
+            <line x1={x0} x2={x1} y1={y(ageNorm.low)} y2={y(ageNorm.low)} strokeWidth="1.5" strokeDasharray="7 4" style={{ stroke: T.axis }} />
+            <text data-band-label x={x0 + 8} y={bandLabelY} textAnchor="start" fontSize={FONT_PX} fontWeight="700" style={{ fill: T.textSoft, fontFamily: FONT, ...halo }}>הטווח המיועד</text>
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={x0} x2={x1} y1={y(t)} y2={y(t)} style={{ stroke: T.grid }} strokeDasharray="2 5" />
@@ -104,13 +129,11 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
 interface MultiLine { key: string; name: string; points: { date: string; v: number }[] }
 
 /* מנהל: ממוצע חודשי לכל שכבה באותו מקצוע. קווים נבדלים בצבע + סגנון קו + שם במקרא (HTML) עם הערך האחרון */
-export function MultiLineChart({ lines, height = 220, label }: { lines: MultiLine[]; height?: number; label: string }) {
+export function MultiLineChart({ lines, height = 220, label, range }: { lines: MultiLine[]; height?: number; label: string; range?: AxisRange }) {
   const all = lines.flatMap((l) => l.points)
   if (all.length === 0) return null
   const { lo, hi, ticks } = niceScale(Math.min(...all.map((p) => p.v)), Math.max(...all.map((p) => p.v)), 4)
-  const dates = all.map((p) => plotIso(p.date))
-  const from = dates.reduce((a, b) => (a < b ? a : b))
-  const to = dates.reduce((a, b) => (a > b ? a : b))
+  const { from, to } = rangeOf(all.map((p) => plotIso(p.date)), range)
   return (
     <ChartFrame height={height} ariaLabel={label}>
       {({ width, height: h }) => {
@@ -152,16 +175,21 @@ export function LineSwatch({ index, children }: { index: number; children: React
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: T.text }}>
       <svg width="30" height="8" aria-hidden="true" focusable="false"><line x1="1" x2="29" y1="4" y2="4" strokeWidth="3" strokeLinecap="round" strokeDasharray={s.dash} style={{ stroke: s.color }} /></svg>
-      {children}
+      <span>{children}</span>
     </span>
   )
 }
 
+/* דוגמית הרצועה במקרא: אותה רשת אלכסונית וקווי גבול מקווקווים כמו בגרף */
 export function BandSwatch({ children }: { children: ReactNode }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: T.text }}>
-      <span aria-hidden="true" style={{ width: 30, height: 14, borderRadius: 4, background: T.grid, border: `1px solid ${T.axis}`, display: 'inline-block', opacity: 0.85 }} />
-      {children}
+      <span aria-hidden="true" data-band-swatch style={{
+        width: 30, height: 16, display: 'inline-block', boxSizing: 'border-box',
+        backgroundColor: T.grid, backgroundImage: `repeating-linear-gradient(45deg, ${T.axis} 0, ${T.axis} 1.5px, transparent 1.5px, transparent ${BAND_HATCH}px)`,
+        borderTop: `1.5px dashed ${T.axis}`, borderBottom: `1.5px dashed ${T.axis}`,
+      }} />
+      <span>{children}</span>
     </span>
   )
 }

@@ -31,7 +31,7 @@ const TITLES: Record<TabId, string> = {
    לכל משתמש אחר, ולטאבים האחרים, הכתובת נשארת כמות שהיא. */
 const tabHref = (t: { id: TabId; to: string }): string => (t.id === 'results' || t.id === 'analytics' ? withGuestLens(t.to) : t.to)
 
-/* עקרונות ממשק למסכי מורה: אזור לחיצה ≥44px, כפתור נושא מילה (לא אייקון בלבד), טקסט ≥14px */
+/* עקרונות ממשק למסכי מורה: אזור לחיצה ≥44px, כפתור נושא מילה (לא אייקון בלבד), גוף טקסט 16px */
 const TARGET = 44
 
 function BarButton({ icon, label, onClick, tone }: { icon: React.ReactNode; label: string; onClick: () => void; tone?: 'danger' }) {
@@ -39,8 +39,8 @@ function BarButton({ icon, label, onClick, tone }: { icon: React.ReactNode; labe
   return (
     <button type="button" data-tu-press onClick={onClick}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 14px', borderRadius: 12, cursor: 'pointer',
-        fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap',
+        display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: TARGET, padding: '0 10px', borderRadius: 12, cursor: 'pointer',
+        fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap',
         background: danger ? 'var(--t242)' : 'var(--t241)', border: `1px solid ${danger ? 'var(--t231)' : 'var(--t22)'}`, color: danger ? 'var(--t243)' : 'var(--t19)',
       }}>
       {icon}
@@ -82,15 +82,15 @@ export default function StudioTopBar({ active }: { active: TabId }) {
   }
 
   return (
-    <header data-studio-shell data-teacher-ui style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 24px 8px', flexWrap: 'wrap' }}>
+    <header data-studio-shell data-teacher-ui style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '6px 24px 4px', flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 12, background: 'var(--t20)', border: '1px solid var(--t23)', color: 'var(--t1)', boxShadow: '0 0 18px var(--t21)' }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
         </span>
         <div>
           <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)' }}>{TITLES[active]}</div>
-          {/* שם המותג — 14px (תווית משנית; עיקרון 7: לא קטן מזה) */}
-          <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '.04em', color: 'var(--t6)', marginTop: 1 }}>HoloAcademy</div>
+          {/* שם המותג — 16px (עיקרון 7: גוף טקסט 16px לפחות) */}
+          <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '.04em', color: 'var(--t6)', marginTop: 1 }}>HoloAcademy</div>
         </div>
       </div>
       <nav aria-label="ניווט ראשי" style={{ display: 'flex', gap: 6, ...glass, borderRadius: 14, padding: 5, flexWrap: 'wrap' }}>
@@ -99,8 +99,8 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           return (
             <button key={t.id} type="button" data-tu-press aria-current={isActive ? 'page' : undefined} onClick={() => !isActive && navTab(tabHref(t))}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 16px', borderRadius: 11, cursor: isActive ? 'default' : 'pointer',
-                fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: isActive ? 800 : 600, transition: 'all .18s', whiteSpace: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 12px', borderRadius: 11, cursor: isActive ? 'default' : 'pointer',
+                fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: isActive ? 800 : 600, transition: 'all .18s', whiteSpace: 'nowrap',
                 background: isActive ? 'linear-gradient(120deg, var(--t88), var(--t96))' : 'transparent',
                 border: '1px solid ' + (isActive ? 'var(--t77)' : 'transparent'),
                 color: isActive ? 'var(--t13)' : 'var(--t6)',
@@ -116,13 +116,13 @@ export default function StudioTopBar({ active }: { active: TabId }) {
         {isStaff ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...glass, borderRadius: 30, minHeight: 36, padding: '4px 14px' }}>
             <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--t15)', boxShadow: '0 0 8px var(--t15)', animation: 'holo-status-pulse 2s infinite' }} />
-            <span style={{ fontSize: 14, color: 'var(--t19)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 160 }}>{user?.name ?? 'מורה'} מחובר</span>
+            <span style={{ fontSize: 16, color: 'var(--t19)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150 }}>{user?.name ?? 'מורה'} מחובר</span>
           </div>
         ) : (
           /* יוצר אנונימי — יצירה חופשית; ההדמיות נשמרות בדפדפן ועוברות לחשבון בהרשמה */
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ ...glass, borderRadius: 30, padding: '8px 14px', fontSize: 14, color: 'var(--t6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>מצב ניסיון — נשמר בדפדפן זה</span>
-            <button type="button" data-tu-press onClick={() => navigate('/staff/login')} style={{ minHeight: TARGET, padding: '0 18px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: 'var(--t-on-accent)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none' }}>התחברות / הרשמה</button>
+            <span style={{ ...glass, borderRadius: 30, padding: '8px 14px', fontSize: 16, color: 'var(--t6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>מצב ניסיון — נשמר בדפדפן זה</span>
+            <button type="button" data-tu-press onClick={() => navigate('/staff/login')} style={{ minHeight: TARGET, padding: '0 18px', borderRadius: 12, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, color: 'var(--t-on-accent)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none' }}>התחברות / הרשמה</button>
           </div>
         )}
         <BarButton onClick={() => window.HoloTheme?.toggle()} label={light ? 'מצב כהה' : 'מצב בהיר'} icon={<BrandIcon name={light ? 'moon' : 'sun'} size={16} />} />

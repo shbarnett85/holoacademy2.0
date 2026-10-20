@@ -48,7 +48,7 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
       {badge && (() => {
         const tone = badge.tone ?? 'attention'
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}` }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}`, whiteSpace: 'nowrap' }}>
             <span style={{ color: TONE_META[tone].color, display: 'inline-flex' }}><Icon name={BADGE_ICON[tone]} size={16} /></span>
             {badge.text}
           </span>

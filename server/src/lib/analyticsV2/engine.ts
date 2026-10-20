@@ -13,6 +13,7 @@ import { narrateFinding, narrateInsufficient } from '../../../../src/shared/lib/
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type { Evidence, Finding, InsufficientReason } from '../../../../src/shared/types/analyticsV2.js'
 import { CONCEPTS, MISCONCEPTIONS, type MisconceptionDef } from './catalog.js'
+import { levelAtLeast, positionOf } from './derive.js'
 import type { McItem, SessionRec, World, WorldClass, WorldStudent } from './demoWorld.js'
 import { skey } from './demoWorld.js'
 import {
@@ -276,7 +277,7 @@ export function analyze(w: World): Analysis {
       const r = pairedT(diffs)
       cands.push({
         kind: 'class_concept_improvement', scope: 'class', entityId: cls.id, subject: concept.subject,
-        n: diffs.length, p: r.pTwoSided, effect: r.dz, practical: Math.abs(r.meanDiff) >= CLASS_IMPROVEMENT_MIN_MEAN_DELTA,
+        n: diffs.length, p: r.pTwoSided, effect: r.dz, practical: levelAtLeast(Math.abs(r.meanDiff), CLASS_IMPROVEMENT_MIN_MEAN_DELTA),
         window: { start: w.term.startIso, end: dayIso(w, 0) },
         ctx: { subjectName: subjectName(concept.subject), className: cls.name }, tone: 'positive',
         toneOf: (ev) => (ev.kind === 'class_concept_improvement' && ev.meanDelta < 0 ? 'attention' : 'positive'),
@@ -337,7 +338,7 @@ export function analyze(w: World): Analysis {
     const level90 = mean(d.sessions.filter((s) => s.day >= 90 && s.day < 150).map((s) => s.level))
     const sa: SubjectAnalysis = {
       studentId: st.id, subject: sub, sessionsCount: d.sessions.length, currentLevel, levelSeries, ageNorm: norm,
-      positionVsNorm: currentLevel === null ? null : currentLevel > norm.high ? 'above' : currentLevel < norm.low ? 'below' : 'within',
+      positionVsNorm: positionOf(currentLevel, norm),
       contentVectors, behaviorVectors: [], findings: [],
       level60: Number.isFinite(level60) ? round1(level60) : null, level90to150: Number.isFinite(level90) ? round1(level90) : null,
     }

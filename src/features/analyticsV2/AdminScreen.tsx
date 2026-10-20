@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { AdminCell, AdminOverview } from '../../shared/types/analyticsV2'
-import { EmptyState, FONT, Icon, ModeToggle, RADIUS, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
+import { bySubjectOrderOf, EmptyState, FONT, Icon, ModeToggle, RADIUS, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem } from '../teacherUi'
 import { LineSwatch, MultiLineChart } from './charts'
 import { useRootCrumb, useV2Env } from './context'
 import { L, titles } from './labels'
 import { AnalyticsShell } from './Shell'
-import { Card, CardTitle, CountBar, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, SubjectLabel, SubjectOrb, Tag, TrendWord } from './ui'
+import { Card, CardTitle, CountBar, ErrorBlock, LoadingBlock, Note, PositionWord, SubjectLabel, SubjectOrb, Tag, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
 const TAB_IDS = ['overview', 'grades', 'subjects', 'errors'] as const
@@ -90,7 +90,7 @@ function GradesTab({ d }: { d: AdminOverview }) {
             <CardTitle aside={<Tag>{g.classCount} כיתות · {g.studentCount} תלמידים</Tag>}>שכבה {g.gradeLabel}</CardTitle>
             <p style={{ margin: '0 0 6px', fontSize: 16, lineHeight: 1.5, color: T.text }}>{g.summary}</p>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {g.cells.map((c, i) => <div key={c.subject.code} style={{ borderTop: i === 0 ? `1px solid ${T.border}` : 'none', borderBottom: `1px solid ${T.border}` }}><CellLine cell={c} lead="subject" /></div>)}
+              {bySubjectOrderOf(g.cells, (c) => c.subject.code).map((c, i) => <div key={c.subject.code} style={{ borderTop: i === 0 ? `1px solid ${T.border}` : 'none', borderBottom: `1px solid ${T.border}` }}><CellLine cell={c} lead="subject" /></div>)}
             </div>
           </Card>
         ))}
@@ -103,14 +103,15 @@ function GradesTab({ d }: { d: AdminOverview }) {
 function SubjectsTab({ d }: { d: AdminOverview }) {
   const [picked, setPicked] = useState<string | null>(null)
   if (d.subjectRows.length === 0) return <EmptyState title="עוד אין נתונים על המקצועות." whatNext="הם יופיעו כאן כשתלמידים ישחקו בהדמיות." />
-  const row = d.subjectRows.find((r) => r.subject.code === picked) ?? d.subjectRows[0]
+  const subjectRows = bySubjectOrderOf(d.subjectRows, (r) => r.subject.code)
+  const row = subjectRows.find((r) => r.subject.code === picked) ?? subjectRows[0]
   const lines = d.progress.filter((p) => p.subject.code === row.subject.code && p.series.length > 0)
     .map((p) => ({ key: String(p.grade), name: `שכבה ${d.grades.find((g) => g.grade === p.grade)?.gradeLabel ?? p.grade}`, points: p.series.map((x) => ({ date: x.date, v: x.avgLevel })) }))
   return (
     <>
       <div style={{ alignSelf: 'flex-start', maxWidth: '100%' }}>
         <ModeToggle ariaLabel="בחירת מקצוע" value={row.subject.code} onChange={setPicked}
-          options={d.subjectRows.map((r) => ({ id: r.subject.code, label: r.subject.nameHe, icon: <SubjectOrb code={r.subject.code} size={24} /> }))} />
+          options={subjectRows.map((r) => ({ id: r.subject.code, label: r.subject.nameHe, icon: <SubjectOrb code={r.subject.code} size={24} /> }))} />
       </div>
       <Sentence tone="neutral">{row.summary}</Sentence>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 480px), 1fr))', gap: 12, alignItems: 'start' }}>
@@ -202,12 +203,8 @@ export default function AdminScreen() {
 
   return (
     <AnalyticsShell title={titles.admin} breadcrumb={data ? crumbs : [{ label: L.analytics }]}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <TabBar ariaLabel="חלקי תמונת בית הספר" idPrefix="adm" withPanels value={tab}
-          items={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))} onChange={(id) => navigate(env.href('/analytics', { tab: id }))} />
-        <div style={{ flex: 1 }} />
-        <HowCalc />
-      </div>
+      <TabBar ariaLabel="חלקי תמונת בית הספר" idPrefix="adm" withPanels value={tab}
+        items={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))} onChange={(id) => navigate(env.href('/analytics', { tab: id }))} />
       <div {...tabPanelProps('adm', tab)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {loading && !data ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={reload} /> : data && (
           <>

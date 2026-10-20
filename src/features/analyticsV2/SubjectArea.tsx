@@ -5,7 +5,7 @@ import type { ClassSubjectView, SubjectRef } from '../../shared/types/analyticsV
 import { useV2Env } from './context'
 import { L, SUB_IDS, SUB_LABEL, type SubId } from './labels'
 import { ErrorsPanel, ProgressPanel, StudentsPanel, SummaryPanel } from './subjectPanels'
-import { ActionButton, ErrorBlock, HowCalc, LoadingBlock } from './ui'
+import { ActionButton, ErrorBlock, LoadingBlock } from './ui'
 import { useV2 } from './v2api'
 
 export default function SubjectArea({ classId, subject, sub, onSub }: { classId: string; subject: SubjectRef; sub: SubId; onSub: (id: SubId) => void }) {
@@ -21,7 +21,6 @@ export default function SubjectArea({ classId, subject, sub, onSub }: { classId:
           items={SUB_IDS.map((id) => ({ id, label: SUB_LABEL[id] }))} onChange={(id) => onSub(id as SubId)} />
         <div style={{ flex: 1 }} />
         <ActionButton onClick={() => env.openBriefing('class', classId)}>{L.briefingClass}</ActionButton>
-        <HowCalc />
       </div>
       <div {...tabPanelProps('sub', sub)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {error ? <ErrorBlock message={error} onRetry={reload} /> : !fresh ? <LoadingBlock /> : (

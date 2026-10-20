@@ -3,6 +3,7 @@
    · הספק נבחר כאן: מורה אורח → ספק ההדגמה; כל השאר → הספק האמיתי. ההרשאות נאכפות בתוך הספק (authz).
    · לא מאחורי ANALYTICS_V2 — פעיל לכל המורים.
    · בסביבה שאינה פרודקשן כל תגובה מאומתת מול סכמת החוזה (500 קולני על חריגה).
+   · הגבלת קצב: פר-IP (נדיבה, לפני האימות — בתי ספר חולקים IP) ופר-משתמש מחובר (אחרי האימות). הנקודות כבדות (טעינת כל נתוני הכיתה).
    ────────────────────────────────────────────────────────────────────────── */
 import { Router } from 'express'
 import type { Request } from 'express'
@@ -11,10 +12,16 @@ import { demoResultsProvider } from '../lib/results/demoResults.js'
 import type { ResultsProvider } from '../lib/results/provider.js'
 import { realResultsProvider } from '../lib/results/realResults.js'
 import { AppError } from '../middleware/errors.js'
+import { rateLimitByIp, rateLimitByUser } from '../middleware/rateLimit.js'
 import { isDemoGuest, requireStaff } from '../middleware/staffAuth.js'
 
+/* תקרות לדקה. מסך תוצאות רגיל = בקשה אחת למסך; מעבר בין תלמידים בכיתה של 35 = כ-35 בקשות. */
+export const RESULTS_RATE = { perIp: 600, perUser: 120 } as const
+
 export const resultsRouter = Router()
+resultsRouter.use(rateLimitByIp('results', RESULTS_RATE.perIp))
 resultsRouter.use(requireStaff)
+resultsRouter.use(rateLimitByUser('results', RESULTS_RATE.perUser))
 
 const providerFor = (req: Request): ResultsProvider => (isDemoGuest(req) ? demoResultsProvider : realResultsProvider)
 

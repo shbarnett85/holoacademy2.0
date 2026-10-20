@@ -160,7 +160,8 @@ async function runScreenOnce(ctx: BrowserContext, job: ScreenJob): Promise<Scree
     for (const step of sc.steps ?? []) await runStep(page, step, job.vars, job.timeoutMs)
 
     if (sc.ready) {
-      try { await locate(page, sc.ready, job.vars).waitFor({ state: 'visible', timeout: 10_000 }) } catch {
+      /* 20ש׳: מסכי נתונים אמיתיים (DB משותף, כמה הקשרים במקביל) לפעמים עונים לאט; ready שלא הופיע גם אחרי זה = המסך באמת לא קיים/שבור */
+      try { await locate(page, sc.ready, job.vars).waitFor({ state: 'visible', timeout: 20_000 }) } catch {
         throw new MissingError(`אלמנט המוכנות לא הופיע: ${targetLabel(sc.ready)}`)
       }
       await settle(page, 250)

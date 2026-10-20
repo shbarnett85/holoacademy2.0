@@ -63,6 +63,8 @@ export type SubmissionRow = z.infer<typeof SubmissionRowSchema>
 
 export const SubmissionListSchema = z.object({
   submissions: z.array(SubmissionRowSchema),
+  /* true רק כשהרשימה נחתכה: נסרקו רק השליחות החדשות ביותר, או שיש יותר שליחות מכפי שמוצג. חסר = הרשימה מלאה */
+  truncated: z.boolean().optional(),
   /* אפשרויות לסינון בכפתורים; המקצוע מוצג רק אם יש יותר מאחד */
   filters: z.object({
     classes: z.array(z.object({ id: Id, name: z.string() })),

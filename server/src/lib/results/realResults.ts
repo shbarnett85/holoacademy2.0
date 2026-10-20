@@ -4,23 +4,28 @@
      (השולח/היוצר בכיתה שלו, מחנך הכיתה, מורה המקצוע; מנהלים — אין תוצאות; מנהל-על — הכול).
    · שאילתות באצוות (בלי N+1 לפי תלמיד): חלוקת מזהים ל-≤150, ודפדוף 1000 שורות (תקרת PostgREST) לכל קריאה גדולה.
    · נתונים סינתטיים/פיקטיביים נראים רק לצופה בארגון הדגמה (viewer.seesSynthetic).
+   · שליחה שקיימת אך אינה גלויה לצופה מחזירה אותו 404 כמו שליחה שאינה קיימת (אין "אורקל קיום"); 403 רק על תפקיד שאין לו תוצאות בכלל (מנהלים).
+   · יומן גישה: מסך הדמיה רושם שורה לכל תלמיד ברשימת הכיתה (scope results_class), מסך תלמיד — שורה לתלמיד (results), הרשימה — שורה אחת
+     בלי תלמיד (results_list). למנהל-על קריאת נתוני תלמיד נכשלת סגור אם אי אפשר לכתוב ליומן (authz.logAccessMany).
+   · גרסאות אישיות (quest_variants): נטענות לפי answers.variant_id ומועברות לליבה; תגיות הגרסה נשארות נפרדות מתגיות הבסיס.
    · כל טקסט למשתמש נבנה ב-findingsNarrative; הקובץ הזה אינו מכיל משפטים (פרט להודעת 403 לתפקיד ללא תוצאות).
    ────────────────────────────────────────────────────────────────────────── */
 import type { Request } from 'express'
 import type { ClassSubmissionView, ResultsSubject, StudentSubmissionView, SubmissionList, SubmissionRow } from '../../../../src/shared/types/resultsV1.js'
-import { ERR_NO_ACCESS, ERR_NOT_FOUND } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ERR_NOT_FOUND, ERR_REVIEW_WRONG_QUEST } from '../../../../src/shared/lib/findingsNarrative.js'
 import { SUBJECTS } from '../../../../src/shared/lib/subjects.js'
 import { AppError } from '../../middleware/errors.js'
 import { supabaseAdmin } from '../supabase.js'
 import {
   hasAnswersTable, hasFictitious, hasIsActive, hasMisconceptionLinks, hasMisconceptions, hasMoralChoices, hasOptionTags,
-  hasQuestSubject, hasQuestSubjectId, hasSyntheticFlag,
+  hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag,
 } from '../activeColumn.js'
-import { loadViewer, logAccess, submissionVisible, canUseResults, type Viewer } from '../authz.js'
+import { loadViewer, logAccess, logAccessMany, submissionVisible, canUseResults, type Viewer } from '../authz.js'
 import { questSubjectOut } from '../subjects.js'
 import {
-  buildClassView, buildListRow, buildStudentView, questThumbUrl, subjectOfCode,
-  type CoreAnswerRow, type CoreEventRow, type CoreInput, type CoreMoralRow, type CoreOptionTag, type CoreSession, type CoreStudent,
+  buildClassView, buildListRow, buildReviewBasis, buildStudentView, preferSession, questThumbUrl, subjectOfCode,
+  type CoreAnswerRow, type CoreEventRow, type CoreInput, type CoreMoralRow, type CoreOptionTag, type CoreSession, type CoreStudent, type CoreVariant,
+  type ReviewConcept,
 } from './core.js'
 import type { ResultsListQuery, ResultsProvider } from './provider.js'
 
@@ -30,7 +35,9 @@ export const MSG_RESULTS_NOT_FOR_ROLE = 'תוצאות ברמת תלמיד אינ
 const CHUNK = 150
 const PAGE = 1000
 const LIST_LIMIT = 60
-const SUPER_ASSIGNMENT_CAP = 300
+/* תקרת סריקת השליחות ברשימה: נסרקות רק ה-300 החדשות ביותר (בכל התפקידים), כדי שמורה עם אלפי שליחות לא יטען הכול בכל כניסה.
+   חיתוך (או יותר שליחות מכפי שמוצג) מדווח ב-SubmissionList.truncated. */
+export const ASSIGNMENT_SCAN_CAP = 300
 
 /* ══════════════════════════════════════════════════════════════════════════
    עזרי שאילתה
@@ -163,12 +170,15 @@ async function toLites(viewer: Viewer, asgs: AsgRow[]): Promise<Lite[]> {
 interface Bundle {
   games: Map<string, unknown>
   studentsByClass: Map<string, CoreStudent[]>
-  /* `${questId}|${studentId}` → ה-session האחרון */
+  /* `${questId}|${studentId}` → ההרצה שנספרת (האחרונה שהושלמה; אחרת הפתוחה האחרונה) */
   latest: Map<string, CoreSession>
   eventsBySession: Map<string, CoreEventRow[]>
   answersBySession: Map<string, CoreAnswerRow[]>
+  /* תגיות הבסיס לפי הדמיה (לא כולל תגיות גרסאות אישיות) */
   tags: Map<string, CoreOptionTag[]>
-  moralRaw: { sceneId: string; optionId: string; classId: string; createdAt: string; questId: string }[]
+  /* גרסאות אישיות ששוחקו, לפי מזהה הגרסה (מסך מפורט בלבד) */
+  variants: Map<string, CoreVariant>
+  moralRaw: { sceneId: string; optionId: string; classId: string; createdAt: string; questId: string; variantId: string | null }[]
   detailFrom: string | null
 }
 
@@ -186,25 +196,48 @@ async function detailAvailableFrom(includeSynthetic: boolean): Promise<string | 
   return value
 }
 
-async function loadStudents(viewer: Viewer, classIds: string[]): Promise<Map<string, CoreStudent[]>> {
+type RosterUser = { id: string; name: string; role: string; is_active?: boolean; is_fictitious?: boolean }
+type RosterRow = { class_id: string; users: RosterUser | RosterUser[] | null }
+
+async function rosterSelect(): Promise<string> {
   const withActive = await hasIsActive('users')
   const withFict = await hasFictitious()
   const cols = ['id', 'name', 'role', ...(withActive ? ['is_active'] : []), ...(withFict ? ['is_fictitious'] : [])]
-  const sel = `class_id, users(${cols.join(', ')})`
-  type U = { id: string; name: string; role: string; is_active?: boolean; is_fictitious?: boolean }
+  return `class_id, users(${cols.join(', ')})`
+}
+
+/* מי נחשב תלמיד ברשימת כיתה לצופה: תלמיד פעיל; פיקטיבי רק בארגון הדגמה. מקור יחיד לרשימה המלאה ולבדיקת החברות של תלמיד בודד */
+function rosterStudent(viewer: Viewer, r: RosterRow): CoreStudent | null {
+  const u = Array.isArray(r.users) ? r.users[0] : r.users
+  if (!u || u.role !== 'student' || u.is_active === false) return null
+  if (u.is_fictitious === true && !viewer.seesSynthetic) return null
+  return { id: u.id, name: u.name }
+}
+
+async function loadStudents(viewer: Viewer, classIds: string[]): Promise<Map<string, CoreStudent[]>> {
+  const sel = await rosterSelect()
   const rows = (await Promise.all(chunks([...new Set(classIds)]).map((part) =>
-    paged<{ class_id: string; users: U | U[] | null }>((f, t) => supabaseAdmin.from('class_members').select(sel).in('class_id', part).order('class_id').order('user_id').range(f, t)),
+    paged<RosterRow>((f, t) => supabaseAdmin.from('class_members').select(sel).in('class_id', part).order('class_id').order('user_id').range(f, t)),
   ))).flat()
   const map = new Map<string, CoreStudent[]>()
   for (const r of rows) {
-    const u = Array.isArray(r.users) ? r.users[0] : r.users
-    if (!u || u.role !== 'student' || u.is_active === false) continue
-    if (u.is_fictitious === true && !viewer.seesSynthetic) continue
+    const stu = rosterStudent(viewer, r)
+    if (!stu) continue
     const list = map.get(r.class_id) ?? []
-    list.push({ id: u.id, name: u.name })
+    list.push(stu)
     map.set(r.class_id, list)
   }
   return map
+}
+
+/* האם התלמיד/ה ברשימת הכיתה — שאילתה אחת זולה (שורה בודדת), לפני שטוענים את כל נתוני הכיתה */
+async function studentInRoster(viewer: Viewer, classId: string, studentId: string): Promise<boolean> {
+  if (!UUID_RE.test(studentId)) return false
+  const sel = await rosterSelect()
+  const { data, error } = await supabaseAdmin.from('class_members').select(sel).eq('class_id', classId).eq('user_id', studentId).limit(1)
+  if (error) throw new Error(error.message)
+  const row = ((data ?? []) as unknown as RosterRow[])[0]
+  return !!row && rosterStudent(viewer, row) !== null
 }
 
 async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds: string[]): Promise<Map<string, CoreSession>> {
@@ -221,9 +254,10 @@ async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds
   const map = new Map<string, CoreSession>()
   for (const s of rows) {
     const key = `${s.quest_id}|${s.user_id}`
+    const cand: CoreSession = { id: s.id, studentId: s.user_id, startedAt: s.started_at, completedAt: s.completed_at }
     const cur = map.get(key)
-    /* הראשון = האחרון (ממוין יורד); שוויון/כפילויות בין עמודים — מעדיפים התחלה מאוחרת יותר */
-    if (!cur || (s.started_at ?? '') > (cur.startedAt ?? '')) map.set(key, { id: s.id, studentId: s.user_id, startedAt: s.started_at, completedAt: s.completed_at })
+    /* ההרצה האחרונה שהושלמה גוברת על session פתוח חדש (preferSession — אותו כלל כמו בליבה) */
+    map.set(key, cur ? preferSession(cur, cand) : cand)
   }
   return map
 }
@@ -249,10 +283,11 @@ async function loadAnswers(sessionIds: string[]): Promise<Map<string, CoreAnswer
   type A = {
     session_id: string; client_event_id: string | null; scene_id: string; item_index: number; puzzle_type: string
     selected_option_id: string | null; is_correct: boolean; attempt_no: number; response_ms: number | null; outcome: CoreAnswerRow['outcome']
+    variant_id: string | null
   }
   const rows = (await Promise.all(chunks([...new Set(sessionIds)]).map((part) =>
     paged<A>((f, t) => supabaseAdmin.from('answers')
-      .select('session_id, client_event_id, scene_id, item_index, puzzle_type, selected_option_id, is_correct, attempt_no, response_ms, outcome')
+      .select('session_id, client_event_id, scene_id, item_index, puzzle_type, selected_option_id, is_correct, attempt_no, response_ms, outcome, variant_id')
       .in('session_id', part).order('id').range(f, t)),
   ))).flat()
   for (const a of rows) {
@@ -261,24 +296,30 @@ async function loadAnswers(sessionIds: string[]): Promise<Map<string, CoreAnswer
     list.push({
       sessionId: a.session_id, sceneId: a.scene_id, itemIndex: a.item_index, puzzleType: a.puzzle_type,
       selectedOptionId: a.selected_option_id, isCorrect: a.is_correct, attemptNo: a.attempt_no, responseMs: a.response_ms,
-      outcome: a.outcome, seq: Number.isFinite(seqRaw) ? seqRaw : 0,
+      outcome: a.outcome, seq: Number.isFinite(seqRaw) ? seqRaw : 0, variantId: a.variant_id ?? null,
     })
     map.set(a.session_id, list)
   }
   return map
 }
 
-/* תגיות מסיחים (טעויות נפוצות): option_tags × misconceptions (מאושרות בלבד — רשימה סגורה ובדוקה) × קישור להדמיה ממוקדת */
-async function loadTags(questIds: string[]): Promise<Map<string, CoreOptionTag[]>> {
-  const map = new Map<string, CoreOptionTag[]>()
-  if (!(await hasOptionTags()) || !(await hasMisconceptions())) return map
+/* תגיות מסיחים (טעויות נפוצות): option_tags × misconceptions (מאושרות בלבד — רשימה סגורה ובדוקה) × קישור להדמיה ממוקדת.
+   תגיות הבסיס (variant_id IS NULL) לפי הדמיה; תגיות של גרסאות אישיות לפי מזהה הגרסה — **נפרדות**: לגרסה אישית שאלות ואפשרויות משלה, ולכן תגית שלה
+   (למשל על אפשרות "b") אינה אומרת דבר על אפשרות "b" של הבסיס. */
+interface LoadedTags { base: Map<string, CoreOptionTag[]>; variant: Map<string, CoreOptionTag[]> }
+async function loadTags(questIds: string[], variantIds: string[]): Promise<LoadedTags> {
+  const out: LoadedTags = { base: new Map(), variant: new Map() }
+  if (!(await hasOptionTags()) || !(await hasMisconceptions())) return out
   type T = { quest_id: string; variant_id: string | null; scene_id: string; item_index: number; option_id: string; misconception_id: string | null }
-  const tagRows = (await Promise.all(chunks([...new Set(questIds)]).map((part) =>
-    paged<T>((f, t) => supabaseAdmin.from('option_tags')
-      .select('quest_id, variant_id, scene_id, item_index, option_id, misconception_id')
-      .in('quest_id', part).not('misconception_id', 'is', null).order('id').range(f, t)),
+  const cols = 'quest_id, variant_id, scene_id, item_index, option_id, misconception_id'
+  const baseRows = (await Promise.all(chunks([...new Set(questIds)]).map((part) =>
+    paged<T>((f, t) => supabaseAdmin.from('option_tags').select(cols).in('quest_id', part).is('variant_id', null).not('misconception_id', 'is', null).order('id').range(f, t)),
   ))).flat()
-  if (tagRows.length === 0) return map
+  const variantRows = variantIds.length === 0 ? [] : (await Promise.all(chunks([...new Set(variantIds)]).map((part) =>
+    paged<T>((f, t) => supabaseAdmin.from('option_tags').select(cols).in('variant_id', part).not('misconception_id', 'is', null).order('id').range(f, t)),
+  ))).flat()
+  const tagRows = [...baseRows, ...variantRows]
+  if (tagRows.length === 0) return out
   const mIds = [...new Set(tagRows.map((r) => r.misconception_id as string))]
   type M = { id: string; title_he: string; description_he: string | null; status: string }
   const ms = await inChunks<M>(mIds, async (part) => {
@@ -305,30 +346,55 @@ async function loadTags(questIds: string[]): Promise<Map<string, CoreOptionTag[]
     })
     for (const q of qs) linkTitles.set(q.id, q.title)
   }
-  /* תגיות הבסיס אחרונות — הן גוברות על תגיות של וריאציה אישית באותו מפתח */
-  tagRows.sort((a, b) => Number(a.variant_id === null) - Number(b.variant_id === null))
-  for (const r of tagRows) {
+  const toTag = (r: T): CoreOptionTag | null => {
     const m = byId.get(r.misconception_id as string)
-    if (!m) continue
+    if (!m) return null
     const lq = links.get(m.id)
-    const list = map.get(r.quest_id) ?? []
-    list.push({
+    return {
       sceneId: r.scene_id, itemIndex: r.item_index, optionId: r.option_id, misconceptionId: m.id,
       title: m.title_he, description: m.description_he ?? '',
       linkedQuest: lq && linkTitles.has(lq) ? { questId: lq, title: linkTitles.get(lq)! } : null,
-    })
-    map.set(r.quest_id, list)
+    }
   }
+  for (const r of baseRows) {
+    const tag = toTag(r)
+    if (!tag) continue
+    const list = out.base.get(r.quest_id) ?? []
+    list.push(tag)
+    out.base.set(r.quest_id, list)
+  }
+  for (const r of variantRows) {
+    const tag = toTag(r)
+    if (!tag || !r.variant_id) continue
+    const list = out.variant.get(r.variant_id) ?? []
+    list.push(tag)
+    out.variant.set(r.variant_id, list)
+  }
+  return out
+}
+
+/* הגרסאות האישיות ששוחקו (לפי מזהה הגרסה שנרשם ב-answers.variant_id): game_data שלהן + התגיות שלהן. כבד — אצוות קטנות. */
+async function loadVariants(variantIds: string[], tags: Map<string, CoreOptionTag[]>): Promise<Map<string, CoreVariant>> {
+  const map = new Map<string, CoreVariant>()
+  const uniq = [...new Set(variantIds)]
+  if (uniq.length === 0 || !(await hasQuestVariants())) return map
+  await Promise.all(chunks(uniq, 10).map(async (part) => {
+    const { data, error } = await supabaseAdmin.from('quest_variants').select('id, student_id, game_data').in('id', part)
+    if (error) throw new Error(error.message)
+    for (const r of (data ?? []) as { id: string; student_id: string; game_data: unknown }[]) {
+      map.set(r.id, { id: r.id, studentId: r.student_id, gameData: r.game_data, optionTags: tags.get(r.id) ?? [] })
+    }
+  }))
   return map
 }
 
 async function loadMoral(questIds: string[], classIds: string[]): Promise<Bundle['moralRaw']> {
   if (!(await hasMoralChoices())) return []
-  type R = { quest_id: string; class_id: string | null; scene_id: string; option_id: string; created_at: string }
+  type R = { quest_id: string; class_id: string | null; scene_id: string; option_id: string; created_at: string; variant_id: string | null }
   const rows = (await Promise.all(chunks([...new Set(questIds)]).map((part) =>
-    paged<R>((f, t) => supabaseAdmin.from('moral_choices').select('quest_id, class_id, scene_id, option_id, created_at').in('quest_id', part).in('class_id', classIds).order('id').range(f, t)),
+    paged<R>((f, t) => supabaseAdmin.from('moral_choices').select('quest_id, class_id, scene_id, option_id, created_at, variant_id').in('quest_id', part).in('class_id', classIds).order('id').range(f, t)),
   ))).flat()
-  return rows.map((r) => ({ questId: r.quest_id, classId: r.class_id ?? '', sceneId: r.scene_id, optionId: r.option_id, createdAt: r.created_at }))
+  return rows.map((r) => ({ questId: r.quest_id, classId: r.class_id ?? '', sceneId: r.scene_id, optionId: r.option_id, createdAt: r.created_at, variantId: r.variant_id ?? null }))
 }
 
 async function loadGames(questIds: string[]): Promise<Map<string, unknown>> {
@@ -360,13 +426,21 @@ async function loadBundle(viewer: Viewer, lites: Lite[], opts: { detail: boolean
     if (ses) wanted.add(ses.id)
   }
   const sessionIds = [...wanted]
-  const [eventsBySession, answersBySession, tags, moralRaw] = await Promise.all([
+  const [eventsBySession, answersBySession, moralRaw] = await Promise.all([
     loadEvents(sessionIds, opts.detail),
     loadAnswers(sessionIds),
-    opts.detail ? loadTags(questIds) : Promise.resolve(new Map<string, CoreOptionTag[]>()),
     opts.detail ? loadMoral(questIds, classIds) : Promise.resolve([] as Bundle['moralRaw']),
   ])
-  return { games, studentsByClass, latest, eventsBySession, answersBySession, tags, moralRaw, detailFrom }
+  /* תגיות וגרסאות אישיות — רק למסך המפורט (הרשימה ובסיס החזרה צריכים ספירות, לא טקסט של אפשרויות) */
+  let tags: Bundle['tags'] = new Map()
+  let variants: Bundle['variants'] = new Map()
+  if (opts.detail) {
+    const variantIds = [...new Set([...answersBySession.values()].flat().map((a) => a.variantId).filter((v): v is string => !!v))]
+    const loaded = await loadTags(questIds, variantIds)
+    tags = loaded.base
+    variants = await loadVariants(variantIds, loaded.variant)
+  }
+  return { games, studentsByClass, latest, eventsBySession, answersBySession, tags, variants, moralRaw, detailFrom }
 }
 
 function toCoreInput(l: Lite, b: Bundle): CoreInput {
@@ -386,7 +460,9 @@ function toCoreInput(l: Lite, b: Bundle): CoreInput {
   const sentMs = Date.parse(l.asg.created_at)
   const moral: CoreMoralRow[] = b.moralRaw
     .filter((m) => m.questId === l.asg.quest_id && m.classId === l.asg.class_id && (Number.isNaN(sentMs) || Date.parse(m.createdAt) >= sentMs))
-    .map((m) => ({ sceneId: m.sceneId, optionId: m.optionId }))
+    .map((m) => ({ sceneId: m.sceneId, optionId: m.optionId, variantId: m.variantId }))
+  const variantIds = new Set(answers.map((a) => a.variantId).filter((v): v is string => !!v))
+  const variants = [...variantIds].map((id) => b.variants.get(id)).filter((v): v is CoreVariant => !!v)
   return {
     submission: {
       id: l.asg.id,
@@ -395,12 +471,14 @@ function toCoreInput(l: Lite, b: Bundle): CoreInput {
     },
     students, sessions, answers, events,
     optionTags: b.tags.get(l.asg.quest_id) ?? [],
+    variants,
     moral,
     detailAvailableFrom: b.detailFrom,
   }
 }
 
-/* שליחה אחת לפי מזהה — 404 אם אינה קיימת, 403 אם אינה גלויה לצופה */
+/* שליחה אחת לפי מזהה. **404 אחיד**: מזהה לא תקין, שליחה שאינה קיימת, וגם שליחה שקיימת אך אינה גלויה לצופה — אותה תשובה בדיוק
+   (אחרת אפשר היה לגלות אילו מזהים קיימים). 403 נשמר רק לתפקיד שאין לו תוצאות בכלל (needViewer). */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 async function loadOne(viewer: Viewer, submissionId: string): Promise<Lite> {
   if (!UUID_RE.test(submissionId)) throw new AppError(404, ERR_NOT_FOUND)
@@ -408,31 +486,48 @@ async function loadOne(viewer: Viewer, submissionId: string): Promise<Lite> {
   if (error) throw new Error(error.message)
   if (!data) throw new AppError(404, ERR_NOT_FOUND)
   const [lite] = await toLites(viewer, [data as AsgRow])
-  if (!lite) throw new AppError(404, ERR_NOT_FOUND)
-  if (!lite.visible) throw new AppError(403, ERR_NO_ACCESS)
+  if (!lite || !lite.visible) throw new AppError(404, ERR_NOT_FOUND)
   return lite
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   בסיס הדמיית חזרה (POST /api/quests/:id/review-quest)
+   · אותה הרשאה כמו מסך התוצאות: needViewer (מנהלים — 403) + loadOne (לא קיימת / לא גלויה — 404 אחיד).
+   · החישוב הוא של ליבת התוצאות (reviewConceptsOf) — אותו מקור כמו review.weakCount שבמסך. בלי תלמידים בשמם: רק כמות שסיימו + תחומים.
+   ══════════════════════════════════════════════════════════════════════════ */
+export async function loadReviewBasis(req: Request, assignmentId: string, questId: string): Promise<{ completed: number; concepts: ReviewConcept[]; classId: string }> {
+  const viewer = await needViewer(req)
+  const lite = await loadOne(viewer, assignmentId)
+  if (lite.asg.quest_id !== questId) throw new AppError(400, ERR_REVIEW_WRONG_QUEST)
+  const bundle = await loadBundle(viewer, [lite], { detail: false })
+  const basis = buildReviewBasis(toCoreInput(lite, bundle))
+  await logAccess(viewer, { scope: 'results_review', endpoint: 'POST /api/quests/:id/review-quest' })
+  return { ...basis, classId: lite.asg.class_id }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    הספק
    ══════════════════════════════════════════════════════════════════════════ */
 const subjectOrder = (code: string): number => SUBJECTS.findIndex((s) => s.code === code)
+const newestFirst = (a: AsgRow, b: AsgRow): number => (Date.parse(b.created_at) - Date.parse(a.created_at)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
 export const realResultsProvider: ResultsProvider = {
   async list(req: Request, q: ResultsListQuery): Promise<SubmissionList> {
     const viewer = await needViewer(req)
 
-    let asgs: AsgRow[]
-    if (viewer.role === 'teacher') {
-      const classIds = [...viewer.grants.keys()]
-      asgs = (await Promise.all(chunks(classIds).map((part) =>
-        paged<AsgRow>((f, t) => supabaseAdmin.from('assignments').select('*').in('class_id', part).order('created_at', { ascending: false }).order('id').range(f, t)),
-      ))).flat()
-    } else {
-      const { data, error } = await supabaseAdmin.from('assignments').select('*').order('created_at', { ascending: false }).order('id').limit(SUPER_ASSIGNMENT_CAP)
+    /* סריקה מוגבלת: לכל אצוות כיתות מביאים לכל היותר ASSIGNMENT_SCAN_CAP+1 החדשות ביותר, ממזגים וחותכים. ה-+1 מאפשר לזהות שהייתה חיתוך */
+    const fetchNewest = async (classIds: string[] | null): Promise<AsgRow[]> => {
+      let qb = supabaseAdmin.from('assignments').select('*')
+      if (classIds) qb = qb.in('class_id', classIds)
+      const { data, error } = await qb.order('created_at', { ascending: false }).order('id').limit(ASSIGNMENT_SCAN_CAP + 1)
       if (error) throw new Error(error.message)
-      asgs = (data ?? []) as AsgRow[]
+      return (data ?? []) as AsgRow[]
     }
+    const scanned: AsgRow[] = viewer.role === 'teacher'
+      ? (await Promise.all(chunks([...viewer.grants.keys()]).map((part) => fetchNewest(part)))).flat().sort(newestFirst)
+      : await fetchNewest(null)
+    const scanCapped = scanned.length > ASSIGNMENT_SCAN_CAP
+    const asgs = scanned.slice(0, ASSIGNMENT_SCAN_CAP)
 
     const visible = (await toLites(viewer, asgs)).filter((l) => l.visible)
 
@@ -445,18 +540,22 @@ export const realResultsProvider: ResultsProvider = {
     }
 
     const needle = (q.q ?? '').trim().toLowerCase()
-    const shown = visible
+    const matching = visible
       .filter((l) => !q.classId || l.cls.id === q.classId)
       .filter((l) => !q.subject || l.quest.subject?.code === q.subject)
       .filter((l) => !needle || [l.quest.title, l.cls.label, l.quest.subject?.nameHe ?? ''].some((s) => s.toLowerCase().includes(needle)))
-      .sort((a, b) => (Date.parse(b.asg.created_at) - Date.parse(a.asg.created_at)) || (a.asg.id < b.asg.id ? -1 : 1))
-      .slice(0, LIST_LIMIT)
+      .sort((a, b) => newestFirst(a.asg, b.asg))
+    const shown = matching.slice(0, LIST_LIMIT)
+    const truncated = scanCapped || matching.length > LIST_LIMIT
 
     const bundle = shown.length > 0 ? await loadBundle(viewer, shown, { detail: false }) : null
     const submissions = bundle ? shown.map((l) => buildListRow(toCoreInput(l, bundle))) : []
 
+    await logAccess(viewer, { scope: 'results_list', endpoint: 'GET /api/results/submissions' })
+
     return {
       submissions,
+      ...(truncated ? { truncated: true } : {}),
       filters: {
         classes: [...classOpts.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name, 'he')),
         subjects: [...subjOpts.values()].sort((a, b) => subjectOrder(a.code) - subjectOrder(b.code)),
@@ -468,17 +567,25 @@ export const realResultsProvider: ResultsProvider = {
     const viewer = await needViewer(req)
     const lite = await loadOne(viewer, submissionId)
     const bundle = await loadBundle(viewer, [lite], { detail: true })
-    await logAccess(viewer, { scope: 'results_class', endpoint: 'GET /api/results/submission/:id' })
+    /* מסך הדמיה חושף שמות ותוצאות של כל הכיתה — שורה ביומן לכל תלמיד ברשימה (הכנסה אחת). למנהל-על: נכשל סגור לפני שמחזירים נתונים */
+    const roster = bundle.studentsByClass.get(lite.asg.class_id) ?? []
+    await logAccessMany(
+      viewer,
+      roster.map((s) => ({ studentId: s.id, scope: 'results_class', endpoint: 'GET /api/results/submission/:id' })),
+      { studentLevel: true },
+    )
     return buildClassView(toCoreInput(lite, bundle))
   },
 
   async studentView(req: Request, submissionId: string, studentId: string): Promise<StudentSubmissionView> {
     const viewer = await needViewer(req)
     const lite = await loadOne(viewer, submissionId)
+    /* בדיקת חברות זולה לפני טעינת כל נתוני הכיתה: בקשה על מזהה שאינו תלמיד בכיתה נכשלת מהר, ולא מפעילה את השאילתות הכבדות */
+    if (!(await studentInRoster(viewer, lite.asg.class_id, studentId))) throw new AppError(404, ERR_NOT_FOUND)
     const bundle = await loadBundle(viewer, [lite], { detail: true })
     const view = buildStudentView(toCoreInput(lite, bundle), studentId)
     if (!view) throw new AppError(404, ERR_NOT_FOUND)
-    await logAccess(viewer, { studentId, scope: 'results', endpoint: 'GET /api/results/submission/:id/student/:studentId' })
+    await logAccess(viewer, { studentId, scope: 'results', endpoint: 'GET /api/results/submission/:id/student/:studentId' }, { studentLevel: true })
     return view
   },
 }

@@ -6,6 +6,9 @@ import { ANALYTICS_TEXT, LOCKED_SUBJECT_TEXT } from '../../shared/lib/findingsNa
 
 export { LOCKED_SUBJECT_TEXT }
 
+/* טאב "סקירה" חסום (עיקרון 10): מורה מקצועי רואה אותו באפור, עם מנעול והסיבה גלויה בתוך הטאב */
+export const LOCKED_OVERVIEW_TEXT = 'זמין למחנך/ת הכיתה'
+
 export const L = {
   analytics: 'אנליטיקה',
   entryTitle: ANALYTICS_TEXT.entryTitle,
@@ -64,7 +67,8 @@ export const L = {
 
 /* כותרות המסכים — השאלה שהמסך עונה עליה */
 export const titles = {
-  entry: L.entryTitle,
+  /* המסך עונה על שאלה (עיקרון 1) */
+  entry: 'איזו כיתה תרצו לראות?',
   class: (name: string) => `איך כיתה ${name} מסתדרת?`,
   student: (firstName: string) => `איך ${firstName} מסתדר/ת?`,
   classGeneric: 'איך הכיתה מסתדרת?',

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabase.js'
+import { AppError } from '../middleware/errors.js'
 
 /* בדיקה האם עמודה/טבלה קיימת — cache רק תוצאות חיוביות (true).
    תוצאה שלילית לא נשמרת, כך שאחרי הרצת מיגרציה השרת מתעדכן אוטומטית
@@ -11,6 +12,40 @@ async function check(key: string, query: () => PromiseLike<{ error: any }>): Pro
   const { error } = await query()
   if (!error) { cache.add(key); return true }
   return false
+}
+
+/* ── בדיקות פרטיות: נכשלות סגור ──
+   check() מתייחס לכל שגיאה כ"העמודה לא קיימת". בבדיקות שמגנות על פרטיות זה מסוכן: תקלה זמנית (timeout, ניתוק, 5xx) הייתה נקראת
+   "אין דגל is_synthetic / is_fictitious" (ולכן נתוני הדגמה הוצגו למורה אמיתי), או "אין יומן גישה" (ולכן צפייה בתלמיד לא נרשמה),
+   או "אין is_active" (ולכן משתמש מושבת נחשב פעיל).
+   checkStrict מבחין: שגיאה שמשמעה "הסכמה חסרה" (קודי Postgres/PostgREST) → false כמו קודם;
+   כל שגיאה אחרת → זורק (הבקשה נכשלת) ולא נשמר ב-cache, כך שהבדיקה הבאה תנסה שוב. */
+const SCHEMA_MISSING_CODES: ReadonlySet<string> = new Set([
+  '42703', /* undefined_column */
+  '42P01', /* undefined_table */
+  'PGRST204', /* עמודה לא נמצאה ב-schema cache */
+  'PGRST205', /* טבלה לא נמצאה ב-schema cache */
+])
+
+export function isSchemaMissingError(error: { code?: string | null } | null | undefined): boolean {
+  return !!error && typeof error.code === 'string' && SCHEMA_MISSING_CODES.has(error.code)
+}
+
+/* שגיאת תקלה זמנית בבדיקת סכמה — 503 לקליינט (נסו שוב), והפירוט נשמר ב-detail ללוג */
+export class ProbeUnavailableError extends AppError {
+  constructor(public probe: string, public detail: string) {
+    super(503, 'השירות אינו זמין לרגע — נסו שוב בעוד כמה שניות', 'SCHEMA_PROBE_UNAVAILABLE')
+    this.name = 'ProbeUnavailableError'
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function checkStrict(key: string, query: () => PromiseLike<{ error: any }>): Promise<boolean> {
+  if (cache.has(key)) return true
+  const { error } = await query()
+  if (!error) { cache.add(key); return true }
+  if (isSchemaMissingError(error)) return false
+  throw new ProbeUnavailableError(key, String(error?.code || error?.message || 'unknown'))
 }
 
 /* ── יסודות האנליטיקה (migrations/analytics_foundations.sql) ── */
@@ -27,11 +62,11 @@ export async function hasLevelHistory(): Promise<boolean> {
   return check('__level_history', () => supabaseAdmin.from('level_history').select('id').limit(1))
 }
 export async function hasDataAccessLog(): Promise<boolean> {
-  return check('__data_access_log', () => supabaseAdmin.from('data_access_log').select('id').limit(1))
+  return checkStrict('__data_access_log', () => supabaseAdmin.from('data_access_log').select('id').limit(1))
 }
 /* דגל is_synthetic על sessions/events/progress_snapshots/difficulty_profiles */
 export async function hasSyntheticFlag(): Promise<boolean> {
-  return check('__synthetic', () => supabaseAdmin.from('sessions').select('is_synthetic').limit(1))
+  return checkStrict('__synthetic', () => supabaseAdmin.from('sessions').select('is_synthetic').limit(1))
 }
 export async function hasClassTeacherSubjectId(): Promise<boolean> {
   return check('__ct_subject_id', () => supabaseAdmin.from('class_teachers').select('subject_id').limit(1))
@@ -42,7 +77,7 @@ export async function hasProfileLock(): Promise<boolean> {
 
 /* האם עמודות הנתונים הפיקטיביים (users/classes/sessions.is_fictitious) קיימות */
 export async function hasFictitious(): Promise<boolean> {
-  return check('__fictitious', async () => {
+  return checkStrict('__fictitious', async () => {
     const a = await supabaseAdmin.from('users').select('is_fictitious').limit(1)
     if (a.error) return a
     const b = await supabaseAdmin.from('classes').select('is_fictitious').limit(1)
@@ -56,8 +91,10 @@ export async function hasCanShare(): Promise<boolean> {
   return check('__users_can_share', () => supabaseAdmin.from('users').select('can_share').limit(1))
 }
 
+/* users.is_active מגן על כניסה/נראות של משתמשים מושבתים — נכשל סגור; classes/schools — כמו קודם */
 export async function hasIsActive(table: 'users' | 'classes' | 'schools'): Promise<boolean> {
-  return check(table, () => supabaseAdmin.from(table).select('is_active').limit(1))
+  const probe = () => supabaseAdmin.from(table).select('is_active').limit(1)
+  return table === 'users' ? checkStrict(table, probe) : check(table, probe)
 }
 
 /* האם המודל החדש (טבלת class_teachers) כבר קיים — אחרת fallback ל-classes.teacher_id */
