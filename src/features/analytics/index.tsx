@@ -1,21 +1,17 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import StudioTopBar from '../creator/StudioTopBar'
-import { micro } from '../creator/studioStyles'
 import ProgressLens from './ProgressLens'
-import LessonsPane from './LessonsPane'
+import ChallengeTypesPanel from './ChallengeTypesPanel'
+import { ScreenShell } from '../teacherUi'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { apiJson } from '../../shared/lib/api'
 
 const AnalyticsV2App = lazy(() => import('../analyticsV2/AnalyticsV2App'))
 
-/* שכבה = תווית הכיתה ללא מספר הכיתה בסוף (למשל "ז׳2" → "ז׳") */
-export const layerOf = (gradeLabel: string) => gradeLabel.replace(/\s*\d+$/, '').trim() || gradeLabel
-
 /* select הולוגרפי — משותף לפיינים */
 export function HoloSelect({ value, onChange, options, placeholder }: { value: string; onChange: (v: string) => void; options: { v: string; label: string }[]; placeholder: string }) {
   return (
     <div style={{ position: 'relative', flex: '0 0 auto' }}>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
+      <select aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
         style={{ appearance: 'none', WebkitAppearance: 'none', background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 9, color: value ? 'var(--t68)' : 'var(--t82)', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '8px 30px 8px 14px', cursor: 'pointer', outline: 'none', minWidth: 110 }}>
         <option value="">{placeholder}</option>
         {options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
@@ -25,39 +21,25 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
   )
 }
 
-/* מסך אנליטיקה — split כמו ספריית ההדמיות (ללא סאב-טאבים):
-   ימין = סיכום שיעורים (אנליטיקת ההדמיות); שמאל = התקדמות (גרף רב-ישויות + drill-down).
-   נערם אנכית במסך צר (flexWrap + flex-basis, לא 50/50 כפוי). הסקופ מהשרת (הרשאה A לשמאל, B/הקיים לימין). */
+/* האנליטיקה הקיימת (משתמשים אמיתיים, בלי נתוני הדגמה): ההתקדמות לאורך זמן + "ביצועים לפי סוג אתגר".
+   רשימת השיעורים ומסך ההדמיה עברו לטאב "תוצאות" (src/features/results) — אין כאן כפילות.
+   עמודה אחת; הסקופ מהשרת (הרשאה A להתקדמות). */
 function LegacyAnalyticsPanel() {
   const { isGuest } = useStaffAuth()
-  const pane: React.CSSProperties = { flex: '1 1 380px', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
+    <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={[{ label: 'אנליטיקה' }]}>
       <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-
-      <StudioTopBar active="analytics" />
-
-      <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '12px 24px 26px', width: '100%' }}>
-        {/* מצב הדגמה — סימון עדין שהנתונים סינתטיים (כיתת דמו וירטואלית) */}
-        {isGuest && (
-          <div style={{ flex: '0 0 auto', alignSelf: 'flex-start', marginBottom: 8, fontSize: 11.5, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
-            🎬 נתוני הדגמה — כיתה וירטואלית להתרשמות; בחשבון אמיתי תראו כאן את התלמידים שלכם
-          </div>
-        )}
-        {/* split רספונסיבי — נערם אנכית במסך צר */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'stretch' }}>
-          {/* ימין (DOM ראשון ב-RTL) — סיכום שיעורים */}
-          <div style={pane}><LessonsPane /></div>
-          {/* שמאל — התקדמות */}
-          <div style={pane}>
-            <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', flex: '0 0 auto' }}>📈 התקדמות</div>
-            <ProgressLens />
-          </div>
-        </div>
+      {/* מצב הדגמה — סימון שהנתונים סינתטיים (כיתת דמו וירטואלית) */}
+      {isGuest && (
+        <p style={{ margin: 0, alignSelf: 'flex-start', fontSize: 14, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
+          🎬 נתוני הדגמה — כיתה וירטואלית להתרשמות; בחשבון אמיתי תראו כאן את התלמידים שלכם
+        </p>
+      )}
+      <div style={{ width: '100%', maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <ProgressLens />
+        <ChallengeTypesPanel />
       </div>
-    </div>
+    </ScreenShell>
   )
 }
 

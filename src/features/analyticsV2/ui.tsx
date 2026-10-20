@@ -1,124 +1,198 @@
-import { useState } from 'react'
-import { glass, micro } from '../creator/studioStyles'
-import { evidenceLines } from '../../shared/lib/findingsNarrative'
-import type { Finding } from '../../shared/types/analyticsV2'
-import { C, TONE, type Tone } from './tokens'
+/* ──────────────────────────────────────────────────────────────────────────
+   רכיבי עזר קטנים לאנליטיקה, מעל ערכת הממשק (teacherUi). מבנה ומקצועות — מהערכה; כאן רק מה שהערכה לא מכסה:
+   כרטיס, כפתורי פעולה (תמיד מילה, 44px), מגמה/מיקום באייקון+מילה, כדור מקצוע, מצבי טעינה/שגיאה.
+   צבעים: טוקני הערכה בלבד. צבע לעולם לא לבד: תמיד אייקון + מילה.
+   ────────────────────────────────────────────────────────────────────────── */
+import { Link } from 'react-router-dom'
+import type { CSSProperties, ReactNode } from 'react'
+import { subjectStyle } from '../../shared/lib/subjectStyle'
+import type { Position, Trend } from '../../shared/lib/analyticsConfig'
+import type { SubjectRef } from '../../shared/types/analyticsV2'
+import { HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
+import { FONT, HowWeCalc, Icon, MIN_TARGET, RADIUS, SMALL, T, TONE_META, VisuallyHidden } from '../teacherUi'
+import type { IconName, Tone } from '../teacherUi'
+import { L } from './labels'
 
-export function Panel({ title, aside, children, style, id }: { title?: string; aside?: React.ReactNode; children: React.ReactNode; style?: React.CSSProperties; id?: string }) {
+/* ── כרטיס וכותרת קטע ── */
+export function Card({ children, style, label }: { children: ReactNode; style?: CSSProperties; label?: string }) {
   return (
-    <section id={id} style={{ ...glass, padding: 18, minWidth: 0, ...style }}>
-      {(title || aside) && (
-        <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          {title && <h3 style={{ ...micro, fontSize: 10, margin: 0, fontWeight: 500 }}>◇ {title}</h3>}
-          {aside}
-        </header>
-      )}
+    <section aria-label={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, padding: '12px 16px', minWidth: 0, ...style }}>
       {children}
     </section>
   )
 }
 
-export function Chip({ children, tone = 'neutral', title }: { children: React.ReactNode; tone?: Tone | 'accent'; title?: string }) {
-  const color = tone === 'accent' ? C.accent : TONE[tone].color
+export function CardTitle({ children, aside, style }: { children: ReactNode; aside?: ReactNode; style?: CSSProperties }) {
   return (
-    <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 8, border: `1px solid ${color}`, color, whiteSpace: 'nowrap', lineHeight: 1.6 }}>
-      {children}
-    </span>
-  )
-}
-
-export function Notice({ children, tone = 'neutral', style }: { children: React.ReactNode; tone?: Tone | 'accent'; style?: React.CSSProperties }) {
-  const color = tone === 'accent' ? C.accent : TONE[tone].color
-  return (
-    <div role="note" style={{ fontSize: 12.5, lineHeight: 1.7, color: C.textSoft, padding: '8px 12px', borderRadius: 10, border: `1px dashed ${color}`, background: C.surface, ...style }}>
-      {children}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 8, ...style }}>
+      <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, lineHeight: 1.4, color: T.text }}>{children}</h2>
+      {aside}
     </div>
   )
 }
 
-export function Loading({ label = 'טוען…' }: { label?: string }) {
-  return <div role="status" style={{ color: C.muted, fontSize: 13, padding: 24, textAlign: 'center' }}>{label}</div>
-}
-
-export function ErrorBox({ message }: { message: string }) {
-  return <div role="alert" style={{ color: C.bad, border: `1px solid ${C.bad}`, borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>{message}</div>
-}
-
-export function EmptyInsufficient({ children = 'אין עדיין מספיק נתונים' }: { children?: React.ReactNode }) {
-  return <div style={{ color: C.muted, fontSize: 13, padding: '14px 4px' }}>{children}</div>
-}
-
-export function Button({ children, onClick, kind = 'ghost', disabled, title, style }: { children: React.ReactNode; onClick?: () => void; kind?: 'ghost' | 'solid'; disabled?: boolean; title?: string; style?: React.CSSProperties }) {
-  const solid = kind === 'solid'
+/* טקסט משני (≥14px) — הסתייגות, הערה */
+export function Note({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={title}
-      style={{
-        fontFamily: 'var(--font-display)', fontSize: 12.5, fontWeight: 700, padding: '7px 14px', borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer',
-        border: `1px solid ${solid ? C.accent : C.border}`, background: solid ? 'var(--t20)' : 'transparent', color: disabled ? C.faint : solid ? C.accentBright : C.textSoft, opacity: disabled ? 0.6 : 1, ...style,
-      }}>
-      {children}
+    <p style={{ margin: 0, fontSize: SMALL + 1, lineHeight: 1.6, color: T.textSoft, ...style }}>{children}</p>
+  )
+}
+
+/* ── כפתורים: תמיד מילה, גובה ≥ 44px ── */
+const buttonBase: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 18px', borderRadius: RADIUS.md,
+  fontFamily: FONT, fontSize: 16, fontWeight: 800, textDecoration: 'none', cursor: 'pointer', color: T.text, lineHeight: 1.3, whiteSpace: 'nowrap',
+}
+const primaryStyle: CSSProperties = { ...buttonBase, background: T.accentFill, border: `2px solid ${T.accent}`, boxShadow: `inset 0 -4px 0 ${T.accent}` }
+const secondaryStyle: CSSProperties = { ...buttonBase, background: T.surface, border: `2px solid ${T.controlBorder}` }
+
+interface ButtonProps { children: ReactNode; kind?: 'primary' | 'secondary'; style?: CSSProperties; icon?: ReactNode }
+
+export function ActionButton({ children, kind = 'secondary', onClick, disabled, expanded, style, icon }: ButtonProps & { onClick?: () => void; disabled?: boolean; expanded?: boolean }) {
+  return (
+    <button type="button" data-tu-press onClick={onClick} disabled={disabled} aria-expanded={expanded}
+      style={{ ...(kind === 'primary' ? primaryStyle : secondaryStyle), ...(disabled ? { opacity: 0.55, cursor: 'not-allowed' } : null), ...style }}>
+      {icon}{children}
     </button>
   )
 }
 
-/* כרטיס ממצא: ממצא מדווח = טקסט + פירוט ראיות; ממצא "אין מספיק נתונים" = שורה שקטה ללא טענה */
-export function FindingCard({ finding, who }: { finding: Finding; who?: string }) {
-  const [open, setOpen] = useState(false)
-  if (finding.status === 'insufficient') {
-    return (
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: C.muted, lineHeight: 1.7 }}>
-        <span aria-hidden style={{ color: C.faint }}>○</span>
-        <span>{who ? <strong style={{ color: C.textSoft }}>{who}: </strong> : null}{finding.text}</span>
-      </div>
-    )
-  }
-  const tone = TONE[finding.tone]
+export function LinkButton({ to, children, kind = 'secondary', style, icon }: ButtonProps & { to: string }) {
   return (
-    <article style={{ border: `1px solid ${C.border}`, borderInlineStart: `3px solid ${tone.color}`, borderRadius: 10, padding: '10px 12px', background: C.surface }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-        <span aria-label={tone.label} title={tone.label} style={{ color: tone.color, fontSize: 11, marginTop: 5 }}>{tone.icon}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {who && <div style={{ fontSize: 12, fontWeight: 700, color: C.textSoft, marginBottom: 2 }}>{who}</div>}
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.75, color: C.text }}>{finding.text}</p>
-          <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-            style={{ marginTop: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.accent, fontSize: 11.5, fontFamily: 'var(--font-display)' }}>
-            {open ? 'הסתר ראיות' : 'ראיות והסתברות'}
-          </button>
-          {open && (
-            <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {evidenceLines(finding.n, finding.pAdjusted, finding.effectSize, finding.window.start, finding.window.end).map((l) => <li key={l}><Chip>{l}</Chip></li>)}
-            </ul>
-          )}
-        </div>
-      </div>
-    </article>
+    <Link to={to} data-tu-press style={{ ...(kind === 'primary' ? primaryStyle : secondaryStyle), ...style }}>
+      {icon}{children}
+    </Link>
   )
 }
 
-/* רשימת ממצאים: מדווחים תחילה; "אין מספיק נתונים" בתוך details שקט */
-export function FindingList({ findings, whoOf }: { findings: Finding[]; whoOf?: (f: Finding) => string | undefined }) {
-  const reported = findings.filter((f) => f.status === 'reported')
-  const quiet = findings.filter((f) => f.status === 'insufficient')
-  if (!reported.length && !quiet.length) return <div style={{ color: C.muted, fontSize: 12.5 }}>לא נצפו אירועים או דפוסים חריגים בנתונים.</div>
+/* ── תג קצר (מילה בלבד, 14px+) ── */
+export function Tag({ children, tone, style }: { children: ReactNode; tone?: Tone; style?: CSSProperties }) {
+  const color = tone ? TONE_META[tone].color : T.controlBorder
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {reported.map((f) => <FindingCard key={f.id} finding={f} who={whoOf?.(f)} />)}
-      {quiet.length > 0 && (
-        <details>
-          <summary style={{ cursor: 'pointer', color: C.muted, fontSize: 12 }}>עוד נבדק — אין עדיין מספיק נתונים ({quiet.length})</summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-            {quiet.map((f) => <FindingCard key={f.id} finding={f} who={whoOf?.(f)} />)}
-          </div>
-        </details>
-      )}
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: SMALL, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${color}`, color: T.text, lineHeight: 1.5, ...style }}>
+      {children}
+    </span>
+  )
+}
+
+/* ── טון: אייקון + מילה (הצבע משני) ── */
+const TONE_ICON: Record<Tone, IconName> = { positive: 'check', attention: 'alert', error: 'alert', neutral: 'info' }
+export function ToneMark({ tone, size = 18 }: { tone: Tone; size?: number }) {
+  const m = TONE_META[tone]
+  return (
+    <span style={{ color: m.color, display: 'inline-flex', position: 'relative', flexShrink: 0 }}>
+      <Icon name={TONE_ICON[tone]} size={size} />
+      <VisuallyHidden>{m.word}: </VisuallyHidden>
+    </span>
+  )
+}
+
+/* ── מגמה: חץ + מילה ── */
+const TREND_COLOR: Record<Trend, string> = { improving: T.good, steady: T.muted, declining: T.warn, insufficient: T.muted }
+
+export function TrendArrow({ trend, size = 20 }: { trend: Trend; size?: number }) {
+  const common = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true, focusable: false as const, style: { flexShrink: 0, display: 'block' } }
+  if (trend === 'improving') return <svg {...common}><path d="M6 18L18 6" /><path d="M9 6h9v9" /></svg>
+  if (trend === 'declining') return <svg {...common}><path d="M6 6l12 12" /><path d="M18 9v9H9" /></svg>
+  if (trend === 'steady') return <svg {...common}><path d="M5 12h14" /><path d="M14 7l5 5-5 5" /></svg>
+  return <svg {...common}><path d="M6 12h2" /><path d="M11 12h2" /><path d="M16 12h2" /></svg>
+}
+
+/* text מגיע מהחוזה (trendText / groupTrendText) — "משתפר/ת", "יציב/ה", "בירידה", "אין עדיין מספיק נתונים" */
+export function TrendWord({ trend, text, size = 16, bold = true }: { trend: Trend; text: string; size?: number; bold?: boolean }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: size, fontWeight: bold ? 700 : 500, color: T.text, lineHeight: 1.4 }}>
+      <span style={{ color: TREND_COLOR[trend], display: 'inline-flex' }}><TrendArrow trend={trend} size={size + 4} /></span>
+      {text}
+    </span>
+  )
+}
+
+/* ── מיקום מול הטווח המיועד לשכבה: אייקון + מילים מהחוזה ── */
+const POSITION_ICON: Record<Position, { icon: IconName; color: string }> = {
+  above: { icon: 'check', color: T.good },
+  within: { icon: 'circle', color: T.muted },
+  below: { icon: 'alert', color: T.warn },
+}
+export function PositionWord({ position, text, size = 16 }: { position: Position | null; text: string | null; size?: number }) {
+  if (!position || !text) return <span style={{ fontSize: size, color: T.textSoft }}>{L.levelLabel(null)}</span>
+  const m = POSITION_ICON[position]
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: size, fontWeight: 600, color: T.text, lineHeight: 1.4 }}>
+      <span style={{ color: m.color, display: 'inline-flex' }}><Icon name={m.icon} size={size + 1} /></span>
+      {text}
+    </span>
+  )
+}
+
+/* ── כדור מקצוע (צבע + אייקון קבועים; השם תמיד לידו) ── */
+export function SubjectOrb({ code, size = 26 }: { code: string | null | undefined; size?: number }) {
+  const s = subjectStyle(code)
+  return (
+    <span aria-hidden="true" style={{
+      display: 'inline-grid', placeItems: 'center', width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      border: `2px solid ${s.color}`, background: `color-mix(in srgb, ${s.color} 16%, transparent)`, fontSize: Math.max(14, Math.round(size * 0.56)), lineHeight: 1,
+    }}>{s.icon}</span>
+  )
+}
+
+export function SubjectLabel({ subject, size = 16 }: { subject: SubjectRef | { code: string; nameHe: string }; size?: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: size, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
+      <SubjectOrb code={subject.code} size={size + 10} />{subject.nameHe}
+    </span>
+  )
+}
+
+/* ── תחומים: רשימה במילים, או מקף עם טקסט לקורא מסך ── */
+export function AreasText({ items, empty }: { items: string[]; empty?: string }) {
+  if (items.length === 0) return empty ? <span style={{ color: T.textSoft }}>{empty}</span> : <span style={{ color: T.muted }}>—<VisuallyHidden>{L.none}</VisuallyHidden></span>
+  return <>{items.join(' · ')}</>
+}
+
+/* ── טעינה / שגיאה / ריק ── */
+export function LoadingBlock({ label = L.loading }: { label?: string }) {
+  return <div role="status" style={{ padding: '28px 0', textAlign: 'center', fontSize: 17, color: T.textSoft }}>{label}</div>
+}
+
+export function ErrorBlock({ message, onRetry, backTo }: { message: string; onRetry?: () => void; backTo?: string }) {
+  return (
+    <section role="alert" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${T.bad}` }}>
+      <span style={{ color: T.bad, display: 'inline-flex' }}><Icon name="alert" size={26} /></span>
+      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text, flex: '1 1 280px' }}>{message}</p>
+      {onRetry && <ActionButton onClick={onRetry}>{L.retry}</ActionButton>}
+      {backTo && <LinkButton to={backTo} kind="primary">{L.backToEntry}</LinkButton>}
+    </section>
+  )
+}
+
+/* גריד ברירת מחדל לשתי עמודות/שלוש — נערם במסך צר */
+export function Columns({ children, template, gap = 12, style }: { children: ReactNode; template: string; gap?: number; style?: CSSProperties }) {
+  return <div style={{ display: 'grid', gridTemplateColumns: template, gap, alignItems: 'start', ...style }}>{children}</div>
+}
+
+/* "איך חישבנו?" — המקום היחיד לפירוט חישובי. סגור כברירת מחדל ויושב בשורת הכלים (לא תופס שורה משלו);
+   כשנפתח הוא תופס שורה מלאה (ראו HWC_CSS). השורות מ-HOW_WE_CALC (findingsNarrative). */
+export function HowCalc({ extra }: { extra?: ReactNode }) {
+  return (
+    <div className="v2-hwc">
+      <HowWeCalc lines={[...HOW_WE_CALC.lines]}>{extra}</HowWeCalc>
     </div>
   )
 }
+export const HWC_CSS = '.v2-hwc{flex:0 0 auto;min-width:0}.v2-hwc:has(details[open]){flex:1 1 100%;order:99}@media (max-width:1100px){.v2-cols3{grid-template-columns:1fr !important}}'
 
-export function SubjectGreyChip({ name }: { name: string }) {
+/* "X מתוך Y תלמידים (42%)": הטקסט מגיע מהחוזה (countText) והבר הוא תוספת חזותית בלבד — המספרים תמיד גלויים כטקסט */
+export function CountBar({ done, total, text, tone = 'attention', barHeight = 10 }: { done: number; total: number; text: string; tone?: Tone | 'accent'; barHeight?: number }) {
+  const share = total > 0 ? Math.min(1, Math.max(0, done / total)) : 0
+  const color = tone === 'accent' ? T.accent : TONE_META[tone].color
   return (
-    <span aria-disabled="true" title="אין לך גישה לנתוני מקצוע זה" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '3px 11px', borderRadius: 9, border: `1px dashed ${C.faint}`, color: C.faint, cursor: 'not-allowed', userSelect: 'none' }}>
-      <span aria-hidden>🔒</span>{name}
-    </span>
+    <div data-count-bar style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>{text}</span>
+      <div role="progressbar" aria-label={text} aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.min(done, total)} aria-valuetext={text}
+        style={{ flex: 1, minWidth: 60, height: barHeight, borderRadius: barHeight, background: T.grid, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
+        <div style={{ width: `${share * 100}%`, height: '100%', borderRadius: barHeight, background: color }} />
+      </div>
+    </div>
   )
 }

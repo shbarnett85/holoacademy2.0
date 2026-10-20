@@ -195,7 +195,11 @@ export type StudentOverview = z.infer<typeof StudentOverviewSchema>
 export const RosterClassSchema = z.object({
   id: z.string(), name: z.string(), gradeLabel: z.string(), grade: z.number().int(),
   studentCount: z.number().int(),
+  /* המקצועות שהצופה רשאי לפתוח בכיתה */
   subjects: z.array(SubjectRefSchema),
+  /* מקצועות הכיתה שהצופה אינו רשאי לפתוח (מורה מקצועי: כל מקצוע שאינו שלו) — שם בלבד, כדי לצייר טאב חסום באפור.
+     מחנך ומנהל: מערך ריק. */
+  lockedSubjects: z.array(SubjectRefSchema),
 })
 export const RosterStudentSchema = z.object({
   id: z.string(), displayName: z.string(), classId: z.string(),

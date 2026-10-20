@@ -1,38 +1,65 @@
-import { useEffect } from 'react'
+/* ──────────────────────────────────────────────────────────────────────────
+   שכבות-על במסך מלא: (1) "הכנה לישיבה פדגוגית / תל״א" — מסמך להדפסה; (2) "כך התלמיד/ה רואה" — תצוגת התלמיד.
+   מעוצבות בערכת הממשק (טוקנים, כפתורים 44px+, גוף 16px+). הדפסה תמיד בערכה בהירה (נייר), והפירוט החישובי
+   שבסעיף "איך חישבנו?" מודפס גם הוא (הפירוטים נפתחים לפני ההדפסה ונסגרים אחריה).
+   ────────────────────────────────────────────────────────────────────────── */
+import { useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Briefing, StudentFeedback } from '../../shared/types/analyticsV2'
-import { Button, ErrorBox, Loading } from './ui'
-import { C } from './tokens'
+import { FONT, HowWeCalc, RADIUS, T } from '../teacherUi'
+import { L } from './labels'
+import { ActionButton, ErrorBlock, LoadingBlock, Note } from './ui'
 import { useV2, type V2Params } from './v2api'
 
 /* שכבת מסך מלא. מודפסת לבדה: ה-portal הוא ילד של body, וכל שאר הילדים מוסתרים בהדפסה. */
-function Sheet({ children, onClose, printable, label }: { children: React.ReactNode; onClose: () => void; printable?: boolean; label: string }) {
+function Sheet({ children, onClose, printable, label }: { children: ReactNode; onClose: () => void; printable?: boolean; label: string }) {
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    const returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    ref.current?.focus()
+    /* שאר העמוד אינו נגיש בזמן שהשכבה פתוחה (מקלדת וקורא מסך נשארים בתוך השכבה) */
+    const others = [...document.body.children].filter((el) => el !== ref.current && !el.hasAttribute('inert'))
+    others.forEach((el) => el.setAttribute('inert', ''))
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
-    /* הדפסה תמיד בערכה בהירה (נייר) — מחזירים את הערכה הקודמת אחרי */
-    let restore: 'light' | 'dark' | null = null
-    const before = (): void => { if (window.HoloTheme && !window.HoloTheme.isLight()) { restore = 'dark'; window.HoloTheme.set('light') } }
-    const after = (): void => { if (restore && window.HoloTheme) { window.HoloTheme.set(restore); restore = null } }
+    /* הדפסה תמיד בערכה בהירה (נייר) ועם כל הפירוטים פתוחים — מחזירים את המצב הקודם אחרי */
+    let restoreTheme: 'dark' | null = null
+    let reopened: HTMLDetailsElement[] = []
+    const before = (): void => {
+      if (window.HoloTheme && !window.HoloTheme.isLight()) { restoreTheme = 'dark'; window.HoloTheme.set('light') }
+      const closed = [...(ref.current?.querySelectorAll<HTMLDetailsElement>('details:not([open])') ?? [])]
+      closed.forEach((d) => { d.open = true })
+      reopened.push(...closed)
+    }
+    const after = (): void => {
+      if (restoreTheme && window.HoloTheme) { window.HoloTheme.set(restoreTheme); restoreTheme = null }
+      reopened.forEach((d) => { d.open = false })
+      reopened = []
+    }
     window.addEventListener('beforeprint', before)
     window.addEventListener('afterprint', after)
-    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after) }
+    return () => {
+      window.removeEventListener('keydown', onKey); window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after)
+      others.forEach((el) => el.removeAttribute('inert'))
+      returnTo?.focus()
+    }
   }, [onClose])
   return createPortal(
-    <div id="v2-print-portal" dir="rtl" role="dialog" aria-modal="true" aria-label={label}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', background: 'var(--t-studio-bg)', fontFamily: 'var(--font-display)' }}>
+    <div ref={ref} id="v2-print-portal" data-teacher-ui dir="rtl" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', background: T.studioBg, fontFamily: FONT, fontSize: 16, color: T.text, outline: 'none' }}>
       <style>{`
         @media print {
           body > *:not(#v2-print-portal) { display: none !important; }
           #v2-print-portal { position: static !important; overflow: visible !important; background: none !important; }
           .v2-noprint { display: none !important; }
           .v2-paper { box-shadow: none !important; border: none !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
-          .v2-paper h3, .v2-paper li { break-inside: avoid; }
+          .v2-paper h2, .v2-paper li { break-inside: avoid; }
         }
       `}</style>
-      <div className="v2-noprint" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '12px 24px', background: 'var(--t-studio-bg)', borderBottom: `1px solid ${C.border}` }}>
-        {printable && <Button kind="solid" onClick={() => window.print()}>🖨 הדפסה / שמירה כ-PDF</Button>}
-        <Button onClick={onClose}>סגירה</Button>
+      <div className="v2-noprint" style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', gap: 10, justifyContent: 'flex-end', padding: '10px 24px', background: T.studioBg, borderBottom: `1px solid ${T.border}` }}>
+        {printable && <ActionButton kind="primary" onClick={() => window.print()}>{L.print}</ActionButton>}
+        <ActionButton onClick={onClose}>{L.close}</ActionButton>
       </div>
       {children}
     </div>,
@@ -42,42 +69,53 @@ function Sheet({ children, onClose, printable, label }: { children: React.ReactN
 
 const heDate = (iso: string): string => new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })
 
+const EMPTY_SECTION: Record<string, string> = {
+  strengths: 'עוד לא זוהתה חוזקה בולטת בנתונים שיש עד עכשיו.',
+  difficulties: 'עוד לא זוהה קושי בולט בנתונים שיש עד עכשיו.',
+}
+
 /* תדריך לישיבה פדגוגית + בסיס ראייתי לתל״א — מסמך אחד להדפסה */
 export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope: 'student' | 'class'; id: string; params: V2Params; notice: string | null; onClose: () => void }) {
-  const { data, loading, error } = useV2<Briefing>(`/briefing/${scope}/${id}`, params)
+  const { data, loading, error, reload } = useV2<Briefing>(`/briefing/${scope}/${id}`, params)
   return (
-    <Sheet onClose={onClose} printable label="תדריך לישיבה פדגוגית">
-      <article className="v2-paper" style={{ maxWidth: 820, margin: '24px auto 60px', padding: '36px 44px', background: 'var(--t75)', border: `1px solid ${C.border}`, borderRadius: 6, color: C.text, boxShadow: '0 20px 60px -30px var(--t246)' }}>
-        {loading && !data && <Loading />}
-        {error && <ErrorBox message={error} />}
+    <Sheet onClose={onClose} printable label={L.briefing}>
+      <article className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '32px 44px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, color: T.text, lineHeight: 1.7 }}>
+        {loading && !data && <LoadingBlock />}
+        {error && <ErrorBlock message={error} onRetry={reload} />}
         {data && (
           <>
-            <header style={{ borderBottom: `2px solid ${C.accent}`, paddingBottom: 12, marginBottom: 18 }}>
-              <div style={{ fontSize: 11, letterSpacing: '.14em', color: C.muted }}>HOLOACADEMY · תדריך לישיבה פדגוגית ובסיס ראייתי לתל״א</div>
-              <h1 style={{ fontSize: 26, margin: '6px 0 2px', color: C.text }}>{data.title}</h1>
-              <div style={{ fontSize: 13.5, color: C.textSoft }}>{data.subtitle} · הופק בתאריך {heDate(data.generatedAt)}</div>
-              {notice && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{notice}</div>}
+            <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 18 }}>
+              <div style={{ fontSize: 14, color: T.textSoft }}>HoloAcademy · {L.briefing}</div>
+              <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.text }}>{data.title}</h1>
+              <div style={{ fontSize: 16, color: T.textSoft }}>{data.subtitle} · הופק בתאריך {heDate(data.generatedAt)}</div>
+              {notice && <Note style={{ marginTop: 6 }}>{notice}</Note>}
             </header>
-            {data.sections.map((s) => (
-              <section key={s.id} style={{ marginBottom: 20 }}>
-                <h3 style={{ fontSize: 15.5, margin: '0 0 8px', color: C.accentBright }}>{s.title}</h3>
-                {s.items.length === 0 ? (
-                  <p style={{ margin: 0, fontSize: 13, color: C.muted }}>{s.id === 'strengths' ? 'לא זוהתה חוזקה חריגה בנתונים הקיימים.' : s.id === 'difficulties' ? 'לא זוהו קשיים חריגים בנתונים הקיימים.' : 'אין פריטים.'}</p>
-                ) : (
-                  <ul style={{ margin: 0, paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {data.sections.map((s) => {
+              const items = s.items.length === 0
+                ? <p style={{ margin: 0, fontSize: 16, color: T.textSoft }}>{EMPTY_SECTION[s.id] ?? 'אין כאן פריטים עדיין.'}</p>
+                : (
+                  <ul style={{ margin: 0, paddingInlineStart: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {s.items.map((it, i) => (
-                      <li key={i} style={{ fontSize: 13.5, lineHeight: 1.8, color: C.text }}>
+                      <li key={i} style={{ fontSize: 16, lineHeight: 1.7, color: T.text }}>
                         {it.text}
-                        {it.evidence.length > 0 && <div style={{ fontSize: 11.5, color: C.muted }}>{it.evidence.join(' · ')}</div>}
+                        {it.evidence.length > 0 && <div style={{ fontSize: 14, color: T.textSoft }}>{it.evidence.join(' · ')}</div>}
                       </li>
                     ))}
                   </ul>
-                )}
-              </section>
-            ))}
-            <footer style={{ borderTop: `1px solid ${C.border}`, paddingTop: 10, fontSize: 11.5, color: C.muted, lineHeight: 1.7 }}>
-              <p style={{ margin: '0 0 4px' }}>{data.caveats.trend}</p>
-              <p style={{ margin: 0 }}>{data.caveats.ageNorm}</p>
+                )
+              return s.id === 'how_we_calculated' ? (
+                /* הפירוט החישובי — רק מאחורי "איך חישבנו?" (נפתח אוטומטית בהדפסה) */
+                <section key={s.id} style={{ marginBottom: 20 }}><HowWeCalc label={s.title}>{items}</HowWeCalc></section>
+              ) : (
+                <section key={s.id} style={{ marginBottom: 20 }}>
+                  <h2 style={{ fontSize: 19, fontWeight: 800, margin: '0 0 8px', color: T.accentStrong }}>{s.title}</h2>
+                  {items}
+                </section>
+              )
+            })}
+            <footer style={{ borderTop: `1px solid ${T.border}`, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Note>{data.caveats.trend}</Note>
+              <Note>{data.caveats.ageNorm}</Note>
             </footer>
           </>
         )}
@@ -91,24 +129,26 @@ const KIND_LABEL: Record<'growth' | 'streak' | 'next_step', string> = { growth: 
 
 /* משוב לתלמיד/ה: מה שהתלמיד רואה. מכוון צמיחה; בלי השוואה לחברים ובלי תוויות. */
 export function FeedbackOverlay({ studentId, params, onClose }: { studentId: string; params: V2Params; onClose: () => void }) {
-  const { data, loading, error } = useV2<StudentFeedback>(`/student/${studentId}/feedback`, params)
+  const { data, loading, error, reload } = useV2<StudentFeedback>(`/student/${studentId}/feedback`, params)
   return (
-    <Sheet onClose={onClose} label="תצוגת תלמיד/ה">
-      <div style={{ maxWidth: 440, margin: '28px auto 60px', padding: '0 16px' }}>
-        <div className="v2-noprint" style={{ textAlign: 'center', fontSize: 12, color: C.muted, marginBottom: 10 }}>תצוגה לדוגמה — כך נראה המסך לתלמיד/ה (המורה/ה אינו/ה רואה כאן נתוני השוואה)</div>
-        <div style={{ border: `1px solid ${C.accent}`, borderRadius: 24, padding: 22, background: 'var(--t75)', boxShadow: '0 0 40px -12px var(--t21)' }}>
-          {loading && !data && <Loading />}
-          {error && <ErrorBox message={error} />}
+    <Sheet onClose={onClose} label={L.studentPreview}>
+      <div style={{ maxWidth: 460, margin: '24px auto 60px', padding: '0 16px' }}>
+        <p className="v2-noprint" style={{ textAlign: 'center', fontSize: 15, lineHeight: 1.6, color: T.textSoft, margin: '0 0 12px' }}>
+          כך נראה המסך לתלמיד/ה. המורה לא רואה כאן השוואה לתלמידים אחרים.
+        </p>
+        <div style={{ border: `2px solid ${T.accent}`, borderRadius: 24, padding: 22, background: T.surface }}>
+          {loading && !data && <LoadingBlock />}
+          {error && <ErrorBlock message={error} onRetry={reload} />}
           {data && (
             <>
-              <h2 style={{ fontSize: 22, lineHeight: 1.5, margin: '0 0 16px', color: C.accentBright }}>{data.headline}</h2>
+              <h1 style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.5, margin: '0 0 16px', color: T.text }}>{data.headline}</h1>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {data.items.map((it, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, border: `1px solid ${C.border}`, background: C.surface }}>
-                    <span aria-hidden style={{ fontSize: 26 }}>{KIND_ICON[it.kind]}</span>
+                  <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, border: `1px solid ${T.border}`, background: T.surfaceSoft }}>
+                    <span aria-hidden="true" style={{ fontSize: 26 }}>{KIND_ICON[it.kind]}</span>
                     <div>
-                      <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 2 }}>{it.subject.nameHe} · {KIND_LABEL[it.kind]}</div>
-                      <div style={{ fontSize: 15.5, lineHeight: 1.7, color: C.text }}>{it.text}</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: T.textSoft, marginBottom: 2 }}>{it.subject.nameHe} · {KIND_LABEL[it.kind]}</div>
+                      <div style={{ fontSize: 17, lineHeight: 1.7, color: T.text }}>{it.text}</div>
                     </div>
                   </li>
                 ))}

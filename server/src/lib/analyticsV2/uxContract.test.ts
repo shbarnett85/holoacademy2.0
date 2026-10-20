@@ -149,6 +149,35 @@ describe('מסך הכניסה "בחרו כיתה"', () => {
   })
 })
 
+describe('roster: מקצועות פתוחים וחסומים לציור הטאבים', () => {
+  const allSubjects = (classId: string): string[] => [...new Set(A.classById.get(classId)!.studentIds.flatMap((sid) => A.studentById.get(sid)!.subjects))]
+
+  it('מורה מקצועי: subjects = מקצועו, lockedSubjects = שאר מקצועות הכיתה (שם בלבד), בלי חפיפה', async () => {
+    for (const sub of DEMO_SUBJECT_PERSONAS) {
+      const v = teacher(sub)
+      for (const c of (await demoProvider.roster(v)).data.classes) {
+        const open = c.subjects.map((s) => s.code)
+        const locked = c.lockedSubjects.map((s) => s.code)
+        expect(open.every((code) => code === sub), `${sub}/${c.id}`).toBe(true)
+        expect(locked).not.toContain(sub)
+        expect([...open, ...locked].sort()).toEqual(allSubjects(c.id).sort())
+        /* שם בלבד: אין נתונים בשדות החסומים */
+        for (const s of c.lockedSubjects) expect(Object.keys(s).sort()).toEqual(['code', 'nameHe'])
+      }
+    }
+  })
+
+  it('מחנך ומנהל: אין מקצועות חסומים', async () => {
+    expect((await demoProvider.roster(homeroom)).data.classes.every((c) => c.lockedSubjects.length === 0)).toBe(true)
+    expect((await demoProvider.roster(admin)).data.classes.every((c) => c.lockedSubjects.length === 0)).toBe(true)
+  })
+
+  it('מחנך: subjects = כל מקצועות הכיתה', async () => {
+    const c = (await demoProvider.roster(homeroom)).data.classes.find((x) => x.id === DEMO_HOMEROOM_CLASS)!
+    expect(c.subjects.map((s) => s.code).sort()).toEqual(allSubjects(DEMO_HOMEROOM_CLASS).sort())
+  })
+})
+
 describe('"סקירה" של הכיתה (מחנך בלבד)', () => {
   const cls = A.classById.get(DEMO_HOMEROOM_CLASS)!
   const subjectsOf = (): string[] => [...new Set(cls.studentIds.flatMap((sid) => A.studentById.get(sid)!.subjects))]

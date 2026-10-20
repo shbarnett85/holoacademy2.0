@@ -154,8 +154,11 @@ export const demoProvider: AnalyticsV2Provider = {
   async roster(v) {
     const a = getAnalysis()
     const classes = classesOf(v, a).map((id) => a.classById.get(id)!).map((c) => {
-      const subjects = [...new Set(c.studentIds.flatMap((sid) => a.studentById.get(sid)!.subjects))].filter((s) => v.lens === 'subject_teacher' ? v.subjectCodes.includes(s) : true)
-      return { id: c.id, name: c.name, gradeLabel: c.gradeLabel, grade: c.grade, studentCount: c.studentIds.length, subjects: subjects.map(sref) }
+      const all = [...new Set(c.studentIds.flatMap((sid) => a.studentById.get(sid)!.subjects))]
+      const subjects = all.filter((s) => v.lens === 'subject_teacher' ? v.subjectCodes.includes(s) : true)
+      /* מורה מקצועי: שאר מקצועות הכיתה — שם בלבד (טאב חסום באפור) */
+      const locked = v.lens === 'subject_teacher' ? all.filter((s) => !v.subjectCodes.includes(s)) : []
+      return { id: c.id, name: c.name, gradeLabel: c.gradeLabel, grade: c.grade, studentCount: c.studentIds.length, subjects: subjects.map(sref), lockedSubjects: locked.map(sref) }
     })
     const r: Roster = { classes, students: [] }
     if (v.lens !== 'admin') {
