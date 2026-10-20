@@ -11,26 +11,31 @@ import { loadViewer, type Viewer } from '../lib/authz.js'
 import { ANALYTICS_CAVEATS, FEEDBACK_INTRO_TEXT } from '../../../src/shared/lib/findingsNarrative.js'
 import { EP } from '../../../src/shared/types/analyticsV2.js'
 import { getAnalysis } from '../lib/analyticsV2/demoProvider.js'
+import { resolveV2Context } from '../lib/analyticsV2/viewer.js'
 import { analyticsV2Router, resolveV2Viewer } from './analyticsV2.js'
 
 const A_STUDENT = getAnalysis().classById.get('c-v2')!.studentIds[0]
 const req = (staff: Record<string, unknown>, query: Record<string, string> = {}): Request => ({ staff, query } as unknown as Request)
 const viewer = (over: Partial<Viewer>): Viewer => ({ userId: 'u1', role: 'teacher', schoolId: 's1', grants: new Map(), seesSynthetic: false, ...over })
 
-describe('דגל ANALYTICS_V2 — מי רואה את האנליטיקה החדשה', () => {
-  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.DEMO_ANALYTICS })
+describe('מי רואה את האנליטיקה החדשה', () => {
+  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.ANALYTICS_V2_LIVE; delete process.env.DEMO_ANALYTICS })
   afterEach(() => vi.clearAllMocks())
 
-  it('משתמש אמיתי (ארגון ללא demo_data_enabled): הדגל כבוי — נשאר במסכים הקיימים', async () => {
+  it('משתמש אמיתי (ארגון ללא demo_data_enabled): הספק החי — לא null; resolveV2Viewer (תאימות להדגמה) נשאר null', async () => {
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    expect(await resolveV2Context(req({ role: 'teacher', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'subject_teacher', source: 'live' } })
     expect(await resolveV2Viewer(req({ role: 'teacher', isGuest: false }))).toBeNull()
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'admin', seesSynthetic: false }))
-    expect(await resolveV2Viewer(req({ role: 'admin', isGuest: false }))).toBeNull()
+    expect(await resolveV2Context(req({ role: 'admin', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'admin' } })
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'municipal_admin', seesSynthetic: false }))
+    expect(await resolveV2Context(req({ role: 'municipal_admin', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'admin' } })
   })
 
-  it('מנהל-על אינו נכלל (אין ארגון הדגמה)', async () => {
+  it('מנהל-על אינו נכלל (נשאר בפאנל הקודם / ב-/admin)', async () => {
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'super_admin', seesSynthetic: false }))
     expect(await resolveV2Viewer(req({ role: 'super_admin' }))).toBeNull()
+    expect(await resolveV2Context(req({ role: 'super_admin' }))).toBeNull()
   })
 
   it('מורה אורח: העדשה נבחרת מהבורר, וכל עדשה נגזרת בשרת', async () => {
@@ -77,13 +82,15 @@ async function callRoute(path: string, r: Request): Promise<{ body?: unknown; er
   if (!layer) throw new Error(`נתיב לא רשום: ${path}`)
   let body: unknown
   let error: { status?: number } | undefined
-  await layer.route!.stack[0].handle(r, { json: (b: unknown) => { body = b } }, (e) => { error = e as { status?: number } })
+  /* הידית האחרונה במחסנית היא הטיפול עצמו (לפניה ייתכנו מגבילי קצב ברמת הנתיב) */
+  const stack = layer.route!.stack
+  await stack[stack.length - 1].handle(r, { json: (b: unknown) => { body = b } }, (e) => { error = e as { status?: number } })
   return { body, error }
 }
 const guestReq = (query: Record<string, string>, params: Record<string, string> = {}): Request => ({ staff: { role: 'teacher', isGuest: true }, query, params } as unknown as Request)
 
 describe('נתיבי האנליטיקה החדשה: חיווט', () => {
-  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.DEMO_ANALYTICS })
+  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.ANALYTICS_V2_LIVE; delete process.env.DEMO_ANALYTICS })
 
   it('כל נקודת קצה ברישום EP רשומה ב-router (GET)', () => {
     const registered = new Set(layers().map((l) => l.route!.path))
@@ -118,8 +125,12 @@ describe('נתיבי האנליטיקה החדשה: חיווט', () => {
     expect(t.error?.status).toBe(403)
     const a = await callRoute('/class/:classId/overview', guestReq({ lens: 'admin' }, { classId: 'c-v2' }))
     expect(a.error?.status).toBe(403)
+    /* כיתה אחרת מחוץ להיקף: 404 אחיד (כמו כיתה שאינה קיימת), ולא 403 שחושף קיום */
     const other = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v1' }))
-    expect(other.error?.status).toBe(403)
+    expect(other.error?.status).toBe(404)
+    const ghost = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'no-such-class' }))
+    expect(ghost.error?.status).toBe(404)
+    expect(ghost.error).toEqual(other.error)
   })
 
   it('התגובות נושאות את השדות החדשים (alertsTotal · tabSummaries · intro) ועוברות את הסכמה', async () => {
@@ -140,7 +151,8 @@ describe('נתיבי האנליטיקה החדשה: חיווט', () => {
     expect((fb.body as { data: { intro: string } }).data.intro).toBe(FEEDBACK_INTRO_TEXT)
   })
 
-  it('config כשהדגל כבוי נושא את אותן הסתייגויות כמו בכל מסך', async () => {
+  it('config כשהספק החי כבוי (ANALYTICS_V2_LIVE=0) נושא את אותן הסתייגויות כמו בכל מסך', async () => {
+    process.env.ANALYTICS_V2_LIVE = '0'
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
     const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: {} } as unknown as Request
     const cfg = await callRoute('/config', real)
@@ -149,7 +161,8 @@ describe('נתיבי האנליטיקה החדשה: חיווט', () => {
     expect((cfg.body as { data: { caveats: { crossSubject: string } } }).data.caveats.crossSubject).toBe('הרמות של מקצועות שונים אינן ניתנות להשוואה ישירה.')
   })
 
-  it('משתמש אמיתי (הדגל כבוי): entry ו-overview מחזירים 403', async () => {
+  it('משתמש אמיתי כשהספק החי כבוי: entry ו-overview מחזירים 403', async () => {
+    process.env.ANALYTICS_V2_LIVE = '0'
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
     const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: { classId: 'c-v2' } } as unknown as Request
     expect((await callRoute('/entry', real)).error?.status).toBe(403)

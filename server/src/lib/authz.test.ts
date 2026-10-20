@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /* fake מינימלי של supabase: טבלאות כמערכים + select/eq/in/maybeSingle/insert */
 const h = vi.hoisted(() => {
@@ -38,7 +38,7 @@ vi.mock('./activeColumn.js', () => ({ hasClassTeachers: async () => true, hasDat
 
 import {
   MIN_CELL_SIZE, studentScope, questVisible, canPatchLevels, classAccess, assignmentVisible, belowMinCell,
-  loadViewer, logAccess, logAccessMany, canUseResults, canAssignToClass, submissionVisible, MSG_ACCESS_LOG_UNAVAILABLE, type Viewer, type TeachGrant,
+  loadViewer, logAccess, logAccessMany, canUseResults, canAssignToClass, submissionVisible, MSG_ACCESS_LOG_UNAVAILABLE, resetAccessLogDedup, type Viewer, type TeachGrant,
 } from './authz.js'
 import type { Request } from 'express'
 
@@ -387,6 +387,100 @@ describe('יומן גישה לתוצאות', () => {
       await logAccessMany(superAdmin, entries, { studentLevel: true })
       expect(h.db.data_access_log).toHaveLength(3)
       expect(h.db.data_access_log[0]).toMatchObject({ viewer_role: 'super_admin' })
+    })
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   יומן גישה לאנליטיקה v2: נכשל-סגור לכל התפקידים (אופציונלי) ודילוג על צפיות חוזרות בחלון קצר
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('יומן גישה: failClosed ו-dedup', () => {
+  const teacher = viewer('teacher', [grant(CLASS_A, { homeroom: true })])
+  const other = viewer('teacher', [grant(CLASS_A, { homeroom: true })], { userId: 'u-other' })
+  const one = (studentId: string, scope = 'analytics_v2_student') => ({ studentId, scope, endpoint: 'GET /api/analytics-v2/student/:id' })
+
+  beforeEach(() => {
+    h.db.data_access_log = []
+    h.flags.logTable = true
+    h.flags.insertError = false
+    h.flags.insertThrows = false
+    resetAccessLogDedup()
+  })
+
+  describe("failClosed: 'all' — נכשל סגור גם למורה, רק בקריאה ברמת תלמיד", () => {
+    it.each([
+      ['מחזיר שגיאה', () => { h.flags.insertError = true }],
+      ['זורק (רשת)', () => { h.flags.insertThrows = true }],
+      ['הטבלה חסרה', () => { h.flags.logTable = false }],
+    ] as const)('מורה (%s): נחסם 503 לפני שמחזירים נתונים', async (_n, breakIt) => {
+      breakIt()
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all' })).rejects.toMatchObject({ status: 503, message: MSG_ACCESS_LOG_UNAVAILABLE })
+      await expect(logAccess(admin, one('s1'), { studentLevel: true, failClosed: 'all' })).rejects.toMatchObject({ status: 503 })
+    })
+    it('בלי studentLevel — best-effort גם עם failClosed', async () => {
+      h.flags.insertError = true
+      await expect(logAccess(teacher, { scope: 'analytics_v2_admin', endpoint: 'e' }, { failClosed: 'all' })).resolves.toBeUndefined()
+    })
+    it("ברירת מחדל ו-'super': מורה best-effort (כמו בתוצאות), מנהל-על נכשל סגור", async () => {
+      h.flags.insertError = true
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true })).resolves.toBeUndefined()
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'super' })).resolves.toBeUndefined()
+      await expect(logAccessMany(superAdmin, [one('s1')], { studentLevel: true, failClosed: 'super' })).rejects.toMatchObject({ status: 503 })
+    })
+    it('יומן תקין: נרשם כרגיל', async () => {
+      await logAccessMany(teacher, [one('s1'), one('s2')], { studentLevel: true, failClosed: 'all' })
+      expect(h.db.data_access_log).toHaveLength(2)
+    })
+  })
+
+  describe('dedupMs — אותה צפייה (צופה × תלמיד × scope) נרשמת פעם אחת בחלון', () => {
+    const WINDOW = 10 * 60_000
+    let nowMs = 1_000_000
+    beforeEach(() => { nowMs = 1_000_000; vi.spyOn(Date, 'now').mockImplementation(() => nowMs) })
+    afterEach(() => vi.restoreAllMocks())
+
+    it('אותה צפייה בתוך החלון — לא נרשמת שוב; אחרי החלון — נרשמת', async () => {
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      nowMs += WINDOW - 1
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+      nowMs += 1
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(2)
+    })
+    it('מפתח הדילוג: צופה, תלמיד ו-scope — שינוי בכל אחד נרשם', async () => {
+      await logAccessMany(teacher, [one('s1')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s2')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s1', 'analytics_v2_feedback')], { dedupMs: WINDOW })
+      await logAccessMany(other, [one('s1')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(4)
+      await logAccessMany(other, [one('s1')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(4)
+    })
+    it('חלק מהאצווה כבר נרשם: נכתבות רק החדשות; כפילויות בתוך האצווה נכתבות פעם אחת', async () => {
+      await logAccessMany(teacher, [one('s1')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s1'), one('s2'), one('s2'), one('s3')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log.map((r) => r.student_id)).toEqual(['s1', 's2', 's3'])
+    })
+    it('כתיבה שנכשלה לא נחשבת "נרשמה": הניסיון הבא כותב', async () => {
+      h.flags.insertError = true
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(0)
+      h.flags.insertError = false
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+    })
+    it('נכשל-סגור לא מדלג: צפייה שלא נרשמה לא נחשבת כנרשמה', async () => {
+      h.flags.insertError = true
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all', dedupMs: WINDOW })).rejects.toMatchObject({ status: 503 })
+      h.flags.insertError = false
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all', dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+    })
+    it('בלי dedupMs — כל קריאה נרשמת (ההתנהגות הקודמת)', async () => {
+      await logAccessMany(teacher, [one('s1'), one('s1')], { studentLevel: true })
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true })
+      expect(h.db.data_access_log).toHaveLength(3)
     })
   })
 })

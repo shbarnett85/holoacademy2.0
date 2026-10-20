@@ -1,5 +1,6 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   provider — הממשק היחיד שהמסכים והנתיבים מכירים. ספק הדגמה מממש אותו כעת; ספק אמיתי בשלבים 5–7.
+   provider — הממשק היחיד שהמסכים והנתיבים מכירים. providerCore.createProvider(source) מממש אותו להדגמה ולחי;
+   emptyProvider (alias: realProvider) הוא ספק ריק שעומד בחוזה ("אין עדיין מספיק נתונים" בכל מקום) — לבדיקות ולנסיגה.
    ────────────────────────────────────────────────────────────────────────── */
 import {
   ANALYTICS_CAVEATS, FEEDBACK_INTRO_TEXT, NO_DATA_YET, groupTrendText, narrateAlertsTitle,
@@ -10,18 +11,23 @@ import type {
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type { V2Viewer } from './access.js'
 
+/* רישום צפייה ברמת תלמיד: הספק מדווח אילו תלמידים נחשפו בשמם בתגובה, והנתיב כותב ליומן (data_access_log) לפני שהתגובה נשלחת.
+   כך ספק אינו יכול "לשכוח", ואין סריקה שבירה של התגובה. בלי sink (בדיקות, ספק ההדגמה) — אין רישום. */
+export interface AuditSink { expose(studentIds: Iterable<string>): void }
+export interface ProviderOpts { audit?: AuditSink }
+
 export interface AnalyticsV2Provider {
   config(v: V2Viewer): Promise<Envelope<AnalyticsConfig>>
-  roster(v: V2Viewer): Promise<Envelope<Roster>>
+  roster(v: V2Viewer, opts?: ProviderOpts): Promise<Envelope<Roster>>
   /* מסך הכניסה "בחרו כיתה": כיתות + עד 3 התרעות "דורש תשומת לב" (מנהל: ריק) */
-  entry(v: V2Viewer): Promise<Envelope<Entry>>
-  student(v: V2Viewer, studentId: string): Promise<Envelope<StudentOverview>>
-  feedback(v: V2Viewer, studentId: string): Promise<Envelope<StudentFeedback>>
-  /* "סקירה" — מחנך הכיתה בלבד (אחרת 403) */
-  classOverview(v: V2Viewer, classId: string): Promise<Envelope<ClassOverview>>
-  classSubject(v: V2Viewer, classId: string, subject: SubjectCode): Promise<Envelope<ClassSubjectView>>
+  entry(v: V2Viewer, opts?: ProviderOpts): Promise<Envelope<Entry>>
+  student(v: V2Viewer, studentId: string, opts?: ProviderOpts): Promise<Envelope<StudentOverview>>
+  feedback(v: V2Viewer, studentId: string, opts?: ProviderOpts): Promise<Envelope<StudentFeedback>>
+  /* "סקירה" — מחנך הכיתה בלבד (מחוץ להיקף: 404; מורה מקצועי בכיתה שלו: 403) */
+  classOverview(v: V2Viewer, classId: string, opts?: ProviderOpts): Promise<Envelope<ClassOverview>>
+  classSubject(v: V2Viewer, classId: string, subject: SubjectCode, opts?: ProviderOpts): Promise<Envelope<ClassSubjectView>>
   admin(v: V2Viewer): Promise<Envelope<AdminOverview>>
-  briefing(v: V2Viewer, scope: 'student' | 'class', id: string): Promise<Envelope<Briefing>>
+  briefing(v: V2Viewer, scope: 'student' | 'class', id: string, opts?: ProviderOpts): Promise<Envelope<Briefing>>
 }
 
 const CAVEATS = ANALYTICS_CAVEATS
@@ -30,14 +36,13 @@ const insufficient = <T>(data: T): Envelope<T> => ({ dataState: 'insufficient', 
 const EMPTY_NORM = { gradeLabel: '', center: 0, low: 0, high: 0 }
 const DASH = '—'
 
-/* ספק אמיתי — placeholder עד שהמנוע ייבנה (שלבים 5–7): "אין עדיין מספיק נתונים" בכל מקום.
-   כל תשובה עומדת בסכמת החוזה, כך שהמסכים מתנהגים זהה בלי לדעת שזה לא ספק ההדגמה. */
-export const realProvider: AnalyticsV2Provider = {
+/* ספק ריק: "אין עדיין מספיק נתונים" בכל מקום. כל תשובה עומדת בסכמת החוזה, כך שהמסכים מתנהגים זהה בלי לדעת שזה לא ספק אמיתי. */
+export const emptyProvider: AnalyticsV2Provider = {
   async config(v) {
     return insufficient({ enabled: true, lens: v.lens, availableLenses: [], subjects: [], classes: [], dataNotice: null, curriculumNotice: null, caveats: CAVEATS })
   },
   async roster() { return insufficient({ classes: [], students: [] }) },
-  async entry() { return insufficient({ classes: [], alerts: [], alertsTotal: 0, alertsTitle: narrateAlertsTitle(0, 0), alertsMore: null }) },
+  async entry() { return insufficient({ classes: [], alerts: [], alertsTotal: 0, alertsTitle: narrateAlertsTitle(0, 0), alertsMore: null, unclassifiedCount: 0, coverageNote: null }) },
   async student(_v, id) {
     return insufficient({
       student: { id, displayName: DASH, classId: '', className: '', grade: 0, gradeLabel: '' },
@@ -74,3 +79,5 @@ export const realProvider: AnalyticsV2Provider = {
   },
 }
 
+/* שם ישן (תאימות לבדיקות): "הספק האמיתי" לפני שנבנה = ספק ריק */
+export const realProvider = emptyProvider

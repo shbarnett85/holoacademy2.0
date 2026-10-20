@@ -192,14 +192,42 @@ export async function requireStudentScope(req: Request, studentId: string): Prom
 /* ── יומן גישה: כל צפייה/שינוי ברמת תלמיד. ──
    ברירת מחדל: best-effort — כשל בכתיבה לעולם לא מפיל בקשה.
    studentLevel=true (קריאת נתוני תלמיד): מנהל-על — מפעיל הפלטפורמה, הגישה הרחבה ביותר — נכשל סגור: אם אי אפשר לכתוב ליומן, הבקשה נחסמת
-   (503) *לפני* שהנתונים מוחזרים. שאר התפקידים נשארים best-effort. */
+   (503) *לפני* שהנתונים מוחזרים. שאר התפקידים נשארים best-effort.
+   opts.failClosed: 'super' (ברירת מחדל = ההתנהגות שלמעלה) | 'all' — נכשל סגור לכל התפקידים בקריאה ברמת תלמיד.
+   opts.dedupMs: אותה צפייה (צופה × תלמיד × scope) שכבר נרשמה בחלון הזה אינה נרשמת שוב — מסכי כיתה אינם מציפים את היומן.
+   שורה נחשבת "נרשמה" רק אחרי הכתיבה המוצלחת, כך שכשל כתיבה לא מסתיר צפייה מהניסיון הבא. */
 export interface AccessEntry { studentId?: string | null; scope: string; endpoint: string }
+export interface AccessLogOpts { studentLevel?: boolean; failClosed?: 'super' | 'all'; dedupMs?: number }
 export const MSG_ACCESS_LOG_UNAVAILABLE = 'לא ניתן לתעד את הצפייה כרגע — הבקשה נחסמה. נסו שוב בעוד כמה שניות.'
 const LOG_BATCH = 500
 
-export async function logAccessMany(viewer: Viewer, entries: AccessEntry[], opts: { studentLevel?: boolean } = {}): Promise<void> {
+/* צפיות שנרשמו לאחרונה (מפתח → מועד), לדילוג בחלון dedupMs. בזיכרון השרת בלבד: איבוד בריסטארט = עוד שורות ביומן, כיוון בטוח */
+const RECENT_VIEWS = new Map<string, number>()
+const RECENT_MAX = 20_000
+const viewKey = (viewer: Viewer, e: AccessEntry): string => `${viewer.userId}|${e.studentId ?? '-'}|${e.scope}`
+function rememberViews(keys: string[], now: number, windowMs: number): void {
+  if (RECENT_VIEWS.size > RECENT_MAX) for (const [k, t] of RECENT_VIEWS) if (now - t >= windowMs) RECENT_VIEWS.delete(k)
+  if (RECENT_VIEWS.size > RECENT_MAX) RECENT_VIEWS.clear()
+  for (const k of keys) RECENT_VIEWS.set(k, now)
+}
+/* לבדיקות בלבד */
+export const resetAccessLogDedup = (): void => RECENT_VIEWS.clear()
+
+export async function logAccessMany(viewer: Viewer, allEntries: AccessEntry[], opts: AccessLogOpts = {}): Promise<void> {
+  const now = Date.now()
+  const dedupMs = opts.dedupMs ?? 0
+  const inBatch = new Set<string>()
+  const entries = dedupMs > 0
+    ? allEntries.filter((e) => {
+      const k = viewKey(viewer, e)
+      const t = RECENT_VIEWS.get(k)
+      if ((t !== undefined && now - t < dedupMs) || inBatch.has(k)) return false
+      inBatch.add(k)
+      return true
+    })
+    : allEntries
   if (entries.length === 0) return
-  const failClosed = opts.studentLevel === true && isSuper(viewer)
+  const failClosed = opts.studentLevel === true && (opts.failClosed === 'all' || isSuper(viewer))
   try {
     if (!(await hasDataAccessLog())) {
       if (failClosed) throw new Error('data_access_log missing')
@@ -216,12 +244,13 @@ export async function logAccessMany(viewer: Viewer, entries: AccessEntry[], opts
       const { error } = await supabaseAdmin.from('data_access_log').insert(rows.slice(i, i + LOG_BATCH))
       if (error) throw new Error(error.message)
     }
+    if (dedupMs > 0) rememberViews(entries.map((e) => viewKey(viewer, e)), now, dedupMs)
   } catch {
     if (failClosed) throw new AppError(503, MSG_ACCESS_LOG_UNAVAILABLE)
     /* יומן — best-effort */
   }
 }
 
-export async function logAccess(viewer: Viewer, entry: AccessEntry, opts: { studentLevel?: boolean } = {}): Promise<void> {
+export async function logAccess(viewer: Viewer, entry: AccessEntry, opts: AccessLogOpts = {}): Promise<void> {
   return logAccessMany(viewer, [entry], opts)
 }

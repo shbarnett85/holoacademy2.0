@@ -314,8 +314,9 @@ describe('הרשאות בבורר העדשה', () => {
   it('מורה מקצועי: אין גישה לנתוני כיתה במקצוע אחר או בכיתה שאינו מלמד', async () => {
     const v = teacher('history') /* היסטוריה — רק שכבה ו׳ */
     await expect(demoProvider.classSubject(v, 'c-v2', 'math')).rejects.toMatchObject({ status: 403 })
-    await expect(demoProvider.classSubject(v, 'c-d1', 'history')).rejects.toMatchObject({ status: 403 })
-    await expect(demoProvider.student(v, A.classById.get('c-d1')!.studentIds[0])).rejects.toMatchObject({ status: 403 })
+    /* כיתה שאינו מלמד — מחוץ להיקף: 404 אחיד (כמו כיתה שאינה קיימת), ולא 403 שחושף קיום */
+    await expect(demoProvider.classSubject(v, 'c-d1', 'history')).rejects.toMatchObject({ status: 404 })
+    await expect(demoProvider.student(v, A.classById.get('c-d1')!.studentIds[0])).rejects.toMatchObject({ status: 404 })
     const ok = (await demoProvider.classSubject(v, 'c-v2', 'history')).data
     expect(ok.studentFindings.every((f) => f.finding.subjectCode === 'history')).toBe(true)
     expect(ok.otherSubjects.every((s) => s.code !== 'history')).toBe(true)
@@ -325,7 +326,7 @@ describe('הרשאות בבורר העדשה', () => {
     expect(o.access).toBe('full')
     expect(o.panels.every((p) => p.access === 'visible')).toBe(true)
     expect(o.crossSubject).toHaveLength(1)
-    await expect(demoProvider.student(homeroom, A.classById.get('c-v1')!.studentIds[0])).rejects.toMatchObject({ status: 403 })
+    await expect(demoProvider.student(homeroom, A.classById.get('c-v1')!.studentIds[0])).rejects.toMatchObject({ status: 404 })
   })
   it('משוב לתלמיד: צמיחה בלבד — בלי השוואה לאחרים ובלי תוויות', async () => {
     for (const sid of A.classById.get(DEMO_HOMEROOM_CLASS)!.studentIds) {

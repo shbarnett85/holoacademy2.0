@@ -999,3 +999,25 @@ export const aiFactCommonError = (title: string, students: number, exposed: numb
 export const aiFactObjective = (text: string, levelText: string, solved: number, attempted: number): string =>
   `היעד "${text}": ${levelText} (${countOf(solved, attempted)} תלמידים).`
 export const aiFactAttentionCount = (n: number, total: number): string => `${countOf(n, total)} תלמידים לתשומת לב.`
+
+/* ── V2_CORE: ספק משותף (הדגמה וחי) — הודעות מצב, פרטיות מנהל וכיסוי נתונים ── */
+export const ERR_V2_DISABLED = 'האנליטיקה החדשה אינה זמינה בחשבון זה'
+export const ERR_V2_UNAVAILABLE = 'השירות אינו זמין לרגע — נסו שוב בעוד כמה שניות'
+export const ERR_V2_BAD_SUBJECT = 'מקצוע לא מוכר'
+export const ERR_V2_BAD_SCOPE = 'היקף לא תקין'
+/* תא שכולו כיתה אחת: המספר היה מזהה כיתה, ולכן הוא מוסתר (כמו תא קטן מדי) */
+export const ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT = 'התא מבוסס על כיתה אחת בלבד, ולכן הוא מוסתר כדי לשמור על פרטיות'
+/* כשיש שכבה קטנה מהסף היא אינה מוצגת, ולכן גם סך התלמידים והכיתות אינו מפורסם (חיסור היה חושף אותה) */
+export function narrateAdminSchoolPartial(grades: number): string {
+  return grades === 1 ? 'התוצאות מוצגות לשכבה אחת בבית הספר.' : `התוצאות מוצגות ל-${grades} שכבות בבית הספר.`
+}
+/* משחקים בהדמיות שעוד לא שויך להן מקצוע אינם נכנסים לתוצאות (לא מנחשים מקצוע) — המורה צריך לדעת למה חסר משהו ומה עושים */
+export function narrateUnclassifiedNote(plays: number): string {
+  const what = plays === 1 ? 'משחק אחד בהדמיה שעוד לא שויך לה מקצוע לא נכלל' : `${plays} משחקים בהדמיות שעוד לא שויך להן מקצוע לא נכללו`
+  return `${what} כאן. כדי שהתוצאות יתווספו, שייכו מקצוע להדמיה בספרייה.`
+}
+/* ── LIVE_DATA: נתוני אמת — המתנה לטעינה וכיסוי תיוג ── */
+export const ERR_ANALYSIS_WARMING = 'אנחנו מרכזים את התוצאות של הכיתה. נסו שוב בעוד דקה.'
+export const ERR_ANALYSIS_UNAVAILABLE = 'לא הצלחנו לטעון את התוצאות כרגע. נסו שוב בעוד כמה שניות.'
+/* הדמיות עוד לא תויגו לטעויות נפוצות ולתחומי תוכן (רשימות סגורות ובדוקות בלבד) — אומרים מה קורה ומה יקרה */
+export const LIVE_COVERAGE_UNTAGGED = 'טעויות נפוצות ותחומי תוכן יופיעו כאן אחרי שההדמיות יתויגו. עד אז מוצגים הרמות והמגמות של התלמידים.'

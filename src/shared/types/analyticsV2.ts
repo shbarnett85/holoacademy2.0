@@ -195,6 +195,8 @@ export type StudentOverview = z.infer<typeof StudentOverviewSchema>
 export const RosterClassSchema = z.object({
   id: z.string(), name: z.string(), gradeLabel: z.string(), grade: z.number().int(),
   studentCount: z.number().int(),
+  /* האם הצופה הוא מחנך/ת של הכיתה הזאת (קובע אם "סקירה" פתוחה). נגזר בשרת מההרשאה של אותה כיתה — לא מהעדשה: מורה יכול להיות מחנך בכיתה אחת ומקצועי באחרת */
+  isHomeroom: z.boolean(),
   /* המקצועות שהצופה רשאי לפתוח בכיתה */
   subjects: z.array(SubjectRefSchema),
   /* מקצועות הכיתה שהצופה אינו רשאי לפתוח (מורה מקצועי: כל מקצוע שאינו שלו) — שם בלבד, כדי לצייר טאב חסום באפור.
@@ -222,6 +224,8 @@ export const EntryClassSchema = z.object({
   id: z.string(), name: z.string(), gradeLabel: z.string(),
   studentCount: z.number().int().nonnegative(),
   attentionCount: z.number().int().nonnegative(),
+  /* האם יש בכיתה (בהיקף שהצופה רשאי לראות) לפחות משחק אחד שהושלם. false = "עוד אין תוצאות" — לא "אין תלמידים לתשומת לב" */
+  hasResults: z.boolean(),
 })
 export const EntryAlertSchema = z.object({
   studentId: z.string().min(1), studentName: z.string().min(1),
@@ -238,6 +242,9 @@ export const EntrySchema = z.object({
   alertsTotal: z.number().int().nonnegative(),
   alertsTitle: z.string().min(1),
   alertsMore: z.string().min(1).nullable(),
+  /* משחקים בהדמיות שעוד לא שויך להן מקצוע — אינם נכנסים לתוצאות (לא מנחשים מקצוע). coverageNote = משפט שמסביר למורה מה חסר ומה עושים, או null */
+  unclassifiedCount: z.number().int().nonnegative(),
+  coverageNote: z.string().min(1).nullable(),
 }).refine((e) => e.alertsTotal >= e.alerts.length, 'alertsTotal חייב להיות לפחות מספר ההתרעות המוצגות')
 export type Entry = z.infer<typeof EntrySchema>
 
@@ -379,7 +386,8 @@ export const AdminCellSchema = z.discriminatedUnion('status', [
   /* פחות מ-5 תלמידים: לא מציגים אפילו את הכמות */
   z.object({
     status: z.literal('hidden'), grade: z.number().int(), gradeLabel: z.string(), subject: SubjectRefSchema,
-    reason: z.literal('small_cell'), text: z.string().min(1),
+    /* small_cell = מעט מדי תלמידים שתרמו נתון; single_class = כל התורמים מכיתה אחת (המספר היה מזהה כיתה) */
+    reason: z.enum(['small_cell', 'single_class']), text: z.string().min(1),
   }),
 ])
 export type AdminCell = z.infer<typeof AdminCellSchema>

@@ -218,10 +218,13 @@ describe('"סקירה" של הכיתה (מחנך בלבד)', () => {
     expect(o.rows.some((r) => r.trend === 'declining')).toBe(true)
   })
 
-  it('מורה מקצועי / מנהל / מחנך של כיתה אחרת: 403; כיתה לא קיימת: 404', async () => {
-    for (const sub of DEMO_SUBJECT_PERSONAS) await expect(demoProvider.classOverview(teacher(sub), DEMO_HOMEROOM_CLASS), sub).rejects.toMatchObject({ status: 403 })
+  it('מורה מקצועי בכיתה שלו / מנהל: 403; מחוץ להיקף (מחנך של כיתה אחרת, מורה שאינו מלמד בכיתה) וכיתה לא קיימת: 404 אחיד', async () => {
+    for (const sub of DEMO_SUBJECT_PERSONAS) {
+      const teaches = demoViewerClasses([sub]).includes(DEMO_HOMEROOM_CLASS)
+      await expect(demoProvider.classOverview(teacher(sub), DEMO_HOMEROOM_CLASS), sub).rejects.toMatchObject({ status: teaches ? 403 : 404 })
+    }
     await expect(demoProvider.classOverview(admin, DEMO_HOMEROOM_CLASS)).rejects.toMatchObject({ status: 403 })
-    await expect(demoProvider.classOverview(homeroomOf('c-v1'), DEMO_HOMEROOM_CLASS)).rejects.toMatchObject({ status: 403 })
+    await expect(demoProvider.classOverview(homeroomOf('c-v1'), DEMO_HOMEROOM_CLASS)).rejects.toMatchObject({ status: 404 })
     await expect(demoProvider.classOverview(homeroom, 'no-such-class')).rejects.toMatchObject({ status: 404 })
   })
 })
