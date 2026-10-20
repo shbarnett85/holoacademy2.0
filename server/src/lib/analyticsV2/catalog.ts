@@ -20,9 +20,10 @@ export const SUBJECTS_BY_GRADE: Record<number, SubjectCode[]> = {
 export const ELECTIVE_SUBJECT: SubjectCode = 'arabic'
 
 export interface ConceptDef { key: string; titleHe: string; subject: SubjectCode; vector: ContentVectorKey; goalId: string | null }
-export interface GoalDef { id: string; title: string; subject: SubjectCode; gradeFrom: number; gradeTo: number }
+/* mappingStatus: 'sample' = מיפוי לדוגמה (הדמו), 'official' = יעד מאושר מצומת תוכנית לימודים */
+export interface GoalDef { id: string; title: string; subject: SubjectCode; gradeFrom: number; gradeTo: number; mappingStatus: 'sample' | 'official' }
 
-export const GOALS: GoalDef[] = [
+const GOAL_ROWS: Omit<GoalDef, 'mappingStatus'>[] = [
   { id: 'g-math-frac-add', title: 'שברים: חיבור וחיסור בשברים עם מכנים שונים', subject: 'math', gradeFrom: 5, gradeTo: 6 },
   { id: 'g-math-frac-cmp', title: 'שברים: השוואה וסידור שברים', subject: 'math', gradeFrom: 4, gradeTo: 5 },
   { id: 'g-math-mult', title: 'כפל וחילוק: משמעות הפעולות והקשר ביניהן', subject: 'math', gradeFrom: 4, gradeTo: 6 },
@@ -38,6 +39,7 @@ export const GOALS: GoalDef[] = [
   { id: 'g-eng-read', title: 'הבנת טקסט קצר באנגלית', subject: 'english', gradeFrom: 4, gradeTo: 6 },
   { id: 'g-bib-story', title: 'עלילה ודמויות בסיפורי המקרא', subject: 'bible', gradeFrom: 3, gradeTo: 5 },
 ]
+export const GOALS: GoalDef[] = GOAL_ROWS.map((g) => ({ ...g, mappingStatus: 'sample' as const }))
 
 export const CONCEPTS: ConceptDef[] = [
   { key: 'math.fractions.add_unlike_denominators', titleHe: 'חיבור שברים עם מכנים שונים', subject: 'math', vector: 'concept_understanding', goalId: 'g-math-frac-add' },
@@ -84,8 +86,11 @@ export interface MisconceptionDef {
   descriptionHe: string
   conceptKey: string
   subject: SubjectCode
-  /* שכבה → שיעור התלמידים המציגים (במקום 'exact' — מספר מדויק פר כיתה) */
+  /* שכבה → שיעור התלמידים המציגים. **יצירת נתוני הדמו בלבד** (demoWorld) — ובדמו גם קובע לאילו שכבות התפיסה חלה.
+     בקטלוג חי תמיד {}; שם השכבות הרלוונטיות ב-grades. */
   prevalence: Partial<Record<4 | 6, number>>
+  /* השכבות שהתפיסה חלה עליהן (מצומת תוכנית הלימודים של המושג). null = כל השכבות; חסר = לפי prevalence (דמו) */
+  grades?: { from: number; to: number } | null
   linkedQuest: LinkedQuestDef | null
 }
 
@@ -165,6 +170,42 @@ export const MISCONCEPTIONS: MisconceptionDef[] = [
 export const goalById = (id: string | null): GoalDef | null => (id ? GOALS.find((g) => g.id === id) ?? null : null)
 export const conceptByKey = (k: string): ConceptDef | undefined => CONCEPTS.find((c) => c.key === k)
 export const conceptsOfSubject = (s: SubjectCode): ConceptDef[] => CONCEPTS.filter((c) => c.subject === s)
+
+/* ── קטלוג מוזרק ──
+   המנוע והחישובים הנגזרים (derive) לא מייבאים את הקטלוג הגלובלי: הם מקבלים CatalogSnapshot. בהדגמה זה DEMO_CATALOG;
+   בספק החי זה קטלוג שנבנה מהטבלאות המאושרות (concepts / misconceptions / curriculum_*) — וכשהן ריקות, EMPTY_CATALOG, וזה תקין:
+   אין וקטורי תוכן ואין טעויות נפוצות, והממשק אומר שעוד לא תויגו. */
+export interface CatalogParts { concepts: ConceptDef[]; misconceptions: MisconceptionDef[]; goals: GoalDef[] }
+export interface CatalogSnapshot extends CatalogParts {
+  conceptByKey(k: string): ConceptDef | undefined
+  conceptsOfSubject(s: SubjectCode): ConceptDef[]
+  goalById(id: string | null): GoalDef | null
+  /* האם התפיסה חלה על שכבה: מחליף את prevalence[grade as 4|6] !== undefined הקשיח */
+  misconceptionAppliesTo(m: MisconceptionDef, grade: number): boolean
+}
+
+/* grades מפורש (null = כל השכבות) גובר; אחרת — דמו: התפיסה חלה בשכבות שמוגדר להן prevalence */
+export function misconceptionAppliesToGrade(m: MisconceptionDef, grade: number): boolean {
+  if (m.grades !== undefined) return m.grades === null || (grade >= m.grades.from && grade <= m.grades.to)
+  return (m.prevalence as Partial<Record<number, number>>)[grade] !== undefined
+}
+
+export function createCatalog(parts: CatalogParts): CatalogSnapshot {
+  const concepts = new Map<string, ConceptDef>()
+  for (const c of parts.concepts) if (!concepts.has(c.key)) concepts.set(c.key, c)
+  const goals = new Map<string, GoalDef>()
+  for (const g of parts.goals) if (!goals.has(g.id)) goals.set(g.id, g)
+  return {
+    concepts: parts.concepts, misconceptions: parts.misconceptions, goals: parts.goals,
+    conceptByKey: (k) => concepts.get(k),
+    conceptsOfSubject: (s) => parts.concepts.filter((c) => c.subject === s),
+    goalById: (id) => (id ? goals.get(id) ?? null : null),
+    misconceptionAppliesTo: misconceptionAppliesToGrade,
+  }
+}
+
+export const DEMO_CATALOG: CatalogSnapshot = createCatalog({ concepts: CONCEPTS, misconceptions: MISCONCEPTIONS, goals: GOALS })
+export const EMPTY_CATALOG: CatalogSnapshot = createCatalog({ concepts: [], misconceptions: [], goals: [] })
 
 /* שמות בדויים (אין קשר לאנשים אמיתיים) */
 export const FIRST_MALE = ['אורי', 'איתן', 'אסף', 'בן', 'גיא', 'גלעד', 'דור', 'הראל', 'זיו', 'חן', 'טל', 'יהב', 'יונתן', 'כפיר', 'לביא', 'מתן', 'נדב', 'נמרוד', 'עידו', 'עומר', 'פלג', 'צח', 'קורן', 'רן', 'שחר', 'שי', 'תומר', 'אופיר', 'ארז', 'ברק', 'דוד', 'מיכאל', 'ניר', 'סהר', 'עמית', 'רום']

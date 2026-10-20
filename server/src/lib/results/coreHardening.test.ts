@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, REVIEW_MIN_COMPLETED } from '../../../../src/shared/lib/analyticsConfig.js'
-import { countNb, detailAvailableLine } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, REVIEW_MIN_COMPLETED } from '../../../../src/shared/lib/analyticsConfig.js'
+import { countNb, detailAvailableLine, howWeCalcSuccessBandsLines, SUCCESS_DONUT_BANDS } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
   buildClassView, buildListRow, buildReviewBasis, buildStudentView, subjectOfCode,
@@ -495,5 +495,99 @@ describe('אתגר יחיד: ביחיד', () => {
 describe('מספר המינימום לסיכום מתוך הקונפיג', () => {
   it('הסף אינו נכתב בקוד: מדלגים על ההכללה מתחת ל-COMMON_ERROR_MIN_STUDENTS', () => {
     expect(COMMON_ERROR_MIN_STUDENTS).toBe(2)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════
+   "במבט אחד": successBands — התפלגות ההצלחה של מי שסיימו (הדונאט השני)
+   ══════════════════════════════════════════════════════════════════════════ */
+describe('successBands — כמה אתגרים הצליחו התלמידים שסיימו', () => {
+  const FOUR = gameOf([1, 2, 3, 4].map((n) => mcScene(n)))
+  const bandsOf = (counts: number[], over: Partial<CoreInput> = {}): ReturnType<typeof buildClassView>['successBands'] => {
+    const ps = counts.map((solved, i) => played(i, 4, solved))
+    return buildClassView({ ...input(FOUR), ...merge(...ps), students: STUDENTS.slice(0, counts.length), ...over }).successBands
+  }
+
+  it('הספים הם אלה של התצורה הקיימת — "לתשומת לב" ו"רוב הכיתה הצליחה" — ולא 60/85 הישנים', () => {
+    expect(SUCCESS_DONUT_BANDS).toEqual({ low: ATTENTION_RULE.solvedShareBelow, high: CLASS_SUCCESS_BANDS.most })
+    expect(SUCCESS_DONUT_BANDS).toEqual({ low: 0.5, high: 0.75 })
+  })
+
+  it('גבולות: 0 ו-25% = במעט · בדיוק 50% = בחלק (לא במעט) · בדיוק 75% ו-100% = ברוב', () => {
+    /* ארבעה אתגרים: חלקים 0, 0.25, 0.5, 0.75, 1, 1 */
+    expect(bandsOf([0, 1, 2, 3, 4, 4])).toEqual({ basis: 6, low: 2, mid: 1, high: 3, enough: true })
+  })
+
+  it('low+mid+high = basis, והחוזה (zod) מקבל את התוצאה', () => {
+    const view = buildClassView({ ...input(FOUR), ...merge(...[0, 1, 2, 3, 4, 2].map((s, i) => played(i, 4, s))) })
+    const b = view.successBands
+    expect(b.low + b.mid + b.high).toBe(b.basis)
+    expect(ClassSubmissionViewSchema.safeParse(view).success).toBe(true)
+  })
+
+  it('הספירה הנמוכה שווה בדיוק למספר מי שמסומנים "לתשומת לב" בגלל הצלחה נמוכה (אותו כלל)', () => {
+    const view = buildClassView({ ...input(FOUR), ...merge(...[0, 1, 2, 3, 4, 1].map((s, i) => played(i, 4, s))) })
+    const chips = [...view.roster.completed, ...view.roster.inProgress, ...view.roster.notStarted]
+    expect(chips.filter((c) => c.attentionReasons.includes('low_success'))).toHaveLength(view.successBands.low)
+    expect(view.successBands.low).toBe(3)
+  })
+
+  it('רק מי שסיימו נספרים: באמצע (גם עם תוצאות חלקיות) ועוד לא התחילו מחוץ לגרף', () => {
+    const ps = [played(0, 4, 4), played(1, 4, 4), played(2, 4, 4, false), played(3, 4, 0, false)]
+    const view = buildClassView({ ...input(FOUR), ...merge(...ps), students: STUDENTS })
+    expect(view.head.counts).toMatchObject({ total: 6, completed: 2, inProgress: 2, notStarted: 2 })
+    expect(view.successBands).toEqual({ basis: 2, low: 0, mid: 0, high: 2, enough: true })
+  })
+
+  it('תלמיד/ה שסיים/ה בלי שום תוצאה רשומה נספר/ת "במעט" — כמו כלל תשומת הלב', () => {
+    const view = buildClassView({ ...input(FOUR), ...merge(played(0, 4, 4)), sessions: [sess(0, true), sess(1, true)], answers: played(0, 4, 4).answers, events: played(0, 4, 4).events, students: STUDENTS.slice(0, 2) })
+    expect(view.successBands).toEqual({ basis: 2, low: 1, mid: 0, high: 1, enough: true })
+    expect(view.roster.completed.find((c) => c.id === 'st1')!.attentionReasons).toContain('low_success')
+  })
+
+  it('enough: מ-CLASS_SUMMARY_MIN_COMPLETED סיימו ומעלה; מתחת — הספירה נשארת אמיתית אך לא מציירים', () => {
+    expect(CLASS_SUMMARY_MIN_COMPLETED).toBe(2)
+    expect(bandsOf([3])).toEqual({ basis: 1, low: 0, mid: 0, high: 1, enough: false })
+    expect(bandsOf([3, 1])).toEqual({ basis: 2, low: 1, mid: 0, high: 1, enough: true })
+    expect(bandsOf([])).toEqual({ basis: 0, low: 0, mid: 0, high: 0, enough: false })
+  })
+
+  it('הדמיה בלי אתגרים: basis=0 ו-enough=false גם כשכולם סיימו (אין מה למדוד)', () => {
+    const none = gameOf([])
+    const done = { sessions: [sess(0, true), sess(1, true), sess(2, true)], answers: [], events: [] }
+    const view = buildClassView({ ...input(none), ...done, students: STUDENTS.slice(0, 3) })
+    expect(view.challenges).toHaveLength(0)
+    expect(view.head.counts.completed).toBe(3)
+    expect(view.successBands).toEqual({ basis: 0, low: 0, mid: 0, high: 0, enough: false })
+  })
+
+  it('לא תלוי בסדר התלמידים (כל סדר נותן אותה התפלגות)', () => {
+    const all = permutations([0, 1, 2, 3]).map((perm) => bandsOf([0, 2, 3, 4].map((_, i) => [0, 2, 3, 4][perm[i]])))
+    expect(new Set(all.map((b) => JSON.stringify(b))).size).toBe(1)
+    expect(all[0]).toEqual({ basis: 4, low: 1, mid: 1, high: 2, enough: true })
+  })
+
+  it('שאלת מוסר נספרת כאתגר שנפתר ("ניסה") — כמו בכלל תשומת הלב; החלק הוא מתוך כל האתגרים', () => {
+    const moral = { id: 'mo', title: 'דילמה', puzzle: { type: 'moralDilemma', situation: 'מצב', moralChoices: [{ text: 'א' }, { text: 'ב' }] } }
+    const game = gameOf([mcScene(1), mcScene(2), moral])
+    /* st0: נכון, שגוי, ניסה את הדילמה = 2 מתוך 3 → ביניים; st1: שגוי בשניהם + דילמה = 1 מתוך 3 → במעט */
+    const mk = (i: number, ok1: boolean, ok2: boolean) => ({
+      sessions: [sess(i, true)],
+      answers: [ans(i, 'm1', 0, ok1 ? 'a' : 'b', ok1 ? 'correct' : 'wrong'), ans(i, 'm2', 0, ok2 ? 'a' : 'b', ok2 ? 'correct' : 'wrong')],
+      events: [pev(i, 'm1', ok1), pev(i, 'm2', ok2), pev(i, 'mo', true)],
+    })
+    const view = buildClassView({ ...input(game), ...merge(mk(0, true, false), mk(1, false, false)), students: STUDENTS.slice(0, 2) })
+    expect(view.successBands).toEqual({ basis: 2, low: 1, mid: 1, high: 0, enough: true })
+  })
+
+  it('הסבר "איך חישבנו" לגרף מגיע מהספים שבתצורה (75% / 50%) ומהסף של מספר מי שסיימו', () => {
+    const text = howWeCalcSuccessBandsLines().join(' ')
+    expect(text).toContain('75%')
+    expect(text).toContain('50%')
+    expect(text).toContain(String(CLASS_SUMMARY_MIN_COMPLETED))
+    const custom = howWeCalcSuccessBandsLines({ low: 0.4, high: 0.9 }).join(' ')
+    expect(custom).toContain('90%')
+    expect(custom).toContain('40%')
+    expect(custom).not.toContain('75%')
   })
 })

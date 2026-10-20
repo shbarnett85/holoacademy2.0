@@ -768,3 +768,234 @@ export function narrateSubmissionsSummary(total: number, withAttention: number):
 }
 
 export const LOCKED_SUBJECT_TEXT = 'זמין למורה המקצוע ולמחנך/ת'
+
+/* ── DONUT: "במבט אחד" במסך ההגשה — שני הדונאטים (מי סיים · כמה אתגרים הצליחו מי שסיימו) ── */
+/* ספי הדונאט השני נגזרים מהתצורה הקיימת, בלי מספרים חדשים: "במעט" = אותו כלל כמו "לתשומת לב" (ATTENTION_RULE.solvedShareBelow),
+   "ברוב" = אותו כלל כמו "רוב הכיתה הצליחה" (CLASS_SUCCESS_BANDS.most). כך אין שלושה ספים סותרים באותו מסך. */
+export const SUCCESS_DONUT_BANDS = { low: ATTENTION_RULE.solvedShareBelow, high: CLASS_SUCCESS_BANDS.most } as const
+
+export const DONUT_TEXT = {
+  completionTitle: 'מי סיים את ההדמיה?',
+  completionFinished: 'סיימו',
+  completionMiddle: 'באמצע',
+  completionNotStarted: 'עוד לא התחילו',
+  completionEmpty: 'עוד אין תלמידים בכיתה הזאת.',
+  completionEmptyNext: 'כשיצטרפו תלמידים לכיתה, תראו כאן מי סיים.',
+  successTitle: 'כמה אתגרים הצליחו התלמידים שסיימו?',
+  bandHigh: 'הצליחו ברוב האתגרים',
+  bandMid: 'הצליחו בחלק מהאתגרים',
+  bandLow: 'הצליחו במעט',
+  successEmpty: 'עוד אין מספיק תלמידים שסיימו כדי להראות התפלגות.',
+  successEmptyNext: `היא תופיע כאן כשיסיימו לפחות ${CLASS_SUMMARY_MIN_COMPLETED} תלמידים.`,
+  successNoChallenges: 'בהדמיה הזאת אין אתגרים שאפשר למדוד.',
+  successNoChallengesNext: 'התפלגות ההצלחה תופיע בהדמיות שיש בהן אתגרים.',
+  emptyDefault: 'עוד אין נתונים להצגה.',
+  emptyDefaultNext: 'הם יופיעו כאן כשתלמידים יסיימו.',
+  centerStudents: 'תלמידים',
+  centerFinished: 'סיימו',
+  nobody: 'אף אחד',
+} as const
+
+/* שורת הספירה במקרא: "14 מתוך 25 (56%)" — "X מתוך Y" קודם, האחוז רק בנוסף. אפס → "אף אחד" */
+export const donutLegendCount = (count: number, total: number, pct: number): string =>
+  count <= 0 ? DONUT_TEXT.nobody : `${countNb(count, total)} (${pct}%)`
+
+/* תיאור הדונאט לקוראי מסך: "מי סיים את ההדמיה? 14 מתוך 25 סיימו, 6 מתוך 25 באמצע, 5 מתוך 25 עוד לא התחילו" */
+export const donutAriaLabel = (title: string, parts: { label: string; count: number }[], total: number): string =>
+  `${title} ${parts.map((p) => `${countNb(p.count, total)} ${p.label}`).join(', ')}`
+
+/* שורות "איך חישבנו?" של שני הדונאטים — הספים מגיעים מהקורא (ברירת מחדל: SUCCESS_DONUT_BANDS) */
+export function howWeCalcSuccessBandsLines(bands: { low: number; high: number } = SUCCESS_DONUT_BANDS): string[] {
+  const low = Math.round(bands.low * 100)
+  const high = Math.round(bands.high * 100)
+  return [
+    `"${DONUT_TEXT.completionTitle}" סופר את כל תלמידי הכיתה לפי ההרצה האחרונה של כל אחד/ת: סיימו, באמצע (התחילו ולא סיימו) או עוד לא התחילו.`,
+    `"${DONUT_TEXT.successTitle}" סופר רק תלמידים שסיימו. לכל תלמיד/ה בודקים כמה אתגרים פתר/ה מתוך כל האתגרים בהדמיה.`,
+    `"${DONUT_TEXT.bandHigh}" = ${high}% מהאתגרים או יותר. "${DONUT_TEXT.bandLow}" = פחות מ-${low}% (אותו כלל כמו "לתשומת לב"). "${DONUT_TEXT.bandMid}" = בין ${low}% ל-${high}%.`,
+    `הגרף השני מופיע כשסיימו לפחות ${CLASS_SUMMARY_MIN_COMPLETED} תלמידים, כדי שלא יסכם את הכיתה לפי תלמיד/ה בודד/ת.`,
+  ]
+}
+
+/* ── AI_SUMMARY: סיכום מילולי של ד״ר הולו (תלמיד · כיתה · מקצוע בכיתה · הגשה) ──
+   · ה-AI מנסח רק מרשימת עובדות סגורות. כל העובדות (aiFact*) נבנות כאן מתבניות ובלי שם תלמיד/מורה (חוק 12).
+   · התבנית הדטרמיניסטית (כש-AI אינו זמין או נכשל בבדיקה) וכל הטקסטים שבממשק חיים כאן. הפרומפט חי ב-server/src/lib/aiSummary/prompt.ts.
+   · ניסוח תצפיתי וזהיר בלבד (חוקים 1, 7): מתארים מה נצפה, לא מה גרם לכך. */
+export type AiSummaryScopeKey = 'student' | 'class' | 'class_subject' | 'submission'
+export type AiSummaryUnit = 'sessions' | 'students'
+
+export const AI_SUMMARY_TEXT = {
+  heading: 'סיכום מילולי',
+  headingByScope: {
+    student: 'סיכום מילולי על התלמיד/ה',
+    class: 'סיכום מילולי על הכיתה',
+    class_subject: 'סיכום מילולי על המקצוע בכיתה',
+    submission: 'סיכום מילולי על ההדמיה',
+  },
+  label: {
+    ai: 'נכתב על ידי ד״ר הולו (בינה מלאכותית)',
+    template: 'סיכום אוטומטי מהנתונים',
+    demo: 'סיכום הדגמה',
+  },
+  notice: {
+    template: 'זה סיכום אוטומטי מהנתונים, לא נכתב בבינה מלאכותית.',
+    demo: 'זה סיכום הדגמה: הוא נבנה אוטומטית מנתוני ההדגמה ואינו נשמר.',
+  },
+  editedBadge: 'נערך על ידך',
+  howWrittenTitle: 'איך נכתב הסיכום?',
+  persistenceNote: 'הסיכום מוצג אך עדיין לא נשמר במערכת. אם תערכו אותו, העריכה תישמר רק עד שתסגרו את המסך.',
+  /* כפתורים ומצבים בממשק — כל כפתור עם מילה */
+  ui: {
+    generate: 'כתבו לי סיכום',
+    writing: 'ד״ר הולו כותב, זה לוקח כחצי דקה',
+    regenerate: 'כתיבה מחדש',
+    edit: 'עריכה',
+    save: 'שמירה',
+    cancel: 'ביטול',
+    revert: 'חזרה לטקסט של ד״ר הולו',
+    exportWord: 'ייצוא ל-Word',
+    print: 'הדפסה',
+    retryAi: 'נסו שוב עם ד״ר הולו',
+    close: 'סגירה',
+  },
+  /* שורות הייצוא ל-Word */
+  exportLine: {
+    ai: 'נוצר בעזרת בינה מלאכותית',
+    aiEdited: 'נוצר בעזרת בינה מלאכותית ונערך על ידי המורה',
+    template: 'סיכום אוטומטי מהנתונים',
+    demo: 'סיכום הדגמה',
+  },
+  /* התבנית הדטרמיניסטית (fallback) — הפתיח והחיבורים; העובדות עצמן מגיעות מ-aiFact* */
+  template: {
+    openingTail: 'זה מה שעולה מהנתונים:',
+    strengthsLead: 'מה שבולט לטובה:',
+    attentionLead: 'מה כדאי לבדוק:',
+    nothingToCheck: 'לא נצפה כרגע משהו חריג שדורש בדיקה.',
+    step: {
+      student: 'צעד אפשרי: שיחה קצרה עם התלמיד/ה, ואם צריך הדמיית חזרה ממוקדת. אפשר לבדוק שוב בעוד כמה שבועות.',
+      class: 'צעד אפשרי: להקדיש חלק משיעור לחזרה על התחום המאתגר, ולבדוק שוב בעוד כמה שבועות.',
+      class_subject: 'צעד אפשרי: להקדיש חלק משיעור לחזרה על הטעות הנפוצה, ולבדוק שוב בעוד כמה שבועות.',
+      submission: 'צעד אפשרי: לחזור בכיתה על האתגר שהכי הרבה תלמידים התקשו בו, או ליצור הדמיית חזרה.',
+    },
+  },
+} as const
+
+/* הודעות שגיאה בנתיב הסיכום */
+export const ERR_SUMMARY_NOT_CONNECTED = 'הסיכום המילולי עדיין אינו מופעל בחשבון זה'
+export const ERR_SUMMARY_NOT_FOUND = 'הסיכום לא נמצא'
+export const ERR_SUMMARY_BAD_REQUEST = 'הבקשה לסיכום אינה תקינה'
+export const ERR_SUMMARY_DEMO_EDIT = 'סיכום הדגמה אינו נשמר, ולכן אי אפשר לערוך אותו'
+export const ERR_SUMMARY_EMPTY_EDIT = 'אי אפשר לשמור סיכום ריק. כדי לחזור לטקסט של ד״ר הולו לחצו על "חזרה לטקסט של ד״ר הולו".'
+export const ERR_SUMMARY_LIMIT_DAILY = 'הגעתם למספר הסיכומים המרבי להיום. אפשר להמשיך מחר.'
+export const ERR_SUMMARY_COOLDOWN = 'הסיכום נכתב לפני רגע. אפשר לכתוב מחדש בעוד כמה שניות.'
+
+/* "שם התלמיד/ה לא נשלח לבינה המלאכותית" — לפי ההיקף */
+export const aiSummaryPrivacyNote = (scope: AiSummaryScopeKey): string =>
+  scope === 'student' ? 'שם התלמיד/ה לא נשלח לבינה המלאכותית.' : 'שמות התלמידים לא נשלחים לבינה המלאכותית.'
+/* ההסבר מעל הכפתור "כתבו לי סיכום" */
+export const aiSummaryGenerateHint = (scope: AiSummaryScopeKey): string =>
+  `ד״ר הולו יכתוב 2-3 פסקאות מהנתונים שכבר מופיעים במסך. ${aiSummaryPrivacyNote(scope)}`
+
+/* "אין מספיק נתונים": מה קורה ומה יקרה (עיקרון 9) */
+export function aiSummaryNotEnough(scope: AiSummaryScopeKey, min: number): { text: string; whatNext: string } {
+  switch (scope) {
+    case 'student':
+      return { text: 'עוד אין מספיק נתונים לסיכום על התלמיד/ה.', whatNext: `הסיכום יהיה זמין אחרי ${min === 1 ? 'הדמיה אחת' : `${min} הדמיות`} לפחות.` }
+    case 'class':
+      return { text: 'עוד אין מספיק נתונים לסיכום על הכיתה.', whatNext: `הסיכום יהיה זמין כשיהיו נתונים על ${min === 1 ? 'תלמיד/ה אחד/ת' : `${min} תלמידים`} לפחות.` }
+    case 'class_subject':
+      return { text: 'עוד אין מספיק נתונים לסיכום על המקצוע בכיתה.', whatNext: `הסיכום יהיה זמין כשיהיו נתונים על ${min === 1 ? 'תלמיד/ה אחד/ת' : `${min} תלמידים`} לפחות.` }
+    case 'submission':
+      return { text: 'עוד אין מספיק תלמידים שסיימו כדי לסכם את ההדמיה.', whatNext: `הסיכום יהיה זמין כשיסיימו לפחות ${min === 1 ? 'תלמיד/ה אחד/ת' : `${min} תלמידים`}.` }
+  }
+}
+
+/* "מבוסס על 14 הדמיות" / "מבוסס על 22 תלמידים" / "מבוסס על 18 תלמידים שסיימו" — יחידה נכונה לכל היקף */
+export function aiSummaryBasis(scope: AiSummaryScopeKey, unit: AiSummaryUnit, n: number): string {
+  if (unit === 'sessions') return basedOnSessions(n)
+  if (scope === 'submission') return n === 1 ? 'מבוסס על תלמיד/ה אחד/ת שסיים/ה' : `מבוסס על ${n} תלמידים שסיימו`
+  return `מבוסס על ${studentsWord(n)}`
+}
+
+/* שורות "איך נכתב הסיכום?" — במילים פשוטות מה נשלח ומה לא; המודל וגרסת ההנחיה בסוף */
+export function aiSummaryHowWritten(i: { scope: AiSummaryScopeKey; writtenBy: 'ai' | 'template'; demo: boolean; model?: string | null; promptVersion?: string | null }): string[] {
+  if (i.writtenBy === 'template') {
+    return [
+      i.demo ? 'זה סיכום הדגמה. הוא נבנה אוטומטית מנתוני ההדגמה, בלי בינה מלאכותית, ואינו נשמר.' : 'הסיכום נבנה אוטומטית מהעובדות שחושבו במערכת, בלי בינה מלאכותית.',
+      'שום מידע על תלמידים לא נשלח החוצה כדי לבנות אותו.',
+    ]
+  }
+  const lines = [
+    'ד״ר הולו כתב את הסיכום מתוך רשימת עובדות שחושבו במערכת מהנתונים שמופיעים במסך. הוא לא רואה את הנתונים המלאים.',
+    `${aiSummaryPrivacyNote(i.scope)} גם מספרי זיהוי ושמות מורים לא נשלחים.`,
+    'לפני שהסיכום מוצג המערכת בודקת אותו: כל מספר חייב להופיע בעובדות, אין הסברים לסיבות, אין תוויות על תלמידים והניסוח זהיר. אם הבדיקה נכשלת מוצג סיכום אוטומטי במקומו.',
+  ]
+  if (i.model) lines.push(`המודל שכתב: ${i.model}${i.promptVersion ? `. גרסת ההנחיה: ${i.promptVersion}` : ''}.`)
+  return lines
+}
+
+/* פתיח התבנית: "מבוסס על 14 הדמיות. זה מה שעולה מהנתונים:" */
+export const aiTemplateOpening = (scope: AiSummaryScopeKey, unit: AiSummaryUnit, n: number): string =>
+  `${aiSummaryBasis(scope, unit, n)}. ${AI_SUMMARY_TEXT.template.openingTail}`
+
+/* ── עובדות ל-AI ולתבנית: כל עובדה היא משפט אחד שמסתיים בנקודה, בלי שם תלמיד/מורה ובלי מזהה ── */
+const factPosition = (p: Position | null): string => (p ? ` (${POSITION_TEXT[p]})` : '')
+
+/* תלמיד/ה: רמה נוכחית במקצוע, מיקום מול הטווח המיועד לשכבה, ומספר ההדמיות שהיא מבוססת עליהן */
+export const aiFactLevel = (subject: string, level: number, position: Position | null, sessions: number): string =>
+  `ב${subject} הרמה הנוכחית היא ${fmt1(level)}${factPosition(position)}, על סמך ${sessionsCount(sessions)}.`
+export const aiFactTrend = (subject: string, trend: Trend, group = false): string =>
+  `ב${subject} המגמה האחרונה: ${(group ? GROUP_TREND_TEXT : TREND_TEXT)[trend]}.`
+export function aiFactAreas(subject: string, strong: string[], challenging: string[]): string {
+  const parts: string[] = []
+  if (strong.length) parts.push(`התחומים החזקים: ${strong.join(', ')}`)
+  if (challenging.length) parts.push(`התחומים המאתגרים: ${challenging.join(', ')}`)
+  return `ב${subject} ${parts.join('; ')}.`
+}
+export const aiFactError = (subject: string, title: string, hits: number, exposures: number): string =>
+  `ב${subject} טעות נפוצה: "${title}" — ${countOf(hits, exposures)} שאלות.`
+
+/* כיתה / מקצוע בכיתה */
+export const aiFactClassLevel = (subject: string, level: number, position: Position | null, students: number): string =>
+  `ב${subject} הרמה הממוצעת בכיתה היא ${fmt1(level)}${factPosition(position)}, על סמך נתוני ${studentsWord(students)}.`
+export const aiFactClassAttention = (subject: string, alerts: number, students: number): string =>
+  `ב${subject} ${countOf(alerts, students)} תלמידים לתשומת לב.`
+export function aiFactPositionSplit(subject: string, above: number, within: number, below: number, total: number): string {
+  const parts: string[] = []
+  if (above > 0) parts.push(`${above} מעל הטווח המיועד`)
+  if (within > 0) parts.push(`${within} בתוכו`)
+  if (below > 0) parts.push(`${below} מתחתיו`)
+  return `ב${subject} מתוך ${total} תלמידים: ${joinSubjectNames(parts)}.`
+}
+export function aiFactTrendSplit(subject: string, improving: number, steady: number, declining: number, total: number): string {
+  const parts: string[] = []
+  if (improving > 0) parts.push(`${improving} בעלייה`)
+  if (steady > 0) parts.push(`${steady} יציבים`)
+  if (declining > 0) parts.push(`${declining} בירידה`)
+  return `ב${subject} מגמת התלמידים (מתוך ${total}): ${joinSubjectNames(parts)}.`
+}
+export const aiFactMisconception = (subject: string, title: string, countText: string): string =>
+  `ב${subject} טעות נפוצה בכיתה: "${title}" — ${countText}.`
+
+/* הגשה (שליחה של הדמיה לכיתה) */
+const AI_BAND_WORDS = { high: 'הצליחו ברוב האתגרים', mid: 'הצליחו בחלק מהאתגרים', low: 'הצליחו במעט' } as const
+export function aiFactCompletion(total: number, completed: number, inProgress: number, notStarted: number): string {
+  const parts: string[] = []
+  if (completed > 0) parts.push(`${completed} סיימו`)
+  if (inProgress > 0) parts.push(`${inProgress} באמצע`)
+  if (notStarted > 0) parts.push(`${notStarted} עוד לא התחילו`)
+  return `מתוך ${total} תלמידים: ${joinSubjectNames(parts)}.`
+}
+export function aiFactSuccessBands(basis: number, high: number, mid: number, low: number): string {
+  const parts: string[] = []
+  if (high > 0) parts.push(`${high} ${AI_BAND_WORDS.high}`)
+  if (mid > 0) parts.push(`${mid} ${AI_BAND_WORDS.mid}`)
+  if (low > 0) parts.push(`${low} ${AI_BAND_WORDS.low}`)
+  return `מבין ${basis} התלמידים שסיימו: ${joinSubjectNames(parts)}.`
+}
+export const aiFactChallenge = (order: number, typeLabel: string, title: string, attempted: number, solved: number, gaveUp: number): string =>
+  `אתגר ${order} (${typeLabel}${title ? `, "${title}"` : ''}): ${countOf(solved, attempted)} הצליחו${gaveUp > 0 ? `, ${gaveUp} ויתרו` : ''}.`
+export const aiFactCommonError = (title: string, students: number, exposed: number): string =>
+  `טעות נפוצה בהדמיה: "${title}" — ${countOf(students, exposed)} תלמידים.`
+export const aiFactObjective = (text: string, levelText: string, solved: number, attempted: number): string =>
+  `היעד "${text}": ${levelText} (${countOf(solved, attempted)} תלמידים).`
+export const aiFactAttentionCount = (n: number, total: number): string => `${countOf(n, total)} תלמידים לתשומת לב.`

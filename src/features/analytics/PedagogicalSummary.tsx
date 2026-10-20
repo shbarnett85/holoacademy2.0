@@ -29,13 +29,14 @@ function esc(s: string): string {
 }
 
 /* ייצוא לוורד — מסמך HTML עם דיר RTL ש-Word פותח כ-.doc (ללא תלות חיצונית).
-   כותרת + שם הישות + תאריך + הטקסט (אחרי עריכת המורה). */
+   כותרת + שם הישות + תאריך + הטקסט (אחרי עריכת המורה).
+   צבעים ליטרליים בלבד: ב-Word אין משתני CSS (var(--tN) לא היה מתורגם והצבעים אבדו). */
 function exportToWord(title: string, body: string) {
   const dateStr = new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' })
   const paras = body.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br/>')}</p>`).join('')
   const html = `<!DOCTYPE html><html dir="rtl" lang="he"><head><meta charset="utf-8">
 <style>body{font-family:Arial,sans-serif;direction:rtl;text-align:right;margin:40px}
-h1{font-size:18pt;color:var(--t45)}.meta{color:var(--t46);font-size:10pt;margin-bottom:18pt}
+h1{font-size:18pt;color:#14213d}.meta{color:#5b677a;font-size:10pt;margin-bottom:18pt}
 p{font-size:12pt;line-height:1.7}</style></head><body>
 <h1>סיכום פדגוגי — ${esc(title)}</h1>
 <p class="meta">נכתב על ידי ד״ר הולו (AI) · ${esc(dateStr)}</p>

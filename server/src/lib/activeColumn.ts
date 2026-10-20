@@ -157,6 +157,12 @@ export async function hasPedagogicalSummaries(): Promise<boolean> {
   return check('__pedagogical_summaries', () => supabaseAdmin.from('pedagogical_summaries').select('id').limit(1))
 }
 
+/* האם טבלת ai_summaries קיימת (migrations/ai_summaries.sql) — סיכום מילולי שמור, אישי לצופה.
+   check ולא checkStrict: כשל בבדיקה אינו דליפה — הסיכום פשוט לא נשמר ולא נקרא מה-cache. */
+export async function hasAiSummaries(): Promise<boolean> {
+  return check('__ai_summaries', () => supabaseAdmin.from('ai_summaries').select('id').limit(1))
+}
+
 /* האם עמודת rolling_tallies קיימת ב-difficulty_profiles — אקומולטור חוצה-סשנים */
 export async function hasRollingTallies(): Promise<boolean> {
   return check('__rolling_tallies', () => supabaseAdmin.from('difficulty_profiles').select('rolling_tallies').limit(1))

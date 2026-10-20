@@ -80,6 +80,7 @@ export const UI = {
 
   /* טאבים ואתגרים */
   partsLabel: 'חלקי המסך',
+  tabGlance: 'במבט אחד',
   tabChallenges: 'האתגרים',
   tabErrors: 'טעויות נפוצות',
   tabReview: 'תרגול חזרה',

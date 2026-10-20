@@ -9,6 +9,14 @@ import { realProvider } from './provider.js'
 import { buildWorld, skey } from './demoWorld.js'
 import { analyze } from './engine.js'
 import { benjaminiHochberg, binomialUpperTail, normalCdf, poissonBinomialUpper, tTwoSided, welch, pairedT } from './stats.js'
+import { DEMO_WORLD, LEVEL_TREND_BASIS, MEMORY_ATTENTIVE_RATE } from '../../../../src/shared/lib/analyticsConfig.js'
+import { israelDayKey } from '../../../../src/shared/lib/findingsNarrative.js'
+import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
+import { DEMO_CATALOG, EMPTY_CATALOG, createCatalog } from './catalog.js'
+import { commonErrorsOf } from './derive.js'
+import { rngFor, type MemGame, type SessionRec, type StudentSubjectData, type World } from './demoWorld.js'
+import { TERM_MIN_SCHOOL_DAYS, buildSchoolDays, dayIndexOf, israelMonthKey, liveTerm } from './schoolCalendar.js'
+import { perfectSeparationP, tUpperTail } from './stats.js'
 
 const NOW = new Date('2026-10-19T09:00:00Z')
 const A = getAnalysis(NOW)
@@ -359,5 +367,377 @@ describe('דטרמיניזם ויציבות לאורך ימי השנה', () => {
       if (d === '2027-04-15') expect(w.term.kind).toBe('half_a')
       if (d === '2026-09-03') expect(w.term.kind).toBe('half_b')
     }
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════
+   W1 — הקשחת המנוע לנתוני אמת: רשתות ביטחון, נתונים דלילים, קטלוג מוזרק, בסיס בדיקה 'level' לעולם חי, לוח ימי לימוד
+   ══════════════════════════════════════════════════════════════════════════ */
+
+describe('stats: רשתות ביטחון (p לא-סופי לא נולד)', () => {
+  it('Welch: df ≤ 0 (שונות 0 / n=1) → p=1, d=0 — לא NaN', () => {
+    const same = welch([1, 1, 1], [1, 1, 1])
+    expect([same.pTwoSided, same.d]).toEqual([1, 0])
+    const step = welch([5, 5, 5], [6, 6, 6]) /* שתי קבוצות קבועות שונות: המבחן לא מוגדר */
+    expect([step.pTwoSided, step.d]).toEqual([1, 0])
+    expect(Number.isFinite(step.t)).toBe(true) /* t נשמר (changePoint משתמש בו) */
+    const one = welch([1], [2])
+    expect([one.pTwoSided, one.d]).toEqual([1, 0])
+  })
+  it('t זוגי: n=1 → p=1, dz=0; tUpperTail עם df ≤ 0 → 0.5', () => {
+    const r = pairedT([1])
+    expect([r.pTwoSided, r.dz]).toEqual([1, 0])
+    expect(tUpperTail(0, 0)).toBe(0.5)
+    expect(tTwoSided(1.5, 0)).toBe(1)
+    expect(tUpperTail(Number.NaN, 5)).toBe(0.5)
+  })
+  it('הפרדה מושלמת בין קבוצות קבועות: p מדויק של בדיקת תמורות (2 מתוך C(n1+n2,n1))', () => {
+    expect(perfectSeparationP(8, 8)).toBeCloseTo(2 / 12870, 8)
+    expect(perfectSeparationP(1, 1)).toBe(1)
+    expect(perfectSeparationP(0, 5)).toBe(1)
+    expect(perfectSeparationP(20, 40)).toBeLessThan(1e-12)
+  })
+  it('Welch על נתונים רגילים לא השתנה (ערכים ידועים)', () => {
+    const r = welch([1, 2, 3, 4, 5], [6, 7, 8, 9, 10])
+    expect(r.pTwoSided).toBeLessThan(0.01)
+    expect(r.d).toBeCloseTo(-3.162, 2)
+  })
+})
+
+/* ── עולם מינימלי לבדיקות ── */
+const SP_NOW = new Date('2026-10-19T09:00:00Z')
+const SP_DAYS = buildSchoolDays(SP_NOW, DEMO_WORLD.schoolDays)
+const SP_TERM = { kind: 'half_a', startIso: '2026-09-01T12:00:00.000Z', idx: 100 } as const
+
+interface SpSession { day: number; success: number; level: number; concepts?: Record<string, number>; scenes?: number; words?: number; closedMs?: number }
+const mkSession = (s: SpSession): SessionRec => ({
+  day: s.day, date: SP_DAYS[s.day], success: s.success, level: s.level, concepts: s.concepts ?? {},
+  scenes: s.scenes ?? 6, words: s.words ?? 200, closedMs: s.closedMs ?? 60000, retries: { afterFail: 1, giveUps: 1 },
+})
+/* count מפגשים מפוזרים בשווה על `over` הימים האחרונים */
+const spread = (count: number, f: (day: number, i: number) => Omit<SpSession, 'day'>, over = 200): SessionRec[] =>
+  Array.from({ length: count }, (_, i) => { const day = Math.floor((i / count) * over); return mkSession({ day, ...f(day, i) }) })
+const memGame = (day: number, hits: number, avail = 4): MemGame => ({ day, date: SP_DAYS[day], turns: Array.from({ length: avail }, (_, i) => ({ avail: true, hit: i < hits, pRandom: 0.1 })) })
+
+interface SpStudent { id: string; grade?: number; subjects?: SubjectCode[]; sessions?: SessionRec[]; memory?: MemGame[]; noData?: boolean }
+function spWorld(students: SpStudent[], opts: { live?: boolean; term?: World['term']; days?: string[]; classes?: World['classes'] } = {}): World {
+  const grades = [...new Set(students.map((s) => s.grade ?? 6))]
+  const classes: World['classes'] = opts.classes ?? grades.map((g) => ({
+    id: `c${g}`, name: `כיתה ${g}`, gradeLabel: 'ה׳', grade: g, studentIds: students.filter((s) => (s.grade ?? 6) === g).map((s) => s.id),
+  }))
+  const data = new Map<string, StudentSubjectData>()
+  const ws = students.map((s) => {
+    const subjects = s.subjects ?? ['math']
+    if (!s.noData) for (const sub of subjects) data.set(skey(s.id, sub), { sessions: s.sessions ?? [], mc: [], memory: s.memory ?? [] })
+    return { id: s.id, firstName: 'ת', displayName: `ת${s.id}`, gender: 'male' as const, classId: `c${s.grade ?? 6}`, grade: s.grade ?? 6, subjects, cast: null }
+  })
+  return {
+    now: SP_NOW, days: opts.days ?? SP_DAYS, term: opts.term === undefined ? SP_TERM : opts.term,
+    school: { id: 'sp', name: 'בדיקה' }, classes, students: ws, data, live: opts.live,
+  }
+}
+const findingOf = (a: ReturnType<typeof analyze>, studentId: string, kind: string, sub: SubjectCode = 'math'): Finding | undefined =>
+  a.ss.get(skey(studentId, sub))!.findings.find((f) => f.kind === kind)
+
+describe('נתונים דלילים', () => {
+  it('תלמיד×מקצוע בלי רשומת נתונים: אין חריגה, רשומה ריקה (אין סשנים, אין ממצאים, וקטורים "אין מספיק נתונים")', () => {
+    const w = spWorld([{ id: 'x', subjects: ['math', 'science'], noData: true }, { id: 'y', sessions: spread(20, () => ({ success: 0.7, level: 6 })) }])
+    let a!: ReturnType<typeof analyze>
+    expect(() => { a = analyze(w) }).not.toThrow()
+    const sa = a.ss.get(skey('x', 'math'))!
+    expect([sa.sessionsCount, sa.currentLevel, sa.findings.length, sa.levelSeries.length]).toEqual([0, null, 0, 0])
+    expect(sa.behaviorVectors.every((v) => v.status === 'insufficient' && v.value === null)).toBe(true)
+    expect(a.ss.has(skey('x', 'science'))).toBe(true)
+  })
+
+  it('תלמידי תקרה (הצלחה 100% קבועה) לצד יורד אמיתי: BH לא מזוהם בשום סדר, והיורד מדווח', () => {
+    const decliner = (id: string): SessionRec[] => {
+      const r = rngFor(`w1:dec:${id}`)
+      return spread(70, (day) => ({ success: Math.min(0.98, Math.max(0.05, (day < 60 ? 0.35 : 0.85) + (r() - 0.5) * 0.08)), level: 9 }))
+    }
+    const ceiling = (): SessionRec[] => spread(70, () => ({ success: 1, level: 9 }))
+    for (const order of [['d', 'c', 'c', 'c'], ['c', 'd', 'c', 'c'], ['c', 'c', 'd', 'c'], ['c', 'c', 'c', 'd']]) {
+      const students: SpStudent[] = order.map((k, i) => ({ id: `s${i}`, sessions: k === 'd' ? decliner(`s${i}`) : ceiling() }))
+      const a = analyze(spWorld(students))
+      const f = findingOf(a, `s${order.indexOf('d')}`, 'level_trend')!
+      expect(f.status, order.join()).toBe('reported')
+      expect(f.status === 'reported' && f.evidence.kind === 'level_trend' && f.evidence.direction).toBe('down')
+      for (const sa of a.ss.values()) for (const x of sa.findings) expect(x.pAdjusted === null || Number.isFinite(x.pAdjusted), `${order.join()} ${x.id}`).toBe(true)
+      /* תלמיד התקרה עצמו: לא נבדק, לא ממצא */
+      expect(findingOf(a, `s${order.indexOf('c')}`, 'level_trend')).toBeUndefined()
+    }
+  })
+
+  it('בסיס קשב הזיכרון: חציון התלמידים נחתך ל-0.95 (כולם מושלמים ≠ p=0 לילד), ועם פחות מ-5 תורמים — קבוע 0.7', () => {
+    const perfect = (): MemGame[] => Array.from({ length: 6 }, (_, g) => memGame(g * 20, 4))
+    const weakAt = (hits: number[]): MemGame[] => hits.map((h, g) => memGame(g * 20, h))
+    /* 6 תלמידים מושלמים + תלמיד שפוגע ב-13 מתוך 24 */
+    const rich = analyze(spWorld([...Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, memory: perfect() })), { id: 'w', memory: weakAt([3, 2, 2, 2, 2, 2]) }]))
+    const f = findingOf(rich, 'w', 'memory_random_pattern')!
+    expect(f.status).toBe('reported')
+    const ev = f.status === 'reported' && f.evidence.kind === 'memory_random_pattern' ? f.evidence : null
+    expect(ev?.attentiveRate).toBe(MEMORY_ATTENTIVE_RATE.max)
+    expect(ev!.randomLikelihood).toBeLessThan(1)
+    expect(Number.isFinite(f.pAdjusted)).toBe(true)
+    /* 3 תלמידים מושלמים + תלמיד שפוגע ב-8 מתוך 24: רק 4 תורמים → בסיס קבוע */
+    const poor = analyze(spWorld([...Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, memory: perfect() })), { id: 'w', memory: weakAt([2, 2, 1, 1, 1, 1]) }]))
+    const g = findingOf(poor, 'w', 'memory_random_pattern')!
+    expect(g.status === 'reported' && g.evidence.kind === 'memory_random_pattern' && g.evidence.attentiveRate).toBe(MEMORY_ATTENTIVE_RATE.fallback)
+    /* בסיס חיצוני גובר (ונחתך) */
+    const injected = analyze(spWorld([...Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, memory: perfect() })), { id: 'w', memory: weakAt([2, 2, 1, 1, 1, 1]) }]), DEMO_CATALOG, { memoryAttentiveRate: 1 })
+    const h = findingOf(injected, 'w', 'memory_random_pattern')!
+    expect(h.status === 'reported' && h.evidence.kind === 'memory_random_pattern' && h.evidence.attentiveRate).toBe(MEMORY_ATTENTIVE_RATE.max)
+  })
+
+  it('שכבות 5 ו-7 (לא 4/6): בסיס קריאה לפי שכבות העולם; "דילוג קריאה" מזוהה; תפיסות דמו לא חלות; אין רשומות ריקות', () => {
+    const readers = (grade: number, n: number, msPerWord: number): SpStudent[] => Array.from({ length: n }, (_, i) => {
+      const r = rngFor(`w1:read:${grade}:${i}`)
+      return { id: `g${grade}-${i}`, grade, sessions: spread(10, () => ({ success: 0.7, level: 6, words: 200, closedMs: Math.round(200 * msPerWord * (0.9 + r() * 0.2)) })) }
+    })
+    const students = [...readers(5, 6, 300), { ...readers(5, 1, 95)[0], id: 'g5-fast' }, ...readers(7, 6, 300)]
+    const a = analyze(spWorld(students))
+    for (const st of students) {
+      const v = a.ss.get(skey(st.id, 'math'))!.behaviorVectors.find((b) => b.key === 'reading_attention')!
+      expect(v.value, st.id).not.toBeNull()
+    }
+    expect(findingOf(a, 'g5-fast', 'reading_skip')?.status).toBe('reported')
+    expect(findingOf(a, 'g7-0', 'reading_skip')?.status).not.toBe('reported')
+    /* קטלוג הדמו חל רק על שכבות 4/6: אין 14 רשומות ריקות */
+    expect(a.misByGrade.size).toBe(0)
+    expect(a.misByClass.size).toBe(0)
+    expect(a.ageNormOf(5).center).toBe(9)
+    expect(a.ageNormOf(7).center).toBe(11)
+  })
+
+  it('תפיסה עם טווח שכבות (קטלוג חי): נספרת רק בשכבות העולם שבטווח', () => {
+    const mis = (id: string, grades: { from: number; to: number } | null) => ({
+      id, code: id, titleHe: 'תפיסה', descriptionHe: 'תיאור', conceptKey: 'k', subject: 'math' as const, prevalence: {}, grades, linkedQuest: null,
+    })
+    const catalog = createCatalog({ concepts: [], goals: [], misconceptions: [mis('m-range', { from: 5, to: 6 }), mis('m-all', null)] })
+    const a = analyze(spWorld([{ id: 'a', grade: 5, sessions: [] }, { id: 'b', grade: 7, sessions: [] }]), catalog)
+    expect([...a.misByGrade.keys()].sort()).toEqual(['5|m-all', '5|m-range', '7|m-all'])
+    expect([...a.misByClass.keys()].sort()).toEqual(['c5|m-all', 'c5|m-range', 'c7|m-all'])
+    expect(a.misByGrade.get('5|m-range')!.studentsExposed).toBe(0)
+  })
+
+  it('תא עם תורם יחיד: אין בסיס קריאה (פחות מ-5), אין "דילוג קריאה" ואין ערך קשב לקריאה', () => {
+    const lone = spread(10, () => ({ success: 0.7, level: 6, words: 200, closedMs: 200 * 20 })) /* קריאה מהירה מאוד */
+    const a = analyze(spWorld([{ id: 'solo', subjects: ['arabic'], sessions: lone }]))
+    const sa = a.ss.get(skey('solo', 'arabic'))!
+    expect(sa.behaviorVectors.find((b) => b.key === 'reading_attention')).toMatchObject({ value: null, classMedian: null, status: 'insufficient' })
+    expect(sa.findings.find((f) => f.kind === 'reading_skip')).toBeUndefined()
+    /* בסיס חיצוני (בית ספר) מאפשר מועמד גם לתא קטן */
+    const withBase = analyze(spWorld([{ id: 'solo', subjects: ['arabic'], sessions: lone }]), DEMO_CATALOG, { readingMsPerWord: new Map([['6|arabic', 300]]) })
+    expect(withBase.ss.get(skey('solo', 'arabic'))!.findings.find((f) => f.kind === 'reading_skip')).toBeDefined()
+  })
+
+  it('כיתה בלי תלמידים / בלי ימים / בלי מחצית: אין חריגה', () => {
+    const empty = spWorld([], { classes: [{ id: 'c-empty', name: 'ריקה', gradeLabel: 'ה׳', grade: 5, studentIds: [] }], days: [], term: null })
+    let a!: ReturnType<typeof analyze>
+    expect(() => { a = analyze(empty) }).not.toThrow()
+    expect(a.ss.size).toBe(0)
+    expect(a.classFindings.size).toBe(0)
+    expect(a.classById.get('c-empty')!.studentIds).toEqual([])
+    expect(a.ageNormOf(5)).toMatchObject({ center: 9, gradeLabel: 'ה׳' })
+    /* כיתה ריקה לצד כיתה עם תלמידים */
+    const mixed = spWorld([{ id: 's', sessions: spread(12, () => ({ success: 0.7, level: 6 })) }], { classes: [
+      { id: 'c6', name: 'כיתה 6', gradeLabel: 'ו׳', grade: 6, studentIds: ['s'] }, { id: 'c-empty', name: 'ריקה', gradeLabel: 'ה׳', grade: 5, studentIds: [] }] })
+    expect(() => analyze(mixed)).not.toThrow()
+  })
+})
+
+describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
+  const concept = { key: 'w1.concept', titleHe: 'מושג בדיקה', subject: 'math' as const, vector: 'factual' as const, goalId: null }
+  const catalog = createCatalog({ concepts: [concept], misconceptions: [], goals: [] })
+  const improvers = (): SpStudent[] => Array.from({ length: 16 }, (_, i) => {
+    const r = rngFor(`w1:imp:${i}`)
+    const at = (days: number[], base: number): SessionRec[] => days.map((day) => mkSession({ day, success: 0.7, level: 5, concepts: { [concept.key]: base + r() * 0.5 } }))
+    return { id: `i${i}`, sessions: [...at([75, 80, 90], 4), ...at([2, 8, 15], 6.4)] }
+  })
+  it('שיפור כיתתי נמדד כשיש מחצית; term=null (חי, מחצית צעירה) → אין מועמד ואין ממצא', () => {
+    const withTerm = analyze(spWorld(improvers()), catalog)
+    const f = withTerm.classFindings.get('c6')?.find((x) => x.finding.kind === 'class_concept_improvement')?.finding
+    expect(f?.status).toBe('reported')
+    for (const world of [spWorld(improvers(), { term: null }), spWorld(improvers(), { term: null, live: true })]) {
+      const a = analyze(world, catalog)
+      expect(a.classFindings.size).toBe(0)
+      expect(a.reportedKeys.size).toBe(0)
+    }
+  })
+
+  const stepStudent = (levelRecent: number, levelPrior: number): SpStudent => {
+    const r = rngFor('w1:step')
+    return { id: 'st', sessions: spread(70, (day) => ({ success: 0.7 + (r() - 0.5) * 0.1, level: day < 60 ? levelRecent : levelPrior })) }
+  }
+  it('רמה יציבה שקפצה ברמה שלמה (שתי קבוצות קבועות): בחי מדווח עלייה; בהדגמה (בדיקה על ההצלחה) לא', () => {
+    const live = analyze(spWorld([stepStudent(6, 5)], { live: true }))
+    const f = findingOf(live, 'st', 'level_trend')!
+    expect(f.status).toBe('reported')
+    if (f.status !== 'reported' || f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
+    expect(f.evidence.direction).toBe('up')
+    expect([f.evidence.fromLevel, f.evidence.toLevel, f.evidence.deltaLevels]).toEqual([5, 6, 1])
+    expect(f.effectSize).toBe(1)
+    expect(f.pAdjusted).toBeLessThan(1e-9)
+    expect(f.effectSize).toBeGreaterThanOrEqual(KIND_THRESHOLDS.level_trend.minEffect) /* הסף ברמות לא מתחת לסף ה-d של הסוג */
+    const demo = analyze(spWorld([stepStudent(6, 5)]))
+    expect(findingOf(demo, 'st', 'level_trend')?.status).not.toBe('reported')
+  })
+  it('ירידה אמיתית ברמות עם שונות: מדווחת "ירידה"; הפרש מתחת לרמה אחת או רמה שלא זזה — לא מדווחים', () => {
+    const noisy = (recent: number[], prior: number[]): SpStudent => ({
+      id: 'st', sessions: spread(70, (day, i) => ({ success: 0.7, level: day < 60 ? recent[i % recent.length] : prior[i % prior.length] })),
+    })
+    const down = findingOf(analyze(spWorld([noisy([5, 6], [7, 8])], { live: true })), 'st', 'level_trend')!
+    expect(down.status === 'reported' && down.evidence.kind === 'level_trend' && down.evidence.direction).toBe('down')
+    expect(findingOf(analyze(spWorld([noisy([6, 6, 7, 6, 7], [6])], { live: true })), 'st', 'level_trend')?.status).not.toBe('reported')
+    expect(findingOf(analyze(spWorld([noisy([6], [6])], { live: true })), 'st', 'level_trend')?.status).not.toBe('reported')
+  })
+  it('נקודת שינוי פנימית בכיוון הפוך לבדיקה: הטקסט חוזר לשני החלונות ונשאר עקבי עם הכיוון', () => {
+    /* עולה לפי החלונות (ממוצע 6 → 7.5), אבל בתוך החלון הקודם ירידה חדה 9 → 3 — נקודת השינוי הדומיננטית */
+    const s: SpStudent = { id: 'st', sessions: spread(70, (day, i) => ({ success: 0.7, level: day < 60 ? (i % 2 ? 8 : 7) : day < 120 ? 3 : 9 })) }
+    const f = findingOf(analyze(spWorld([s], { live: true })), 'st', 'level_trend')!
+    expect(f.status).toBe('reported')
+    if (f.status !== 'reported' || f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
+    expect(f.evidence.direction).toBe('up')
+    expect([f.evidence.fromLevel, f.evidence.toLevel, f.evidence.deltaLevels]).toEqual([6, 7.5, 1.5])
+    expect(f.tone).toBe('positive')
+  })
+  it('סף הרמות ב-config לא נמוך מרמה אחת (צעד הכיול)', () => { expect(LEVEL_TREND_BASIS.minDeltaLevels).toBeGreaterThanOrEqual(1) })
+})
+
+describe('קטלוג מוזרק', () => {
+  it('ברירת מחדל = DEMO_CATALOG, והניתוח נושא אותו; derive.commonErrorsOf קורא a.catalog', () => {
+    expect(A.catalog).toBe(DEMO_CATALOG)
+    const w = buildWorld(NOW)
+    const mine = analyze(w)
+    expect(mine.catalog).toBe(DEMO_CATALOG)
+    /* תלמיד מציג תפיסה בדמו → commonErrorsOf מוצא אותה; עם קטלוג ריק — לא */
+    const stat = [...mine.misByClass.values()].find((s) => s.students.length > 0)!
+    const sid = stat.students[0].id
+    const subject = DEMO_CATALOG.misconceptions.find((m) => m.id === stat.misconceptionId)!.subject
+    expect(commonErrorsOf(mine, sid, subject).length).toBeGreaterThan(0)
+    const bare = analyze(w, EMPTY_CATALOG)
+    expect(bare.misByClass.size).toBe(0)
+    expect(bare.misByGrade.size).toBe(0)
+    expect(commonErrorsOf(bare, sid, subject)).toEqual([])
+    /* בלי מושגים בקטלוג: אין וקטורי תוכן ואין שיפור כיתתי; הרמות והממצאים ברמת התלמיד נשארים */
+    for (const sa of bare.ss.values()) expect(sa.contentVectors).toEqual([])
+    expect([...bare.classFindings.values()].flat().filter((x) => x.finding.kind === 'class_concept_improvement')).toEqual([])
+    expect([...bare.ss.values()].flatMap((sa) => sa.findings).filter((f) => f.status === 'reported').length).toBeGreaterThan(5)
+  })
+  it('misconceptionAppliesTo: דמו לפי prevalence; חי לפי grades (null = הכול)', () => {
+    const m = DEMO_CATALOG.misconceptions.find((x) => x.id === 'mc-frac-add-straight')!
+    expect([4, 5, 6].map((g) => DEMO_CATALOG.misconceptionAppliesTo(m, g))).toEqual([false, false, true])
+    const live = { ...m, prevalence: {}, grades: { from: 5, to: 7 } }
+    expect([4, 5, 7, 8].map((g) => DEMO_CATALOG.misconceptionAppliesTo(live, g))).toEqual([false, true, true, false])
+    expect(DEMO_CATALOG.misconceptionAppliesTo({ ...live, grades: null }, 12)).toBe(true)
+  })
+  it('createCatalog: חיפושים לפי מפתח / מקצוע / יעד, ויעדי הדמו מסומנים "מיפוי לדוגמה"', () => {
+    expect(DEMO_CATALOG.conceptByKey('math.place_value')?.subject).toBe('math')
+    expect(DEMO_CATALOG.conceptByKey('nope')).toBeUndefined()
+    expect(DEMO_CATALOG.conceptsOfSubject('history').every((c) => c.subject === 'history')).toBe(true)
+    expect(DEMO_CATALOG.goalById(null)).toBeNull()
+    expect(DEMO_CATALOG.goals.length).toBeGreaterThan(5)
+    expect(DEMO_CATALOG.goals.every((g) => g.mappingStatus === 'sample')).toBe(true)
+    expect(EMPTY_CATALOG.concepts).toEqual([])
+  })
+})
+
+describe('schoolCalendar: ימי לימוד', () => {
+  /* המימוש המקורי מ-demoWorld (לפני ההעברה) — העתק מילולי, מסמן את ה"אותה תוצאה בדיוק" */
+  const legacyBuildSchoolDays = (now: Date, count: number): string[] => {
+    const out: string[] = []
+    let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 12)
+    while (out.length < count) {
+      const d = new Date(t)
+      const dow = d.getUTCDay()
+      const month = d.getUTCMonth()
+      if (dow <= 4 && month !== 6 && month !== 7) out.push(d.toISOString())
+      t -= 86400000
+    }
+    return out
+  }
+  it('buildSchoolDays זהה למימוש המקורי בכל ימות השנה, ו-buildWorld משתמש בו', () => {
+    for (const d of ['2026-10-19T09:00:00Z', '2027-01-31T09:00:00Z', '2026-03-05T09:00:00Z', '2026-07-15T09:00:00Z', '2026-12-31T23:30:00Z', '2028-02-29T00:00:00Z']) {
+      const now = new Date(d)
+      expect(buildSchoolDays(now, DEMO_WORLD.schoolDays), d).toEqual(legacyBuildSchoolDays(now, DEMO_WORLD.schoolDays))
+    }
+    expect(buildWorld(SP_NOW).days).toEqual(buildSchoolDays(SP_NOW, DEMO_WORLD.schoolDays))
+  })
+  it('המבנה: אתמול ראשון, בלי שישי/שבת, בלי יולי–אוגוסט; endOffsetDays=0 מתחיל מהיום', () => {
+    expect(SP_DAYS.slice(0, 4)).toEqual(['2026-10-18T12:00:00.000Z', '2026-10-15T12:00:00.000Z', '2026-10-14T12:00:00.000Z', '2026-10-13T12:00:00.000Z'])
+    for (const d of SP_DAYS) { const x = new Date(d); expect(x.getUTCDay()).toBeLessThanOrEqual(4); expect([6, 7]).not.toContain(x.getUTCMonth()) }
+    expect(buildSchoolDays(SP_NOW, 3, 0)[0]).toBe('2026-10-19T12:00:00.000Z') /* יום שני */
+    expect(buildSchoolDays(new Date('2026-10-16T09:00:00Z'), 2, 0)[0]).toBe('2026-10-15T12:00:00.000Z') /* היום שישי → חמישי */
+  })
+
+  it('dayIndexOf: שישי ושבת → חמישי הקודם; ראשון עצמו; היום (אחרי days[0]) → 0', () => {
+    expect(dayIndexOf(SP_DAYS, '2026-10-16T10:00:00Z')).toBe(1) /* שישי */
+    expect(dayIndexOf(SP_DAYS, '2026-10-17T10:00:00Z')).toBe(1) /* שבת */
+    expect(dayIndexOf(SP_DAYS, '2026-10-18T08:00:00Z')).toBe(0) /* ראשון */
+    expect(dayIndexOf(SP_DAYS, '2026-10-19T08:00:00Z')).toBe(0) /* היום, אחרי days[0] */
+    expect(SP_DAYS[dayIndexOf(SP_DAYS, '2026-10-15T23:00:00Z')!]).toBe('2026-10-15T12:00:00.000Z') /* חמישי בערב */
+  })
+  it('dayIndexOf: היום הישראלי ולא UTC (לילה בישראל)', () => {
+    /* שבת 22:30 UTC = ראשון 01:30 בישראל (שעון קיץ, UTC+3) → ראשון, אינדקס 0 (לפי UTC היה חמישי, אינדקס 1) */
+    expect(dayIndexOf(SP_DAYS, '2026-10-17T22:30:00Z')).toBe(0)
+    /* רביעי 21:30 UTC = חמישי 00:30 בישראל → חמישי 15.10 (אינדקס 1), לא רביעי (אינדקס 2) */
+    expect(dayIndexOf(SP_DAYS, '2026-10-14T21:30:00Z')).toBe(1)
+    /* חמישי 21:30 UTC = שישי 00:30 בישראל → עדיין חמישי (floor) */
+    expect(dayIndexOf(SP_DAYS, '2026-10-15T21:30:00Z')).toBe(1)
+    /* בחורף (UTC+2): ראשון 22:30 UTC = שני 00:30 בישראל — יום לימוד שני */
+    const winter = buildSchoolDays(new Date('2027-01-27T09:00:00Z'), 60)
+    const idx = dayIndexOf(winter, '2027-01-24T22:30:00Z')! /* ראשון 24.1 22:30Z = שני 25.1 00:30 */
+    expect(winter[idx]).toBe('2027-01-25T12:00:00.000Z')
+  })
+  it('dayIndexOf: קיץ → סוף יוני; מחוץ לאופק / לא תקין / ריק → null', () => {
+    const days = buildSchoolDays(new Date('2026-09-10T09:00:00Z'), DEMO_WORLD.schoolDays)
+    for (const iso of ['2026-07-15T10:00:00Z', '2026-08-31T10:00:00Z', '2026-07-01T00:00:00Z']) expect(days[dayIndexOf(days, iso)!], iso).toBe('2026-06-30T12:00:00.000Z')
+    expect(dayIndexOf(SP_DAYS, '2020-01-01T00:00:00Z')).toBeNull()
+    expect(dayIndexOf(SP_DAYS, 'לא תאריך')).toBeNull()
+    expect(dayIndexOf([], '2026-10-15T10:00:00Z')).toBeNull()
+  })
+  it('dayIndexOf: תכונה — יום הלימוד שנבחר ≤ היום הישראלי, והבא אחריו (החדש יותר) מאוחר ממנו', () => {
+    const r = rngFor('w1:dayindex')
+    for (let i = 0; i < 400; i++) {
+      const ms = Date.parse('2025-11-01T00:00:00Z') + Math.floor(r() * (Date.parse('2026-10-19T00:00:00Z') - Date.parse('2025-11-01T00:00:00Z')))
+      const iso = new Date(ms).toISOString()
+      const idx = dayIndexOf(SP_DAYS, iso)
+      if (idx === null) continue
+      const key = israelDayKey(iso)!
+      expect(SP_DAYS[idx].slice(0, 10) <= key, iso).toBe(true)
+      if (idx > 0) expect(SP_DAYS[idx - 1].slice(0, 10) > key, iso).toBe(true)
+    }
+  })
+  it('israelMonthKey: חודש לפי היום הישראלי', () => {
+    expect(israelMonthKey('2026-09-30T22:30:00Z')).toBe('2026-10') /* 01:30 בישראל ב-1 באוקטובר */
+    expect(israelMonthKey('2026-10-18T12:00:00.000Z')).toBe('2026-10')
+    expect(israelMonthKey('2026-12-31T23:30:00Z')).toBe('2027-01')
+  })
+
+  it('liveTerm: null כשחלפו פחות מ-60 ימי לימוד במחצית (אוקטובר), בניגוד ל-pickTerm של ההדגמה', () => {
+    expect(TERM_MIN_SCHOOL_DAYS).toBe(60)
+    expect(liveTerm(SP_NOW, SP_DAYS)).toBeNull()
+    expect(buildWorld(SP_NOW).term.kind).toBe('half_b') /* ההדגמה נסוגה למחצית ב׳ הקודמת — נעול בטסטים, לא משתנה */
+    expect(liveTerm(new Date('2027-02-20T09:00:00Z'), buildSchoolDays(new Date('2027-02-20T09:00:00Z'), 260))).toBeNull()
+  })
+  it('liveTerm: אחרי 60 ימי לימוד — המחצית הנוכחית, ו-idx הוא יום הלימוד הראשון שלה', () => {
+    for (const [d, kind, startIso] of [
+      ['2027-01-25T09:00:00Z', 'half_a', '2026-09-01T12:00:00.000Z'],
+      ['2027-05-20T09:00:00Z', 'half_b', '2027-02-01T12:00:00.000Z'],
+      ['2026-07-20T09:00:00Z', 'half_b', '2026-02-01T12:00:00.000Z'], /* קיץ: המחצית שהסתיימה */
+    ] as const) {
+      const now = new Date(d)
+      const days = buildSchoolDays(now, DEMO_WORLD.schoolDays)
+      const t = liveTerm(now, days)!
+      expect([t.kind, t.startIso], d).toEqual([kind, startIso])
+      expect(Date.parse(days[t.idx]), d).toBeGreaterThanOrEqual(Date.parse(startIso))
+      expect(Date.parse(days[t.idx + 1]), d).toBeLessThan(Date.parse(startIso))
+      expect(t.idx + 1).toBeGreaterThanOrEqual(TERM_MIN_SCHOOL_DAYS)
+    }
+  })
+  it('liveTerm: אופק ימים שלא מגיע לתחילת המחצית, או ללא ימים → null (לא מתייגים תאריך שגוי)', () => {
+    const now = new Date('2027-01-25T09:00:00Z')
+    expect(liveTerm(now, buildSchoolDays(now, 50))).toBeNull()
+    expect(liveTerm(now, [])).toBeNull()
   })
 })

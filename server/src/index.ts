@@ -18,6 +18,7 @@ import { sessionsRouter } from './routes/sessions.js'
 import { analyticsRouter } from './routes/analytics.js'
 import { analyticsV2Router } from './routes/analyticsV2.js'
 import { resultsRouter } from './routes/results.js'
+import { aiSummaryRouter } from './routes/aiSummary.js'
 import { libraryRouter } from './routes/library.js'
 import { funnelRouter } from './routes/funnel.js'
 import { errorHandler } from './middleware/errors.js'
@@ -66,6 +67,8 @@ app.use('/api/sessions', sessionsRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use('/api/analytics-v2', analyticsV2Router)
 app.use('/api/results', resultsRouter)
+/* סיכום מילולי של ד״ר הולו — לא מחובר לספקים (503) עד ש-registerAiSummaryRoutes מקבל deps אמיתיות (authorize + loadSource) */
+app.use('/api/ai-summary', aiSummaryRouter)
 app.use('/api/library', libraryRouter)
 app.use('/api/funnel', funnelRouter)
 

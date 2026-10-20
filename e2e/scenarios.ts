@@ -41,7 +41,17 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'results-class', group: 'results', who: TEACHERS,
     url: '/results/{submissionId}', inner: true, clicksFromMainTab: 1, ready: '[data-people-panel]',
-    note: 'מצב "כל הכיתה" של שליחה',
+    note: 'מצב "כל הכיתה" של שליחה (נפתח על הטאב "במבט אחד")',
+  },
+  {
+    name: 'results-class-glance', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=glance', inner: true, clicksFromMainTab: 1, ready: '[data-glance]',
+    note: 'טאב "במבט אחד": שני גרפי עוגה (מי סיים · כמה אתגרים הצליחו מי שסיימו) + חריץ לסיכום המילולי. נכנס במסך אחד ב-1366×768 בלי גלילה פנימית (כיתה של 25, 6 אתגרים)',
+  },
+  {
+    name: 'results-class-challenges', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=challenges', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'טאב האתגרים (עד "במבט אחד" הוא היה ברירת המחדל של מסך הכיתה)',
   },
   {
     name: 'results-student', group: 'results', who: TEACHERS,

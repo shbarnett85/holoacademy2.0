@@ -3,6 +3,8 @@ import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
+import { rateLimitByUser } from '../middleware/rateLimit.js'
+import { summaryEligibility } from '../../../src/shared/lib/aiSummaryRule.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
 import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag } from '../lib/activeColumn.js'
 import {
@@ -1003,6 +1005,11 @@ analyticsRouter.get('/challenge-types', async (req, res, next) => {
    ════════════════════════════════════════════════════════════════════════ */
 
 type SummaryScope = 'student' | 'class' | 'assignment'
+/* סף N מינימלי לסיכום (אותו כלל כמו הסיכום החדש — shared/lib/aiSummaryRule): מונע סיכום ילד/כיתה על בסיס הדמיה בודדת */
+function requireSummaryMin(scope: 'student' | 'class' | 'submission', n: { sessions?: number; students?: number; completed?: number }): void {
+  const e = summaryEligibility(scope, n)
+  if (!e.ok) throw new AppError(400, `${e.text} ${e.whatNext}`)
+}
 const pctStr = (r: number | null) => (r === null ? '—' : Math.round(r * 100) + '%')
 
 /* שם הכיתה (gradeLabel) */
@@ -1016,7 +1023,9 @@ async function classLabel(classId: string): Promise<string> {
 /* גוזר את נתוני הקלט לסיכום + אוכף הרשאות (authz) לפני כל קריאת AI. מחזיר label אנושי (ללא שם
    תלמיד — רק כינוי), JSON מצרפי, ו-N (גודל מדגם). השם האמיתי חוזר רק בשרת אחרי תשובת ה-LLM. */
 const STUDENT_ALIAS = 'תלמיד/ה 1'
-async function gatherSummary(req: Request, scope: SummaryScope, entityId: string): Promise<{ label: string; data: Record<string, unknown>; sampleSize: number; studentName?: string }> {
+/* enforceMin: סף N מינימלי גם למורה (ליצירה בלבד — שליפה/עריכה של סיכום קיים לא נחסמות). cacheable: האם מותר לשמור/לשתף את הסיכום ב-cache —
+   סיכום תלמיד של מורה מקצועי (מקצועו בלבד) אינו נשמר, כדי שלא יוצג למחנך כסיכום מלא (חוק 10). */
+async function gatherSummary(req: Request, scope: SummaryScope, entityId: string, opts: { enforceMin?: boolean } = {}): Promise<{ label: string; data: Record<string, unknown>; sampleSize: number; studentName?: string; cacheable: boolean }> {
   const viewer = await loadViewer(req)
   const aggOnly = isAggregateOnly(viewer)
   const exSyn = await excludeSynthetic(req)
@@ -1053,6 +1062,7 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     if (aggOnly && belowMinCell(completed)) {
       throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים שהשלימו`)
     }
+    if (opts.enforceMin) requireSummaryMin('submission', { completed })
     const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
     const perChallenge = challenges.map((c) => {
       const st = chStats.get(c.sceneId) ?? { solved: 0, failed: 0 }
@@ -1062,6 +1072,7 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     return {
       label: `הקצאה: "${questRow?.title ?? ''}" · כיתה ${await classLabel(asg.class_id)}`,
       sampleSize: completed,
+      cacheable: true,
       data: {
         סוג: 'סיכום ביצועי כיתה בהדמיה',
         הדמיה: questRow?.title ?? '',
@@ -1105,10 +1116,12 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     if (aggOnly && belowMinCell(played)) {
       throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים ששיחקו`)
     }
+    if (opts.enforceMin) requireSummaryMin('class', { students: played })
     const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
     return {
       label: `כיתה ${await classLabel(entityId)}`,
       sampleSize: completedSessions,
+      cacheable: true,
       data: {
         סוג: 'סיכום כיתה (חוצה-מקצוע)',
         מספר_תלמידים: students.length,
@@ -1155,12 +1168,15 @@ async function gatherSummary(req: Request, scope: SummaryScope, entityId: string
     skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
   }
   const p = (profile ?? {}) as Record<string, unknown>
-  void logAccess(viewer, { studentId: entityId, scope: 'summary_student', endpoint: 'analytics/summary' })
+  /* סף N: גם למורה (ליצירה בלבד). הרישום ביומן ממתין (await) ונכשל סגור למנהל-על: אם אי אפשר לתעד, הבקשה נחסמת לפני שהנתונים נשלחים ל-AI */
+  if (opts.enforceMin) requireSummaryMin('student', { sessions: completed.length })
+  await logAccess(viewer, { studentId: entityId, scope: 'summary_student', endpoint: 'analytics/summary' }, { studentLevel: true })
   return {
     /* חוק 12: אין שם תלמיד ב-LLM חיצוני — רק כינוי. השם האמיתי מוחזר בשרת אחרי התשובה. */
     label: `${STUDENT_ALIAS} · כיתה ${await classLabel(accessibleClass)}`,
     studentName: (stu as { name?: string } | null)?.name ?? '',
     sampleSize: completed.length,
+    cacheable: sScope.full,
     data: {
       סוג: sScope.full ? 'סיכום תלמיד (חוצה-מקצוע)' : 'סיכום תלמיד (במקצוע/ות שלך בלבד)',
       רמת_טקסט: sScope.full ? (v2 ? (p.text_level ?? null) : (p.writing_level ?? null)) : null,
@@ -1218,7 +1234,10 @@ const SUMMARY_MODEL = 'claude-sonnet-4-5'
 /* גרסת הפרומפט — נשמרת לצד הסיכום כדי שאפשר יהיה לשחזר איך נוצר */
 const PEDAGOGICAL_PROMPT_VERSION = 'ped-summary-v2-alias'
 
-/* GET /api/analytics/summary?scope=&id= — שליפת סיכום שמור (אם קיים) */
+/* הסיכום הישן שמור לפי (scope, entity_id) בלבד, אך **אישי לצופה**: כל קריאה/כתיבה מסוננת ב-created_by, וסיכום שמורשה רק לחלק מהמידע
+   (מורה מקצועי על תלמיד) אינו נשמר כלל. כך סיכום שמחנך הפיק לא נחשף למורה מקצועי באותו תלמיד, ועריכה של צופה אחד לא דורסת של אחר. */
+
+/* GET /api/analytics/summary?scope=&id= — שליפת סיכום שמור של הצופה (אם קיים) */
 analyticsRouter.get('/summary', async (req, res, next) => {
   try {
     const scope = req.query.scope as SummaryScope
@@ -1226,9 +1245,9 @@ analyticsRouter.get('/summary', async (req, res, next) => {
     if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
     if (isDemoGuest(req)) { res.json({ summary: null }); return } /* בדמו — נוצר טרי ב-POST, לא נשמר */
     /* אכיפת גישה — גם לשליפה בלבד (אל תחזיר סיכום על ישות שאסור לראות) */
-    await gatherSummary(req, scope, id)
-    if (!(await hasPedagogicalSummaries())) { res.json({ summary: null }); return }
-    const { data } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).maybeSingle()
+    const { cacheable } = await gatherSummary(req, scope, id)
+    if (!cacheable || !(await hasPedagogicalSummaries())) { res.json({ summary: null }); return }
+    const { data } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).eq('created_by', req.staff!.userId).maybeSingle()
     res.json({ summary: data ?? null })
   } catch (err) {
     next(err)
@@ -1236,7 +1255,7 @@ analyticsRouter.get('/summary', async (req, res, next) => {
 })
 
 /* PATCH /api/analytics/summary — שמירת עריכת המורה (edited_content). המורה הוא השכבה האחרונה
-   לפני ייצוא. body: { scope, id, edited_content }. דורש את הטבלה (אחרת אין רשומה לעדכן). */
+   לפני ייצוא. body: { scope, id, edited_content }. דורש את הטבלה (אחרת אין רשומה לעדכן). עורכים רק סיכום שהצופה עצמו הפיק. */
 analyticsRouter.patch('/summary', async (req, res, next) => {
   try {
     const { scope, id, edited_content } = req.body as { scope: SummaryScope; id: string; edited_content: string }
@@ -1248,31 +1267,35 @@ analyticsRouter.patch('/summary', async (req, res, next) => {
     const { data: saved, error } = await supabaseAdmin
       .from('pedagogical_summaries')
       .update({ edited_content, updated_at: new Date().toISOString() })
-      .eq('scope', scope).eq('entity_id', id)
+      .eq('scope', scope).eq('entity_id', id).eq('created_by', req.staff!.userId)
       .select('*')
-      .single()
+      .maybeSingle()
     if (error) throw new AppError(500, 'שגיאה בשמירת העריכה: ' + error.message)
+    if (!saved) throw new AppError(404, 'אין סיכום שמור שלך לעריכה')
     res.json({ summary: saved })
   } catch (err) {
     next(err)
   }
 })
 
-/* POST /api/analytics/summary — יצירה/יצירה-מחדש (Sonnet). body: { scope, id, regenerate? } */
-analyticsRouter.post('/summary', async (req, res, next) => {
+/* POST /api/analytics/summary — יצירה/יצירה-מחדש (Sonnet). body: { scope, id, regenerate? }. מוגבל בקצב: 6 בדקה למשתמש. */
+analyticsRouter.post('/summary', rateLimitByUser('summary', 6), async (req, res, next) => {
   try {
     const { scope, id, regenerate } = req.body as { scope: SummaryScope; id: string; regenerate?: boolean }
     if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
     /* מצב הדגמה — סיכום קבוע (דטרמיניסטי, בלי קריאת AI ובלי שמירה) */
     if (isDemoGuest(req)) { res.json(demoSummary(scope, id, new Date())); return }
-    const stored = await hasPedagogicalSummaries()
-    /* גוזר נתונים + אוכף RLS לפני כל קריאת AI */
-    const { label, data, sampleSize, studentName } = await gatherSummary(req, scope, id)
+    const userId = req.staff!.userId
+    /* גוזר נתונים + אוכף RLS לפני כל קריאת AI (כולל סף N מינימלי גם למורה) */
+    const { label, data, sampleSize, studentName, cacheable } = await gatherSummary(req, scope, id, { enforceMin: true })
+    const stored = cacheable && (await hasPedagogicalSummaries())
 
-    /* cache — אם קיים ולא ביקשו רענון, החזר בלי לחייב שוב */
-    if (stored && !regenerate) {
-      const { data: existing } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).maybeSingle()
-      if (existing) { res.json({ summary: existing, cached: true }); return }
+    /* cache — רק סיכום שהצופה עצמו הפיק, ורק אם לא ביקשו רענון */
+    let existing: { created_by: string | null } | null = null
+    if (stored) {
+      const { data: row } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).maybeSingle()
+      existing = (row as { created_by: string | null } | null) ?? null
+      if (existing && existing.created_by === userId && !regenerate) { res.json({ summary: existing, cached: true }); return }
     }
 
     const rawContent = await callSonnetSummary(buildPedagogicalPrompt(label, data, sampleSize))
@@ -1280,13 +1303,14 @@ analyticsRouter.post('/summary', async (req, res, next) => {
     const content = studentName ? rawContent.split(STUDENT_ALIAS).join(studentName) : rawContent
     const now = new Date().toISOString()
     const modelUsed = engineFor('summary') === 'gemini' ? (process.env.GEMINI_CONTENT_MODEL?.trim() || 'gemini') : SUMMARY_MODEL
+    /* edited_content: null — יצירה (גם "צור מחדש") מאפסת את עריכת המורה הקודמת; אחרת היא נשארת ומוצגת מעל הטקסט החדש */
     const row = {
-      scope, entity_id: id, content, model: modelUsed, prompt_version: PEDAGOGICAL_PROMPT_VERSION, input_data: data,
-      sample_size: sampleSize, created_by: req.staff!.userId, created_at: now, updated_at: now,
+      scope, entity_id: id, content, edited_content: null as string | null, model: modelUsed, prompt_version: PEDAGOGICAL_PROMPT_VERSION, input_data: data,
+      sample_size: sampleSize, created_by: userId, created_at: now, updated_at: now,
     }
 
-    if (stored) {
-      /* upsert לפי (scope, entity_id) — שמירת edited_content רק אם לא רעננו */
+    /* לא דורסים סיכום ששייך לצופה אחר: השורה אחת לכל ישות, ודריסה הייתה מוחקת לו טקסט ועריכה */
+    if (stored && (!existing || existing.created_by === userId)) {
       const { data: saved, error } = await supabaseAdmin
         .from('pedagogical_summaries')
         .upsert(row, { onConflict: 'scope,entity_id' })
@@ -1295,7 +1319,7 @@ analyticsRouter.post('/summary', async (req, res, next) => {
       if (error) throw new AppError(500, 'שגיאה בשמירת הסיכום: ' + error.message)
       res.json({ summary: saved, cached: false })
     } else {
-      /* לפני המיגרציה — מחזירים את הסיכום החי בלי לשמור (בלי cache) */
+      /* לא נשמר (לפני המיגרציה / סיכום חלקי של מורה מקצועי / שורה של צופה אחר) — מחזירים את הסיכום החי */
       res.json({ summary: { ...row, id: null }, cached: false, notPersisted: true })
     }
   } catch (err) {

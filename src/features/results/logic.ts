@@ -118,10 +118,10 @@ export function attemptsWord(n: number): string {
 }
 
 /* ── טאבים: סט קבוע לכל שליחה (טאב בלי נתונים נשאר במקומו ומסביר למה ריק — טאבים לא מופיעים ונעלמים) ── */
-export const CLASS_TAB_IDS = ['challenges', 'objectives', 'errors', 'review'] as const
+export const CLASS_TAB_IDS = ['glance', 'challenges', 'objectives', 'errors', 'review'] as const
 export const STUDENT_TAB_IDS = ['challenges', 'slides'] as const
 
-/* ?tab= שאינו אחד מטאבי המסך (או חסר) → "האתגרים" */
+/* ?tab= שאינו אחד מטאבי המסך (או חסר) → הטאב הראשון של המסך: "במבט אחד" בכיתה, "האתגרים" אצל תלמיד/ה */
 export function resolveTab(tab: string | null, ids: readonly string[]): string {
-  return tab !== null && ids.includes(tab) ? tab : 'challenges'
+  return tab !== null && ids.includes(tab) ? tab : ids[0]
 }

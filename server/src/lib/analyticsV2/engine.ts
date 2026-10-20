@@ -4,20 +4,24 @@
      גודל אפקט מינימלי. מי שלא עומד בכולם הופך ל"אין עדיין מספיק נתונים" (ולא נשלח כאירוע).
    · הטקסט נבנה רק ב-findingsNarrative.ts; כאן נשארים מספרים.
    · בשלב 5 הקלט (World) יוחלף בנתוני demoSim שנכתבו ל-DB, והפלט יגיע מהמנוע האמיתי — אותה צורת פלט.
+   · הקטלוג (מושגים / תפיסות / יעדים) מוזרק: analyze(world, catalog). שכבות נלקחות מה-World, לא מקבועים.
+   · עמיד לנתונים דלילים: אין שלוש חריגות על נתונים חסרים, p לא-סופי לא נכנס ל-BH, והבסיסים (קריאה / זיכרון) נגזרים
+     רק כשיש מספיק תורמים (MIN_CELL_SIZE).
    ────────────────────────────────────────────────────────────────────────── */
 import {
   BEHAVIOR_VECTOR_KINDS, CLASS_IMPROVEMENT_MIN_MEAN_DELTA, CLASS_IMPROVEMENT_WINDOW_DAYS, CONTENT_VECTOR_KINDS, CURRENT_LEVEL_SESSIONS, FDR_ALPHA, AGE_NORM, KIND_THRESHOLDS,
-  MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_WINDOWS, VECTOR_MIN_N, type FindingKind,
+  LEVEL_TREND_BASIS, MEMORY_ATTENTIVE_RATE, MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_WINDOWS, VECTOR_MIN_N, type FindingKind,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import { narrateFinding, narrateInsufficient } from '../../../../src/shared/lib/findingsNarrative.js'
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type { Evidence, Finding, InsufficientReason } from '../../../../src/shared/types/analyticsV2.js'
-import { CONCEPTS, MISCONCEPTIONS, type MisconceptionDef } from './catalog.js'
+import { DEMO_CATALOG, type CatalogSnapshot, type MisconceptionDef } from './catalog.js'
 import { levelAtLeast, positionOf } from './derive.js'
-import type { McItem, SessionRec, World, WorldClass, WorldStudent } from './demoWorld.js'
+import type { McItem, SessionRec, StudentSubjectData, World, WorldClass, WorldStudent } from './demoWorld.js'
 import { skey } from './demoWorld.js'
+import { israelMonthKey } from './schoolCalendar.js'
 import {
-  benjaminiHochberg, binomialLowerTail, mean, median, pairedT, poissonBinomialUpper, posteriorBinomial, sd, tUpperTail, welch,
+  benjaminiHochberg, binomialLowerTail, mean, median, pairedT, perfectSeparationP, poissonBinomialUpper, posteriorBinomial, sd, tUpperTail, welch,
 } from './stats.js'
 
 type ContentVec = { key: string; level: number | null; deltaLevels: number | null; n: number; status: 'reported' | 'insufficient' }
@@ -49,8 +53,21 @@ export interface MisStat {
   students: { id: string; hits: number; exposures: number }[] /* רק מציגי התפיסה */
 }
 
+/* בסיסים חיצוניים (חציוני בית ספר / פלטפורמה) שדורסים את החישוב מנתוני העולם עצמו. חסר = נגזר מהעולם, ורק כשיש ≥ MIN_CELL_SIZE תורמים */
+export interface Baselines {
+  /* חציון מילי-שניות-למילה לפי `${grade}|${subject}` */
+  readingMsPerWord?: ReadonlyMap<string, number>
+  /* שיעור איתור זוג מוכר בקשב (נחתך ל-MEMORY_ATTENTIVE_RATE.min..max) */
+  memoryAttentiveRate?: number
+}
+/* כיסוי הנתונים של העולם (נקבע ע"י הטוען החי; analyze לא ממלא) */
+export interface AnalysisCoverage { unclassifiedSessions: number; detailAvailableFrom: string | null }
+
 export interface Analysis {
   world: World
+  /* הקטלוג שלפיו חושבו ווקטורי התוכן והתפיסות — derive קורא אותו מכאן */
+  catalog: CatalogSnapshot
+  coverage?: AnalysisCoverage
   ss: Map<string, SubjectAnalysis>
   /* התרעות מוקדמות חוצות-מקצועות (פר תלמיד) */
   crossSubject: Map<string, Finding[]>
@@ -66,7 +83,8 @@ export interface Analysis {
 }
 
 const gradeLabelOf = (w: World, grade: number): string => w.classes.find((c) => c.grade === grade)?.gradeLabel ?? ''
-const monthKey = (iso: string): string => iso.slice(0, 7)
+/* חודש לפי היום הישראלי (עקבי עם israelDayKey); date הוא יום לימוד (12:00 UTC), ולכן זהה לחיתוך המחרוזת */
+const monthKey = (iso: string): string => israelMonthKey(iso)
 const monthStartIso = (key: string): string => `${key}-01T12:00:00.000Z`
 const dayIso = (w: World, i: number): string => w.days[Math.min(i, w.days.length - 1)]
 
@@ -86,6 +104,8 @@ interface Candidate {
   tone: 'positive' | 'attention' | 'neutral'
   /* האם הגודל מעשי (למשל שיפור כיתתי ≥ רמה אחת) — false: לא מדווח גם אם מובהק */
   practical?: boolean
+  /* סף אפקט ייעודי למועמד שהאפקט שלו ביחידה אחרת מזו של הסוג (למשל רמות במקום d של Cohen); חסר = KIND_THRESHOLDS */
+  minEffect?: number
   toneOf?: (ev: Evidence) => 'positive' | 'attention' | 'neutral'
 }
 
@@ -95,8 +115,8 @@ function classify(cands: Candidate[]): { cand: Candidate; finding: Finding }[] {
   for (const c of cands) byKind.set(c.kind, [...(byKind.get(c.kind) ?? []), c])
   for (const [kind, list] of byKind) {
     const th = KIND_THRESHOLDS[kind]
-    /* משפחת הבדיקות = מועמדים שנבדקו (N מספיק) */
-    const tested = list.filter((c) => c.n >= th.minN && c.p !== null)
+    /* משפחת הבדיקות = מועמדים שנבדקו (N מספיק) עם p סופי. p לא-סופי (NaN) לא נכנס: הוא היה מזהם את BH של כל המשפחה */
+    const tested = list.filter((c) => c.n >= th.minN && c.p !== null && Number.isFinite(c.p))
     const adj = benjaminiHochberg(tested.map((c) => c.p as number))
     const adjOf = new Map(tested.map((c, i) => [c, adj[i]]))
     for (const c of list) {
@@ -106,21 +126,22 @@ function classify(cands: Candidate[]): { cand: Candidate; finding: Finding }[] {
         ...base, status: 'insufficient', reason, pAdjusted: pAdj, effectSize: null, evidence: null, tone: 'neutral',
         text: narrateInsufficient(kind, reason, c.n, th.minN, c.ctx),
       })
+      const minEffect = c.minEffect ?? th.minEffect
       if (c.n < th.minN) {
-        if (c.n >= Math.ceil(th.minN / 3) && c.effect >= 1.5 * th.minEffect) out.push({ cand: c, finding: mkInsufficient('n_below_min', null) })
+        if (c.n >= Math.ceil(th.minN / 3) && c.effect >= 1.5 * minEffect) out.push({ cand: c, finding: mkInsufficient('n_below_min', null) })
         continue
       }
       const pAdj = adjOf.get(c)
       if (pAdj === undefined || c.p === null) continue
       if (pAdj < FDR_ALPHA) {
-        if (Math.abs(c.effect) >= th.minEffect && c.practical !== false) {
+        if (Math.abs(c.effect) >= minEffect && c.practical !== false) {
           const ev = c.build({ pAdjusted: pAdj })
           out.push({
             cand: c,
             finding: { ...base, status: 'reported', pAdjusted: pAdj, effectSize: c.effect, evidence: ev, tone: c.toneOf ? c.toneOf(ev) : c.tone, text: narrateFinding(ev, c.ctx) },
           })
         }
-      } else if (c.p < 0.01 && Math.abs(c.effect) >= th.minEffect) {
+      } else if (c.p < 0.01 && Math.abs(c.effect) >= minEffect) {
         out.push({ cand: c, finding: mkInsufficient('not_significant', pAdj) })
       }
     }
@@ -132,11 +153,11 @@ function classify(cands: Candidate[]): { cand: Candidate; finding: Finding }[] {
 const inWindow = (s: { day: number }, from: number, to: number): boolean => s.day >= from && s.day < to
 
 /* נקודת שינוי תיאורית בתוך 120 הימים האחרונים: הפיצול שממקסם |t| (min 4 בכל צד). */
-function changePoint(sessions: SessionRec[], maxDay: number): { splitDay: number; before: SessionRec[]; after: SessionRec[] } | null {
+function changePoint(sessions: SessionRec[], maxDay: number, valueOf: (s: SessionRec) => number = (s) => s.success): { splitDay: number; before: SessionRec[]; after: SessionRec[] } | null {
   const pool = sessions.filter((s) => s.day < maxDay).sort((a, b) => b.day - a.day) /* מהישן לחדש */
   const scored: { t: number; idx: number }[] = []
   for (let i = 4; i <= pool.length - 4; i++) {
-    const r = welch(pool.slice(i).map((s) => s.success), pool.slice(0, i).map((s) => s.success))
+    const r = welch(pool.slice(i).map(valueOf), pool.slice(0, i).map(valueOf))
     if (Number.isFinite(r.t)) scored.push({ t: r.t, idx: i })
   }
   if (!scored.length) return null
@@ -146,7 +167,18 @@ function changePoint(sessions: SessionRec[], maxDay: number): { splitDay: number
   return { splitDay: pool[best.idx].day, before: pool.slice(0, best.idx), after: pool.slice(best.idx) }
 }
 
-export function analyze(w: World): Analysis {
+/* תלמיד×מקצוע בלי רשומת נתונים (למשל מקצוע מהרשאות הכיתה, בלי סשנים) = רשומה ריקה, לא חריגה */
+const EMPTY_DATA: StudentSubjectData = Object.freeze({ sessions: [], mc: [], memory: [] }) as unknown as StudentSubjectData
+
+/* בדיקת שינוי רמה בין חלון אחרון לקודם. Welch כשיש שונות; כששתי הקבוצות קבועות (רמה יציבה שקפצה בצעד אחד) Welch אינו מוגדר —
+   אז הפרדה מושלמת נבדקת בבדיקת תמורות מדויקת, וקבוצות קבועות שוות הן "אין שינוי". delta = ממוצע האחרון פחות ממוצע הקודם. */
+function levelShiftTest(recent: number[], prior: number[]): { p: number; delta: number } {
+  const delta = mean(recent) - mean(prior)
+  if (sd(recent) === 0 && sd(prior) === 0) return { p: delta === 0 ? 1 : perfectSeparationP(recent.length, prior.length), delta }
+  return { p: welch(recent, prior).pTwoSided, delta }
+}
+
+export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, baselines?: Baselines): Analysis {
   const studentById = new Map(w.students.map((s) => [s.id, s]))
   const classById = new Map(w.classes.map((c) => [c.id, c]))
   const ageNormOf = (grade: number): AgeNorm => {
@@ -155,49 +187,73 @@ export function analyze(w: World): Analysis {
   }
   const { recentDays: R, priorDays: P } = TREND_WINDOWS
   const cands: Candidate[] = []
+  const dataOf = (studentId: string, subject: SubjectCode): StudentSubjectData => w.data.get(skey(studentId, subject)) ?? EMPTY_DATA
+  /* שכבות העולם (ולא [4,6] קשיח), בסדר עולה */
+  const grades = [...new Set([...w.classes.map((c) => c.grade), ...w.students.map((s) => s.grade)])].sort((a, b) => a - b)
+  /* עולם חי: מגמת הרמה נבדקת על הרמה עצמה (ראו LEVEL_TREND_BASIS); בהדגמה על ההצלחה, כמו תמיד */
+  const levelBasis = w.live === true
 
   /* ── בסיסי כיתה/שכבה לקריאה וזיכרון ── */
   const msPerWordMedianOf = new Map<string, number>() /* `${grade}|${subject}` → חציון של חציוני התלמידים */
   const perStudentMsw = new Map<string, number>()
   for (const st of w.students) for (const sub of st.subjects) {
-    const d = w.data.get(skey(st.id, sub))!
+    const d = dataOf(st.id, sub)
     const vals = d.sessions.filter((s) => s.words > 0).map((s) => s.closedMs / s.words)
     if (vals.length >= 6) perStudentMsw.set(skey(st.id, sub), median(vals))
   }
-  for (const grade of [4, 6]) for (const sub of new Set(w.students.filter((s) => s.grade === grade).flatMap((s) => s.subjects))) {
+  /* בסיס קריאה לשכבה×מקצוע: רק כשיש ≥ MIN_CELL_SIZE תלמידים תורמים; חיצוני (baselines) גובר. בלי בסיס אין מועמד "דילוג קריאה". */
+  for (const grade of grades) for (const sub of new Set(w.students.filter((s) => s.grade === grade).flatMap((s) => s.subjects))) {
+    const key = `${grade}|${sub}`
+    const injected = baselines?.readingMsPerWord?.get(key)
+    if (injected !== undefined && Number.isFinite(injected) && injected > 0) { msPerWordMedianOf.set(key, injected); continue }
     const vals = w.students.filter((s) => s.grade === grade && s.subjects.includes(sub)).map((s) => perStudentMsw.get(skey(s.id, sub))).filter((v): v is number => v !== undefined)
-    if (vals.length) msPerWordMedianOf.set(`${grade}|${sub}`, median(vals))
+    if (vals.length >= MIN_CELL_SIZE) msPerWordMedianOf.set(key, median(vals))
   }
+  /* בסיס הקשב במשחק הזיכרון: חציון התלמידים (≥ MIN_CELL_SIZE תלמידים שונים), אחרת קבוע; תמיד בתוך [min, max] */
   const memRates: number[] = []
+  const memContributors = new Set<string>()
   for (const st of w.students) for (const sub of st.subjects) {
-    const turns = w.data.get(skey(st.id, sub))!.memory.flatMap((g) => g.turns).filter((t) => t.avail)
-    if (turns.length >= 15) memRates.push(turns.filter((t) => t.hit).length / turns.length)
+    const turns = dataOf(st.id, sub).memory.flatMap((g) => g.turns).filter((t) => t.avail)
+    if (turns.length >= 15) { memRates.push(turns.filter((t) => t.hit).length / turns.length); memContributors.add(st.id) }
   }
-  const attentiveRate = memRates.length ? median(memRates) : 0.7
+  const clampRate = (v: number): number => Math.min(MEMORY_ATTENTIVE_RATE.max, Math.max(MEMORY_ATTENTIVE_RATE.min, v))
+  const injectedRate = baselines?.memoryAttentiveRate
+  const attentiveRate = clampRate(
+    injectedRate !== undefined && Number.isFinite(injectedRate) ? injectedRate
+      : memContributors.size >= MIN_CELL_SIZE ? median(memRates) : MEMORY_ATTENTIVE_RATE.fallback,
+  )
 
   /* ── מועמדים פר תלמיד×מקצוע ── */
   for (const st of w.students) for (const sub of st.subjects) {
-    const d = w.data.get(skey(st.id, sub))!
+    const d = dataOf(st.id, sub)
     const ctx = { studentName: st.displayName, subjectName: subjectName(sub) }
     const entity = st.id
 
-    /* מגמת רמה: חלון אחרון מול החלון שקדם לו (Welch) */
+    /* מגמת רמה: חלון אחרון מול החלון שקדם לו. בהדגמה Welch על ההצלחה; בנתוני אמת בדיקה על הרמה (levelShiftTest) */
     const recent = d.sessions.filter((s) => inWindow(s, 0, R))
     const prior = d.sessions.filter((s) => inWindow(s, R, R + P))
     if (recent.length >= 3 && prior.length >= 3) {
-      const t = welch(recent.map((s) => s.success), prior.map((s) => s.success))
-      const cp = changePoint(d.sessions, R + P)
-      const direction: 'up' | 'down' = t.d >= 0 ? 'up' : 'down'
+      const valueOf = levelBasis ? (s: SessionRec): number => s.level : (s: SessionRec): number => s.success
+      const test = levelBasis
+        ? (() => { const r = levelShiftTest(recent.map(valueOf), prior.map(valueOf)); return { p: r.p, effect: Math.abs(r.delta), up: r.delta >= 0, minEffect: LEVEL_TREND_BASIS.minDeltaLevels } })()
+        : (() => { const r = welch(recent.map(valueOf), prior.map(valueOf)); return { p: r.pTwoSided, effect: Math.abs(r.d), up: r.d >= 0, minEffect: undefined } })()
+      const cp = changePoint(d.sessions, R + P, valueOf)
+      const direction: 'up' | 'down' = test.up ? 'up' : 'down'
       cands.push({
         kind: 'level_trend', scope: 'student', entityId: entity, subject: sub,
-        n: Math.min(recent.length, prior.length), p: t.pTwoSided, effect: Math.abs(t.d),
+        n: Math.min(recent.length, prior.length), p: test.p, effect: test.effect, minEffect: test.minEffect,
         window: { start: dayIso(w, R + P - 1), end: dayIso(w, 0) },
         ctx, tone: direction === 'up' ? 'positive' : 'attention',
         build: () => {
-          const afterGroup = cp && cp.after.length >= 4 ? cp.after : recent
-          const beforeGroup = cp && cp.before.length >= 4 ? cp.before : prior
-          const changeDate = cp ? w.days[cp.splitDay] : w.days[R]
-          const fromLevel = mean(beforeGroup.map((s) => s.level)), toLevel = mean(afterGroup.map((s) => s.level))
+          let afterGroup = cp && cp.after.length >= 4 ? cp.after : recent
+          let beforeGroup = cp && cp.before.length >= 4 ? cp.before : prior
+          let changeDate = cp ? w.days[cp.splitDay] : w.days[R]
+          let fromLevel = mean(beforeGroup.map((s) => s.level)), toLevel = mean(afterGroup.map((s) => s.level))
+          /* נתוני אמת: נקודת שינוי פנימית יכולה להצביע לכיוון הפוך מהמבחן. הטקסט חייב להיות עקבי עם הכיוון שנבדק — אז חוזרים לשני החלונות */
+          if (levelBasis && (direction === 'up' ? toLevel < fromLevel : toLevel > fromLevel)) {
+            afterGroup = recent; beforeGroup = prior; changeDate = w.days[R]
+            fromLevel = mean(beforeGroup.map((s) => s.level)); toLevel = mean(afterGroup.map((s) => s.level))
+          }
           return {
             kind: 'level_trend', direction, fromLevel: round1(fromLevel), toLevel: round1(toLevel), deltaLevels: round1(toLevel - fromLevel),
             changeDate, sessionsBefore: beforeGroup.length, sessionsAfter: afterGroup.length,
@@ -257,14 +313,15 @@ export function analyze(w: World): Analysis {
     }
   }
 
-  /* ── שיפור כיתתי במושג ── */
+  /* ── שיפור כיתתי במושג (רק כשיש מחצית שחלפו בה מספיק ימי לימוד: term=null ← אין מה למדוד) ── */
   const Wd = CLASS_IMPROVEMENT_WINDOW_DAYS
-  const startWin: [number, number] = [w.term.idx - Wd, w.term.idx]
+  const term = w.term
+  const startWin: [number, number] = term ? [term.idx - Wd, term.idx] : [0, 0]
   const endWin: [number, number] = [0, Wd]
-  const conceptKeys = [...new Set(CONCEPTS.map((c) => c.key))]
+  const conceptKeys = term ? [...new Set(catalog.concepts.map((c) => c.key))] : []
   for (const cls of w.classes) {
     for (const key of conceptKeys) {
-      const concept = CONCEPTS.find((c) => c.key === key)!
+      const concept = catalog.conceptByKey(key)!
       const diffs: number[] = []
       for (const sid of cls.studentIds) {
         const d = w.data.get(skey(sid, concept.subject))
@@ -278,11 +335,11 @@ export function analyze(w: World): Analysis {
       cands.push({
         kind: 'class_concept_improvement', scope: 'class', entityId: cls.id, subject: concept.subject,
         n: diffs.length, p: r.pTwoSided, effect: r.dz, practical: levelAtLeast(Math.abs(r.meanDiff), CLASS_IMPROVEMENT_MIN_MEAN_DELTA),
-        window: { start: w.term.startIso, end: dayIso(w, 0) },
+        window: { start: term!.startIso, end: dayIso(w, 0) },
         ctx: { subjectName: subjectName(concept.subject), className: cls.name }, tone: 'positive',
         toneOf: (ev) => (ev.kind === 'class_concept_improvement' && ev.meanDelta < 0 ? 'attention' : 'positive'),
         build: () => ({
-          kind: 'class_concept_improvement', conceptKey: key, conceptTitle: concept.titleHe, sinceDate: w.term.startIso, term: w.term.kind,
+          kind: 'class_concept_improvement', conceptKey: key, conceptTitle: concept.titleHe, sinceDate: term!.startIso, term: term!.kind,
           meanDelta: round1(r.meanDiff), studentsCount: diffs.length, improvedCount: diffs.filter((x) => x > 0).length,
         }),
       })
@@ -299,7 +356,7 @@ export function analyze(w: World): Analysis {
   const baselineBehavior = new Map<string, number[]>() /* `${grade}|${sub}|${key}` → values */
   const pending: { st: WorldStudent; sub: SubjectCode; sa: SubjectAnalysis; raw: Record<string, number | null> }[] = []
   for (const st of w.students) for (const sub of st.subjects) {
-    const d = w.data.get(skey(st.id, sub))!
+    const d = dataOf(st.id, sub)
     const sess = [...d.sessions].sort((a, b) => b.day - a.day) /* מהישן לחדש */
     const series = new Map<string, number[]>()
     for (const s of sess) series.set(monthKey(s.date), [...(series.get(monthKey(s.date)) ?? []), s.level])
@@ -308,12 +365,12 @@ export function analyze(w: World): Analysis {
     const currentLevel = lastN.length ? round1(mean(lastN)) : null
     const norm = ageNormOf(st.grade)
 
-    const recentC = (vec: string): number[] => d.sessions.filter((s) => s.day < R).flatMap((s) => Object.entries(s.concepts).filter(([k]) => CONCEPTS.find((c) => c.key === k)?.vector === vec).map(([, v]) => v))
-    const priorC = (vec: string): number[] => d.sessions.filter((s) => s.day >= R && s.day < R + P).flatMap((s) => Object.entries(s.concepts).filter(([k]) => CONCEPTS.find((c) => c.key === k)?.vector === vec).map(([, v]) => v))
+    const recentC = (vec: string): number[] => d.sessions.filter((s) => s.day < R).flatMap((s) => Object.entries(s.concepts).filter(([k]) => catalog.conceptByKey(k)?.vector === vec).map(([, v]) => v))
+    const priorC = (vec: string): number[] => d.sessions.filter((s) => s.day >= R && s.day < R + P).flatMap((s) => Object.entries(s.concepts).filter(([k]) => catalog.conceptByKey(k)?.vector === vec).map(([, v]) => v))
     const contentVectors: ContentVec[] = []
     for (const v of CONTENT_VECTOR_KINDS) {
       const rec = recentC(v.key), pri = priorC(v.key)
-      const present = CONCEPTS.some((c) => c.subject === sub && c.vector === v.key)
+      const present = catalog.conceptsOfSubject(sub).some((c) => c.vector === v.key)
       if (!present) continue /* וקטור מוצג רק במקצוע שבו יש לו פריטים */
       contentVectors.push({
         key: v.key, level: rec.length ? round1(mean(rec)) : null,
@@ -349,7 +406,7 @@ export function analyze(w: World): Analysis {
     sa.behaviorVectors = BEHAVIOR_VECTOR_KINDS.map((b) => {
       const v = raw[b.key]
       const base = baselineBehavior.get(`${st.grade}|${sub}|${b.key}`) ?? []
-      const n = w.data.get(skey(st.id, sub))!.sessions.length
+      const n = dataOf(st.id, sub).sessions.length
       return {
         key: b.key, value: v === null || v === undefined ? null : round3(v), classMedian: base.length ? round3(median(base)) : null,
         n, status: v === null || v === undefined ? 'insufficient' : 'reported',
@@ -408,18 +465,18 @@ export function analyze(w: World): Analysis {
       sharePct: exposed >= MIN_CELL_SIZE ? Math.round((100 * showing.length) / exposed) : null, students: showing,
     }
   }
-  for (const m of MISCONCEPTIONS) {
+  for (const m of catalog.misconceptions) {
     for (const c of w.classes) {
-      if (m.prevalence[c.grade as 4 | 6] === undefined) continue
+      if (!catalog.misconceptionAppliesTo(m, c.grade)) continue
       misByClass.set(`${c.id}|${m.id}`, statFor(m, c.studentIds, c.id))
     }
-    for (const grade of [4, 6] as const) {
-      if (m.prevalence[grade] === undefined) continue
+    for (const grade of grades) {
+      if (!catalog.misconceptionAppliesTo(m, grade)) continue
       misByGrade.set(`${grade}|${m.id}`, statFor(m, w.students.filter((s) => s.grade === grade).map((s) => s.id), `grade:${grade}`))
     }
   }
 
-  return { world: w, ss, crossSubject, classFindings, misByClass, misByGrade, ageNormOf, studentById, classById, reportedKeys }
+  return { world: w, catalog, ss, crossSubject, classFindings, misByClass, misByGrade, ageNormOf, studentById, classById, reportedKeys }
 }
 
 const round1 = (v: number): number => Math.round(v * 10) / 10

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { howWeCalcObjectivesLines, narrateObjectivesSummary, narrateSubmissionsSummary, objectiveLevelText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
+import { countNb, DONUT_TEXT, donutAriaLabel, donutLegendCount, howWeCalcObjectivesLines, narrateObjectivesSummary, narrateSubmissionsSummary, objectiveLevelText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, ObjectiveResult, ResultsSubject, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
 import { attemptsWord, attentionTotal, byAttentionThenName, CLASS_TAB_IDS, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, objectiveLevelCounts, resolveTab, ROSTER_GROUP_ORDER, sortedStudents, STUDENT_TAB_IDS, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
 import { UI } from './text'
@@ -148,16 +148,21 @@ describe('יעדי למידה', () => {
 })
 
 describe('סט הטאבים הקבוע', () => {
-  it('מסך הכיתה: האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה — תמיד, בכל שליחה', () => {
-    expect([...CLASS_TAB_IDS]).toEqual(['challenges', 'objectives', 'errors', 'review'])
+  it('מסך הכיתה: במבט אחד · האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה — תמיד, בכל שליחה', () => {
+    expect([...CLASS_TAB_IDS]).toEqual(['glance', 'challenges', 'objectives', 'errors', 'review'])
     expect([...STUDENT_TAB_IDS]).toEqual(['challenges', 'slides'])
+    expect(UI.tabGlance).toBe('במבט אחד')
   })
-  it('?tab= תקף נשאר; לא תקף או חסר → האתגרים (גם לטאב שלא קיים במסך תלמיד)', () => {
+  it('?tab= תקף נשאר; לא תקף או חסר → הטאב הראשון של המסך (במבט אחד בכיתה, האתגרים אצל תלמיד/ה)', () => {
     expect(resolveTab('review', CLASS_TAB_IDS)).toBe('review')
     expect(resolveTab('objectives', CLASS_TAB_IDS)).toBe('objectives')
-    expect(resolveTab('nope', CLASS_TAB_IDS)).toBe('challenges')
-    expect(resolveTab(null, CLASS_TAB_IDS)).toBe('challenges')
+    expect(resolveTab('glance', CLASS_TAB_IDS)).toBe('glance')
+    expect(resolveTab('challenges', CLASS_TAB_IDS)).toBe('challenges')
+    expect(resolveTab('nope', CLASS_TAB_IDS)).toBe('glance')
+    expect(resolveTab(null, CLASS_TAB_IDS)).toBe('glance')
     expect(resolveTab('review', STUDENT_TAB_IDS)).toBe('challenges')
+    expect(resolveTab('glance', STUDENT_TAB_IDS)).toBe('challenges')
+    expect(resolveTab(null, STUDENT_TAB_IDS)).toBe('challenges')
     expect(resolveTab('slides', STUDENT_TAB_IDS)).toBe('slides')
   })
   it('מצבי הריק של הטאבים אומרים מה קורה ומה יקרה (עיקרון 9)', () => {
@@ -166,6 +171,30 @@ describe('סט הטאבים הקבוע', () => {
       expect(next.length).toBeGreaterThan(20)
     }
     expect(UI.objectivesEmpty).toBe('אין עדיין יעדים להדמיה הזאת.')
+  })
+})
+
+describe('טקסטי הגרפים של "במבט אחד"', () => {
+  it('מצבי הריק אומרים מה קורה ומה יקרה (עיקרון 9)', () => {
+    for (const [title, next] of [
+      [DONUT_TEXT.completionEmpty, DONUT_TEXT.completionEmptyNext],
+      [DONUT_TEXT.successEmpty, DONUT_TEXT.successEmptyNext],
+      [DONUT_TEXT.successNoChallenges, DONUT_TEXT.successNoChallengesNext],
+      [DONUT_TEXT.emptyDefault, DONUT_TEXT.emptyDefaultNext],
+    ]) {
+      expect(title.length).toBeGreaterThan(10)
+      expect(next.length).toBeGreaterThan(20)
+    }
+    expect(DONUT_TEXT.successEmptyNext).toContain('2')
+  })
+  it('שורת המקרא: "X מתוך Y" קודם ואחוז בנוסף; אפס → "אף אחד"', () => {
+    expect(donutLegendCount(14, 25, 56)).toBe(`${countNb(14, 25)} (56%)`)
+    expect(donutLegendCount(0, 25, 0)).toBe('אף אחד')
+  })
+  it('תיאור לקוראי מסך: כל הספירות במילים, כולל אפס', () => {
+    expect(donutAriaLabel(DONUT_TEXT.completionTitle, [{ label: 'סיימו', count: 14 }, { label: 'באמצע', count: 6 }, { label: 'עוד לא התחילו', count: 5 }], 25))
+      .toBe(`מי סיים את ההדמיה? ${countNb(14, 25)} סיימו, ${countNb(6, 25)} באמצע, ${countNb(5, 25)} עוד לא התחילו`)
+    expect(donutAriaLabel('כותרת', [{ label: 'במעט', count: 0 }], 3)).toContain(countNb(0, 3))
   })
 })
 

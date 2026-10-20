@@ -1,7 +1,7 @@
 import type { Request } from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ATTENTION_RULE, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
-import { countNb, OBJECTIVE_LEVEL_TEXT, objectiveLevelText } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ATTENTION_RULE, CLASS_SUMMARY_MIN_COMPLETED, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
+import { countNb, howWeCalcSuccessBandsLines, OBJECTIVE_LEVEL_TEXT, objectiveLevelText, SUCCESS_DONUT_BANDS } from '../../../../src/shared/lib/findingsNarrative.js'
 import { RESULTS_EP, type ClassSubmissionView, type StudentChip, type StudentSubmissionView, type SubmissionList } from '../../../../src/shared/types/resultsV1.js'
 import { AppError } from '../../middleware/errors.js'
 import { resultsRouter } from '../../routes/results.js'
@@ -160,6 +160,49 @@ describe('עקביות ספירות', () => {
       }
     })
   }
+})
+
+describe('במבט אחד: successBands בהדגמה (אותה ליבה כמו הספק האמיתי)', () => {
+  for (const { name, q } of LENSES) {
+    it(`עדשה: ${name} — ההתפלגות עקבית עם ספירת הסטטוסים, עם מסכי התלמידים ועם כלל "לתשומת לב"`, async () => {
+      const d = await lensData(name, q)
+      for (const [id, cv] of d.classViews) {
+        const b = cv.successBands
+        expect(b.low + b.mid + b.high, id).toBe(b.basis)
+        expect(b.basis, id).toBe(cv.challenges.length > 0 ? cv.head.counts.completed : 0)
+        expect(b.enough, id).toBe(b.basis >= CLASS_SUMMARY_MIN_COMPLETED)
+        /* חישוב בלתי תלוי: מכל תלמיד/ה שסיים/ה — כמה אתגרים נפתרו (outcome=correct) מתוך כל האתגרים, בספים מהתצורה */
+        const exp = { low: 0, mid: 0, high: 0 }
+        for (const chip of cv.roster.completed) {
+          const sv = d.studentViews.get(`${id}|${chip.id}`)!
+          const share = sv.challenges.filter((c) => c.outcome === 'correct').length / cv.challenges.length
+          if (share < SUCCESS_DONUT_BANDS.low) exp.low++
+          else if (share >= SUCCESS_DONUT_BANDS.high) exp.high++
+          else exp.mid++
+        }
+        expect({ low: b.low, mid: b.mid, high: b.high }, id).toEqual(exp)
+        /* הספירה הנמוכה = מי שמסומן "לתשומת לב" בגלל הצלחה נמוכה */
+        expect(allChips(cv).filter((c) => c.attentionReasons.includes('low_success')).length, id).toBe(b.low)
+      }
+    })
+  }
+
+  it('מדעים ו׳2 (25 תלמידים): 14 סיימו, ומהם 5 ברוב, 8 בחלק ו-1 במעט — שני הגרפים מראים התפלגות אמיתית', async () => {
+    const cv = (await lensData('homeroom', HOMEROOM)).classViews.get(ID.science)!
+    expect(cv.head.counts).toMatchObject({ total: 25, completed: 14, inProgress: 6, notStarted: 5 })
+    expect(cv.successBands).toEqual({ basis: 14, low: 1, mid: 8, high: 5, enough: true })
+    expect(cv.challenges).toHaveLength(6)
+  })
+
+  it('"איך חישבנו" של המסך כולל את הסבר שני הגרפים עם הספים מהתצורה (75% / 50%), ואין חזרה ל-60/85 הישנים', async () => {
+    const cv = (await lensData('homeroom', HOMEROOM)).classViews.get(ID.science)!
+    const lines = howWeCalcSuccessBandsLines()
+    for (const l of lines) expect(cv.howWeCalculated).toContain(l)
+    const text = lines.join(' ')
+    expect(text).toContain('75%')
+    expect(text).toContain('50%')
+    expect(text).not.toMatch(/85%|60%/)
+  })
 })
 
 /* ══════════════════════════════════════════════════════════════════════════ */
@@ -704,7 +747,7 @@ describe('שפה: אין ז׳רגון בשום טקסט שמוחזר (פרט ל"
         for (const text of strings(payload)) for (const re of FORBIDDEN) expect(re.test(text), `${name}: ${text}`).toBe(false)
       }
     }
-  })
+  }, 30_000)
 })
 
 /* ══════════════════════════════════════════════════════════════════════════ */

@@ -9,7 +9,6 @@ import {
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type { Finding } from '../../../../src/shared/types/analyticsV2.js'
-import { MISCONCEPTIONS } from './catalog.js'
 import type { Analysis, AgeNorm, SubjectAnalysis } from './engine.js'
 import { mean } from './stats.js'
 
@@ -82,14 +81,14 @@ export function classAreaKeys(sas: Pick<SubjectAnalysis, 'contentVectors'>[], cl
   return splitAreas(entries)
 }
 
-/* ── טעויות נפוצות של תלמיד/ה (לפי כלל התפיסה: מספיק חשיפות + פגיעות) ── */
+/* ── טעויות נפוצות של תלמיד/ה (לפי כלל התפיסה: מספיק חשיפות + פגיעות). הקטלוג והשכבה מגיעים מהניתוח (a.catalog), לא מקבועים ── */
 export interface StudentCommonError { id: string; title: string; hits: number; exposures: number }
 export function commonErrorsOf(a: Analysis, studentId: string, subject: SubjectCode): StudentCommonError[] {
   const st = a.studentById.get(studentId)
   if (!st) return []
   const out: StudentCommonError[] = []
-  for (const m of MISCONCEPTIONS) {
-    if (m.subject !== subject || m.prevalence[st.grade as 4 | 6] === undefined) continue
+  for (const m of a.catalog.misconceptions) {
+    if (m.subject !== subject || !a.catalog.misconceptionAppliesTo(m, st.grade)) continue
     const mine = a.misByClass.get(`${st.classId}|${m.id}`)?.students.find((s) => s.id === studentId)
     if (mine) out.push({ id: m.id, title: m.titleHe, hits: mine.hits, exposures: mine.exposures })
   }

@@ -304,6 +304,35 @@ describe('ההרצה שנספרת: הרצה שהושלמה גוברת על sessi
   })
 })
 
+describe('במבט אחד: successBands בספק האמיתי (אותה ליבה כמו בהדגמה)', () => {
+  it('רק מי שסיימו נספרים: פתרו = ברוב, טעו = במעט; באמצע ולא התחילו מחוץ לגרף ההצלחה', async () => {
+    ins('sessions', [session('b0', STU[0], true), session('b1', STU[1], true), session('b2', STU[2], true), session('b3', STU[3], false)])
+    ins('answers', [answer('b0', STU[0], 'a', 'correct'), answer('b1', STU[1], 'a', 'correct'), answer('b2', STU[2], 'b', 'wrong')])
+    ins('events', [solvedEvent('b0', STU[0], true), solvedEvent('b1', STU[1], true), solvedEvent('b2', STU[2], false)])
+    const v = await realResultsProvider.classView(req(T_HOME), A1)
+    expect(v.head.counts).toMatchObject({ total: 6, completed: 3, inProgress: 1, notStarted: 2 })
+    expect(v.successBands).toEqual({ basis: 3, low: 1, mid: 0, high: 2, enough: true })
+    expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
+    /* הספירה הנמוכה = בדיוק מי שמסומן "לתשומת לב" בגלל הצלחה נמוכה */
+    const lowSuccess = [...v.roster.completed, ...v.roster.inProgress, ...v.roster.notStarted].filter((c) => c.attentionReasons.includes('low_success'))
+    expect(lowSuccess).toHaveLength(v.successBands.low)
+  })
+
+  it('מי שסיים אחד בלבד: enough=false (ההתפלגות לא מוצגת), אבל הספירה אמיתית ועומדת בחוזה', async () => {
+    ins('sessions', [session('c0', STU[0], true)])
+    ins('answers', [answer('c0', STU[0], 'a', 'correct')])
+    ins('events', [solvedEvent('c0', STU[0], true)])
+    const v = await realResultsProvider.classView(req(T_HOME), A1)
+    expect(v.successBands).toEqual({ basis: 1, low: 0, mid: 0, high: 1, enough: false })
+    expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
+  })
+
+  it('אף אחד לא התחיל: basis=0 ו-enough=false', async () => {
+    const v = await realResultsProvider.classView(req(T_HOME), A1)
+    expect(v.successBands).toEqual({ basis: 0, low: 0, mid: 0, high: 0, enough: false })
+  })
+})
+
 describe('גרסאות אישיות (answers.variant_id → quest_variants)', () => {
   beforeEach(() => {
     ins('sessions', [session('s-base', STU[0], true), session('s-var', STU[1], true)])

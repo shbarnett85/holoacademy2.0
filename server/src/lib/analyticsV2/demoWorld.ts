@@ -7,13 +7,14 @@
    · זה גלם בלבד: אחוזים, ממצאים, BH והטקסטים נגזרים ב-engine.ts וב-findingsNarrative.ts.
    ────────────────────────────────────────────────────────────────────────── */
 import { CLASS_IMPROVEMENT_WINDOW_DAYS, DEMO_WORLD } from '../../../../src/shared/lib/analyticsConfig.js'
-import { latestTermStart, type Term } from '../../../../src/shared/lib/findingsNarrative.js'
+import { latestTermStart } from '../../../../src/shared/lib/findingsNarrative.js'
 import type { ContentVectorKey } from '../../../../src/shared/lib/analyticsConfig.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import {
   DEMO_GRADES, ELECTIVE_SUBJECT, FIRST_FEMALE, FIRST_MALE, LAST_NAMES, MISCONCEPTIONS,
   MORPHOLOGY_KEY, SUBJECTS_BY_GRADE, conceptsOfSubject,
 } from './catalog.js'
+import { buildSchoolDays, type SchoolTerm } from './schoolCalendar.js'
 
 /* ── PRNG ── */
 function hash32(s: string): number {
@@ -36,7 +37,11 @@ const r1 = (v: number): number => Math.round(v * 10) / 10
 const smooth = (x: number): number => x * x * (3 - 2 * x)
 
 /* ── טיפוסים ── */
-export interface WorldClass { id: string; name: string; gradeLabel: string; grade: number; studentIds: string[] }
+export interface WorldClass {
+  id: string; name: string; gradeLabel: string; grade: number; studentIds: string[]
+  /* מקצועות הכיתה (למשל משיוכי מורים) גם בלי נתונים — אופציונלי; עולם ההדגמה אינו ממלא */
+  subjects?: SubjectCode[]
+}
 export interface WorldStudent {
   id: string; firstName: string; displayName: string; gender: 'male' | 'female'
   classId: string; grade: number; subjects: SubjectCode[]; cast: string | null
@@ -59,31 +64,25 @@ export interface StudentSubjectData { sessions: SessionRec[]; mc: McItem[]; memo
 export interface World {
   now: Date
   days: string[] /* ISO לכל יום-לימוד, אינדקס 0 = אחרון */
-  /* המחצית שלפיה נמדד "שיפור מאז תחילת המחצית": ב׳ כשחלפו בה מספיק ימי לימוד, אחרת א׳ */
-  term: { kind: Term; startIso: string; idx: number }
+  /* המחצית שלפיה נמדד "שיפור מאז תחילת המחצית". בהדגמה: ב׳ כשחלפו בה מספיק ימי לימוד, אחרת א׳ (pickTerm).
+     בעולם חי: null כשחלפו פחות מדי ימי לימוד במחצית (liveTerm) — אז אין מדידת שיפור כיתתי. */
+  term: SchoolTerm | null
   school: { id: string; name: string }
   classes: WorldClass[]
   students: WorldStudent[]
   data: Map<string, StudentSubjectData>
+  /* נתוני אמת (ספק חי). מפעיל בסיס-בדיקה 'level' למגמת רמה (הכיול 60/80 שומר הצלחה ~60–80%, ולכן הצלחה אינה מזהה שינוי).
+     חסר / false = עולם הדמו, ובו הבדיקה נשארת על ההצלחה. */
+  live?: boolean
 }
+/* עולם ההדגמה תמיד נושא מחצית */
+export type DemoWorld = World & { term: SchoolTerm }
 export const skey = (studentId: string, subject: SubjectCode): string => `${studentId}|${subject}`
 
-/* ── ימי לימוד ── */
-function buildSchoolDays(now: Date, count: number): string[] {
-  const out: string[] = []
-  let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 12)
-  while (out.length < count) {
-    const d = new Date(t)
-    const dow = d.getUTCDay()
-    const month = d.getUTCMonth()
-    if (dow <= 4 && month !== 6 && month !== 7) out.push(d.toISOString())
-    t -= 86400000
-  }
-  return out
-}
+/* ── ימי לימוד: buildSchoolDays ב-schoolCalendar.ts (משותף לעולם החי) ── */
 
 /* בחירת המחצית: ב׳ אם חלפו בה לפחות 2·חלון+10 ימי לימוד; אחרת א׳ (שמתחילה בספטמבר) */
-function pickTerm(now: Date, days: string[]): { kind: Term; startIso: string; idx: number } {
+function pickTerm(now: Date, days: string[]): SchoolTerm {
   const need = 2 * CLASS_IMPROVEMENT_WINDOW_DAYS + 10
   for (const kind of ['half_b', 'half_a'] as const) {
     const start = latestTermStart(kind, now)
@@ -215,7 +214,7 @@ function simulateMemory(a: number, rng: () => number): MemTurn[] {
 }
 
 /* ── בניית העולם ── */
-export function buildWorld(now: Date): World {
+export function buildWorld(now: Date): DemoWorld {
   const days = buildSchoolDays(now, H)
   const pickedTerm = pickTerm(now, days)
   const halfBIdx = pickedTerm.idx
@@ -443,8 +442,8 @@ export function buildWorld(now: Date): World {
 function r1000(v: number): number { return Math.round(v * 1000) / 1000 }
 
 /* מטמון לפי יום (הנתונים זהים בכל יום; רק התאריכים זזים) */
-const CACHE = new Map<string, World>()
-export function getWorld(now: Date = new Date()): World {
+const CACHE = new Map<string, DemoWorld>()
+export function getWorld(now: Date = new Date()): DemoWorld {
   const key = now.toISOString().slice(0, 10)
   let w = CACHE.get(key)
   if (!w) {

@@ -5,38 +5,15 @@ import { AppError } from '../../middleware/errors.js'
 import { DEMO_HOMEROOM_CLASS, DEMO_SUBJECT_PERSONAS, type V2Viewer } from './access.js'
 import { demoProvider, demoViewerClasses, getAnalysis } from './demoProvider.js'
 import { realProvider, type AnalyticsV2Provider } from './provider.js'
+import { FORBIDDEN_UI_TERMS } from '../../../../src/shared/lib/forbiddenTerms.js'
 
 /* ──────────────────────────────────────────────────────────────────────────
    עברית פשוטה למורה עם ניסיון מוגבל במחשב: בשום מחרוזת שהספק מחזיר אין מונחים טכניים/סטטיסטיים,
    פרט לקבוצה HOW_WE_CALC (ולסעיף how_we_calculated בתדריך, שמציג רק אותה).
    הבדיקה עוברת על **כל** ערך מחרוזת בכל תגובה של כל ספק, בכל עדשה, לכל תלמיד וכיתה.
    ────────────────────────────────────────────────────────────────────────── */
-const FORBIDDEN: { name: string; re: RegExp }[] = [
-  { name: 'וקטור', re: /וקטור/ },
-  { name: 'p (עצמאית)', re: /(?<![A-Za-z])p(?![A-Za-z])/i },
-  { name: 'מובהק', re: /מובהק/ },
-  { name: 'BH', re: /BH/ },
-  { name: 'Benjamini', re: /Benjamini/i },
-  { name: 'אינדקס', re: /אינדקס/ },
-  { name: 'קורלציה', re: /קורלציה/ },
-  { name: 'הסתברות', re: /הסתברות/ },
-  { name: 'גודל אפקט', re: /גודל אפקט/ },
-  { name: 'אפקט', re: /אפקט/ },
-  /* מונחים טכניים נוספים שאין להציג */
-  { name: 'סטטיסטי', re: /סטטיסט/ },
-  { name: 'פוסטריורי', re: /פוסטרי/ },
-  { name: 'השערה', re: /השערות/ },
-  { name: 'מתוקן', re: /מתוקן/ },
-  { name: 'N =', re: /\bN\s*=/ },
-  { name: 'מסיח', re: /מסיח/ },
-  /* מילים מעולם הסטטיסטיקה שמורה לא אמור/ה להיתקל בהן */
-  { name: 'נורמה', re: /נורמה|נורמת|נורמות/ },
-  { name: 'ריבוע', re: /ריבוע/ },
-  { name: 'סטיית תקן', re: /סטיית\s*תקן/ },
-  { name: 'רגרסיה', re: /רגרסי/ },
-  { name: 'אחוזון', re: /אחוזון/ },
-  { name: 'חציון', re: /חציון/ },
-]
+/* הרשימה חיה ב-src/shared/lib/forbiddenTerms.ts — מקור אמת יחיד (משותף גם לשומר הפלט של סיכום ה-AI) */
+const FORBIDDEN = FORBIDDEN_UI_TERMS
 
 const hits = (s: string): string[] => FORBIDDEN.filter((f) => f.re.test(s)).map((f) => f.name)
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
-import { countNb, howWeCalcObjectivesLines, howWeCalcResultsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
+import { countNb, howWeCalcObjectivesLines, howWeCalcResultsLines, howWeCalcSuccessBandsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
   analyzeSubmission, buildClassView, buildListRow, buildStudentView, extractChallenges, questObjectives, questThumbUrl, subjectOfCode,
@@ -400,7 +400,8 @@ describe('תלמיד: רשימה א-ב, הקודם/הבא, סיכום ושקפי
 
   it('איך חישבנו: השורות מ-findingsNarrative', () => {
     expect(buildStudentView(data, 'st0')!.howWeCalculated).toEqual(howWeCalcResultsLines())
-    expect(buildClassView(data).howWeCalculated).toEqual(howWeCalcResultsLines())
+    /* מסך הכיתה מוסיף את הסבר שני הגרפים ("במבט אחד") אחרי ההסבר הכללי */
+    expect(buildClassView(data).howWeCalculated).toEqual([...howWeCalcResultsLines(), ...howWeCalcSuccessBandsLines()])
   })
 
   it('פירוט במבט תלמיד שסיים: לפי השורות שלו; מי שלא סיים — יורש את מצב השליחה', () => {
@@ -522,7 +523,7 @@ describe('יעדי למידה', () => {
     const done = { sessions: [sess(0, true)], answers: one.answers, events: one.events }
     const none = buildClassView(withGame(clone(GAME), done))
     expect(none.objectives).toEqual([])
-    expect(none.howWeCalculated).toEqual(howWeCalcResultsLines())
+    expect(none.howWeCalculated).toEqual([...howWeCalcResultsLines(), ...howWeCalcSuccessBandsLines()])
     const untagged = clone(GAME)
     untagged.objectives = [{ id: 'obj_1', text: 'יעד בלי תיוג' }]
     expect(buildClassView(withGame(untagged, done)).objectives).toEqual([])
@@ -653,7 +654,7 @@ describe('יעדי למידה', () => {
     const a = JSON.stringify(buildClassView(data))
     expect(JSON.stringify(buildClassView(data))).toBe(a)
     expect(JSON.stringify(data)).toBe(snap)
-    expect(buildClassView(data).howWeCalculated).toEqual([...howWeCalcResultsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)])
+    expect(buildClassView(data).howWeCalculated).toEqual([...howWeCalcResultsLines(), ...howWeCalcSuccessBandsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)])
     expect(buildStudentView(data, 'st0')!.howWeCalculated).toEqual(howWeCalcResultsLines())
   })
 

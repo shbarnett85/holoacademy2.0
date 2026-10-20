@@ -19,14 +19,15 @@
 import type {
   AttentionReason, ChallengeResult, ClassSubmissionView, CommonErrorRow, Counts, ItemResult, ObjectiveLevel, ObjectiveResult,
   OptionCount, Outcome, ResultsSubject, SlideFact, StudentChallenge, StudentChip, StudentItem, StudentStatus, StudentSubmissionView,
-  SubmissionHead, SubmissionRow,
+  SubmissionHead, SubmissionRow, SuccessBands,
 } from '../../../../src/shared/types/resultsV1.js'
 import {
-  ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
+  ATTENTION_RULE, CLASS_SUMMARY_MIN_COMPLETED, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
 import {
-  howWeCalcObjectivesLines, howWeCalcResultsLines, israelDayKey, narrateClassSummary, narrateListSummary, narrateStudentSummary, objectiveLevelText,
+  howWeCalcObjectivesLines, howWeCalcResultsLines, howWeCalcSuccessBandsLines, israelDayKey, narrateClassSummary, narrateListSummary, narrateStudentSummary,
+  objectiveLevelText, SUCCESS_DONUT_BANDS,
   type ClassSummaryInput,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { puzzleTypeLabel } from '../../../../src/shared/lib/labels.js'
@@ -859,6 +860,23 @@ function challengeResult(an: Analysis, agg: ChallengeAgg): ChallengeResult {
   }
 }
 
+/* "במבט אחד" — התפלגות ההצלחה של מי שסיימו (הדונאט השני). לכל תלמיד/ה שסיים/ה: חלק האתגרים שנפתרו מתוך כל אתגרי ההדמיה — אותו חישוב ואותם ספים
+   כמו "לתשומת לב" (low = פחות מ-ATTENTION_RULE.solvedShareBelow, כך שהספירה שווה לספירת low_success) ו"רוב הכיתה הצליחה" (high). אותה ליבה לספק האמיתי ולהדגמה. */
+function successBandsOf(an: Analysis): SuccessBands {
+  const total = an.challenges.length
+  const done = total > 0 ? an.students.filter((s) => s.status === 'completed') : []
+  let low = 0
+  let mid = 0
+  let high = 0
+  for (const s of done) {
+    const share = s.solved / total
+    if (share < SUCCESS_DONUT_BANDS.low) low++
+    else if (share >= SUCCESS_DONUT_BANDS.high) high++
+    else mid++
+  }
+  return { basis: done.length, low, mid, high, enough: done.length >= CLASS_SUMMARY_MIN_COMPLETED }
+}
+
 export function buildClassView(input: CoreInput): ClassSubmissionView {
   const an = analyzeSubmission(input)
   const detail = submissionDetail(an)
@@ -874,11 +892,12 @@ export function buildClassView(input: CoreInput): ClassSubmissionView {
       inProgress: chips.filter((c) => c.status === 'in_progress'),
       notStarted: chips.filter((c) => c.status === 'not_started'),
     },
+    successBands: successBandsOf(an),
     challenges: an.aggs.map((a) => challengeResult(an, a)),
     commonErrors: classCommonErrors(an),
     objectives,
     review: { weakCount: reviewConceptsOf(an).length },
-    howWeCalculated: objectives.length > 0 ? [...howWeCalcResultsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)] : howWeCalcResultsLines(),
+    howWeCalculated: [...howWeCalcResultsLines(), ...howWeCalcSuccessBandsLines(), ...(objectives.length > 0 ? howWeCalcObjectivesLines(OBJECTIVE_BANDS) : [])],
   }
 }
 

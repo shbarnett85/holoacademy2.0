@@ -154,6 +154,20 @@ export const ObjectiveResultSchema = z.object({
 })
 export type ObjectiveResult = z.infer<typeof ObjectiveResultSchema>
 
+/* ── "כמה אתגרים הצליחו התלמידים שסיימו?" (הדונאט השני בלשונית "במבט אחד") ──
+   basis = תלמידים שסיימו, כשיש בהדמיה לפחות אתגר אחד שנמדד. לכל אחד/ת: חלק האתגרים שנפתרו מתוך כל אתגרי ההדמיה.
+   low = פחות מ-ATTENTION_RULE.solvedShareBelow (אותו כלל כמו "לתשומת לב": הספירה שווה לספירת low_success),
+   high = לפחות CLASS_SUCCESS_BANDS.most (אותו כלל כמו "רוב הכיתה הצליחה"), mid = ביניהם.
+   enough=false (פחות מ-CLASS_SUMMARY_MIN_COMPLETED סיימו) → לא מציירים דונאט ומציגים מצב ריק. הספירות נשארות אמיתיות (low+mid+high = basis). */
+export const SuccessBandsSchema = z.object({
+  basis: NonNeg,
+  low: NonNeg,
+  mid: NonNeg,
+  high: NonNeg,
+  enough: z.boolean(),
+}).refine((b) => b.low + b.mid + b.high === b.basis, 'low+mid+high חייב להיות שווה ל-basis')
+export type SuccessBands = z.infer<typeof SuccessBandsSchema>
+
 export const ClassSubmissionViewSchema = z.object({
   head: SubmissionHeadSchema,
   /* משפט הסיכום (א) */
@@ -163,6 +177,8 @@ export const ClassSubmissionViewSchema = z.object({
   hasAnswerDetail: z.boolean(),
   /* ב. סיימו / באמצע / לא התחילו */
   roster: z.object({ completed: z.array(StudentChipSchema), inProgress: z.array(StudentChipSchema), notStarted: z.array(StudentChipSchema) }),
+  /* "במבט אחד": התפלגות ההצלחה של מי שסיימו (הדונאט השני). ספירת הסטטוסים לדונאט הראשון היא head.counts */
+  successBands: SuccessBandsSchema,
   /* ג. האתגרים לפי סדר ההדמיה */
   challenges: z.array(ChallengeResultSchema),
   /* ד. טעויות נפוצות — מוצג רק אם יש תגיות */

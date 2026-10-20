@@ -3,7 +3,8 @@
      פס ראש אחד (שם, כיתה, תאריך, מצב השלמה, המתג) — לכל הרוחב
      משפט הסיכום (שורה אחת) — לכל הרוחב; במצב "לפי תלמיד" עם הקודם/הבא בקצה השורה
      מתחת, שתי עמודות בגובה שנשאר:
-       ימין (העיקר):  טאבים — האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה  (במצב תלמיד: האתגרים · זמן בשקפים)
+       ימין (העיקר):  טאבים — במבט אחד · האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה  (במצב תלמיד: האתגרים · זמן בשקפים)
+                      "במבט אחד" (שני גרפי עוגה: מי סיים, כמה אתגרים הצליחו מי שסיימו) הוא הטאב הראשון והפותח במצב "כל הכיתה"
        שמאל:  חלונית התלמידים — רשת צפופה של שמות (שלוש קבוצות / כל הכיתה לפי א-ב)
    סט הטאבים קבוע בכל שליחה: טאב בלי נתונים נשאר במקומו ומסביר במילים למה ריק ומה יקרה (עיקרון 9) — טאבים לא מופיעים ונעלמים.
    "איך חישבנו?" הוא כפתור אחד בשורת הכותרת (חריץ של ScreenShell). במסך צר (העמוד גולל): ראש, משפט, טאבים, תלמידים — בעמודה אחת.
@@ -19,6 +20,7 @@ import ClassChallenges from './ClassChallenges'
 import CommonErrors from './CommonErrors'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
+import Glance from './Glance'
 import HeadStrip from './HeadStrip'
 import type { Mode } from './HeadStrip'
 import { CLASS_TAB_IDS, firstStudentId, resolveTab, STUDENT_TAB_IDS, studentIndex } from './logic'
@@ -40,6 +42,7 @@ const FILL_MIN = 440
 
 /* סט הטאבים — קבוע לכל שליחה (המזהים ב-logic.ts: CLASS_TAB_IDS / STUDENT_TAB_IDS) */
 const CLASS_TABS: TabItem[] = [
+  { id: 'glance', label: UI.tabGlance },
   { id: 'challenges', label: UI.tabChallenges },
   { id: 'objectives', label: UI.tabObjectives },
   { id: 'errors', label: UI.tabErrors },
@@ -99,8 +102,9 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   const { isGuest, scope, apiQs, link } = useLens()
   const [sp] = useSearchParams()
   const mode: Mode = studentId ? 'student' : 'class'
-  /* ?tab= פותח ישר טאב מסוים (למשל "תרגול חזרה" מההצעה של ד״ר הולו). טאב שלא קיים → "האתגרים" */
-  const [tab, setTab] = useState(() => sp.get('tab') ?? 'challenges')
+  /* ?tab= פותח ישר טאב מסוים (למשל "תרגול חזרה" מההצעה של ד״ר הולו). בלעדיו, או עם טאב שלא קיים במסך — הטאב הראשון של המסך
+     ("במבט אחד" בכיתה, "האתגרים" אצל תלמיד/ה) */
+  const [tab, setTab] = useState<string | null>(() => sp.get('tab'))
 
   const classQ = useResultsData<ClassSubmissionView>('classView', mode === 'class' ? `/api/results/submission/${enc(submissionId)}${apiQs}` : null, scope)
   const studentQ = useResultsData<StudentSubmissionView>('studentView', studentId ? `/api/results/submission/${enc(submissionId)}/student/${enc(studentId)}${apiQs}` : null, scope)
@@ -145,6 +149,7 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
         people={<ClassRoster roster={d.roster} onOpen={toStudent} />}
         panel={(
           <MainPanel tabs={CLASS_TABS} active={shownTab} onTab={setTab}>
+            {shownTab === 'glance' && <Glance view={d} />}
             {shownTab === 'challenges' && <ClassChallenges view={d} />}
             {shownTab === 'objectives' && (d.objectives.length > 0
               ? <Objectives objectives={d.objectives} onOpenStudent={toStudent} />
