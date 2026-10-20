@@ -12,6 +12,7 @@ import {
   REAL_ROLES, REAL_WHO, cleanupOnly, guestLogin, lensParams, seedRealFixture,
   type RealFixture, type StaffSession,
 } from './lib/login.ts'
+import { readReport, writeChecklist } from './lib/checklist.ts'
 import { writeReports, type RunMeta } from './lib/report.ts'
 import { runScreen, screenId, type ScreenJob } from './lib/runner.ts'
 import type { Scenario, ScreenResult, Vars, Who } from './lib/types.ts'
@@ -34,6 +35,8 @@ const HELP = `ביקורת UX/נגישות (Playwright + axe)
   --headed            דפדפן גלוי
   --no-screenshots    בלי PNG
   --timeout <ms>      timeout לפעולה (ברירת מחדל 15000)
+  --checklist         בנוסף ל-report.*: צ'קליסט פר-מסך מובחן ב-e2e/out/checklist.md (npm run e2e:checklist)
+  --checklist-only    בונה את checklist.md מ-report.json קיים, בלי להריץ דפדפן
   --list              הדפסת המסכים שנבחרו ויציאה
   --keep-fixture      לא לנקות את שורות ה-fixture (zz-ux-) בסוף
   --cleanup-only      רק לנקות שורות fixture שנשארו מריצה שקרסה
@@ -75,12 +78,20 @@ async function main(): Promise<number> {
       jobs: { type: 'string' }, headed: { type: 'boolean' }, 'no-screenshots': { type: 'boolean' },
       timeout: { type: 'string' }, list: { type: 'boolean' }, 'keep-fixture': { type: 'boolean' },
       'cleanup-only': { type: 'boolean' }, selftest: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
+      checklist: { type: 'boolean' }, 'checklist-only': { type: 'boolean' },
     },
     allowPositionals: false,
   })
   if (v.help) { console.log(HELP); return 0 }
   if (v.selftest) { const { runSelftest } = await import('./selftest.ts'); return runSelftest() }
   if (v['cleanup-only']) { await cleanupOnly(); console.log('fixture נוקה.'); return 0 }
+  if (v['checklist-only']) {
+    const dir = path.resolve(v.out ?? DEFAULT_OUT)
+    const { meta, results } = await readReport(dir)
+    const c = await writeChecklist(dir, meta, results)
+    console.log(`צ'קליסט: ${c.md}\n${c.totals.screens} מסכים מובחנים (${c.totals.measured} נמדדו) · נכנסים במסך אחד: ${c.totals.fit} מתוך ${c.totals.measured}`)
+    return 0
+  }
 
   const base = (v.base ?? DEFAULT_BASE).replace(/\/$/, '')
   const api = (v.api ?? DEFAULT_API).replace(/\/$/, '')
@@ -179,7 +190,7 @@ async function main(): Promise<number> {
             if (skip || (needsSession && !session)) {
               res = {
                 id: screenId(item.scenario.name, g.who), name: item.scenario.name, who: g.who, group: item.scenario.group, viewport: g.viewport, theme,
-                requestedUrl: item.scenario.url, finalUrl: null, status: 'skipped', statusDetail: skip ?? 'אין session לצופה', inner: item.scenario.inner ?? false,
+                urlPattern: item.scenario.url, requestedUrl: item.scenario.url, finalUrl: null, status: 'skipped', statusDetail: skip ?? 'אין session לצופה', inner: item.scenario.inner ?? false,
                 clicksFromMainTab: item.scenario.clicksFromMainTab ?? null, screenshot: null, axe: null, forbidden: [], layout: null,
                 consoleErrors: { count: 0, samples: [] }, failedRequests: { count: 0, samples: [] }, loadMs: null, hardFailures: [], strictFailures: [], note: item.scenario.note ?? null, attempts: 0,
               }
@@ -213,6 +224,12 @@ async function main(): Promise<number> {
   }
   const { md, json, summary } = await writeReports(outDir, meta, results)
   console.log(`\nדוח: ${md}\nJSON: ${json}`)
+  if (v.checklist) {
+    try {
+      const c = await writeChecklist(outDir, meta, results)
+      console.log(`צ'קליסט: ${c.md}\n${c.totals.screens} מסכים מובחנים (${c.totals.measured} נמדדו) · נכנסים במסך אחד: ${c.totals.fit} מתוך ${c.totals.measured}`)
+    } catch (e) { console.error('כתיבת הצ\'קליסט נכשלה:', e instanceof Error ? e.message : e) }
+  }
   console.log(`מסכים ${summary.screens}: ok ${summary.ok} · missing ${summary.missing} · skipped ${summary.skipped} · error ${summary.error} | כשלים קשיחים ${summary.failing} (axe חמור/קריטי ${summary.axeSeriousCritical}, מילים אסורות ${summary.forbiddenHits}) | strict ${summary.strictFailing}`)
   const fail = summary.failing > 0 || summary.error > 0 || (!!v.strict && summary.strictFailing > 0)
   return fail ? 1 : 0

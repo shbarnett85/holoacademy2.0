@@ -2,7 +2,6 @@
    מחנך: "סקירה" ואז כל מקצוע. מורה מקצועי: מקצועו פעיל, שאר המקצועות באפור עם מנעול והסבר גלוי.
    בתוך מקצוע: שורה שנייה — סיכום | טעויות נפוצות | התקדמות | תלמידים. */
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { SUBJECTS } from '../../shared/lib/subjects'
 import type { Roster } from '../../shared/types/analyticsV2'
 import { EmptyState, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem } from '../teacherUi'
@@ -11,11 +10,9 @@ import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, SUB_IDS, SUB_LABEL, titles, type SubId } from './labels'
 import { AnalyticsShell } from './Shell'
 import SubjectArea from './SubjectArea'
+import { bySubjectOrder } from './subjectOrder'
 import { ErrorBlock, LoadingBlock, SubjectOrb } from './ui'
 import { useV2 } from './v2api'
-
-const ORDER = new Map<string, number>(SUBJECTS.map((s, i) => [s.code, i]))
-const byOrder = <T extends { code: string }>(xs: T[]): T[] => [...xs].sort((a, b) => (ORDER.get(a.code) ?? 99) - (ORDER.get(b.code) ?? 99))
 
 export default function ClassScreen({ classId }: { classId: string }) {
   const env = useV2Env()
@@ -36,9 +33,9 @@ export default function ClassScreen({ classId }: { classId: string }) {
   }
 
   const homeroom = env.lens === 'homeroom'
-  const open = byOrder(cls.subjects)
-  const lockedList = byOrder(cls.lockedSubjects)
-  const all = byOrder([...open, ...lockedList])
+  const open = bySubjectOrder(cls.subjects)
+  const lockedList = bySubjectOrder(cls.lockedSubjects)
+  const all = bySubjectOrder([...open, ...lockedList])
   const tabParam = sp.get('tab')
   const tab = tabParam === 'overview' && homeroom ? 'overview' : open.some((s) => s.code === tabParam) ? (tabParam as string) : homeroom ? 'overview' : open[0]?.code ?? 'overview'
   const subParam = sp.get('sub')

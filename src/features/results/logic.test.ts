@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ClassSubmissionView, ResultsSubject, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
-import { attemptsWord, attentionTotal, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, sortedStudents, studentsWord, topicsWord, validOption } from './logic'
+import { howWeCalcObjectivesLines, narrateObjectivesSummary, objectiveLevelText } from '../../shared/lib/findingsNarrative'
+import type { ClassSubmissionView, ObjectiveResult, ResultsSubject, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
+import { attemptsWord, attentionTotal, byAttentionThenName, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, objectiveLevelCounts, ROSTER_GROUP_ORDER, sortedStudents, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
+import { UI } from './text'
 
 const row = (id: string, title: string, sentAt: string, classId = 'c1', subject: string | null = 'math'): SubmissionRow => ({
   id, questId: `q-${id}`, title, thumbUrl: null, subject: subject ? ({ code: subject, nameHe: subject } as ResultsSubject) : null,
@@ -66,6 +68,18 @@ describe('תלמידים', () => {
   it('סופר תלמידים לתשומת לב', () => {
     expect(attentionTotal(ROSTER)).toBe(2)
   })
+  it('קבוצות הכיתה: מי שדורש מעקב קודם, ובתוך קבוצה "לתשומת לב" לפני שאר השמות (ואז א-ב)', () => {
+    expect([...ROSTER_GROUP_ORDER]).toEqual(['notStarted', 'inProgress', 'completed'])
+    const names = [...ROSTER.completed].sort(byAttentionThenName).map((s) => s.name)
+    expect(names).toEqual(['תמר בראון', 'אלון גולן'])
+    const plain = [chip('a', 'תמר', 'completed'), chip('b', 'אלון', 'completed'), chip('c', 'דנה', 'completed', true), chip('d', 'בן', 'completed', true)]
+    expect(plain.sort(byAttentionThenName).map((s) => s.name)).toEqual(['בן', 'דנה', 'אלון', 'תמר'])
+  })
+  it('שורת המצב בראש המסך באותו סדר כמו הקבוצות', () => {
+    expect(UI.stateLine(6, 5)).toBe('5 עוד לא התחילו · 6 באמצע')
+    expect(UI.stateLine(0, 2)).toBe('2 עוד לא התחילו')
+    expect(UI.stateLine(0, 0)).toBe('כולם סיימו')
+  })
 })
 
 describe('ניסוח', () => {
@@ -91,5 +105,44 @@ describe('ניסוח', () => {
     expect(formatSeconds(65)).toBe('דקה ו-5 שניות')
     expect(formatSeconds(180)).toBe('3 דקות')
     expect(formatSeconds(181)).toBe('3 דקות ושנייה אחת')
+  })
+})
+
+const obj = (id: string, level: ObjectiveResult['level']): ObjectiveResult => ({
+  id, text: `יעד ${id}`, attempted: level ? 10 : 0, solved: level === 'strong' ? 9 : level === 'partial' ? 7 : level === 'weak' ? 3 : 0,
+  level, levelText: objectiveLevelText(level), weakStudents: [],
+})
+
+describe('יעדי למידה', () => {
+  it('סופר יעדים לפי רמה; total כולל גם יעדים בלי נתונים', () => {
+    expect(objectiveLevelCounts([obj('a', 'strong'), obj('b', 'weak'), obj('c', 'weak'), obj('d', null)])).toEqual({ total: 4, strong: 1, partial: 0, weak: 2 })
+    expect(objectiveLevelCounts([])).toEqual({ total: 0, strong: 0, partial: 0, weak: 0 })
+  })
+  it('המילים לרמות', () => {
+    expect([objectiveLevelText('strong'), objectiveLevelText('partial'), objectiveLevelText('weak'), objectiveLevelText(null)]).toEqual(['למדו', 'למדו חלקית', 'עדיין קשה', 'אין עדיין נתונים'])
+  })
+  it('משפט הסיכום: מילים פשוטות, "X מתוך Y", וחוסר נתונים אומר מה יקרה', () => {
+    expect(narrateObjectivesSummary({ total: 3, strong: 2, partial: 0, weak: 1 })).toBe('הכיתה למדה 2 מתוך 3 יעדים. יעד אחד עדיין קשה לכיתה.')
+    expect(narrateObjectivesSummary({ total: 4, strong: 1, partial: 2, weak: 1 })).toBe('הכיתה למדה 1 מתוך 4 יעדים. 2 יעדים נלמדו חלקית. יעד אחד עדיין קשה לכיתה.')
+    expect(narrateObjectivesSummary({ total: 2, strong: 0, partial: 1, weak: 1 })).toBe('עדיין אין יעד שהכיתה למדה במלואו. יעד אחד נלמד חלקית. יעד אחד עדיין קשה לכיתה.')
+    expect(narrateObjectivesSummary({ total: 1, strong: 1, partial: 0, weak: 0 })).toBe('הכיתה למדה 1 מתוך 1 יעד.')
+    expect(narrateObjectivesSummary({ total: 3, strong: 1, partial: 0, weak: 1 })).toContain('ליעד אחד עוד אין נתונים.')
+    expect(narrateObjectivesSummary({ total: 2, strong: 0, partial: 0, weak: 0 })).toBe('עוד אין תוצאות ביעדי הלמידה. הן יופיעו כאן כשתלמידים יסיימו.')
+  })
+  it('איך חישבנו: הספים מגיעים מהקורא', () => {
+    const lines = howWeCalcObjectivesLines({ strong: 0.8, partial: 0.6 }).join(' ')
+    expect(lines).toContain('60%')
+    expect(lines).toContain('80%')
+    expect(howWeCalcObjectivesLines({ strong: 0.9, partial: 0.5 }).join(' ')).toContain('90%')
+  })
+  it('מתקשים להצגה: עד הסף, ואחרי פתיחה — כולם; לא משנה את המקור', () => {
+    const list = ['א', 'ב', 'ג', 'ד', 'ה']
+    expect(visibleStudents(list, false, 3)).toEqual({ shown: ['א', 'ב', 'ג'], hidden: 2 })
+    expect(visibleStudents(list, true, 3)).toEqual({ shown: list, hidden: 0 })
+    expect(visibleStudents(list, false, 5)).toEqual({ shown: list, hidden: 0 })
+    /* אחד בלבד היה מוסתר — מציגים את כולם */
+    expect(visibleStudents(list, false, 4)).toEqual({ shown: list, hidden: 0 })
+    expect(visibleStudents([], false, 3)).toEqual({ shown: [], hidden: 0 })
+    expect(list).toHaveLength(5)
   })
 })

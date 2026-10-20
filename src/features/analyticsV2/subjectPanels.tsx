@@ -102,8 +102,8 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
             <li key={s.id}>
               <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: m.subjectCode })} data-tu-press
                 style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: MIN_TARGET, padding: '2px 10px', borderRadius: RADIUS.sm, border: `1.5px solid ${T.controlBorder}`, textDecoration: 'none', color: T.text, fontFamily: FONT }}>
-                <span style={{ fontSize: 15, fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, color: T.accentStrong }}>{s.displayName}</span>
-                <span style={{ fontSize: 14, color: T.textSoft }}>{s.hits} מתוך {s.exposures} שאלות</span>
+                <span style={{ fontSize: 16, fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, color: T.accentStrong }}>{s.displayName}</span>
+                <span style={{ fontSize: 16, color: T.textSoft }}>{s.hits} מתוך {s.exposures} שאלות</span>
               </Link>
             </li>
           ))}
@@ -148,7 +148,7 @@ export function ProgressPanel({ d }: { d: ClassSubjectView }) {
         <ol aria-label={L.eventsHeading} tabIndex={events.length > 8 ? 0 : undefined} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 520px), 1fr))', gap: '6px 20px', maxHeight: 132, overflowY: 'auto' }}>
           {events.map((e, i) => (
             <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 16, lineHeight: 1.5, color: T.text }}>
-              <span style={{ flex: '0 0 28px', height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 14, fontWeight: 800, border: `2.5px solid ${TONE_META[e.tone].color}`, background: T.surface }}>{i + 1}</span>
+              <span style={{ flex: '0 0 28px', height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 800, border: `2.5px solid ${TONE_META[e.tone].color}`, background: T.surface }}>{i + 1}</span>
               <ToneMark tone={e.tone} size={18} />
               <span><strong>{dateHe(e.date)}</strong> — {e.text}</span>
             </li>
@@ -165,18 +165,18 @@ export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: st
   if (d.students.length === 0) return <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noStudents}</Note></Card>
   const flagged = new Set(d.studentFindings.filter((x) => x.finding.status === 'reported' && x.finding.tone === 'attention').map((x) => x.studentId))
   return (
-    <ul aria-label={L.studentsInSubject} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+    <ul aria-label={L.studentsInSubject} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(204px, 1fr))', gap: 8 }}>
       {d.students.map((s) => (
         <li key={s.id}>
           <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: d.subject.code })} data-tu-press
             style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, minHeight: 60, padding: '6px 12px', borderRadius: RADIUS.md, background: T.surface, border: `1.5px solid ${flagged.has(s.id) ? T.warn : T.controlBorder}`, textDecoration: 'none', color: T.text, fontFamily: FONT }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
               <span style={{ fontSize: 16, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3 }}>{s.displayName}</span>
-              {flagged.has(s.id) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700 }}><ToneMark tone="attention" size={16} />{L.attentionShort}</span>}
+              {flagged.has(s.id) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 700 }}><ToneMark tone="attention" size={16} />{L.attentionShort}</span>}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <TrendWord trend={s.trend} text={s.trendText} size={14} />
-              <span style={{ fontSize: 14, color: T.textSoft }}>{L.levelLabel(s.level)}</span>
+              <TrendWord trend={s.trend} text={s.trendText} size={16} />
+              <span style={{ fontSize: 16, color: T.textSoft }}>{L.levelLabel(s.level)}</span>
             </span>
           </Link>
         </li>

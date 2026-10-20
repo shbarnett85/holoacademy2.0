@@ -3,6 +3,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { screenChecklist } from './checklist.ts'
 import { THRESHOLDS } from './config.ts'
 import type { ScreenResult } from './types.ts'
 
@@ -138,7 +139,9 @@ export async function writeReports(outDir: string, meta: RunMeta, results: Scree
   const summary = summarize(results)
   const json = path.join(outDir, 'report.json')
   const md = path.join(outDir, 'report.md')
-  await writeFile(json, JSON.stringify({ meta, summary, results }, null, 2), 'utf8')
+  /* לכל מסך (גם missing/skipped/error): h1, נתיב חזרה, לחיצות, נכנס-במסך-אחד, צילום — ראו checklist.ts */
+  const enriched = results.map((r) => ({ ...r, checklist: screenChecklist(r) }))
+  await writeFile(json, JSON.stringify({ meta, summary, results: enriched }, null, 2), 'utf8')
   await writeFile(md, buildMarkdown(meta, results, summary), 'utf8')
   return { json, md, summary }
 }

@@ -99,11 +99,33 @@ export interface LayoutMetrics {
   hoverOnly: { controls: number; info: number; examples: ElementExample[] }
   /* אלמנטים שלוחצים עליהם (cursor:pointer) בלי תפקיד סמנטי — לא כפתור/קישור */
   clickableNonSemantic: { count: number; examples: ElementExample[] }
-  breadcrumb: { present: boolean; via: 'attr' | 'heuristic' | null; text: string | null }
-  headings: { h1: number; firstH1: string | null }
+  /* text = קצר (100 תווים) לדוח הרגיל; fullText = הטקסט המלא (עד 300) לצ'קליסט. אופציונלי: דוחות ישנים לא כוללים אותו */
+  breadcrumb: { present: boolean; via: 'attr' | 'heuristic' | null; text: string | null; fullText?: string | null }
+  /* firstH1 = קצר (80); texts = כל ה-h1 הגלויים בטקסט מלא (עד 5, כל אחד עד 300 תווים) = "השאלה שהמסך עונה עליה" */
+  headings: { h1: number; firstH1: string | null; texts?: string[] }
 }
 
 export type ScreenStatus = 'ok' | 'missing' | 'skipped' | 'error'
+
+/* תקציר הצ'קליסט של מסך אחד — נגזר ב-writeReports (e2e/lib/checklist.ts → screenChecklist) ונכתב ל-report.json לכל מסך,
+   גם כשהוא missing/skipped/error (אז השדות null). הצ'קליסט המקובץ (checklist.md) נבנה מאותם נתונים. */
+export interface ScreenChecklist {
+  /* תבנית ה-URL של התרחיש (עם {placeholders}) — מזהה את "המסך" גם כשה-URL המתגלה שונה בין תפקידים */
+  urlPattern: string
+  /* ה-h1 הגלוי הראשון, טקסט מלא = השאלה שהמסך עונה עליה. null = אין h1 (או שהמסך לא נמדד) */
+  h1: string | null
+  h1Count: number
+  /* טקסט נתיב החזרה (breadcrumb) הגלוי, או null */
+  breadcrumb: string | null
+  /* לחיצות מהטאב הראשי עד המסך, כפי שהוצהר בתרחיש */
+  clicksFromMainTab: number | null
+  viewport: string
+  fitsOneScreen: boolean | null
+  overflowPx: number | null
+  /* נכנס במסך אחד ב-1366×768: true/false רק לתוצאה שנמדדה ב-viewport הזה, אחרת null */
+  fitsAt1366x768: boolean | null
+  screenshot: string | null
+}
 
 export interface ScreenResult {
   id: string
@@ -112,6 +134,8 @@ export interface ScreenResult {
   group: Group
   viewport: string
   theme: 'light' | 'dark'
+  /* תבנית ה-url של התרחיש (עם {placeholders}); requestedUrl = אחרי הצבת המזהים */
+  urlPattern: string
   requestedUrl: string
   finalUrl: string | null
   status: ScreenStatus
@@ -132,6 +156,8 @@ export interface ScreenResult {
   note: string | null
   /* כמה פעמים הרצנו (>1 = ניסיון חוזר אחרי ניווט/דף ריק רגעי) */
   attempts: number
+  /* נוסף ב-writeReports לפני כתיבת report.json */
+  checklist?: ScreenChecklist
 }
 
 /* הצהרה על משתני-גילוי של who אחד */

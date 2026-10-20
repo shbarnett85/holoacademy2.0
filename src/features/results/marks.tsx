@@ -32,7 +32,7 @@ const OUTCOME_META: Record<Outcome, { word: string; color: string; render: (size
 export function OutcomeTag({ outcome }: { outcome: Outcome }) {
   const m = OUTCOME_META[outcome]
   return (
-    <span data-outcome={outcome} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${m.color}`, fontSize: 15, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+    <span data-outcome={outcome} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${m.color}`, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
       <span style={{ color: m.color, display: 'inline-flex' }}>{m.render(18)}</span>
       {m.word}
     </span>

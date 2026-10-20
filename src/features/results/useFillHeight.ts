@@ -5,8 +5,8 @@ import type { RefObject } from 'react'
 import { useState } from 'react'
 import { GUTTER } from '../teacherUi'
 
-/* רוחב חלון מינימלי לפריסה של שתי עמודות בגובה קבוע */
-export const WIDE_MIN = 1000
+/* רוחב חלון מינימלי לפריסה של שתי עמודות בגובה קבוע (מתחתיו — עמודה אחת והעמוד גולל; בשתי עמודות צרות מדי הטאבים נדחסים) */
+export const WIDE_MIN = 1200
 
 const query = `(min-width: ${WIDE_MIN}px)`
 function subscribe(cb: () => void): () => void {

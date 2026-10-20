@@ -1,12 +1,15 @@
 /* מסך הדמיה אחת: "איך הכיתה הצליחה בהדמיה?" / "איך התלמיד/ה הצליח/ה בהדמיה?" — מתג גדול [כל הכיתה] [לפי תלמיד].
    אותו מבנה ואותם מקומות בשני המצבים:
-     שורת ראש (שם, כיתה, תאריך, מצב השלמה, המתג)
-     משפט הסיכום
-     ימין: חלונית התלמידים (שלוש קבוצות / רשימה לפי א-ב עם הקודם והבא)   שמאל: טאבים — האתגרים · (טעויות נפוצות · תרגול חזרה | זמן בשקפים)
+     שורת ראש (שם, כיתה, תאריך, מצב השלמה, המתג) — לכל הרוחב
+     במסך רחב, שתי עמודות בגובה שנשאר (כל רשימה גוללת בתוך החלונית שלה, ורק כשהיא ארוכה):
+       ימין (העיקר):  משפט הסיכום · טאבים — האתגרים · (יעדי הלמידה · טעויות נפוצות · תרגול חזרה | זמן בשקפים)
+       שמאל:  חלונית התלמידים (שלוש קבוצות / רשימה לפי א-ב עם הקודם והבא) — לאורך כל הגובה, מתחת למתג
      "איך חישבנו?"
-   הכתובת היא מקור האמת: /results/:id (כיתה) · /results/:id/student/:studentId (תלמיד/ה). */
+   במסך צר (העמוד גולל): ראש, משפט הסיכום, הטאבים, חלונית התלמידים — בעמודה אחת.
+   הכתובת היא מקור האמת: /results/:id (כיתה) · /results/:id/student/:studentId (תלמיד/ה). ?tab= פותח טאב מסוים. */
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import type { CSSProperties, ReactNode } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, StudentSubmissionView } from '../../shared/types/resultsV1'
 import { FONT, HowWeCalc, ScreenShell, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
@@ -18,9 +21,11 @@ import FillArea from './FillArea'
 import HeadStrip from './HeadStrip'
 import type { Mode } from './HeadStrip'
 import { firstStudentId } from './logic'
+import Objectives from './Objectives'
 import { ClassRoster, StudentList } from './People'
 import ReviewPractice from './ReviewPractice'
 import { useLens, useResultsData } from './resultsApi'
+import ResultsLensSwitcher from './ResultsLensSwitcher'
 import SlidesTable from './SlidesTable'
 import StudentChallenges from './StudentChallenges'
 import { card, panelTitle, scrollArea } from './styles'
@@ -29,9 +34,11 @@ import { useWideScreen } from './useFillHeight'
 
 const enc = encodeURIComponent
 const PREFIX = 'res'
+/* גובה מינימלי של אזור התוכן. מתחתיו העמוד עצמו מתחיל לגלול; בגובה הזה כל חלונית גוללת בתוך עצמה */
+const FILL_MIN = 460
 
-/* החלונית הגדולה (שמאל): שורת טאבים (אם יש יותר מאחד) + אזור גלילה פנימי */
-function MainPanel({ tabs, active, onTab, singleTitle, children }: { tabs: TabItem[]; active: string; onTab: (id: string) => void; singleTitle: string; children: React.ReactNode }) {
+/* החלונית הגדולה (העיקר): שורת טאבים (אם יש יותר מאחד) + אזור גלילה פנימי */
+function MainPanel({ tabs, active, onTab, singleTitle, children }: { tabs: TabItem[]; active: string; onTab: (id: string) => void; singleTitle: string; children: ReactNode }) {
   const several = tabs.length > 1
   return (
     <section style={{ ...card, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -48,19 +55,32 @@ function MainPanel({ tabs, active, onTab, singleTitle, children }: { tabs: TabIt
   )
 }
 
-/* שתי עמודות בגובה קבוע: grid עם שורה אחת בגובה המכולה, כך שכל עמודה גוללת בתוך עצמה.
-   במסך צר (העמוד גולל) — עמודה אחת. */
-function Columns({ wide, busy, side, main }: { wide: boolean; busy: boolean; side: React.ReactNode; main: React.ReactNode }) {
-  const col = { minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' as const }
+interface LayoutProps {
+  wide: boolean
+  busy: boolean
+  head: ReactNode
+  sentence: ReactNode
+  people: ReactNode
+  panel: ReactNode
+}
+
+/* הפריסה, כרשת עם אזורים בעלי שם. הראש לכל הרוחב; מתחתיו, במסך רחב, עמודה ראשית (משפט + טאבים) ועמודה צרה של התלמידים שנמתחת עד התחתית
+   (כך 25 שמות נראים בלי לגלול הרבה, והמשפט נשאר מיד אחרי הראש). שורת הטאבים לוקחת את הגובה שנשאר, כך שכל רשימה גוללת בתוך החלונית שלה
+   ולא העמוד. סדר ה-DOM הוא סדר הקריאה (ראש, משפט, טאבים, תלמידים) — גם במסך רחב (ימין לשמאל) וגם בצר (למעלה למטה), כך שגם סדר המקלדת תואם. */
+function Layout({ wide, busy, head, sentence, people, panel }: LayoutProps) {
+  const cell = (area: string, extra?: CSSProperties): CSSProperties => ({ gridArea: area, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', ...extra })
   return (
     <div data-columns aria-busy={busy}
       style={{
-        flex: wide ? 1 : '0 0 auto', minHeight: 0, display: 'grid', gap: 16, opacity: busy ? 0.6 : 1,
-        gridTemplateColumns: wide ? 'minmax(320px, 500px) minmax(0, 1fr)' : 'minmax(0, 1fr)',
-        gridTemplateRows: wide ? 'minmax(0, 1fr)' : undefined,
+        flex: wide ? 1 : '0 0 auto', minHeight: 0, display: 'grid', gap: wide ? '12px 16px' : 12, opacity: busy ? 0.6 : 1,
+        gridTemplateColumns: wide ? 'minmax(0, 1fr) minmax(320px, 500px)' : 'minmax(0, 1fr)',
+        gridTemplateRows: wide ? 'auto auto minmax(0, 1fr)' : undefined,
+        gridTemplateAreas: wide ? '"head head" "sentence people" "panel people"' : '"head" "sentence" "panel" "people"',
       }}>
-      <div style={col}>{side}</div>
-      <div style={col}>{main}</div>
+      <div style={cell('head')}>{head}</div>
+      <div style={cell('sentence')}>{sentence}</div>
+      <div style={cell('panel')}>{panel}</div>
+      <div style={cell('people')}>{people}</div>
     </div>
   )
 }
@@ -68,12 +88,14 @@ function Columns({ wide, busy, side, main }: { wide: boolean; busy: boolean; sid
 export default function SubmissionScreen({ submissionId, studentId }: { submissionId: string; studentId: string | null }) {
   const navigate = useNavigate()
   const wide = useWideScreen()
-  const { apiQs, link } = useLens()
+  const { isGuest, scope, apiQs, link } = useLens()
+  const [sp] = useSearchParams()
   const mode: Mode = studentId ? 'student' : 'class'
-  const [tab, setTab] = useState('challenges')
+  /* ?tab= פותח ישר טאב מסוים (למשל "תרגול חזרה" מההצעה של ד״ר הולו). טאב שלא קיים בשליחה הזאת → "האתגרים" */
+  const [tab, setTab] = useState(() => sp.get('tab') ?? 'challenges')
 
-  const classQ = useResultsData<ClassSubmissionView>('classView', mode === 'class' ? `/api/results/submission/${enc(submissionId)}${apiQs}` : null)
-  const studentQ = useResultsData<StudentSubmissionView>('studentView', studentId ? `/api/results/submission/${enc(submissionId)}/student/${enc(studentId)}${apiQs}` : null)
+  const classQ = useResultsData<ClassSubmissionView>('classView', mode === 'class' ? `/api/results/submission/${enc(submissionId)}${apiQs}` : null, scope)
+  const studentQ = useResultsData<StudentSubmissionView>('studentView', studentId ? `/api/results/submission/${enc(submissionId)}/student/${enc(studentId)}${apiQs}` : null, scope)
 
   const toList = link('/results')
   const toClass = link(`/results/${enc(submissionId)}`)
@@ -94,30 +116,32 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
     mode === 'class' ? { label: head ? UI.classWord(head.className) : UI.crumbClass } : { label: head ? UI.classWord(head.className) : UI.crumbClass, to: toClass },
   ]
   if (mode === 'student') crumbs.push({ label: studentName ?? UI.crumbStudent })
-  /* בשגיאה אין שם הדמיה/כיתה להציג — רק "תוצאות" (והכפתור "חזרה לתוצאות" בגוף המסך) */
-  const shownCrumbs: BreadcrumbItem[] = active.error ? [{ label: UI.crumbResults }] : crumbs
+  /* בשגיאה אין שם הדמיה/כיתה להציג: "תוצאות" (קישור חזרה) › מה קרה. הכפתור "חזרה לתוצאות" בגוף המסך עושה אותו דבר */
+  const shownCrumbs: BreadcrumbItem[] = active.error ? [{ label: UI.crumbResults, to: toList }, { label: UI.crumbError(active.error.status) }] : crumbs
 
   const title = mode === 'class' ? RESULTS_TEXT.classQuestion : RESULTS_TEXT.studentQuestion
 
   /* ── תוכן לפי מצב ── */
-  let body: React.ReactNode
+  let body: ReactNode
   if (active.error) {
     body = <ErrorPanel error={active.error} scope="submission" backTo={toList} onRetry={active.reload} />
   } else if (mode === 'class' && classQ.data) {
     const d = classQ.data
     const tabs: TabItem[] = [{ id: 'challenges', label: UI.tabChallenges }]
+    if (d.objectives.length > 0) tabs.push({ id: 'objectives', label: UI.tabObjectives })
     if (d.commonErrors.length > 0) tabs.push({ id: 'errors', label: UI.tabErrors })
     if (d.review.weakCount > 0) tabs.push({ id: 'review', label: UI.tabReview })
     const shownTab = tabs.some((t) => t.id === tab) ? tab : 'challenges'
     body = (
       <>
-        <HeadStrip head={d.head} mode={mode} onMode={switchMode} />
-        <Sentence>{d.summary}</Sentence>
-        <Columns wide={wide} busy={classQ.loading}
-          side={<ClassRoster roster={d.roster} onOpen={toStudent} />}
-          main={(
+        <Layout wide={wide} busy={classQ.loading}
+          head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} />}
+          sentence={<Sentence>{d.summary}</Sentence>}
+          people={<ClassRoster roster={d.roster} onOpen={toStudent} />}
+          panel={(
             <MainPanel tabs={tabs} active={shownTab} onTab={setTab} singleTitle={UI.challengesTitle}>
               {shownTab === 'challenges' && <ClassChallenges view={d} />}
+              {shownTab === 'objectives' && <Objectives objectives={d.objectives} onOpenStudent={toStudent} />}
               {shownTab === 'errors' && <CommonErrors errors={d.commonErrors} />}
               {shownTab === 'review' && <ReviewPractice questId={d.head.questId} submissionId={d.head.id} weakCount={d.review.weakCount} />}
             </MainPanel>
@@ -132,11 +156,11 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
     const shownTab = tabs.some((t) => t.id === tab) ? tab : 'challenges'
     body = (
       <>
-        <HeadStrip head={d.head} mode={mode} onMode={switchMode} />
-        <Sentence>{d.summary}</Sentence>
-        <Columns wide={wide} busy={studentQ.loading}
-          side={<StudentList roster={d.roster} currentId={d.student.id} prevId={d.prevId} nextId={d.nextId} onOpen={toStudent} />}
-          main={(
+        <Layout wide={wide} busy={studentQ.loading}
+          head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} />}
+          sentence={<Sentence>{d.summary}</Sentence>}
+          people={<StudentList roster={d.roster} currentId={d.student.id} prevId={d.prevId} nextId={d.nextId} onOpen={toStudent} />}
+          panel={(
             <MainPanel tabs={tabs} active={shownTab} onTab={setTab} singleTitle={UI.challengesTitle}>
               {shownTab === 'challenges' && <StudentChallenges view={d} />}
               {shownTab === 'slides' && <SlidesTable slides={d.slides} />}
@@ -155,8 +179,8 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   }
 
   return (
-    <ScreenShell active="results" title={title} breadcrumb={shownCrumbs}>
-      <FillArea minHeight={540}>{body}</FillArea>
+    <ScreenShell active="results" title={title} breadcrumb={shownCrumbs} lensSwitcher={isGuest ? <ResultsLensSwitcher /> : undefined}>
+      <FillArea minHeight={FILL_MIN}>{body}</FillArea>
     </ScreenShell>
   )
 }

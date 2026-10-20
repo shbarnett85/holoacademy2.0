@@ -63,21 +63,23 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'analytics-class-summary', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=summary', inner: true, clicksFromMainTab: 2,
-    note: 'טאב מקצוע › סיכום (נתיב: כיתה › מקצוע)',
+    url: '/analytics/class/{classId}?tab={subject}&sub=summary', inner: true, clicksFromMainTab: 1,
+    note: 'טאב מקצוע › סיכום. לחיצה אחת: כפתור המקצוע בכרטיס הכיתה במסך הכניסה (נתיב: אנליטיקה › כיתה › מקצוע)',
   },
   {
     name: 'analytics-class-errors', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=errors', inner: true, clicksFromMainTab: 3,
-    note: 'טעויות נפוצות. 3 לחיצות = כיתה › מקצוע › תת-טאב (חורג מ-2 — להכריע בעיצוב)',
+    url: '/analytics/class/{classId}?tab={subject}&sub=errors', inner: true, clicksFromMainTab: 2,
+    note: 'טעויות נפוצות. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "טעויות נפוצות"',
   },
   {
     name: 'analytics-class-progress', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=progress', inner: true, clicksFromMainTab: 3,
+    url: '/analytics/class/{classId}?tab={subject}&sub=progress', inner: true, clicksFromMainTab: 2,
+    note: 'התקדמות. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "התקדמות"',
   },
   {
     name: 'analytics-class-students', group: 'analytics', who: [...HOMEROOM, ...SUBJECT],
-    url: '/analytics/class/{classId}?tab={subject}&sub=students', inner: true, clicksFromMainTab: 3,
+    url: '/analytics/class/{classId}?tab={subject}&sub=students', inner: true, clicksFromMainTab: 2,
+    note: 'תלמידים. 2 לחיצות: כפתור המקצוע בכרטיס הכיתה במסך הכניסה › טאב "תלמידים"',
   },
   {
     name: 'analytics-student', group: 'analytics', who: TEACHERS,

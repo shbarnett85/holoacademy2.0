@@ -1,5 +1,6 @@
 /* החלונית של התלמידים — אותו מקום בשני המצבים:
-   · "כל הכיתה": שלוש קבוצות (סיימו / באמצע / עוד לא התחילו) של שמות-כפתורים; לחיצה על שם פותחת אותו/ה בתוצאות לפי תלמיד.
+   · "כל הכיתה": שלוש קבוצות (עוד לא התחילו / באמצע / סיימו — מי שדורש מעקב קודם) של שמות-כפתורים; בתוך קבוצה "לתשומת לב" קודם.
+     לחיצה על שם פותחת אותו/ה בתוצאות לפי תלמיד.
    · "לפי תלמיד": רשימת השמות לפי א-ב עם סימן מצב + "הקודם / הבא".
    כל שם הוא כפתור ≥44px עם אייקון מצב; "לתשומת לב" מסומן באייקון התראה ובמילים (בכותרת החלונית ובקריאת מסך), לא בצבע בלבד. */
 import { useEffect, useRef } from 'react'
@@ -7,7 +8,7 @@ import { attentionBadgeText, countOf } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, StudentChip } from '../../shared/types/resultsV1'
 import { FONT, Icon, MIN_TARGET, RADIUS, STATUS_META, T, VisuallyHidden } from '../teacherUi'
 import type { StudentStatus } from '../teacherUi'
-import { attentionTotal, byName } from './logic'
+import { attentionTotal, byAttentionThenName, byName, ROSTER_GROUP_ORDER } from './logic'
 import { card, panelTitle, scrollArea, soft } from './styles'
 import { UI } from './text'
 
@@ -18,7 +19,7 @@ function StatusIcon({ status, size = 18 }: { status: StudentStatus; size?: numbe
 
 function AttentionLegend({ n }: { n: number }) {
   return (
-    <span data-attention-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
+    <span data-attention-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
       <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
       {attentionBadgeText(n)}
     </span>
@@ -43,11 +44,12 @@ function NameChip({ s, onOpen }: { s: StudentChip; onOpen: (id: string) => void 
   )
 }
 
-const GROUPS: { key: 'completed' | 'inProgress' | 'notStarted'; status: StudentStatus; word: string }[] = [
-  { key: 'completed', status: 'completed', word: UI.groupFinished },
-  { key: 'inProgress', status: 'in_progress', word: UI.groupMiddle },
-  { key: 'notStarted', status: 'not_started', word: UI.groupNotStarted },
-]
+const GROUP_META: Record<(typeof ROSTER_GROUP_ORDER)[number], { status: StudentStatus; word: string }> = {
+  notStarted: { status: 'not_started', word: UI.groupNotStarted },
+  inProgress: { status: 'in_progress', word: UI.groupMiddle },
+  completed: { status: 'completed', word: UI.groupFinished },
+}
+const GROUPS = ROSTER_GROUP_ORDER.map((key) => ({ key, ...GROUP_META[key] }))
 
 export function ClassRoster({ roster, onOpen }: { roster: ClassSubmissionView['roster']; onOpen: (studentId: string) => void }) {
   const total = roster.completed.length + roster.inProgress.length + roster.notStarted.length
@@ -62,9 +64,9 @@ export function ClassRoster({ roster, onOpen }: { roster: ClassSubmissionView['r
         <p style={{ ...soft, margin: 0 }}>{UI.rosterHint}</p>
       </div>
       <div style={{ ...scrollArea, padding: '4px 16px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {total === 0 && <p style={{ ...soft, fontSize: 16 }}>{UI.rosterEmpty}</p>}
+        {total === 0 && <p style={soft}>{UI.rosterEmpty}</p>}
         {GROUPS.map((g) => {
-          const list = [...roster[g.key]].sort(byName)
+          const list = [...roster[g.key]].sort(byAttentionThenName)
           if (list.length === 0) return null
           return (
             <div key={g.key} role="group" aria-label={g.word}>
@@ -145,10 +147,12 @@ export function StudentList({ roster, currentId, prevId, nextId, onOpen }: Stude
                   background: current ? T.accentFill : T.surface, border: `2px solid ${current ? T.accent : T.controlBorder}`, boxShadow: current ? `inset 0 -4px 0 ${T.accent}` : 'none',
                 }}>
                 <StatusIcon status={s.status} />
-                <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{s.name}</span>
-                <span style={{ fontSize: 14, fontWeight: 600, color: T.textSoft, whiteSpace: 'nowrap' }}>{m.word}</span>
+                {/* המילה (סיים/ה, באמצע…) צמודה לשם — לא בקצה השני של השורה, כדי שיהיה ברור למי היא שייכת */}
+                <span style={{ flex: '0 1 auto', minWidth: 0, overflowWrap: 'anywhere' }}>{s.name}</span>
+                <span style={{ fontSize: 16, fontWeight: 600, color: T.textSoft, whiteSpace: 'nowrap' }}>{m.word}</span>
+                <span style={{ flex: 1 }} />
                 {s.attention && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
                     <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={16} /></span>
                     {UI.attentionWord}
                   </span>

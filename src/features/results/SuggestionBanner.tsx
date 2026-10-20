@@ -40,10 +40,11 @@ export default function SuggestionBanner({ openLink }: { openLink: (assignmentId
       <div style={{ flex: '1 1 420px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
         {shown.map((s) => (
           <div key={s.assignmentId} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ flex: '0 1 auto', fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
+            <span style={{ flex: '1 1 320px', fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
               {UI.suggestText(s.title, s.className, s.weakCount)}
             </span>
-            <Link to={openLink(s.assignmentId)} data-tu-press style={primaryButton}>{UI.open}</Link>
+            {/* כמה הצעות — לכל כפתור אותה מילה, לכן לקורא מסך נוסף גם שם ההדמיה */}
+            <Link to={openLink(s.assignmentId)} data-tu-press aria-label={UI.suggestOpenFor(s.title, s.className)} style={primaryButton}>{UI.suggestOpen}</Link>
           </div>
         ))}
       </div>

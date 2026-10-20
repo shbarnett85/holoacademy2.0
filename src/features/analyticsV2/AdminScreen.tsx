@@ -16,7 +16,7 @@ const TAB_IDS = ['overview', 'grades', 'subjects', 'errors'] as const
 type TabId = (typeof TAB_IDS)[number]
 const TAB_LABEL: Record<TabId, string> = { overview: L.adminTabs.overview, grades: L.adminTabs.grades, subjects: L.adminTabs.subjects, errors: L.adminTabs.misconceptions }
 
-const th = { textAlign: 'start', padding: '8px 12px', fontSize: 14, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
+const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
 const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle', fontSize: 16, lineHeight: 1.4, color: T.text } as const
 
 const PRIVACY = 'תצוגת הנהלה: תמונות רחבות ומגמות בלבד, בלי שמות או נתונים של תלמידים בודדים ובלי השוואה בין מורים.'

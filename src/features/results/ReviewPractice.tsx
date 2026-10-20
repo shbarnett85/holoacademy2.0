@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../shared/lib/api'
-import { FONT, Icon, RADIUS, T } from '../teacherUi'
+import { FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import { primaryButton, secondaryButton, soft } from './styles'
 import { UI } from './text'
 
@@ -50,7 +50,8 @@ export default function ReviewPractice({ questId, submissionId, weakCount }: { q
 
   return (
     <div data-review-practice style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <h2 style={{ margin: 0, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text }}>{UI.reviewTitle}</h2>
+      {/* שם הטאב כבר אומר "תרגול חזרה" — הכותרת נשארת לקוראי מסך בלבד */}
+      <h2 style={{ margin: 0 }}><VisuallyHidden>{UI.reviewTitle}</VisuallyHidden></h2>
       <div style={{ padding: '14px 16px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
         <p style={{ margin: 0, fontFamily: FONT, fontSize: 17, lineHeight: 1.6, color: T.text }}>{UI.reviewIntro(weakCount)}</p>
         {phase.name === 'idle' && <button type="button" data-tu-press onClick={create} style={primaryButton}>{UI.reviewCreate}</button>}

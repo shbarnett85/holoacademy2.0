@@ -7,7 +7,7 @@ import type { StudentChallenge, StudentItem, StudentSubmissionView } from '../..
 import { EmptyState, FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import { ExtraIcon, OutcomeTag } from './marks'
 import { attemptsWord, formatSeconds } from './logic'
-import { soft } from './styles'
+import { caption, soft } from './styles'
 import { UI } from './text'
 
 const MORAL = 'moralDilemma'
@@ -15,7 +15,7 @@ const MORAL = 'moralDilemma'
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: FONT, fontSize: 14, fontWeight: 700, color: T.textSoft }}>{label}</div>
+      <div style={{ ...caption, fontWeight: 700 }}>{label}</div>
       <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 600, color: T.text, lineHeight: 1.45, overflowWrap: 'anywhere', display: 'flex', gap: 6, alignItems: 'flex-start' }}>{children}</div>
     </div>
   )
@@ -50,7 +50,7 @@ function ItemFacts({ item, showPrompt }: { item: StudentItem; showPrompt: boolea
           <span><strong>{UI.commonErrorShort}:</strong> {item.errorTag.title}</span>
         </div>
       )}
-      {facts.length > 0 && <div style={{ ...soft, fontSize: 15 }}>{facts.join(' · ')}</div>}
+      {facts.length > 0 && <div style={soft}>{facts.join(' · ')}</div>}
     </div>
   )
 }
@@ -67,7 +67,7 @@ function ChallengeRow({ c }: { c: StudentChallenge }) {
           <div style={{ fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
             <VisuallyHidden>{UI.challengeWord} {c.order}: </VisuallyHidden>{c.title}
           </div>
-          <div style={{ fontFamily: FONT, fontSize: 14, color: T.textSoft }}>
+          <div style={caption}>
             {c.typeLabel}{multi && c.seconds !== null ? ` · ${UI.totalTime}: ${formatSeconds(c.seconds)}` : ''}
           </div>
         </div>
@@ -94,7 +94,7 @@ export default function StudentChallenges({ view }: { view: StudentSubmissionVie
         </p>
       )}
       {view.challenges.length === 0 ? (
-        <p style={{ ...soft, fontSize: 16 }}>{UI.noChallenges}</p>
+        <p style={soft}>{UI.noChallenges}</p>
       ) : none ? (
         <EmptyState title={UI.studentNoResults} whatNext={view.student.status === 'in_progress' ? UI.studentNoResultsMiddle : UI.studentNoResultsNext} />
       ) : (

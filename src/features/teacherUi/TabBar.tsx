@@ -33,11 +33,6 @@ interface TabBarProps {
   withPanels?: boolean
 }
 
-/* props לפאנל התוכן של טאב: מקשר אותו לטאב לקוראי מסך */
-export function tabPanelProps(idPrefix: string, id: string): { id: string; role: 'tabpanel'; 'aria-labelledby': string; tabIndex: 0 } {
-  return { id: `${idPrefix}-panel-${id}`, role: 'tabpanel', 'aria-labelledby': `${idPrefix}-tab-${id}`, tabIndex: 0 }
-}
-
 export default function TabBar({ items, value, onChange, ariaLabel, variant = 'primary', idPrefix = 'tu', withPanels = false }: TabBarProps) {
   const listRef = useRef<HTMLDivElement>(null)
   const secondary = variant === 'secondary'
@@ -54,7 +49,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
     if (enabled.length === 0) return
     const rtl = listRef.current ? getComputedStyle(listRef.current).direction === 'rtl' : true
     const idx = Math.max(0, enabled.findIndex((t) => t.id === value))
-    let next = idx
+    let next: number
     if (e.key === (rtl ? 'ArrowLeft' : 'ArrowRight') || e.key === 'ArrowDown') next = (idx + 1) % enabled.length
     else if (e.key === (rtl ? 'ArrowRight' : 'ArrowLeft') || e.key === 'ArrowUp') next = (idx - 1 + enabled.length) % enabled.length
     else if (e.key === 'Home') next = 0
@@ -81,7 +76,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
         const base = {
           display: 'inline-flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 2,
           minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '8px 18px', borderRadius: secondary ? 22 : 12,
-          fontFamily: FONT, fontSize: secondary ? SMALL + 1 : 17, textAlign: 'start' as const, lineHeight: 1.3,
+          fontFamily: FONT, fontSize: secondary ? 16 : 17, textAlign: 'start' as const, lineHeight: 1.3,
         }
         if (t.locked) {
           return (
@@ -111,7 +106,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
             {t.icon && <span aria-hidden="true" style={{ display: 'inline-flex' }}>{t.icon}</span>}
             <span>{t.label}</span>
             {t.badge && (
-              <span style={{ fontSize: SMALL, fontWeight: 700, padding: '1px 9px', borderRadius: 10, border: `1.5px solid ${T.warn}`, color: T.text, whiteSpace: 'nowrap' }}>{t.badge}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, padding: '1px 9px', borderRadius: 10, border: `1.5px solid ${T.warn}`, color: T.text, whiteSpace: 'nowrap' }}>{t.badge}</span>
             )}
           </button>
         )

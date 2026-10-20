@@ -6,8 +6,8 @@ import { SUBJECTS } from '../../shared/lib/subjects'
 import { RESULTS_TEXT, attentionBadgeText, howWeCalcResultsLines, narrateClassSummary } from '../../shared/lib/findingsNarrative'
 import { useTheme } from '../../shared/lib/useTheme'
 import {
-  AXIS_LABEL_HEIGHT, BigChoiceButton, ChartFrame, ChoiceGrid, EmptyState, HowWeCalc, ModeToggle, MonthAxis, ProgressBar,
-  ScreenShell, Sentence, StatusChip, SubjectBadge, SubjectDot, TabBar, T, buildTimeAxis, tabPanelProps,
+  AXIS_LABEL_HEIGHT, BigChoiceButton, ChartFrame, ChoiceGrid, EmptyState, GuestLensSwitcher, HowWeCalc, ModeToggle, MonthAxis, ProgressBar,
+  ScreenShell, Sentence, StatusChip, SubjectBadge, SubjectDot, SubjectLinkButton, TabBar, T, buildTimeAxis, tabPanelProps,
 } from './index'
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
@@ -90,6 +90,17 @@ export default function DevGallery() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           {SUBJECTS.slice(0, 5).map((s) => <SubjectDot key={s.code} code={s.code} />)}
         </div>
+      </Block>
+
+      <Block title="SubjectLinkButton — קיצור/שם מקצוע כפתור (קישור, 44px)">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {SUBJECTS.slice(0, 4).map((s) => <SubjectLinkButton key={s.code} code={s.code} to="/dev/teacher-ui" chevron={false} />)}
+          <SubjectLinkButton code="math" to="/dev/teacher-ui" />
+        </div>
+      </Block>
+
+      <Block title="GuestLensSwitcher — מורה אורח בלבד (כאן force; הערך נשמר ב-sessionStorage holo_guest_lens)">
+        <GuestLensSwitcher force />
       </Block>
 
       <Block title="StatusChip">

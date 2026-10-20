@@ -19,7 +19,9 @@ const SERIES_STYLES = [
   { color: T.warn, dash: '10 4 2 4' },
 ] as const
 
+/* טקסט גרף: צירים ותוויות עזר 14px (המינימום); מספרים על הקו ומספרי האירועים 16px */
 const FONT_PX = 14
+const VALUE_PX = 16
 
 const halo = { stroke: T.surface, strokeWidth: 4, paintOrder: 'stroke' } as const
 const fmt = (v: number): string => String(Math.round(v * 10) / 10)
@@ -54,7 +56,7 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
         /* אירועים קרובים מדי זה לזה עולים לשורה שנייה כדי שהמספרים לא יחפפו */
         const placed = layoutMarkers(sortedMarkers.map((m) => ({ m, x: axis.xOf(m.date) })))
         const rows = placed.some((p) => p.row === 1) ? 2 : placed.length ? 1 : 0
-        const top = 14 + rows * 28
+        const top = 16 + rows * 32
         const base = h - AXIS_LABEL_HEIGHT
         const y = (v: number): number => base - ((v - lo) / (hi - lo)) * (base - top)
         const path = series.map((_, i) => `${i === 0 ? 'M' : 'L'} ${xs[i].toFixed(1)} ${y(series[i].level).toFixed(1)}`).join(' ')
@@ -64,7 +66,7 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
           <>
             {/* רצועת הטווח המיועד לשכבה */}
             <rect x={x0} y={y(ageNorm.high)} width={x1 - x0} height={Math.max(2, y(ageNorm.low) - y(ageNorm.high))} rx="4" style={{ fill: T.grid }} opacity="0.65" />
-            <text x={x1 - 8} y={y(ageNorm.high) + 6 + FONT_PX} textAnchor="end" fontSize={FONT_PX} fontWeight="700" style={{ fill: T.textSoft, fontFamily: FONT, ...halo }}>הטווח המיועד</text>
+            <text x={x0 + 8} y={y(ageNorm.high) + 6 + FONT_PX} textAnchor="start" fontSize={FONT_PX} fontWeight="700" style={{ fill: T.textSoft, fontFamily: FONT, ...halo }}>הטווח המיועד</text>
             {ticks.map((t) => (
               <g key={t}>
                 <line x1={x0} x2={x1} y1={y(t)} y2={y(t)} style={{ stroke: T.grid }} strokeDasharray="2 5" />
@@ -74,12 +76,12 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
             <MonthAxis axis={axis} y={base} gridTop={top} />
             {/* סימוני אירועים: מספר בעיגול + קו אנכי עדין אל הציר */}
             {placed.map(({ m, x, row }) => {
-              const cy = 14 + row * 28
+              const cy = 16 + row * 32
               return (
                 <g key={m.n}>
-                  <line x1={x} x2={x} y1={cy + 12} y2={base} style={{ stroke: TONE_META[m.tone].color }} strokeWidth="1.5" strokeDasharray="3 4" />
-                  <circle cx={x} cy={cy} r="12" style={{ fill: T.surface, stroke: TONE_META[m.tone].color }} strokeWidth="2.5" />
-                  <text x={x} y={cy + 5} textAnchor="middle" fontSize={FONT_PX} fontWeight="800" style={{ fill: T.text, fontFamily: FONT }}>{m.n}</text>
+                  <line x1={x} x2={x} y1={cy + 14} y2={base} style={{ stroke: TONE_META[m.tone].color }} strokeWidth="1.5" strokeDasharray="3 4" />
+                  <circle cx={x} cy={cy} r="14" style={{ fill: T.surface, stroke: TONE_META[m.tone].color }} strokeWidth="2.5" />
+                  <text x={x} y={cy + 6} textAnchor="middle" fontSize={VALUE_PX} fontWeight="800" style={{ fill: T.text, fontFamily: FONT }}>{m.n}</text>
                 </g>
               )
             })}
@@ -88,7 +90,7 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [] 
               <g key={p.date}>
                 <circle cx={xs[i]} cy={y(p.level)} r={i === series.length - 1 ? 6 : 4.5} style={{ fill: T.pointFill, stroke: T.accent }} strokeWidth="2.5" />
                 {(i % every === 0 || i === series.length - 1) && (
-                  <text x={i === 0 ? xs[i] - 4 : xs[i]} y={y(p.level) - 11} textAnchor={i === 0 ? 'start' : 'middle'} fontSize={FONT_PX} fontWeight="700" style={{ fill: T.text, fontFamily: FONT, ...halo }}>{fmt(p.level)}</text>
+                  <text x={i === 0 ? xs[i] - 4 : xs[i]} y={y(p.level) - 12} textAnchor={i === 0 ? 'start' : 'middle'} fontSize={VALUE_PX} fontWeight="700" style={{ fill: T.text, fontFamily: FONT, ...halo }}>{fmt(p.level)}</text>
                 )}
               </g>
             ))}
@@ -114,7 +116,7 @@ export function MultiLineChart({ lines, height = 220, label }: { lines: MultiLin
       {({ width, height: h }) => {
         const x0 = 52, x1 = width - 24
         const axis = buildTimeAxis({ from, to, x0, x1 })
-        const top = 14, base = h - AXIS_LABEL_HEIGHT
+        const top = 22, base = h - AXIS_LABEL_HEIGHT
         const y = (v: number): number => base - ((v - lo) / (hi - lo)) * (base - top)
         return (
           <>
@@ -133,7 +135,7 @@ export function MultiLineChart({ lines, height = 220, label }: { lines: MultiLin
                 <g key={l.key}>
                   <path d={pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')} fill="none" style={{ stroke: s.color }} strokeWidth="3" strokeDasharray={s.dash} strokeLinejoin="round" strokeLinecap="round" />
                   {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.5" style={{ fill: T.pointFill, stroke: s.color }} strokeWidth="2" />)}
-                  {last && <text x={last.x + 2} y={last.y - 10} textAnchor="end" fontSize={FONT_PX} fontWeight="800" style={{ fill: T.text, fontFamily: FONT, ...halo }}>{fmt(last.v)}</text>}
+                  {last && <text x={last.x + 2} y={last.y - 11} textAnchor="end" fontSize={VALUE_PX} fontWeight="800" style={{ fill: T.text, fontFamily: FONT, ...halo }}>{fmt(last.v)}</text>}
                 </g>
               )
             })}
@@ -148,7 +150,7 @@ export function MultiLineChart({ lines, height = 220, label }: { lines: MultiLin
 export function LineSwatch({ index, children }: { index: number; children: ReactNode }) {
   const s = SERIES_STYLES[index % SERIES_STYLES.length]
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, color: T.text }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: T.text }}>
       <svg width="30" height="8" aria-hidden="true" focusable="false"><line x1="1" x2="29" y1="4" y2="4" strokeWidth="3" strokeLinecap="round" strokeDasharray={s.dash} style={{ stroke: s.color }} /></svg>
       {children}
     </span>
@@ -157,7 +159,7 @@ export function LineSwatch({ index, children }: { index: number; children: React
 
 export function BandSwatch({ children }: { children: ReactNode }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 600, color: T.text }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: T.text }}>
       <span aria-hidden="true" style={{ width: 30, height: 14, borderRadius: 4, background: T.grid, border: `1px solid ${T.axis}`, display: 'inline-block', opacity: 0.85 }} />
       {children}
     </span>

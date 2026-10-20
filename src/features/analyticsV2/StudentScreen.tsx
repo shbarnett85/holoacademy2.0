@@ -5,13 +5,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { EMPTY_TEXT, HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
 import { SUBJECTS, subjectName } from '../../shared/lib/subjects'
 import type { Finding, StudentOverview, SubjectPanel } from '../../shared/types/analyticsV2'
-import { EmptyState, FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
+import { EmptyState, FONT, Icon, RADIUS, Sentence, SubjectLinkButton, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem, Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, titles } from './labels'
 import { AnalyticsShell } from './Shell'
-import { ActionButton, AreasText, Card, CardTitle, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, SubjectLabel, SubjectOrb, ToneMark, TrendWord } from './ui'
+import { ActionButton, AreasText, Card, CardTitle, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, SubjectOrb, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
 type Visible = Extract<SubjectPanel, { access: 'visible' }>
@@ -81,7 +81,7 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
               {p.commonErrors.map((e) => (
                 <li key={e.id} style={{ fontSize: 16, lineHeight: 1.45, color: T.text }}>
                   <strong>{e.title}</strong>
-                  <div style={{ fontSize: 15, color: T.textSoft }}>{e.hits} מתוך {e.exposures} שאלות</div>
+                  <div style={{ fontSize: 16, color: T.textSoft }}>{e.hits} מתוך {e.exposures} שאלות</div>
                 </li>
               ))}
             </ul>
@@ -109,10 +109,10 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
   )
 }
 
-const th = { textAlign: 'start', padding: '8px 12px', fontSize: 14, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
+const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
 const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle', fontSize: 16, lineHeight: 1.4, color: T.text } as const
 
-function OverviewTab({ data, onOpen, crossText }: { data: StudentOverview; onOpen: (code: string) => void; crossText: string }) {
+function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; subjectHref: (code: string) => string; crossText: string }) {
   const visible = data.panels.filter((p): p is Visible => p.access === 'visible')
   const cross = data.crossSubject.filter((f) => f.status === 'reported')
   return (
@@ -147,10 +147,7 @@ function OverviewTab({ data, onOpen, crossText }: { data: StudentOverview; onOpe
               return (
                 <tr key={p.subject.code}>
                   <th scope="row" style={{ ...td, fontWeight: 400, padding: '2px 8px' }}>
-                    <button type="button" data-tu-press onClick={() => onOpen(p.subject.code)}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, padding: '0 6px', borderRadius: RADIUS.sm, background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: FONT, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, fontWeight: 800 }}>
-                      <SubjectLabel subject={p.subject} size={16} /><Icon name="chevLeft" size={16} />
-                    </button>
+                    <SubjectLinkButton code={p.subject.code} label={p.subject.nameHe} to={subjectHref(p.subject.code)} />
                   </th>
                   <td style={{ ...td, fontSize: 18, fontWeight: 800 }}>{p.currentLevel ?? '—'}</td>
                   <td style={td}><PositionWord position={p.positionVsNorm} text={p.positionText} size={16} /></td>
@@ -240,7 +237,7 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
       <div {...tabPanelProps('stu', tab)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {active
           ? <SubjectTab p={active} caveat={data.caveats.ageNorm} trendCaveat={data.caveats.trend} firstName={firstName} />
-          : full ? <OverviewTab data={data} crossText={data.caveats.crossSubject} onOpen={(code) => navigate(studentHref({ tab: code }))} /> : <EmptyState title={L.noAccess} />}
+          : full ? <OverviewTab data={data} crossText={data.caveats.crossSubject} subjectHref={(code) => studentHref({ tab: code })} /> : <EmptyState title={L.noAccess} />}
       </div>
     </AnalyticsShell>
   )

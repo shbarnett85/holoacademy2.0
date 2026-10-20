@@ -11,7 +11,8 @@ import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 
 /* ── טיפוסים ── */
 export interface DemoOption { text: string; correct?: boolean; tag?: string }
-export interface DemoQuizQuestion { question: string; options: string[]; correctIndex: number }
+/* objectiveId: יעד הלמידה של השאלה במבחן סיכום (כל שאלה מתויגת בנפרד) */
+export interface DemoQuizQuestion { question: string; options: string[]; correctIndex: number; objectiveId?: string }
 
 interface PuzzleBase {
   /* ‎−0.3..+0.3: כמה האתגר קשה יחסית (משפיע על הסיכוי לטעות בו) */
@@ -80,9 +81,9 @@ export const DEMO_QUESTS: DemoQuest[] = [
         puzzle: {
           kind: 'quiz', hardness: 0.15, level: 10, question: 'מבחן הסיכום של ארץ השברים',
           questions: [
-            { question: 'מהו המכנה המשותף הקטן ביותר של ½ ו-⅓ ?', options: ['6', '5', '3', '12'], correctIndex: 0 },
-            { question: 'כמה זה ¾ − ¼ ?', options: ['½', '⅔', '¼', '1'], correctIndex: 0 },
-            { question: 'איזה שבר שווה ל-⅔ ?', options: ['⁴⁄₆', '⁴⁄₉', '²⁄₆'], correctIndex: 0 },
+            { question: 'מהו המכנה המשותף הקטן ביותר של ½ ו-⅓ ?', options: ['6', '5', '3', '12'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'כמה זה ¾ − ¼ ?', options: ['½', '⅔', '¼', '1'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'איזה שבר שווה ל-⅔ ?', options: ['⁴⁄₆', '⁴⁄₉', '²⁄₆'], correctIndex: 0, objectiveId: 'obj_2' },
           ],
         },
       },
@@ -92,27 +93,31 @@ export const DEMO_QUESTS: DemoQuest[] = [
   /* 2. מדעים — צף או שוקע (טעות נפוצה: כל חפץ כבד שוקע) */
   {
     id: 'demo-q-float-sink', title: 'צף או שוקע?', subject: 'science',
+    objectives: [
+      { id: 'obj_1', text: 'להסביר מה קובע אם חפץ צף או שוקע' },
+      { id: 'obj_2', text: 'לקשר בין חומרים לבין הצפיפות שלהם' },
+    ],
     scenes: [
       { id: 's0', title: 'מעבדת המים', narrative: 'ד״ר הולו מניח על השולחן בריכה קטנה ולידה כמה חפצים: חצץ, קוביית קרח, כדור ברזל וסירה קטנה. הוא שואל אתכם מה יצוף ומה ישקע, ובעיקר למה. כדי לענות צריך לחשוב על חומרים, על משקל ועל מה שקורה בין החפץ לבין המים שסביבו.' },
       {
         id: 's1', title: 'הניסוי הראשון', narrative: 'חצץ קטן שוקע מיד, וסירת מתכת גדולה צפה בשלווה.',
         puzzle: {
-          kind: 'choice', hardness: 0.25, level: 8, tagPick: 1, question: 'מה קובע אם חפץ צף או שוקע?',
+          kind: 'choice', hardness: 0.25, level: 8, objectiveId: 'obj_1', tagPick: 1, question: 'מה קובע אם חפץ צף או שוקע?',
           options: [{ text: 'הצפיפות שלו לעומת הצפיפות של המים', correct: true }, { text: 'המשקל שלו בלבד', tag: 'mc-sci-heavy-sinks' }, { text: 'הצבע שלו' }, { text: 'הגודל שלו בלבד' }],
         },
       },
       {
         id: 's2', title: 'קרח במים', narrative: 'קוביית קרח נשארת על פני המים ולא שוקעת.',
-        puzzle: { kind: 'truefalse', hardness: -0.1, level: 6, question: 'קרח צף כי הצפיפות שלו קטנה מהצפיפות של המים', answer: true },
+        puzzle: { kind: 'truefalse', hardness: -0.1, level: 6, objectiveId: 'obj_1', question: 'קרח צף כי הצפיפות שלו קטנה מהצפיפות של המים', answer: true },
       },
       {
         id: 's3', title: 'מדף הצפיפויות', narrative: 'על המדף עומדים צנצנות עם חומרים שונים, וליד כל אחת רשום מספר.',
-        puzzle: { kind: 'game', type: 'memory', hardness: 0, level: 7, question: 'התאימו כל חומר לצפיפות שלו' },
+        puzzle: { kind: 'game', type: 'memory', hardness: 0, level: 7, objectiveId: 'obj_2', question: 'התאימו כל חומר לצפיפות שלו' },
       },
       {
         id: 's4', title: 'בריכת השמן', narrative: 'ד״ר הולו שופך שמן ומים לאותה כוס ומבקש שתנחשו מה יישאר למעלה.',
         puzzle: {
-          kind: 'choice', hardness: -0.05, level: 6, question: 'איזה מהחומרים האלה יצוף על פני המים?',
+          kind: 'choice', hardness: -0.05, level: 6, objectiveId: 'obj_2', question: 'איזה מהחומרים האלה יצוף על פני המים?',
           options: [{ text: 'שמן', correct: true }, { text: 'ברזל' }, { text: 'אבן' }, { text: 'נחושת' }],
         },
       },
@@ -125,9 +130,9 @@ export const DEMO_QUESTS: DemoQuest[] = [
         puzzle: {
           kind: 'quiz', hardness: 0.15, level: 8, question: 'מבחן הסיכום של מעבדת המים',
           questions: [
-            { question: 'מה קורה לחפץ שהצפיפות שלו גדולה מהצפיפות של המים?', options: ['הוא שוקע', 'הוא צף', 'הוא נעלם'], correctIndex: 0 },
-            { question: 'מדוע ספינת ענק מברזל אינה שוקעת?', options: ['הצפיפות הממוצעת שלה, עם האוויר שבתוכה, קטנה מהצפיפות של המים', 'הברזל קל מהמים', 'הים רגוע'], correctIndex: 0 },
-            { question: 'איך אפשר לגרום לחפץ שוקע לצוף?', options: ['להגדיל את הנפח שלו בלי להוסיף משקל', 'להוסיף לו משקל', 'לצבוע אותו'], correctIndex: 0 },
+            { question: 'מה קורה לחפץ שהצפיפות שלו גדולה מהצפיפות של המים?', options: ['הוא שוקע', 'הוא צף', 'הוא נעלם'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'מדוע ספינת ענק מברזל אינה שוקעת?', options: ['הצפיפות הממוצעת שלה, עם האוויר שבתוכה, קטנה מהצפיפות של המים', 'הברזל קל מהמים', 'הים רגוע'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'איך אפשר לגרום לחפץ שוקע לצוף?', options: ['להגדיל את הנפח שלו בלי להוסיף משקל', 'להוסיף לו משקל', 'לצבוע אותו'], correctIndex: 0, objectiveId: 'obj_2' },
           ],
         },
       },
@@ -182,12 +187,17 @@ export const DEMO_QUESTS: DemoQuest[] = [
   /* 4. היסטוריה — בית ראשון ובית שני (שתי טעויות מתויגות, דילמה מוסרית) */
   {
     id: 'demo-q-two-temples', title: 'בימי בית ראשון ובית שני', subject: 'history',
+    objectives: [
+      { id: 'obj_1', text: 'לסדר לפי הסדר את התקופות והאירועים של בית ראשון, גלות בבל ובית שני' },
+      { id: 'obj_2', text: 'להסביר מדוע חרב בית ראשון' },
+      { id: 'obj_3', text: 'להבין למה כדאי לבדוק יותר ממקור אחד' },
+    ],
     scenes: [
       { id: 's0', title: 'מנהרת הזמן', narrative: 'ד״ר הולו מפעיל מכונה שמחזירה אתכם אחורה בזמן, אל ירושלים של לפני אלפי שנים. בדרך תפגשו מלכים, נביאים וחומות, ותצטרכו להבין לא רק מה קרה אלא גם באיזה סדר. כל תחנה במסע היא חידה, ובסוף תקבלו מבחן שמחבר את כל מה שראיתם.' },
       {
         id: 's1', title: 'ציר הזמן', narrative: 'על קיר המנהרה מצוירים שלושה פרקים של ההיסטוריה, אבל הסדר שלהם התבלבל.',
         puzzle: {
-          kind: 'choice', hardness: 0.15, level: 8, tagPick: 1, question: 'מהו הסדר הנכון של התקופות?',
+          kind: 'choice', hardness: 0.15, level: 8, objectiveId: 'obj_1', tagPick: 1, question: 'מהו הסדר הנכון של התקופות?',
           options: [
             { text: 'בית ראשון, אחריו גלות בבל, אחריה בית שני', correct: true },
             { text: 'בית שני, אחריו גלות בבל, אחריה בית ראשון', tag: 'mc-his-order-reverse' },
@@ -198,7 +208,7 @@ export const DEMO_QUESTS: DemoQuest[] = [
       {
         id: 's2', title: 'שער החורבן', narrative: 'מעל העיר עולה עשן. אתם מנסים להבין איך הגיעו לכאן.',
         puzzle: {
-          kind: 'choice', hardness: 0.2, level: 9, tagPick: 0.8, question: 'מדוע חרב בית ראשון?',
+          kind: 'choice', hardness: 0.2, level: 9, objectiveId: 'obj_2', tagPick: 0.8, question: 'מדוע חרב בית ראשון?',
           options: [
             { text: 'בגלל שילוב של סיבות פנימיות וחיצוניות', correct: true },
             { text: 'רק בגלל כיבוש בבל', tag: 'mc-his-single-cause' },
@@ -209,11 +219,11 @@ export const DEMO_QUESTS: DemoQuest[] = [
       },
       {
         id: 's3', title: 'המסע לבבל', narrative: 'שיירה ארוכה יוצאת מהעיר, ואתם הולכים איתה.',
-        puzzle: { kind: 'truefalse', hardness: -0.15, level: 6, question: 'גלות בבל התרחשה אחרי חורבן בית ראשון', answer: true },
+        puzzle: { kind: 'truefalse', hardness: -0.15, level: 6, objectiveId: 'obj_1', question: 'גלות בבל התרחשה אחרי חורבן בית ראשון', answer: true },
       },
       {
         id: 's4', title: 'סידור האירועים', narrative: 'שבע אבנים מפוזרות על הרצפה, ועל כל אחת אירוע אחד.',
-        puzzle: { kind: 'game', type: 'sequenceOrder', hardness: 0.1, level: 8, question: 'סדרו את האירועים לפי הסדר שבו התרחשו' },
+        puzzle: { kind: 'game', type: 'sequenceOrder', hardness: 0.1, level: 8, objectiveId: 'obj_1', question: 'סדרו את האירועים לפי הסדר שבו התרחשו' },
       },
       {
         id: 's5', title: 'הגליל בחפירה', narrative: 'בחפירה ארכיאולוגית נמצא גליל קדום, ולא ברור מה כתוב בו.',
@@ -227,10 +237,10 @@ export const DEMO_QUESTS: DemoQuest[] = [
         puzzle: {
           kind: 'quiz', hardness: 0.1, level: 9, question: 'מבחן הסיכום של מנהרת הזמן',
           questions: [
-            { question: 'איזו תקופה הייתה לפני גלות בבל?', options: ['בית ראשון', 'בית שני', 'התקופה הרומית'], correctIndex: 0 },
-            { question: 'מי כבש את ירושלים וחרב את בית ראשון?', options: ['מלך בבל', 'מלך מצרים', 'קיסר רומא'], correctIndex: 0 },
-            { question: 'מה הקשר בין גלות בבל לבניית בית שני?', options: ['חלק מהגולים חזרו לירושלים ובנו מחדש', 'בית שני נבנה בבבל', 'אין ביניהם קשר'], correctIndex: 0 },
-            { question: 'למה כדאי לבדוק יותר ממקור אחד כשחוקרים את העבר?', options: ['כי מקור אחד עלול להיות חלקי או מוטה', 'כי כל המקורות זהים', 'כי אסור להאמין לשום מקור'], correctIndex: 0 },
+            { question: 'איזו תקופה הייתה לפני גלות בבל?', options: ['בית ראשון', 'בית שני', 'התקופה הרומית'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'מי כבש את ירושלים וחרב את בית ראשון?', options: ['מלך בבל', 'מלך מצרים', 'קיסר רומא'], correctIndex: 0, objectiveId: 'obj_2' },
+            { question: 'מה הקשר בין גלות בבל לבניית בית שני?', options: ['חלק מהגולים חזרו לירושלים ובנו מחדש', 'בית שני נבנה בבבל', 'אין ביניהם קשר'], correctIndex: 0, objectiveId: 'obj_1' },
+            { question: 'למה כדאי לבדוק יותר ממקור אחד כשחוקרים את העבר?', options: ['כי מקור אחד עלול להיות חלקי או מוטה', 'כי כל המקורות זהים', 'כי אסור להאמין לשום מקור'], correctIndex: 0, objectiveId: 'obj_3' },
           ],
         },
       },
@@ -477,7 +487,10 @@ function gamePuzzle(p: DemoPuzzle): Record<string, unknown> {
     case 'truefalse':
       return { ...base, type: 'trueFalse', choices: [{ id: 't', text: 'נכון', isCorrect: p.answer }, { id: 'f', text: 'לא נכון', isCorrect: !p.answer }] }
     case 'quiz':
-      return { ...base, type: 'finalQuiz', questions: p.questions.map((q) => ({ question: q.question, options: q.options, correctIndex: q.correctIndex })) }
+      return {
+        ...base, type: 'finalQuiz',
+        questions: p.questions.map((q) => ({ question: q.question, options: q.options, correctIndex: q.correctIndex, ...(q.objectiveId ? { objectiveId: q.objectiveId } : {}) })),
+      }
     case 'moral':
       return { ...base, type: 'moralDilemma', situation: p.situation, moralChoices: p.choices.map((text) => ({ text, consequence: '' })) }
     case 'game':

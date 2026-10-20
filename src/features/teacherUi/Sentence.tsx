@@ -31,7 +31,7 @@ export default function Sentence({ children, tone = 'neutral', label }: Sentence
         <VisuallyHidden>{meta.word}: </VisuallyHidden>
       </span>
       <div style={{ minWidth: 0 }}>
-        {label && <div style={{ fontSize: 14, fontWeight: 700, color: T.muted, marginBottom: 2 }}>{label}</div>}
+        {label && <div style={{ fontSize: 16, fontWeight: 700, color: T.muted, marginBottom: 2 }}>{label}</div>}
         <p style={{ margin: 0, fontFamily: FONT, fontSize: SENTENCE, lineHeight: 1.6, fontWeight: 600, color: T.text }}>{children}</p>
       </div>
     </section>

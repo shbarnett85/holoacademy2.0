@@ -133,6 +133,25 @@ export const CommonErrorRowSchema = z.object({
 })
 export type CommonErrorRow = z.infer<typeof CommonErrorRowSchema>
 
+/* ── יעדי למידה (שליטה ביעד) — רק להדמיות שנוצרו עם יעדים (game_data.objectives + objectiveId על האתגרים/שאלות המבחן).
+   רמה: strong = "למדו", partial = "למדו חלקית", weak = "עדיין קשה", null = עוד אין נתונים. הספים ב-analyticsConfig.OBJECTIVE_BANDS. ── */
+export const ObjectiveLevelSchema = z.enum(['strong', 'partial', 'weak'])
+export type ObjectiveLevel = z.infer<typeof ObjectiveLevelSchema>
+
+export const ObjectiveResultSchema = z.object({
+  id: Id,
+  text: z.string().min(1),
+  /* "X מתוך Y הצליחו" בתלמידים: Y = מי שניסה לפחות אתגר או שאלה אחד/ת ביעד; X = מי שהצליח/ה בלפחות OBJECTIVE_BANDS.partial מהם */
+  attempted: NonNeg,
+  solved: NonNeg,
+  level: ObjectiveLevelSchema.nullable(),
+  /* המילה לתצוגה ("למדו" / "למדו חלקית" / "עדיין קשה" / "אין עדיין נתונים") — מ-findingsNarrative */
+  levelText: z.string().min(1),
+  /* מי שהצליח בפחות מ-OBJECTIVE_BANDS.partial מהאתגרים והשאלות של היעד (לפי א-ב) */
+  weakStudents: z.array(z.object({ id: Id, name: z.string() })),
+})
+export type ObjectiveResult = z.infer<typeof ObjectiveResultSchema>
+
 export const ClassSubmissionViewSchema = z.object({
   head: SubmissionHeadSchema,
   /* משפט הסיכום (א) */
@@ -146,6 +165,8 @@ export const ClassSubmissionViewSchema = z.object({
   challenges: z.array(ChallengeResultSchema),
   /* ד. טעויות נפוצות — מוצג רק אם יש תגיות */
   commonErrors: z.array(CommonErrorRowSchema),
+  /* ה. יעדי הלמידה — מערך ריק כשלהדמיה אין יעדים שאפשר למדוד (אין טאב) */
+  objectives: z.array(ObjectiveResultSchema),
   /* הדמיית חזרה (קיימת): כמה תחומים חלשים; 0 = לא מציגים את ההצעה */
   review: z.object({ weakCount: NonNeg }),
   /* "איך חישבנו?" — שורות הסבר (הכלל לתשומת לב, מה נחשב הצלחה) */

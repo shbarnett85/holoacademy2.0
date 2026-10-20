@@ -23,7 +23,7 @@ export interface PlacedMarker<T> { m: T; x: number; row: 0 | 1 }
 
 /* סימוני אירועים על הציר: קרובים מדי זה לזה (פחות מ-minGap פיקסלים) עולים לשורה שנייה כדי שהמספרים לא יחפפו.
    הקלט ממוין לפי x. */
-export function layoutMarkers<T>(items: { m: T; x: number }[], minGap = 30): PlacedMarker<T>[] {
+export function layoutMarkers<T>(items: { m: T; x: number }[], minGap = 34): PlacedMarker<T>[] {
   let prevX = -Infinity
   let prevRow: 0 | 1 = 1
   return items.map(({ m, x }) => {
@@ -34,8 +34,8 @@ export function layoutMarkers<T>(items: { m: T; x: number }[], minGap = 30): Pla
   })
 }
 
-/* תוויות ערך על הקו: כל נקודה כשיש מקום, אחרת כל שנייה/שלישית (האחרונה תמיד מוצגת בנפרד) */
+/* תוויות ערך על הקו (16px, כ-40px רוחב): כל נקודה כשיש מקום, אחרת כל שנייה/שלישית (האחרונה תמיד מוצגת בנפרד) */
 export function labelEvery(xs: number[]): number {
   const minGap = xs.length > 1 ? Math.min(...xs.slice(1).map((x, i) => x - xs[i])) : Infinity
-  return minGap >= 36 ? 1 : minGap >= 18 ? 2 : 3
+  return minGap >= 44 ? 1 : minGap >= 22 ? 2 : 3
 }

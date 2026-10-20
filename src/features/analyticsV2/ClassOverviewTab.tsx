@@ -1,15 +1,15 @@
 /* "סקירה" (מחנך): טבלה אחת, שורה לכל מקצוע — רמה ומגמה, תחומים חזקים ומאתגרים, תלמידים לתשומת לב.
-   כל מקצוע הוא קישור אל טאב המקצוע שלו. נכנסת במסך אחד. */
+   שם המקצוע הוא כפתור (תג מקצוע, 44px) אל "סיכום" של המקצוע; מספר התלמידים לתשומת לב — כפתור אל "תלמידים" שלו. נכנסת במסך אחד. */
 import { Link } from 'react-router-dom'
 import { attentionBadgeText } from '../../shared/lib/findingsNarrative'
 import type { ClassOverview } from '../../shared/types/analyticsV2'
-import { EmptyState, FONT, Icon, MIN_TARGET, RADIUS, Sentence, T } from '../teacherUi'
+import { EmptyState, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
 import { useV2Env } from './context'
 import { L } from './labels'
-import { AreasText, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, SubjectLabel, ToneMark, TrendWord } from './ui'
+import { AreasText, ErrorBlock, HowCalc, LoadingBlock, Note, PositionWord, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
-const th = { textAlign: 'start', padding: '8px 12px', fontSize: 14, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
+const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
 const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, verticalAlign: 'middle', fontSize: 16, lineHeight: 1.4, color: T.text } as const
 
 export default function ClassOverviewTab({ classId, className }: { classId: string; className: string }) {
@@ -44,11 +44,7 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
               {data.rows.map((r) => (
                 <tr key={r.subject.code}>
                   <th scope="row" style={{ ...td, fontWeight: 400, padding: '2px 8px' }}>
-                    <Link to={env.href(`/analytics/class/${classId}`, { tab: r.subject.code, sub: 'summary' })} data-tu-press
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, padding: '0 6px', borderRadius: RADIUS.sm, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, fontWeight: 800 }}>
-                      <SubjectLabel subject={r.subject} size={16} />
-                      <Icon name="chevLeft" size={16} />
-                    </Link>
+                    <SubjectLinkButton code={r.subject.code} label={r.subject.nameHe} to={env.href(`/analytics/class/${classId}`, { tab: r.subject.code, sub: 'summary' })} />
                   </th>
                   <td style={{ ...td, fontSize: 18, fontWeight: 800 }}>{r.level ?? '—'}</td>
                   <td style={td}><PositionWord position={r.positionVsNorm} text={r.positionText} size={16} /></td>

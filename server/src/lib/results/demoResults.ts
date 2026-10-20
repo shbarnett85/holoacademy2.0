@@ -216,7 +216,6 @@ function simulateRun(
     } else {
       const timed = p.type === 'memory' || p.type === 'wordSearch'
       let outcome: CoreAnswerRow['outcome'] = 'correct'
-      attempts = 1
       if (solved) attempts = 1 + Math.floor(det() * 3)
       else { outcome = failOutcome(timed); attempts = outcome === 'gave_up' ? 1 : 3 }
       solveMs = ms(type, solved ? 1 : 1.1)

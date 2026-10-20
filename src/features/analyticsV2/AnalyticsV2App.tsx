@@ -7,10 +7,13 @@
      /analytics/student/:studentId       ?class=<id>&tab=overview|<מקצוע>
      שכבות-על: ?brief=student:<id>|class:<id>  ·  ?fb=<studentId>
      אורח מוסיף: &lens=homeroom|subject_teacher|admin&subject=<קוד>   (השרת הוא שגוזר את הצופה)
+   העדשה של האורח: הכתובת קודמת; כשאין בה — הערך השמור (teacherUi/guestLens, sessionStorage holo_guest_lens);
+   כל עדשה שנטענה נכתבת בחזרה, כך שהיא שורדת מעבר בין הטאבים הראשיים (תוצאות ↔ אנליטיקה).
    ────────────────────────────────────────────────────────────────────────── */
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useMatch, useNavigate, useSearchParams } from 'react-router-dom'
-import { ScreenShell } from '../teacherUi'
+import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import { GUEST_LENSES, GuestLensSwitcher, ScreenShell, lensToParams, readGuestLens, useGuestLens, writeGuestLens } from '../teacherUi'
 import type { AnalyticsConfig, Lens } from '../../shared/types/analyticsV2'
 import AdminScreen from './AdminScreen'
 import ClassScreen from './ClassScreen'
@@ -28,8 +31,11 @@ export default function AnalyticsV2App() {
   const classMatch = useMatch('/analytics/class/:classId')
   const studentMatch = useMatch('/analytics/student/:studentId')
 
-  const lensParam = sp.get('lens')
-  const subjectParam = sp.get('subject')
+  /* הכתובת קודמת; אורח בלי עדשה בכתובת — העדשה האחרונה שנבחרה (במסכי תוצאות/אנליטיקה) */
+  const { isGuest } = useStaffAuth()
+  const stored = useGuestLens()
+  const lensParam = sp.get('lens') ?? (isGuest ? stored?.lens ?? null : null)
+  const subjectParam = sp.get('subject') ?? (isGuest ? stored?.subject ?? null : null)
   const { data: cfg, loading, error, reload } = useV2<AnalyticsConfig>('/config', { lens: lensParam ?? undefined, subject: subjectParam ?? undefined })
 
   const guest = !!cfg && cfg.availableLenses.length > 1
@@ -40,13 +46,20 @@ export default function AnalyticsV2App() {
   }, [cfg, lens, subjectParam])
   const params = useMemo<V2Params>(() => (guest ? { lens, subject: lens === 'subject_teacher' ? subject ?? undefined : undefined } : {}), [guest, lens, subject])
 
+  /* העדשה הנטענת נכתבת למאגר המשותף — רק כשהתצורה טרייה (בזמן טעינה cfg עוד של העדשה הקודמת), ורק כשיש עדשה
+     מפורשת (בכתובת או שמורה): אורח שעוד לא בחר דבר נשאר "ללא בחירה" = ברירת המחדל של השרת, בלי טעינה כפולה של התצורה */
+  const lensInUrl = sp.has('lens')
+  useEffect(() => {
+    if (!cfg || loading || !guest || !cfg.lens) return
+    const saved = readGuestLens()
+    if (!lensInUrl && !saved) return
+    writeGuestLens({ lens: cfg.lens, subject: cfg.lens === 'subject_teacher' ? subject : saved?.subject ?? null })
+  }, [cfg, loading, guest, subject, lensInUrl])
+
   const href = useCallback<V2Env['href']>((path, q = {}) => {
     const p = new URLSearchParams()
     for (const [k, v] of Object.entries(q)) if (v) p.set(k, v)
-    if (guest) {
-      p.set('lens', lens)
-      if (lens === 'subject_teacher' && subject) p.set('subject', subject)
-    }
+    if (guest) for (const [k, v] of Object.entries(lensToParams(lens, subject))) p.set(k, v)
     const s = p.toString()
     return s ? `${path}?${s}` : path
   }, [guest, lens, subject])
@@ -59,11 +72,18 @@ export default function AnalyticsV2App() {
     }, { replace: value === null })
   }, [setSp])
 
-  /* בזמן טעינת תצורה חדשה (החלפת עדשה/מקצוע) לא מציגים מסך של העדשה הקודמת */
+  /* החלפת עדשה/מקצוע (אורח): חוזרים למסך הכניסה כדי להישאר במסך תקף */
+  const goLens = (nextLens: Lens, nextSubject?: string | null): void => { void navigate(`/analytics?${new URLSearchParams(lensToParams(nextLens, nextSubject)).toString()}`) }
+
+  /* בזמן טעינת תצורה חדשה (החלפת עדשה/מקצוע) לא מציגים מסך של העדשה הקודמת. אורח ממשיך לראות את הבורר (עם העדשה
+     שביקש), כדי שהוא לא יקפוץ ויחזור; ובמסך פנימי נתיב החזרה גלוי גם בזמן הטעינה. */
   if (!cfg || loading) {
     const pending = classMatch ? titles.classGeneric : studentMatch ? titles.studentGeneric : titles.entry
+    const requested: Lens = (GUEST_LENSES as readonly string[]).includes(lensParam ?? '') ? (lensParam as Lens) : lens
+    const staleGuest = !!cfg && cfg.availableLenses.length > 1
     return (
-      <ScreenShell active="analytics" title={pending}>
+      <ScreenShell active="analytics" title={pending} breadcrumb={classMatch || studentMatch ? [{ label: L.analytics }] : undefined}
+        lensSwitcher={staleGuest ? <GuestLensSwitcher force value={{ lens: requested, subject: subjectParam ?? null }} onChange={(n) => goLens(n.lens, n.subject)} /> : undefined}>
         {error ? <ErrorBlock message={error} onRetry={reload} /> : <LoadingBlock label={L.loading} />}
       </ScreenShell>
     )
@@ -71,11 +91,7 @@ export default function AnalyticsV2App() {
 
   const env: V2Env = {
     cfg, lens, guest, subject, params, href,
-    goLens: (nextLens, nextSubject) => {
-      const p = new URLSearchParams({ lens: nextLens })
-      if (nextLens === 'subject_teacher' && nextSubject) p.set('subject', nextSubject)
-      navigate(`/analytics?${p.toString()}`)
-    },
+    goLens,
     openBriefing: (scope, id) => setOverlay('brief', `${scope}:${id}`),
     openFeedback: (id) => setOverlay('fb', id),
   }

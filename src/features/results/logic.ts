@@ -1,5 +1,6 @@
 /* עזרים טהורים של מסך התוצאות (סינון הרשימה, סידור שמות, ניסוח מספרים בעברית פשוטה). בלי DOM ובלי רשת — נבדקים ב-logic.test.ts. */
-import type { ClassSubmissionView, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
+import type { ObjectivesSummaryInput } from '../../shared/lib/findingsNarrative'
+import type { ClassSubmissionView, ObjectiveResult, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
 
 /* ── רשימת השליחות ── */
 export interface ListFilter {
@@ -40,6 +41,13 @@ export function validOption(value: string | null, options: readonly string[]): s
 const he = new Intl.Collator('he')
 export const byName = (a: { name: string }, b: { name: string }): number => he.compare(a.name, b.name)
 
+/* שלוש קבוצות הסטטוס בחלונית "כל הכיתה" — קודם מי שדורש מעקב (עוד לא התחילו, אחר כך באמצע), ובסוף מי שסיים.
+   כך "מי עוד לא סיים?" נראה בלי לגלול, גם בכיתה של 25 תלמידים שרובם כבר סיימו. אותו סדר בשורת המצב בראש המסך. */
+export const ROSTER_GROUP_ORDER = ['notStarted', 'inProgress', 'completed'] as const
+
+/* בתוך קבוצה: "לתשומת לב" קודם, ואז לפי א-ב */
+export const byAttentionThenName = (a: StudentChip, b: StudentChip): number => (Number(b.attention) - Number(a.attention)) || byName(a, b)
+
 export function allStudents(roster: ClassSubmissionView['roster']): StudentChip[] {
   return [...roster.completed, ...roster.inProgress, ...roster.notStarted]
 }
@@ -56,6 +64,20 @@ export function firstStudentId(roster: ClassSubmissionView['roster']): string | 
 
 export function attentionTotal(roster: ClassSubmissionView['roster']): number {
   return allStudents(roster).filter((s) => s.attention).length
+}
+
+/* ── יעדי למידה ── */
+/* כמה יעדים בכל רמה — קלט למשפט הסיכום של הטאב (total = כל היעדים, גם אלה שעוד אין להם נתונים) */
+export function objectiveLevelCounts(objectives: ObjectiveResult[]): ObjectivesSummaryInput {
+  const count = (level: ObjectiveResult['level']): number => objectives.filter((o) => o.level === level).length
+  return { total: objectives.length, strong: count('strong'), partial: count('partial'), weak: count('weak') }
+}
+
+/* מתקשים להצגה: עד `limit` ראשונים לפי א-ב, ואחרי לחיצה — כולם. `hidden` = כמה מוסתרים כרגע.
+   לא מסתירים תלמיד/ה בודד/ת מאחורי כפתור "עוד תלמיד/ה אחד/ת" — הכפתור עצמו תופס את המקום שלו. */
+export function visibleStudents<T>(students: T[], expanded: boolean, limit: number): { shown: T[]; hidden: number } {
+  if (expanded || students.length <= limit + 1) return { shown: students, hidden: 0 }
+  return { shown: students.slice(0, limit), hidden: students.length - limit }
 }
 
 /* ── ניסוח מספרים ── */

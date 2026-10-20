@@ -22,7 +22,7 @@ export default function HowWeCalc({ lines, children, label = RESULTS_TEXT.howWeC
         <span style={{ textDecoration: 'underline', textUnderlineOffset: 3 }}>{label}</span>
         <span data-tu-chev style={{ display: 'inline-flex', marginInlineStart: 'auto' }}><Icon name="chevDown" size={18} /></span>
       </summary>
-      <div style={{ padding: '4px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontFamily: FONT, fontSize: 15, lineHeight: 1.7, color: T.textSoft }}>
+      <div style={{ padding: '4px 16px 14px', display: 'flex', flexDirection: 'column', gap: 8, fontFamily: FONT, fontSize: 16, lineHeight: 1.7, color: T.textSoft }}>
         {lines?.map((l, i) => <p key={i} style={{ margin: 0 }}>{l}</p>)}
         {children}
       </div>

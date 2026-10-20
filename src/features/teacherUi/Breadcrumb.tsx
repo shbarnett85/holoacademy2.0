@@ -2,7 +2,7 @@
    כל פריט שאינו אחרון הוא קישור אמיתי (to) או כפתור (onClick); האחרון הוא העמוד הנוכחי (aria-current, לא לחיץ). */
 import { Link } from 'react-router-dom'
 import { Icon } from './icons'
-import { FONT, MIN_TARGET, SMALL, T } from './tokens'
+import { FONT, MIN_TARGET, T } from './tokens'
 
 export interface BreadcrumbItem {
   label: string
@@ -19,7 +19,7 @@ interface BreadcrumbProps {
 
 const itemStyle = {
   display: 'inline-flex', alignItems: 'center', minHeight: MIN_TARGET, padding: '0 8px', borderRadius: 10,
-  fontFamily: FONT, fontSize: SMALL + 1, lineHeight: 1.3,
+  fontFamily: FONT, fontSize: 16, lineHeight: 1.3,
 } as const
 
 export default function Breadcrumb({ items }: BreadcrumbProps) {

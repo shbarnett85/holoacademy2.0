@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from './icons'
-import { FONT, RADIUS, SMALL, T, TONE_META } from './tokens'
+import { FONT, RADIUS, T, TONE_META } from './tokens'
 import type { Tone } from './tokens'
 
 export interface ChoiceBadge {
@@ -24,16 +24,19 @@ interface BigChoiceButtonProps {
   /** קישור ניווט. לא נדרש כש-onClick קיים */
   to?: string
   onClick?: () => void
+  /** בלי מסגרת ורקע משלו — לכפתור שיושב בתוך כרטיס עוטף (למשל כרטיס כיתה עם קיצורי מקצועות מתחתיו) */
+  flat?: boolean
 }
 
 const BADGE_ICON = { positive: 'check', attention: 'alert', error: 'alert', neutral: 'info' } as const
 
-export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, onClick }: BigChoiceButtonProps) {
+export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, onClick, flat }: BigChoiceButtonProps) {
   const style = {
-    display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', alignItems: 'flex-start', gap: 6, minHeight: 88, padding: '14px 18px',
+    display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', alignItems: 'flex-start', gap: 6, minHeight: flat ? 64 : 88, padding: flat ? '14px 16px' : '14px 18px',
     borderRadius: RADIUS.lg, fontFamily: FONT, textAlign: 'start' as const, textDecoration: 'none', cursor: 'pointer', color: T.text,
-    background: selected ? T.accentFill : T.surface, border: `2px solid ${selected ? T.accent : T.controlBorder}`,
-    boxShadow: selected ? `inset 0 -5px 0 ${T.accent}` : 'none',
+    background: flat ? 'transparent' : selected ? T.accentFill : T.surface, border: flat ? 'none' : `2px solid ${selected ? T.accent : T.controlBorder}`,
+    boxShadow: selected && !flat ? `inset 0 -5px 0 ${T.accent}` : 'none',
+    ...(flat ? { width: '100%', boxSizing: 'border-box' as const, borderRadius: `${RADIUS.lg - 2}px ${RADIUS.lg - 2}px 0 0` } : null),
   }
   const inner = (
     <>
@@ -45,7 +48,7 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
       {badge && (() => {
         const tone = badge.tone ?? 'attention'
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: SMALL, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}` }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}` }}>
             <span style={{ color: TONE_META[tone].color, display: 'inline-flex' }}><Icon name={BADGE_ICON[tone]} size={16} /></span>
             {badge.text}
           </span>

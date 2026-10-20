@@ -6,6 +6,7 @@ import { glass } from './studioStyles'
 import { checkNavGuard } from '../../shared/lib/navGuard'
 import { useSoundSettings } from '../../shared/lib/sound'
 import { useTheme } from '../../shared/lib/useTheme'
+import { withGuestLens } from '../teacherUi/guestLens'
 
 export type TabId = 'create' | 'library' | 'results' | 'analytics' | 'students'
 
@@ -25,6 +26,10 @@ const TITLES: Record<TabId, string> = {
   analytics: 'אנליטיקה',
   students: 'תלמידים',
 }
+
+/* מורה אורח: העדשה שבחר (מחנך/ת | מורה מקצועי/ת | מנהל/ת + מקצוע) נשמרת במעבר בין תוצאות ↔ אנליטיקה — מצרפים אותה לכתובת.
+   לכל משתמש אחר, ולטאבים האחרים, הכתובת נשארת כמות שהיא. */
+const tabHref = (t: { id: TabId; to: string }): string => (t.id === 'results' || t.id === 'analytics' ? withGuestLens(t.to) : t.to)
 
 /* עקרונות ממשק למסכי מורה: אזור לחיצה ≥44px, כפתור נושא מילה (לא אייקון בלבד), טקסט ≥14px */
 const TARGET = 44
@@ -92,7 +97,7 @@ export default function StudioTopBar({ active }: { active: TabId }) {
         {tabs.map((t) => {
           const isActive = t.id === active
           return (
-            <button key={t.id} type="button" data-tu-press aria-current={isActive ? 'page' : undefined} onClick={() => !isActive && navTab(t.to)}
+            <button key={t.id} type="button" data-tu-press aria-current={isActive ? 'page' : undefined} onClick={() => !isActive && navTab(tabHref(t))}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 16px', borderRadius: 11, cursor: isActive ? 'default' : 'pointer',
                 fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: isActive ? 800 : 600, transition: 'all .18s', whiteSpace: 'nowrap',

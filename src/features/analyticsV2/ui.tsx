@@ -9,7 +9,7 @@ import { subjectStyle } from '../../shared/lib/subjectStyle'
 import type { Position, Trend } from '../../shared/lib/analyticsConfig'
 import type { SubjectRef } from '../../shared/types/analyticsV2'
 import { HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
-import { FONT, HowWeCalc, Icon, MIN_TARGET, RADIUS, SMALL, T, TONE_META, VisuallyHidden } from '../teacherUi'
+import { FONT, HowWeCalc, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { IconName, Tone } from '../teacherUi'
 import { L } from './labels'
 
@@ -31,10 +31,10 @@ export function CardTitle({ children, aside, style }: { children: ReactNode; asi
   )
 }
 
-/* טקסט משני (≥14px) — הסתייגות, הערה */
+/* הסתייגות / הערה: משפטים, לכן 16px */
 export function Note({ children, style }: { children: ReactNode; style?: CSSProperties }) {
   return (
-    <p style={{ margin: 0, fontSize: SMALL + 1, lineHeight: 1.6, color: T.textSoft, ...style }}>{children}</p>
+    <p style={{ margin: 0, fontSize: 16, lineHeight: 1.5, color: T.textSoft, ...style }}>{children}</p>
   )
 }
 
@@ -65,11 +65,11 @@ export function LinkButton({ to, children, kind = 'secondary', style, icon }: Bu
   )
 }
 
-/* ── תג קצר (מילה בלבד, 14px+) ── */
+/* ── תג קצר (מילה או מספר + מילה, 16px) ── */
 export function Tag({ children, tone, style }: { children: ReactNode; tone?: Tone; style?: CSSProperties }) {
   const color = tone ? TONE_META[tone].color : T.controlBorder
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: SMALL, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${color}`, color: T.text, lineHeight: 1.5, ...style }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${color}`, color: T.text, lineHeight: 1.5, ...style }}>
       {children}
     </span>
   )
@@ -131,7 +131,7 @@ export function SubjectOrb({ code, size = 26 }: { code: string | null | undefine
   return (
     <span aria-hidden="true" style={{
       display: 'inline-grid', placeItems: 'center', width: size, height: size, borderRadius: '50%', flexShrink: 0,
-      border: `2px solid ${s.color}`, background: `color-mix(in srgb, ${s.color} 16%, transparent)`, fontSize: Math.max(14, Math.round(size * 0.56)), lineHeight: 1,
+      border: `2px solid ${s.color}`, background: `color-mix(in srgb, ${s.color} 16%, transparent)`, fontSize: Math.max(16, Math.round(size * 0.56)), lineHeight: 1,
     }}>{s.icon}</span>
   )
 }

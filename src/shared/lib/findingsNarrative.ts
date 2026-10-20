@@ -533,4 +533,40 @@ export function howWeCalcResultsLines(): string[] {
   ]
 }
 
+/* ── יעדי למידה (טאב "יעדי הלמידה" במסך ההדמיה) — מילים פשוטות בלבד ── */
+export type ObjectiveLevelKey = 'strong' | 'partial' | 'weak'
+export const OBJECTIVE_LEVEL_TEXT: Record<ObjectiveLevelKey, string> = { strong: 'למדו', partial: 'למדו חלקית', weak: 'עדיין קשה' }
+export const OBJECTIVE_NO_DATA_TEXT = 'אין עדיין נתונים'
+export const objectiveLevelText = (level: ObjectiveLevelKey | null): string => (level ? OBJECTIVE_LEVEL_TEXT[level] : OBJECTIVE_NO_DATA_TEXT)
+
+export interface ObjectivesSummaryInput {
+  /* כל היעדים שאפשר למדוד בהדמיה */
+  total: number
+  strong: number
+  partial: number
+  weak: number
+}
+
+/* משפט הסיכום של טאב יעדי הלמידה */
+export function narrateObjectivesSummary(i: ObjectivesSummaryInput): string {
+  const measured = i.strong + i.partial + i.weak
+  if (measured === 0) return 'עוד אין תוצאות ביעדי הלמידה. הן יופיעו כאן כשתלמידים יסיימו.'
+  const parts = [i.strong > 0 ? `הכיתה למדה ${countOf(i.strong, i.total)} ${i.total === 1 ? 'יעד' : 'יעדים'}.` : 'עדיין אין יעד שהכיתה למדה במלואו.']
+  if (i.partial > 0) parts.push(`${i.partial === 1 ? 'יעד אחד נלמד' : `${i.partial} יעדים נלמדו`} חלקית.`)
+  if (i.weak > 0) parts.push(`${i.weak === 1 ? 'יעד אחד עדיין קשה' : `${i.weak} יעדים עדיין קשים`} לכיתה.`)
+  if (i.total > measured) parts.push(`${i.total - measured === 1 ? 'ליעד אחד' : `ל-${i.total - measured} יעדים`} עוד אין נתונים.`)
+  return parts.join(' ')
+}
+
+/* שורות "איך חישבנו?" ליעדי למידה — מצורפות לשורות התוצאות רק כשיש יעדים. הספים מגיעים מהקורא (analyticsConfig.OBJECTIVE_BANDS). */
+export function howWeCalcObjectivesLines(bands: { strong: number; partial: number }): string[] {
+  const strong = Math.round(bands.strong * 100)
+  const partial = Math.round(bands.partial * 100)
+  return [
+    'לכל יעד נספרים האתגרים והשאלות שהוגדרו כקשורים אליו. שאלות מוסר אינן נספרות, כי אין בהן תשובה נכונה.',
+    `תלמיד/ה נחשב/ת כמי שהצליח/ה ביעד כשהצליח/ה לפחות ב-${partial}% מהאתגרים והשאלות שלו. מי שהצליח/ה בפחות מזה מופיע/ה ברשימת המתקשים.`,
+    `"${OBJECTIVE_LEVEL_TEXT.strong}" = ${strong}% מהתלמידים שניסו, או יותר, הצליחו ביעד. "${OBJECTIVE_LEVEL_TEXT.partial}" = בין ${partial}% ל-${strong}%. "${OBJECTIVE_LEVEL_TEXT.weak}" = פחות מ-${partial}%.`,
+  ]
+}
+
 export const LOCKED_SUBJECT_TEXT = 'זמין למורה המקצוע ולמחנך/ת'

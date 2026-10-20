@@ -205,7 +205,7 @@ export function probePage(opts: ProbeOptions, interactiveSelector: string): Layo
   let breadcrumb: LayoutMetrics['breadcrumb'] = { present: false, via: null, text: null }
   for (const el of Array.from(document.querySelectorAll(crumbSel))) {
     if (visible(el) && !visuallyHidden(el) && ((el as HTMLElement).innerText ?? '').trim()) {
-      breadcrumb = { present: true, via: 'attr', text: snip((el as HTMLElement).innerText, 100) }
+      breadcrumb = { present: true, via: 'attr', text: snip((el as HTMLElement).innerText, 100), fullText: snip((el as HTMLElement).innerText, 300) }
       break
     }
   }
@@ -219,7 +219,7 @@ export function probePage(opts: ProbeOptions, interactiveSelector: string): Layo
       if (t.length < 5 || t.length > 160) continue
       if (!/[›‹»«]/.test(t) && !/\s\/\s/.test(t)) continue
       const parts = t.split(/\s*[›‹»«]\s*|\s+\/\s+/).filter(Boolean)
-      if (parts.length >= 2 && visible(el)) { breadcrumb = { present: true, via: 'heuristic', text: snip(t, 100) }; break }
+      if (parts.length >= 2 && visible(el)) { breadcrumb = { present: true, via: 'heuristic', text: snip(t, 100), fullText: snip(t, 300) }; break }
     }
   }
 
@@ -236,7 +236,12 @@ export function probePage(opts: ProbeOptions, interactiveSelector: string): Layo
     hoverOnly: { controls: hoverControls, info: hoverInfo, examples: hoverExamples },
     clickableNonSemantic: { count: clickCount, examples: clickEx },
     breadcrumb,
-    headings: { h1: h1s.length, firstH1: h1s[0] ? snip((h1s[0] as HTMLElement).innerText, 80) : null },
+    headings: {
+      h1: h1s.length,
+      firstH1: h1s[0] ? snip((h1s[0] as HTMLElement).innerText, 80) : null,
+      /* טקסט מלא של כל ה-h1 הגלויים — "השאלה שהמסך עונה עליה" בצ'קליסט */
+      texts: h1s.slice(0, 5).map((h) => snip((h as HTMLElement).innerText, 300)).filter(Boolean),
+    },
   }
 }
 

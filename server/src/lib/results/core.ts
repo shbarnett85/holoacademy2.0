@@ -16,14 +16,14 @@
    · "טעות נפוצה" רק מתגיות מסיחים (option_tags) ורק כשלפחות COMMON_ERROR_MIN_STUDENTS תלמידים בחרו בה.
    ────────────────────────────────────────────────────────────────────────── */
 import type {
-  AttentionReason, ChallengeResult, ClassSubmissionView, CommonErrorRow, Counts, ItemResult, OptionCount, Outcome,
-  ResultsSubject, SlideFact, StudentChallenge, StudentChip, StudentItem, StudentStatus, StudentSubmissionView,
+  AttentionReason, ChallengeResult, ClassSubmissionView, CommonErrorRow, Counts, ItemResult, ObjectiveLevel, ObjectiveResult,
+  OptionCount, Outcome, ResultsSubject, SlideFact, StudentChallenge, StudentChip, StudentItem, StudentStatus, StudentSubmissionView,
   SubmissionHead, SubmissionRow,
 } from '../../../../src/shared/types/resultsV1.js'
-import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS } from '../../../../src/shared/lib/analyticsConfig.js'
+import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
 import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
 import {
-  howWeCalcResultsLines, narrateClassSummary, narrateListSummary, narrateStudentSummary,
+  howWeCalcObjectivesLines, howWeCalcResultsLines, narrateClassSummary, narrateListSummary, narrateStudentSummary, objectiveLevelText,
   type ClassSummaryInput,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { puzzleTypeLabel } from '../../../../src/shared/lib/labels.js'
@@ -146,7 +146,7 @@ interface GamePuzzle {
   question?: string
   situation?: string
   choices?: { id?: string; text?: string; isCorrect?: boolean }[]
-  questions?: { question?: string; options?: string[]; correctIndex?: number }[]
+  questions?: { question?: string; options?: string[]; correctIndex?: number; objectiveId?: string | null }[]
   moralChoices?: { text?: string }[]
   objectiveId?: string | null
 }
@@ -158,7 +158,10 @@ interface GameScene {
   imageUrl?: string
   puzzle?: GamePuzzle
 }
-interface GameDataLike { scenes?: GameScene[]; entrySceneId?: string; objectives?: { id: string; text: string }[] }
+interface GameDataLike { scenes?: GameScene[]; entrySceneId?: string; objectives?: { id?: unknown; text?: unknown }[] }
+
+/* מזהה יעד תקין = מחרוזת לא ריקה (game_data הוא jsonb חופשי) */
+const objectiveIdOf = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null)
 
 const scenesOf = (gameData: unknown): GameScene[] => {
   const s = (gameData as GameDataLike | null)?.scenes
@@ -175,7 +178,8 @@ export function questThumbUrl(gameData: unknown): string | null {
 
 /* ── הגדרת האתגרים מתוך ההדמיה ── */
 export interface OptionDef { id: string; text: string; isCorrect: boolean }
-export interface ItemDef { itemIndex: number; prompt: string; options: OptionDef[] | null }
+/* objectiveId: יעד הלמידה של הפריט — רק למבחן סיכום, שבו כל שאלה מתויגת בנפרד (באתגר בודד היעד הוא של ה-ChallengeDef) */
+export interface ItemDef { itemIndex: number; prompt: string; options: OptionDef[] | null; objectiveId: string | null }
 export interface ChallengeDef {
   sceneId: string
   /* 1..N בין האתגרים */
@@ -201,26 +205,29 @@ export function extractChallenges(gameData: unknown): ChallengeDef[] {
         itemIndex: i,
         prompt: q.question ?? '',
         options: (Array.isArray(q.options) ? q.options : []).map((text, oi) => ({ id: `o${oi}`, text, isCorrect: oi === q.correctIndex })),
+        objectiveId: objectiveIdOf(q.objectiveId),
       }))
     } else if (type === 'moralDilemma') {
       items = [{
         itemIndex: 0,
         prompt: p.situation ?? p.question ?? '',
         options: (Array.isArray(p.moralChoices) ? p.moralChoices : []).map((c, i) => ({ id: `m${i}`, text: c.text ?? '', isCorrect: false })),
+        objectiveId: null,
       }]
     } else if (type === 'multipleChoice' || type === 'trueFalse') {
       items = [{
         itemIndex: 0,
         prompt: p.question ?? '',
         options: (Array.isArray(p.choices) ? p.choices : []).map((c, i) => ({ id: c.id ?? String(i), text: c.text ?? '', isCorrect: c.isCorrect === true })),
+        objectiveId: null,
       }]
     } else {
-      items = [{ itemIndex: 0, prompt: p.question ?? '', options: null }]
+      items = [{ itemIndex: 0, prompt: p.question ?? '', options: null, objectiveId: null }]
     }
     out.push({
       sceneId: scene.id, order: out.length + 1, slideOrder: idx + 1,
       title: scene.title ?? scene.id, type, typeLabel: puzzleTypeLabel(type), items,
-      objectiveId: p.objectiveId ?? null,
+      objectiveId: objectiveIdOf(p.objectiveId),
     })
   })
   return out
@@ -546,10 +553,89 @@ function summaryInput(an: Analysis): ClassSummaryInput {
   return { ...c, avgSolvedShare: avg, hardest: hardestOf(an) }
 }
 
+/* יעדי הלמידה שהוגדרו בהדמיה (game_data.objectives), בלי כפילויות ובלי רשומות פגומות */
+export function questObjectives(gameData: unknown): { id: string; text: string }[] {
+  const raw = (gameData as GameDataLike | null)?.objectives
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: { id: string; text: string }[] = []
+  for (const o of raw) {
+    const id = objectiveIdOf(o?.id)
+    const text = typeof o?.text === 'string' ? o.text.trim() : ''
+    if (!id || !text || seen.has(id)) continue
+    seen.add(id)
+    out.push({ id, text })
+  }
+  return out
+}
+
+/* ── יעדי למידה: כמה תלמידים הצליחו בכל יעד, ומי מתקשה ──
+   · יחידה = אתגר שתויג ביעד (puzzle.objectiveId), או שאלה במבחן סיכום שתויגה בנפרד (questions[].objectiveId; שאלה בלי תיוג
+     יורשת את תיוג המבחן). מקור התוצאה: answers (פירוט, גם פר-שאלה); בלי פירוט — events (אתגר שלם; מבחן סיכום רק אם תויג כולו).
+   · שאלות מוסר אינן יחידה: אין בהן נכון/שגוי ("נפתר" = ניסה), והן היו מנפחות את ההצלחה ביעד.
+   · תלמיד/ה "הצליח/ה ביעד" כשהצליח/ה לפחות OBJECTIVE_BANDS.partial מיחידות היעד שניסה; פחות מזה = מתקשה (weakStudents).
+   · רמת היעד לפי חלק התלמידים שהצליחו מבין מי שניסה: strong ≥ OBJECTIVE_BANDS.strong, partial ≥ OBJECTIVE_BANDS.partial, אחרת weak.
+   · יעד שאף אתגר/שאלה לא תויגו בו (או רק שאלות מוסר) אינו ניתן למדידה ולא מוצג. מי שלא סיים לא נספר (אין לו שורות). */
+function objectiveResults(an: Analysis): ObjectiveResult[] {
+  const defs = questObjectives(an.input.submission.quest.gameData)
+  if (defs.length === 0) return []
+  const known = new Set(defs.map((d) => d.id))
+  const measurable = new Set<string>()
+  /* יעד → תלמיד → יחידות שניסה / הצליח */
+  const perObjective = new Map<string, Map<string, { attempted: number; solved: number }>>()
+  const count = (objectiveId: string, studentId: string, solved: boolean): void => {
+    const byStudent = perObjective.get(objectiveId) ?? new Map<string, { attempted: number; solved: number }>()
+    const c = byStudent.get(studentId) ?? { attempted: 0, solved: 0 }
+    c.attempted++
+    if (solved) c.solved++
+    byStudent.set(studentId, c)
+    perObjective.set(objectiveId, byStudent)
+  }
+
+  for (const ch of an.challenges) {
+    if (ch.type === 'moralDilemma') continue
+    const whole = ch.objectiveId && known.has(ch.objectiveId) ? ch.objectiveId : null
+    const itemObjective = (item: ItemDef): string | null => {
+      const id = item.objectiveId ?? ch.objectiveId
+      return id && known.has(id) ? id : null
+    }
+    if (whole) measurable.add(whole)
+    if (ch.type === 'finalQuiz') for (const item of ch.items) { const id = itemObjective(item); if (id) measurable.add(id) }
+
+    for (const s of an.students) {
+      const res = s.scenes.get(ch.sceneId)
+      if (!res || res.outcome === 'not_reached') continue
+      if (ch.type === 'finalQuiz' && res.items.size > 0) {
+        for (const item of ch.items) {
+          const id = itemObjective(item)
+          const ir = res.items.get(item.itemIndex)
+          if (id && ir) count(id, s.student.id, ir.isCorrect)
+        }
+      } else if (whole) {
+        count(whole, s.student.id, res.outcome === 'correct')
+      }
+    }
+  }
+
+  return defs.filter((d) => measurable.has(d.id)).map((d): ObjectiveResult => {
+    const byStudent = perObjective.get(d.id) ?? new Map<string, { attempted: number; solved: number }>()
+    let attempted = 0
+    let solved = 0
+    const weakStudents: { id: string; name: string }[] = []
+    for (const [studentId, c] of byStudent) {
+      attempted++
+      if (c.solved / c.attempted >= OBJECTIVE_BANDS.partial) solved++
+      else weakStudents.push({ id: studentId, name: an.byStudent.get(studentId)?.student.name ?? '' })
+    }
+    const share = attempted > 0 ? solved / attempted : 0
+    const level: ObjectiveLevel | null = attempted === 0 ? null : share >= OBJECTIVE_BANDS.strong ? 'strong' : share >= OBJECTIVE_BANDS.partial ? 'partial' : 'weak'
+    return { id: d.id, text: d.text, attempted, solved, level, levelText: objectiveLevelText(level), weakStudents: weakStudents.sort(byName) }
+  })
+}
+
 /* מספר התחומים החלשים — לבוחן ההצעה "הדמיית חזרה" (0 = לא מציגים) */
 function weakCountOf(an: Analysis): number {
-  const gd = an.input.submission.quest.gameData as GameDataLike | null
-  const objectives = Array.isArray(gd?.objectives) ? gd.objectives.filter((o) => o?.id && o?.text) : []
+  const objectives = questObjectives(an.input.submission.quest.gameData)
   const weak = (attempted: number, solved: number): boolean => attempted >= WEAK_MIN_ATTEMPTS && solved / attempted < WEAK_RATE
   if (objectives.length > 0) {
     let n = 0
@@ -646,6 +732,7 @@ export function buildClassView(input: CoreInput): ClassSubmissionView {
   const an = analyzeSubmission(input)
   const detail = submissionDetail(an)
   const chips = an.students.map(chipOf)
+  const objectives = objectiveResults(an)
   return {
     head: headOf(an),
     summary: narrateClassSummary(summaryInput(an)),
@@ -658,8 +745,9 @@ export function buildClassView(input: CoreInput): ClassSubmissionView {
     },
     challenges: an.aggs.map((a) => challengeResult(an, a)),
     commonErrors: classCommonErrors(an),
+    objectives,
     review: { weakCount: weakCountOf(an) },
-    howWeCalculated: howWeCalcResultsLines(),
+    howWeCalculated: objectives.length > 0 ? [...howWeCalcResultsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)] : howWeCalcResultsLines(),
   }
 }
 

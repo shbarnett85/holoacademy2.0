@@ -85,7 +85,7 @@ export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope:
         {data && (
           <>
             <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 18 }}>
-              <div style={{ fontSize: 14, color: T.textSoft }}>HoloAcademy · {L.briefing}</div>
+              <div style={{ fontSize: 16, color: T.textSoft }}>HoloAcademy · {L.briefing}</div>
               <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.text }}>{data.title}</h1>
               <div style={{ fontSize: 16, color: T.textSoft }}>{data.subtitle} · הופק בתאריך {heDate(data.generatedAt)}</div>
               {notice && <Note style={{ marginTop: 6 }}>{notice}</Note>}
@@ -98,7 +98,7 @@ export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope:
                     {s.items.map((it, i) => (
                       <li key={i} style={{ fontSize: 16, lineHeight: 1.7, color: T.text }}>
                         {it.text}
-                        {it.evidence.length > 0 && <div style={{ fontSize: 14, color: T.textSoft }}>{it.evidence.join(' · ')}</div>}
+                        {it.evidence.length > 0 && <div style={{ fontSize: 16, color: T.textSoft }}>{it.evidence.join(' · ')}</div>}
                       </li>
                     ))}
                   </ul>
@@ -133,7 +133,7 @@ export function FeedbackOverlay({ studentId, params, onClose }: { studentId: str
   return (
     <Sheet onClose={onClose} label={L.studentPreview}>
       <div style={{ maxWidth: 460, margin: '24px auto 60px', padding: '0 16px' }}>
-        <p className="v2-noprint" style={{ textAlign: 'center', fontSize: 15, lineHeight: 1.6, color: T.textSoft, margin: '0 0 12px' }}>
+        <p className="v2-noprint" style={{ textAlign: 'center', fontSize: 16, lineHeight: 1.6, color: T.textSoft, margin: '0 0 12px' }}>
           כך נראה המסך לתלמיד/ה. המורה לא רואה כאן השוואה לתלמידים אחרים.
         </p>
         <div style={{ border: `2px solid ${T.accent}`, borderRadius: 24, padding: 22, background: T.surface }}>
@@ -147,7 +147,7 @@ export function FeedbackOverlay({ studentId, params, onClose }: { studentId: str
                   <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, border: `1px solid ${T.border}`, background: T.surfaceSoft }}>
                     <span aria-hidden="true" style={{ fontSize: 26 }}>{KIND_ICON[it.kind]}</span>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: T.textSoft, marginBottom: 2 }}>{it.subject.nameHe} · {KIND_LABEL[it.kind]}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: T.textSoft, marginBottom: 2 }}>{it.subject.nameHe} · {KIND_LABEL[it.kind]}</div>
                       <div style={{ fontSize: 17, lineHeight: 1.7, color: T.text }}>{it.text}</div>
                     </div>
                   </li>

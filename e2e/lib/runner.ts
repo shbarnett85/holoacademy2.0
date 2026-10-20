@@ -109,7 +109,7 @@ async function runScreenOnce(ctx: BrowserContext, job: ScreenJob): Promise<Scree
   const id = screenId(sc.name, who)
   const result: ScreenResult = {
     id, name: sc.name, who, group: sc.group, viewport: job.viewport, theme: job.theme,
-    requestedUrl: '', finalUrl: null, status: 'ok', statusDetail: null, inner: sc.inner ?? false,
+    urlPattern: sc.url, requestedUrl: '', finalUrl: null, status: 'ok', statusDetail: null, inner: sc.inner ?? false,
     clicksFromMainTab: clicksOf(sc), screenshot: null, axe: null, forbidden: [], layout: null,
     consoleErrors: { count: 0, samples: [] }, failedRequests: { count: 0, samples: [] },
     loadMs: null, hardFailures: [], strictFailures: [], note: sc.note ?? null, attempts: 1,

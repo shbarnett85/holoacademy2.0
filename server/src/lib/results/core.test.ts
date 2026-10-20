@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS } from '../../../../src/shared/lib/analyticsConfig.js'
-import { howWeCalcResultsLines } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
+import { howWeCalcObjectivesLines, howWeCalcResultsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
-  analyzeSubmission, buildClassView, buildListRow, buildStudentView, extractChallenges, questThumbUrl, subjectOfCode,
+  analyzeSubmission, buildClassView, buildListRow, buildStudentView, extractChallenges, questObjectives, questThumbUrl, subjectOfCode,
   type CoreAnswerRow, type CoreEventRow, type CoreInput, type CoreOptionTag, type CoreSession, type CoreStudent,
 } from './core.js'
 
@@ -422,6 +422,215 @@ describe('הצעה לחזרה (weakCount)', () => {
     })
     /* 2 הצליחו מתוך 4 = 50% < 60% → יעד אחד חלש (ולא שני אתגרים) */
     expect(v.review.weakCount).toBe(1)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════
+   יעדי למידה
+   ══════════════════════════════════════════════════════════════════════════ */
+describe('יעדי למידה', () => {
+  type R = 'c' | 'w'
+  const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T
+  const withGame = (game: unknown, over: Partial<CoreInput> = {}): CoreInput => {
+    const base = input(over)
+    return { ...base, submission: { ...base.submission, quest: { ...base.submission.quest, gameData: game } } }
+  }
+
+  /* שלושה יעדים (+ יעד מוסר בלבד + יעד בלי אף אתגר): s1,s2 → obj_1 · s3 + שאלות 0,1 במבחן → obj_2 · שאלה 2 → obj_3 · דילמה → obj_4 */
+  const tagged = (): typeof GAME => {
+    const g = clone(GAME) as typeof GAME & { scenes: { puzzle?: Record<string, unknown> }[] }
+    g.objectives = [
+      { id: 'obj_1', text: 'יעד ראשון' }, { id: 'obj_2', text: 'יעד שני' }, { id: 'obj_3', text: 'יעד שלישי' },
+      { id: 'obj_4', text: 'יעד מוסר' }, { id: 'obj_5', text: 'יעד בלי אתגרים' },
+    ]
+    const p = (i: number): Record<string, unknown> => g.scenes[i].puzzle as Record<string, unknown>
+    p(1).objectiveId = 'obj_1'; p(2).objectiveId = 'obj_1'; p(3).objectiveId = 'obj_2'; p(5).objectiveId = 'obj_4'
+    const qs = p(4).questions as Record<string, unknown>[]
+    qs[0].objectiveId = 'obj_2'; qs[1].objectiveId = 'obj_2'; qs[2].objectiveId = 'obj_3'
+    return g
+  }
+
+  /* תלמיד/ה שסיים/ה: תוצאה בכל אחת משש היחידות */
+  interface Spec { s1: R; s2: R; s3: R; q0: R; q1: R; q2: R }
+  const run = (i: number, r: Spec): { answers: CoreAnswerRow[]; events: CoreEventRow[] } => {
+    const c = (x: R): boolean => x === 'c'
+    const out = (x: R): CoreAnswerRow['outcome'] => (c(x) ? 'correct' : 'wrong')
+    return {
+      answers: [
+        ans(i, 's1', 0, c(r.s1) ? 'a' : 'b', out(r.s1)),
+        ans(i, 's2', 0, c(r.s2) ? 't' : 'f', out(r.s2), { puzzleType: 'trueFalse' }),
+        ans(i, 's3', 0, null, out(r.s3), { puzzleType: 'memory' }),
+        ans(i, 's4', 0, c(r.q0) ? 'o0' : 'o1', out(r.q0), { puzzleType: 'finalQuiz' }),
+        ans(i, 's4', 1, c(r.q1) ? 'o2' : 'o0', out(r.q1), { puzzleType: 'finalQuiz' }),
+        ans(i, 's4', 2, c(r.q2) ? 'o1' : 'o0', out(r.q2), { puzzleType: 'finalQuiz' }),
+      ],
+      events: [
+        pev(i, 's1', c(r.s1)), pev(i, 's2', c(r.s2)), pev(i, 's3', c(r.s3)),
+        pev(i, 's4', [r.q0, r.q1, r.q2].filter(c).length >= 2), pev(i, 's5', true),
+      ],
+    }
+  }
+  const ALL_OK: Spec = { s1: 'c', s2: 'c', s3: 'c', q0: 'c', q1: 'c', q2: 'c' }
+  /* st0 הכול נכון · st1 יעד 2 בגבול (2 מתוך 3) ושאלה 2 שגויה · st2 יעד 2 חלש (1 מתוך 3) · st3 הכול שגוי · st4 הכול נכון · st5 יעד 2 חלש */
+  const SPECS: Spec[] = [
+    ALL_OK,
+    { ...ALL_OK, s3: 'w', q2: 'w' },
+    { ...ALL_OK, s3: 'w', q0: 'w' },
+    { s1: 'w', s2: 'w', s3: 'w', q0: 'w', q1: 'w', q2: 'w' },
+    ALL_OK,
+    { ...ALL_OK, s3: 'w', q1: 'w' },
+  ]
+  const full = (specs: Spec[] = SPECS): CoreInput => {
+    const rs = specs.map((s, i) => run(i, s))
+    return withGame(tagged(), { sessions: specs.map((_, i) => sess(i, true)), answers: rs.flatMap((r) => r.answers), events: rs.flatMap((r) => r.events) })
+  }
+  const byId = (v: ReturnType<typeof buildClassView>, id: string) => v.objectives.find((o) => o.id === id)!
+
+  it('אין יעדים בהדמיה → מערך ריק; יעדים בלי אף אתגר מתויג → מערך ריק; ובלי שורות "יעדים" ב"איך חישבנו"', () => {
+    const one = run(0, ALL_OK)
+    const done = { sessions: [sess(0, true)], answers: one.answers, events: one.events }
+    const none = buildClassView(withGame(clone(GAME), done))
+    expect(none.objectives).toEqual([])
+    expect(none.howWeCalculated).toEqual(howWeCalcResultsLines())
+    const untagged = clone(GAME)
+    untagged.objectives = [{ id: 'obj_1', text: 'יעד בלי תיוג' }]
+    expect(buildClassView(withGame(untagged, done)).objectives).toEqual([])
+    expect(buildClassView(withGame(null)).objectives).toEqual([])
+  })
+
+  it('רמות ומספרים: "X מתוך Y" בתלמידים, רמה לפי חלק התלמידים שהצליחו, ומילה פשוטה מ-findingsNarrative', () => {
+    const v = buildClassView(full())
+    /* יעדי מוסר ובלי-אתגרים אינם ניתנים למדידה — לא מוצגים; הסדר כפי שהוגדר בהדמיה */
+    expect(v.objectives.map((o) => o.id)).toEqual(['obj_1', 'obj_2', 'obj_3'])
+    /* יעד 1: 5 מתוך 6 (st3 לא הצליח באף אחד משניים) → 83% = "למדו" */
+    expect(byId(v, 'obj_1')).toMatchObject({ text: 'יעד ראשון', attempted: 6, solved: 5, level: 'strong', levelText: OBJECTIVE_LEVEL_TEXT.strong })
+    /* יעד 2 (שלוש יחידות): st0,st1,st4 הצליחו לפחות ב-60% מהן → 3 מתוך 6 = 50% → "עדיין קשה" */
+    expect(byId(v, 'obj_2')).toMatchObject({ attempted: 6, solved: 3, level: 'weak', levelText: OBJECTIVE_LEVEL_TEXT.weak })
+    /* יעד 3 (שאלה אחת במבחן): 4 מתוך 6 = 67% → "למדו חלקית" */
+    expect(byId(v, 'obj_3')).toMatchObject({ attempted: 6, solved: 4, level: 'partial', levelText: OBJECTIVE_LEVEL_TEXT.partial })
+    expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
+  })
+
+  it('המתקשים: מי שהצליח בפחות מ-60% מיחידות היעד — לפי א-ב, עם מזהה ושם', () => {
+    const v = buildClassView(full())
+    expect(byId(v, 'obj_1').weakStudents).toEqual([{ id: 'st3', name: 'דנה רז' }])
+    expect(byId(v, 'obj_2').weakStudents.map((s) => s.name)).toEqual(['גלית ברק', 'דנה רז', 'ויקטור נחום'])
+    expect(byId(v, 'obj_3').weakStudents.map((s) => s.id)).toEqual(['st1', 'st3'])
+    for (const o of v.objectives) expect(o.solved + o.weakStudents.length).toBe(o.attempted)
+  })
+
+  /* ── גבולות הספים, על הדמיה קטנה: חמישה אתגרים, כולם ביעד אחד ── */
+  describe('ספים', () => {
+    const mini = (): unknown => ({
+      entrySceneId: 'm1', objectives: [{ id: 'o', text: 'יעד' }],
+      scenes: [1, 2, 3, 4, 5].map((n) => ({ id: `m${n}`, title: `אתגר ${n}`, puzzle: { type: 'multipleChoice', question: `שאלה ${n}`, objectiveId: 'o', choices: [{ id: 'a', text: 'נכון', isCorrect: true }, { id: 'b', text: 'שגוי', isCorrect: false }] } })),
+    })
+    /* תלמיד שפתר correct מתוך 5 אתגרים */
+    const student = (i: number, correct: number): { answers: CoreAnswerRow[]; events: CoreEventRow[] } => ({
+      answers: [1, 2, 3, 4, 5].map((n) => ans(i, `m${n}`, 0, n <= correct ? 'a' : 'b', n <= correct ? 'correct' : 'wrong')),
+      events: [1, 2, 3, 4, 5].map((n) => pev(i, `m${n}`, n <= correct)),
+    })
+    const classOf = (corrects: number[]) => {
+      const rs = corrects.map((c, i) => student(i, c))
+      const base = withGame(mini(), { sessions: corrects.map((_, i) => sess(i, true)), answers: rs.flatMap((r) => r.answers), events: rs.flatMap((r) => r.events) })
+      return buildClassView({ ...base, students: STUDENTS.slice(0, corrects.length) }).objectives[0]
+    }
+
+    it('הספים מגיעים מ-OBJECTIVE_BANDS (80% ו-60%)', () => {
+      expect(OBJECTIVE_BANDS).toEqual({ strong: 0.8, partial: 0.6 })
+    })
+    it('סף אישי: 3 מתוך 5 (60% בדיוק) הצליח/ה; 2 מתוך 5 מתקשה', () => {
+      const o = classOf([3, 2])
+      expect(o.solved).toBe(1)
+      expect(o.weakStudents.map((s) => s.id)).toEqual(['st1'])
+    })
+    it('סף כיתתי: 4 מתוך 5 תלמידים (80% בדיוק) = למדו; 3 מתוך 5 (60% בדיוק) = למדו חלקית; 2 מתוך 5 = עדיין קשה', () => {
+      expect(classOf([5, 5, 5, 5, 0])).toMatchObject({ solved: 4, attempted: 5, level: 'strong' })
+      expect(classOf([5, 5, 5, 0, 0])).toMatchObject({ solved: 3, attempted: 5, level: 'partial' })
+      expect(classOf([5, 5, 0, 0, 0])).toMatchObject({ solved: 2, attempted: 5, level: 'weak' })
+    })
+    it('תלמיד/ה אחד/ת שניסה: יש רמה; אף אחד לא סיים: אין רמה ו"אין עדיין נתונים"', () => {
+      expect(classOf([5])).toMatchObject({ attempted: 1, solved: 1, level: 'strong' })
+      const rs = buildClassView({ ...withGame(mini(), { sessions: [sess(0, false)] }), students: STUDENTS.slice(0, 2) })
+      expect(rs.objectives[0]).toMatchObject({ attempted: 0, solved: 0, level: null, levelText: OBJECTIVE_NO_DATA_TEXT, weakStudents: [] })
+      expect(ClassSubmissionViewSchema.safeParse(rs).success).toBe(true)
+    })
+  })
+
+  it('מי שלא סיים או לא התחיל — לא נספר; ויתור ואתגר שלא הגיע אליו — לא נספרים כהצלחה', () => {
+    const rs = [run(0, ALL_OK), run(1, ALL_OK)]
+    const v = buildClassView(withGame(tagged(), {
+      sessions: [sess(0, true), sess(1, true), sess(2, false)],
+      answers: [...rs[0].answers, ans(1, 's1', 0, null, 'gave_up'), ans(1, 's2', 0, 't', 'correct', { puzzleType: 'trueFalse' })],
+      events: [...rs[0].events, pev(1, 's1', false), pev(1, 's2', true)],
+    }))
+    /* st1 הגיע רק ל-s1 (ויתר) ול-s2 (נכון): 1 מתוך 2 = 50% → מתקשה ביעד 1; ביעד 2 ו-3 לא ניסה */
+    expect(byId(v, 'obj_1')).toMatchObject({ attempted: 2, solved: 1 })
+    expect(byId(v, 'obj_1').weakStudents.map((s) => s.id)).toEqual(['st1'])
+    expect(byId(v, 'obj_2')).toMatchObject({ attempted: 1, solved: 1 })
+  })
+
+  it('דילמה מוסרית אינה נספרת ביעד (אין בה נכון/שגוי), ותיוג של יעד שלא הוגדר מתעלמים ממנו', () => {
+    const g = tagged() as unknown as { scenes: { puzzle?: Record<string, unknown> }[] }
+    ;(g.scenes[1].puzzle as Record<string, unknown>).objectiveId = 'obj_שלא_קיים'
+    const base = full()
+    const v = buildClassView(withGame(g, { sessions: base.sessions, answers: base.answers, events: base.events }))
+    expect(v.objectives.map((o) => o.id)).not.toContain('obj_4')
+    /* s1 כבר אינו ביעד 1: נשארה רק s2 (נכון/לא נכון) — st3 עדיין שגוי בה */
+    expect(byId(v, 'obj_1')).toMatchObject({ attempted: 6, solved: 5 })
+    expect(byId(v, 'obj_1').weakStudents.map((s) => s.id)).toEqual(['st3'])
+  })
+
+  it('בלי answers (הדמיה ישנה): אתגר שלם לפי events; שאלות מבחן מתויגות בלי פירוט אינן נספרות, אבל תיוג של המבחן כולו כן', () => {
+    const rs = SPECS.map((s, i) => run(i, s))
+    const events = rs.flatMap((r) => r.events)
+    const sessions = SPECS.map((_, i) => sess(i, true))
+    const noQuiz = buildClassView(withGame(tagged(), { sessions, events }))
+    /* יעד 1 מ-events: s1,s2 → כמו עם answers */
+    expect(byId(noQuiz, 'obj_1')).toMatchObject({ attempted: 6, solved: 5, level: 'strong' })
+    /* יעד 2: רק s3 נספר (שאלות המבחן מתויגות פר-שאלה ואין פירוט) — נכון אצל st0 ו-st4 בלבד = 2 מתוך 6 */
+    expect(byId(noQuiz, 'obj_2')).toMatchObject({ attempted: 6, solved: 2, level: 'weak' })
+    /* יעד 3: אין שום יחידה שנספרת → עוד אין נתונים */
+    expect(byId(noQuiz, 'obj_3')).toMatchObject({ attempted: 0, solved: 0, level: null, levelText: OBJECTIVE_NO_DATA_TEXT })
+    /* תיוג ברמת המבחן כולו: נספר כאתגר אחד לפי ה-event */
+    const g = tagged() as unknown as { scenes: { puzzle?: Record<string, unknown> }[] }
+    delete (g.scenes[4].puzzle!.questions as Record<string, unknown>[])[2].objectiveId
+    g.scenes[4].puzzle!.objectiveId = 'obj_3'
+    const whole = buildClassView(withGame(g, { sessions, events }))
+    /* ה-event של המבחן הוא "נפתר" כשלפחות 2 מ-3 שאלות נכונות: רק st3 (אפס נכונות) לא הצליח */
+    expect(byId(whole, 'obj_3')).toMatchObject({ attempted: 6, solved: 5 })
+    expect(byId(whole, 'obj_3').weakStudents.map((s) => s.id)).toEqual(['st3'])
+  })
+
+  it('שאלה במבחן בלי תיוג משלה יורשת את תיוג המבחן; תיוג פר-שאלה גובר', () => {
+    const g = tagged() as unknown as { scenes: { puzzle?: Record<string, unknown> }[] }
+    const quiz = g.scenes[4].puzzle!
+    quiz.objectiveId = 'obj_1'
+    delete (quiz.questions as Record<string, unknown>[])[1].objectiveId
+    const base = full()
+    const v = buildClassView(withGame(g, { sessions: base.sessions, answers: base.answers, events: base.events }))
+    /* שאלה 1 עברה ליעד 1 (ירושה): יעד 1 = s1,s2,q1 — רק st3 (שגוי בכול) מתקשה */
+    expect(byId(v, 'obj_1').weakStudents.map((s) => s.id)).toEqual(['st3'])
+    /* שאלה 0 נשארה ביעד 2 (תיוג פר-שאלה גובר על תיוג המבחן): יעד 2 = s3,q0 — מי שטעה באחת משתיים (50%) מתקשה */
+    expect(byId(v, 'obj_2')).toMatchObject({ attempted: 6, solved: 2 })
+    expect(byId(v, 'obj_2').weakStudents.map((s) => s.id)).toEqual(['st1', 'st2', 'st3', 'st5'])
+  })
+
+  it('הליבה טהורה: לא משנה את הקלט, דטרמיניסטית, ושורות "איך חישבנו" ליעדים מצורפות רק כשיש יעדים', () => {
+    const data = full()
+    const snap = JSON.stringify(data)
+    const a = JSON.stringify(buildClassView(data))
+    expect(JSON.stringify(buildClassView(data))).toBe(a)
+    expect(JSON.stringify(data)).toBe(snap)
+    expect(buildClassView(data).howWeCalculated).toEqual([...howWeCalcResultsLines(), ...howWeCalcObjectivesLines(OBJECTIVE_BANDS)])
+    expect(buildStudentView(data, 'st0')!.howWeCalculated).toEqual(howWeCalcResultsLines())
+  })
+
+  it('questObjectives: מסנן רשומות פגומות וכפילויות', () => {
+    expect(questObjectives({ objectives: [{ id: 'a', text: 'א' }, { id: 'a', text: 'כפול' }, { id: '', text: 'בלי מזהה' }, { id: 'b', text: '  ' }, null, { id: 'c', text: ' ג ' }] }))
+      .toEqual([{ id: 'a', text: 'א' }, { id: 'c', text: 'ג' }])
+    expect(questObjectives(null)).toEqual([])
+    expect(questObjectives({ objectives: 'x' })).toEqual([])
   })
 })
 

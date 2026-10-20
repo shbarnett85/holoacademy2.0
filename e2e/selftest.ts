@@ -5,7 +5,11 @@
 import { pathToFileURL } from 'node:url'
 import { auditPage, judge } from './lib/audit.ts'
 import { launchBrowser, newContext } from './lib/browser.ts'
+import {
+  axeCell, buildChecklist, clicksCell, crumbCell, distinctScreens, fitsCell, forbiddenCell, minFontCell, questionCell, rolesCell, screenChecklist, screenshotsCell,
+} from './lib/checklist.ts'
 import { scanForbidden } from './lib/forbidden.ts'
+import type { LayoutMetrics, ScreenResult, Who } from './lib/types.ts'
 
 let failed = 0
 const check = (name: string, ok: boolean, extra = ''): void => {
@@ -34,7 +38,98 @@ const GOOD_PAGE = `<!doctype html><html lang="he" dir="rtl"><head><meta charset=
 <main><h1>איך הכיתה הצליחה?</h1><p>11 מתוך 24 תלמידים סיימו.</p>
 <button style="min-width:80px;min-height:48px">פתיחה</button></main></body></html>`
 
+/* ── צ'קליסט: תוצאות סינתטיות (בלי דפדפן) ── */
+function mkLayout(over: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בהדמיה?'): LayoutMetrics {
+  return {
+    innerWidth: 1366, innerHeight: 768, scrollHeight: 768, scrollWidth: 1366, fitsOneScreen: true, overflowPx: 0, horizontalOverflow: false,
+    overflowers: [], innerScrollers: [], tallestOverflowPx: 0,
+    smallTargets: { count: 0, total: 20, inlineExcluded: 0, examples: [] },
+    fonts: { min: 16, below14: 0, below16: 0, textElements: 30, examples: [] },
+    hoverOnly: { controls: 0, info: 0, examples: [] }, clickableNonSemantic: { count: 0, examples: [] },
+    breadcrumb: { present: true, via: 'attr', text: 'תוצאות › מדעים', fullText: 'תוצאות › מדעים › ו2' },
+    headings: { h1: h1 ? 1 : 0, firstH1: h1, texts: h1 ? [h1] : [] },
+    ...over,
+  }
+}
+function mkResult(name: string, who: Who, o: Partial<ScreenResult> = {}, layout: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בהדמיה?'): ScreenResult {
+  const vp = o.viewport ?? '1366x768'
+  return {
+    id: `${name}.${who}`, name, who, group: 'results', viewport: vp, theme: 'light', urlPattern: `/results/${name}`, requestedUrl: `/results/${name}`, finalUrl: `/results/${name}`,
+    status: 'ok', statusDetail: null, inner: true, clicksFromMainTab: 1, screenshot: `${name}.${who}-${vp}.png`,
+    axe: { critical: 0, serious: 0, moderate: 0, minor: 0, incomplete: 0, violations: [] }, forbidden: [], layout: mkLayout(layout, h1),
+    consoleErrors: { count: 0, samples: [] }, failedRequests: { count: 0, samples: [] }, loadMs: 100, hardFailures: [], strictFailures: [], note: null, attempts: 1,
+    ...o,
+  }
+}
+const META = { generatedAt: '2026-01-01T00:00:00.000Z', base: 'http://x', api: 'http://y', theme: 'light' as const, viewports: ['1366x768'], strict: false, args: [], fixture: { used: false, note: null } }
+
+function checklistUnit(): void {
+  console.log("— יחידה: צ'קליסט —")
+  /* איחוד: אותו מסך בשני תפקידים ושני viewports → מסך מובחן אחד, נמדד ב-1366×768 */
+  const merged = distinctScreens([
+    mkResult('s1', 'guest-homeroom'), mkResult('s1', 'real-homeroom'),
+    mkResult('s1', 'guest-homeroom', { viewport: '1920x1080' }, { fitsOneScreen: false, overflowPx: 999 }),
+    mkResult('s2', 'guest-homeroom'),
+  ])
+  check('איחוד: 2 מסכים מובחנים', merged.length === 2 && merged[0].name === 's1' && merged[1].name === 's2', merged.map((m) => m.name).join(','))
+  check('איחוד: 1366×768 נבחר, 1920 לא משפיע', merged[0].viewport === '1366x768' && merged[0].measured.length === 2 && merged[0].all.length === 3 && fitsCell(merged[0]) === '✓')
+  check('תפקידים: שני תוויות', rolesCell(merged[0]).includes('מחנך/ת · הדגמה') && rolesCell(merged[0]).includes('מחנך/ת · אמיתי'))
+  check('שאלה אחת משותפת → ציטוט יחיד', questionCell(merged[0]) === '"איך הכיתה הצליחה בהדמיה?"', questionCell(merged[0]))
+
+  /* h1 שונה בין תפקידים → שניהם מופיעים עם התפקיד */
+  const diff = distinctScreens([mkResult('d', 'guest-homeroom', {}, {}, 'שאלה א'), mkResult('d', 'real-unlinked', {}, {}, 'שאלה ב')])[0]
+  check('h1 שונה: שני ציטוטים עם תפקיד', questionCell(diff).includes('"שאלה א" — מחנך/ת · הדגמה') && questionCell(diff).includes('"שאלה ב" — מורה בלי כיתה · אמיתי'), questionCell(diff))
+  const noH1 = distinctScreens([mkResult('n', 'guest-homeroom', {}, {}, null)])[0]
+  check('אין h1 → ✗', questionCell(noH1).includes('✗ אין h1'))
+
+  /* נתיב חזרה: דוגמה אחת + ספירת וריאציות; תפקיד בלי נתיב מסומן בשמו */
+  const crumbs = distinctScreens([
+    mkResult('k', 'guest-homeroom'),
+    mkResult('k', 'real-homeroom', {}, { breadcrumb: { present: true, via: 'attr', text: 'x', fullText: 'תוצאות › אחר' } }),
+    mkResult('k', 'real-subject', {}, { breadcrumb: { present: false, via: null, text: null } }),
+  ])[0]
+  check('נתיב חזרה: דוגמה + וריאציה + תפקיד בלי נתיב', crumbCell(crumbs).includes('ועוד וריאציה אחת') && crumbCell(crumbs).includes('✗ אין נתיב חזרה — מורה מקצועי · אמיתי'), crumbCell(crumbs))
+  check('נתיב חזרה: מסך לא-פנימי → —', crumbCell({ ...crumbs, inner: false }) === '—')
+
+  /* חריגה בגובה: הגרוע, ורק התפקיד שחורג */
+  const over = distinctScreens([mkResult('o', 'guest-homeroom'), mkResult('o', 'real-homeroom', {}, { fitsOneScreen: false, overflowPx: 120 })])[0]
+  check('חריגה: ✗ +120px עם התפקיד החורג בלבד', fitsCell(over) === '✗ +120px (מחנך/ת · אמיתי)', fitsCell(over))
+  const inner = distinctScreens([mkResult('i', 'guest-homeroom', {}, { innerScrollers: [{ selector: 'div.x', overflowPx: 80 }] })])[0]
+  check('גלילה פנימית נרשמת כאזהרה', fitsCell(inner).includes('~ גלילה פנימית עד +80px'), fitsCell(inner))
+  const only1920 = distinctScreens([mkResult('w', 'guest-homeroom', { viewport: '1920x1080' })])[0]
+  check('בלי 1366×768 → הערה מפורשת', !only1920.atChecklistViewport && fitsCell(only1920).includes('נמדד ב-1920x1080'), fitsCell(only1920))
+
+  /* שאר העמודות */
+  const bad = distinctScreens([mkResult('b', 'guest-homeroom', {
+    clicksFromMainTab: 3,
+    forbidden: [{ word: 'מובהק', match: 'מובהק', context: 'x' }],
+    axe: { critical: 0, serious: 1, moderate: 0, minor: 0, incomplete: 0, violations: [{ id: 'color-contrast', impact: 'serious', help: 'h', helpUrl: '', nodes: 2, targets: [] }] },
+  }, { smallTargets: { count: 3, total: 20, inlineExcluded: 0, examples: [] }, fonts: { min: 11, below14: 2, below16: 5, textElements: 30, examples: [] } })])[0]
+  check('לחיצות 3 → ✗ 3; 1 → "1"', clicksCell(bad) === '✗ 3' && clicksCell(merged[0]) === '1')
+  check('axe: ✗ 1 (color-contrast)', axeCell(bad) === '✗ 1 (color-contrast)', axeCell(bad))
+  check('מילים אסורות: ✗ 1 (מובהק)', forbiddenCell(bad) === '✗ 1 (מובהק)', forbiddenCell(bad))
+  check('גופן 11px → ✗', minFontCell(bad).startsWith('✗ 11px'), minFontCell(bad))
+  check('קישורי צילום', screenshotsCell(merged[0]).includes('](s1.guest-homeroom-1366x768.png)'))
+
+  /* מסך שלא נמדד */
+  const miss = distinctScreens([mkResult('m', 'guest-homeroom', { status: 'missing', statusDetail: 'route/element missing: דף ריק', layout: null, axe: null, screenshot: null })])[0]
+  check('missing: אין מדידה, הסיבה מוצגת', miss.measured.length === 0 && questionCell(miss).includes('דף ריק') && fitsCell(miss) === '—' && axeCell(miss) === '—' && rolesCell(miss).includes('MISSING'))
+
+  /* הרשומה ב-report.json */
+  const c = screenChecklist(mkResult('c', 'guest-homeroom'))
+  check('screenChecklist: h1/נתיב/לחיצות/מסך-אחד/צילום', c.h1 === 'איך הכיתה הצליחה בהדמיה?' && c.breadcrumb === 'תוצאות › מדעים › ו2' && c.clicksFromMainTab === 1 && c.fitsAt1366x768 === true && c.screenshot === 'c.guest-homeroom-1366x768.png', JSON.stringify(c))
+  const c19 = screenChecklist(mkResult('c', 'guest-homeroom', { viewport: '1920x1080' }))
+  check('screenChecklist: fitsAt1366x768=null מחוץ ל-1366', c19.fitsAt1366x768 === null && c19.fitsOneScreen === true)
+  const cm = screenChecklist(miss.all[0])
+  check('screenChecklist: מסך חסר → שדות null', cm.h1 === null && cm.fitsOneScreen === null && cm.breadcrumb === null && cm.urlPattern === '/results/m')
+
+  const md = buildChecklist(META, [mkResult('s1', 'guest-homeroom'), mkResult('s1', 'real-homeroom'), bad.all[0], miss.all[0]])
+  const rows = md.split('\n').filter((l) => /^\| \d+ \|/.test(l))
+  check('מסמך: שורה לכל מסך מובחן (3), כותרות בעברית', rows.length === 3 && md.includes('על איזו שאלה הוא עונה') && md.includes('נכנס במסך אחד ב-1366×768') && md.includes('לחיצות מהטאב הראשי'), String(rows.length))
+}
+
 async function main(): Promise<number> {
+  checklistUnit()
   console.log('— יחידה: מילים אסורות —')
   const hits = scanForbidden('הדפוס מובהק, ה-p-value נמוך, BH מתוקן. p מתוקן. גודל אפקט. קורלציות. וקטורים. אינדקסים. הסתברותי. Benjamini–Hochberg')
   const words = new Set(hits.map((h) => h.word))
@@ -62,6 +157,7 @@ async function main(): Promise<number> {
     check('hover-only: span עם title בלבד', l.hoverOnly.info >= 1, JSON.stringify(l.hoverOnly))
     check('breadcrumb (data-breadcrumb) זוהה', l.breadcrumb.present && l.breadcrumb.via === 'attr')
     check('אין h1 → h1=0', l.headings.h1 === 0)
+    check('breadcrumb.fullText מלא (data-breadcrumb)', (l.breadcrumb.fullText ?? '').includes('תוצאות') && (l.breadcrumb.fullText ?? '').includes('הדמיה'), JSON.stringify(l.breadcrumb))
     const v = judge({ axe: a.axe, forbidden: a.forbidden, layout: l, inner: true, clicksFromMainTab: 3 })
     check('judge: כשלים קשיחים (axe + מילים)', v.hard.length === 2, JSON.stringify(v.hard))
     check('judge: כשלי strict (פריסה/יעדים/גופן/hover/לחיצות/h1)', v.strict.length >= 5, JSON.stringify(v.strict))
@@ -71,6 +167,7 @@ async function main(): Promise<number> {
     const g = await auditPage(page, null)
     const vg = judge({ axe: g.axe, forbidden: g.forbidden, layout: g.layout, inner: false, clicksFromMainTab: 0 })
     check('נכנס במסך אחד', g.layout.fitsOneScreen)
+    check('h1 מלא נרשם (headings.texts)', g.layout.headings.texts?.[0] === 'איך הכיתה הצליחה?', JSON.stringify(g.layout.headings))
     check('אין יעדים קטנים', g.layout.smallTargets.count === 0, JSON.stringify(g.layout.smallTargets))
     check('גופן ≥ 16', g.layout.fonts.min !== null && g.layout.fonts.min >= 16)
     check('judge: אין כשלים', vg.hard.length === 0 && vg.strict.length === 0, JSON.stringify(vg))

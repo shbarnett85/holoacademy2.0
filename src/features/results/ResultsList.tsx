@@ -1,5 +1,6 @@
 /* מסך הרשימה: "מה התלמידים עשו בהדמיות ששלחתי?" — שורה לכל שליחה (הדמיה × כיתה × תאריך), החדשה ראשונה.
-   סינון בכפתורים (כיתה; מקצוע — רק אם יש יותר ממקצוע אחד) + חיפוש בשם. הסינון חי בכתובת (?class=&subject=&q=), כך שחזרה מהדפדפן שומרת אותו. */
+   סינון בכפתורים (כיתה; מקצוע — רק אם יש יותר ממקצוע אחד) + חיפוש בשם. הסינון חי בכתובת (?class=&subject-filter=&q=), כך שחזרה מהדפדפן שומרת אותו.
+   אין כאן נתיב חזרה: זה המסך הראשי של הטאב, והכותרת כבר אומרת איפה אנחנו. מורה אורח: בורר העדשות בראש המסך. */
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { attentionBadgeText, dateHe, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
@@ -11,6 +12,7 @@ import FillArea from './FillArea'
 import FilterButtons from './FilterButtons'
 import { filterSubmissions, validOption } from './logic'
 import { useLens, useResultsData } from './resultsApi'
+import ResultsLensSwitcher from './ResultsLensSwitcher'
 import { card, scrollArea, secondaryButton } from './styles'
 import SuggestionBanner from './SuggestionBanner'
 import { UI } from './text'
@@ -18,7 +20,7 @@ import Thumb from './Thumb'
 
 function AttentionTag({ n }: { n: number }) {
   return (
-    <span data-attention-tag style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 15, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
+    <span data-attention-tag style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4 }}>
       <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
       {attentionBadgeText(n)}
     </span>
@@ -32,7 +34,7 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
       <Thumb url={row.thumbUrl} subjectCode={row.subject?.code ?? null} width={84} height={64} />
       <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontFamily: FONT, fontSize: 19, fontWeight: 800, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{row.title}</div>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 14px', fontFamily: FONT, fontSize: 15, color: T.textSoft }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 14px', fontFamily: FONT, fontSize: 16, color: T.textSoft }}>
           <SubjectBadge code={row.subject?.code ?? null} />
           <span>{UI.classWord(row.className)}</span>
           <span>{UI.sentOn(dateHe(row.sentAt))}</span>
@@ -45,7 +47,7 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
         {row.attentionCount > 0 && <AttentionTag n={row.attentionCount} />}
       </div>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.accentStrong }}>
-        {UI.open}
+        {UI.openResults}
         <Icon name="chevLeft" size={18} />
       </span>
     </Link>
@@ -53,8 +55,8 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
 }
 
 export default function ResultsList() {
-  const { apiQs, link } = useLens()
-  const q = useResultsData<SubmissionList>('list', `/api/results/submissions${apiQs}`)
+  const { isGuest, scope, apiQs, link } = useLens()
+  const q = useResultsData<SubmissionList>('list', `/api/results/submissions${apiQs}`, scope)
   const [sp, setSp] = useSearchParams()
 
   const data = q.data
@@ -84,7 +86,7 @@ export default function ResultsList() {
   const showSubjectFilter = subjectOptions.length > 1
 
   return (
-    <ScreenShell active="results" title={RESULTS_TEXT.listTitle} breadcrumb={[{ label: UI.crumbResults }]}>
+    <ScreenShell active="results" title={RESULTS_TEXT.listTitle} lensSwitcher={isGuest ? <ResultsLensSwitcher /> : undefined}>
       <FillArea>
         {q.error ? (
           <ErrorPanel error={q.error} scope="list" backTo={link('/results')} onRetry={q.reload} altTo={q.error.status === 403 ? link('/analytics') : undefined} />
@@ -94,7 +96,8 @@ export default function ResultsList() {
           <EmptyState title={RESULTS_TEXT.emptyList} whatNext={UI.emptyWhatNext} ctaLabel={RESULTS_TEXT.emptyListCta} ctaTo="/creator/library" />
         ) : (
           <>
-            <SuggestionBanner openLink={(id) => link(`/results/${encodeURIComponent(id)}`)} />
+            {/* "לתרגול חזרה" נפתח ישר בטאב "תרגול חזרה" של השליחה (אם יש בו מה לתרגל; אחרת — בטאב האתגרים) */}
+            <SuggestionBanner openLink={(id) => link(`/results/${encodeURIComponent(id)}`, { tab: 'review' })} />
 
             <section aria-label={UI.filterTitle} style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '8px 20px', flexWrap: 'wrap', padding: '8px 14px' }}>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.textSoft }}>

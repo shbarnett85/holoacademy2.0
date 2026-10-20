@@ -1,14 +1,18 @@
 /* תוויות הממשק של מסכי התוצאות — עברית פשוטה למורה שלא רגילה/רגיל למחשבים: מילה אחת ברורה לכל כפתור, בלי ז'רגון.
    משפטי הסיכום, הטעויות הנפוצות והסבר "איך חישבנו?" מגיעים מהחוזה / מ-findingsNarrative — לא נכתבים כאן. */
+import { countOf } from '../../shared/lib/findingsNarrative'
 import { inTopics } from './logic'
 
 export const UI = {
   loading: 'טוען…',
-  open: 'פתיחה',
+  /* הכפתור בכל שורת שליחה: מה שנפתח הוא התוצאות של אותה שליחה */
+  openResults: 'לתוצאות',
   retry: 'נסו שוב',
   backToResults: 'חזרה לתוצאות',
   toAnalytics: 'לאנליטיקה',
   finished: 'סיימו',
+  /* במצב "לפי תלמיד" הסרגל העליון עדיין מראה את הכיתה כולה — מסמנים את זה במילה */
+  finishedInClass: 'תלמידי הכיתה סיימו',
   succeeded: 'הצליחו',
   answered: 'ענו',
   studentsPlural: 'תלמידים',
@@ -19,6 +23,7 @@ export const UI = {
   crumbQuest: 'ההדמיה',
   crumbClass: 'הכיתה',
   crumbStudent: 'התלמיד/ה',
+  crumbError: (status: number): string => (status === 404 ? 'לא נמצא' : status === 403 ? 'אין הרשאה' : 'משהו השתבש'),
 
   /* רשימה */
   emptyWhatNext: 'אחרי ששולחים הדמיה לכיתה, התוצאות של התלמידים יופיעו כאן.',
@@ -40,6 +45,8 @@ export const UI = {
   suggestTitle: 'ד״ר הולו מציע',
   suggestText: (title: string, className: string, weakCount: number): string =>
     `ב"${title}" (כיתה ${className}) הכיתה התקשתה ${inTopics(weakCount)}. זה הזמן להדמיית חזרה.`,
+  suggestOpen: 'לתרגול חזרה',
+  suggestOpenFor: (title: string, className: string): string => `לתרגול חזרה: ${title}, כיתה ${className}`,
   notNow: 'לא עכשיו',
 
   /* שגיאות */
@@ -53,7 +60,8 @@ export const UI = {
   modeClass: 'כל הכיתה',
   modeStudent: 'לפי תלמיד',
   stateLine: (inProgress: number, notStarted: number): string => {
-    const parts = [inProgress > 0 ? `${inProgress} באמצע` : '', notStarted > 0 ? `${notStarted} עוד לא התחילו` : ''].filter(Boolean)
+    /* אותו סדר כמו קבוצות התלמידים (עוד לא התחילו קודם) */
+    const parts = [notStarted > 0 ? `${notStarted} עוד לא התחילו` : '', inProgress > 0 ? `${inProgress} באמצע` : ''].filter(Boolean)
     return parts.length > 0 ? parts.join(' · ') : 'כולם סיימו'
   },
 
@@ -109,11 +117,26 @@ export const UI = {
   noSlides: 'עוד אין נתונים על זמן בשקפים. הם יופיעו כאן אחרי שהתלמיד/ה יפתח/תפתח את ההדמיה.',
 
   /* טעויות נפוצות */
-  commonErrorsTitle: 'טעויות נפוצות בהדמיה הזאת',
+  /* משפט הסיכום של הטאב (במקום כותרת שחוזרת על שם הטאב) */
+  commonErrorsSummary: (n: number): string =>
+    n === 1 ? 'יש בהדמיה הזאת טעות אחת שכמה תלמידים בחרו בה.' : `יש בהדמיה הזאת ${n} טעויות שכמה תלמידים בחרו בהן.`,
   errorCount: (countText: string): string => `${countText} בחרו בטעות הזאת`,
   focusedQuest: 'צור הדמיה ממוקדת',
-  focusedExists: (title: string): string => `יש כבר הדמיה ממוקדת: «${title}». הכפתור יפתח אותה.`,
-  focusedNone: 'עדיין אין הדמיה מקושרת לטעות הזאת.',
+  focusedOpen: 'פתיחת ההדמיה הממוקדת',
+  focusedExists: (title: string): string => `יש הדמיה ממוקדת לטעות הזאת: «${title}».`,
+  focusedNone: 'עדיין אין הדמיה ממוקדת לטעות הזאת, ולכן הכפתור לא פעיל.',
+
+  /* יעדי הלמידה */
+  tabObjectives: 'יעדי הלמידה',
+  objectivesLabel: 'יעדי הלמידה של ההדמיה',
+  objectiveNoData: 'התוצאות ביעד הזה יופיעו כאן כשתלמידים יסיימו.',
+  objectiveNobodyWeak: 'אף תלמיד/ה לא מתקשה ביעד הזה.',
+  /* "מתקשים ביעד הזה: 6 מתוך 22" */
+  objectiveWeakHead: (weak: number, attempted: number): string => `מתקשים ביעד הזה: ${countOf(weak, attempted)}`,
+  objectiveWeakNames: 'התלמידים שמתקשים ביעד הזה',
+  openStudentHidden: 'לפתיחת התוצאות שלו/ה',
+  moreStudents: (n: number): string => (n === 1 ? 'עוד תלמיד/ה אחד/ת' : `עוד ${n} תלמידים`),
+  fewerStudents: 'הצגת פחות',
 
   /* תרגול חזרה */
   reviewTitle: 'תרגול חזרה',

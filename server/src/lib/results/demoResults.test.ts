@@ -1,14 +1,14 @@
 import type { Request } from 'express'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ATTENTION_RULE } from '../../../../src/shared/lib/analyticsConfig.js'
-import { countOf } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ATTENTION_RULE, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
+import { countOf, OBJECTIVE_LEVEL_TEXT, objectiveLevelText } from '../../../../src/shared/lib/findingsNarrative.js'
 import { RESULTS_EP, type ClassSubmissionView, type StudentChip, type StudentSubmissionView, type SubmissionList } from '../../../../src/shared/types/resultsV1.js'
 import { AppError } from '../../middleware/errors.js'
 import { resultsRouter } from '../../routes/results.js'
 import { DEMO_HOMEROOM_CLASS, type V2Viewer } from '../analyticsV2/access.js'
 import { demoViewerClasses, getAnalysis } from '../analyticsV2/demoProvider.js'
 import { buildClassView } from './core.js'
-import { DEMO_QUESTS, DEMO_SUBMISSIONS, DEMO_SUBJECT_TEACHERS, DEMO_HOMEROOM_TEACHER } from './demoCatalog.js'
+import { DEMO_QUESTS, DEMO_SUBMISSIONS, DEMO_SUBJECT_TEACHERS, DEMO_HOMEROOM_TEACHER, questById, type DemoQuest } from './demoCatalog.js'
 import { demoResultsProvider as P, demoVisibleSubmissions, getDemoResults } from './demoResults.js'
 import { MSG_RESULTS_NOT_FOR_ROLE } from './realResults.js'
 
@@ -370,6 +370,117 @@ describe('מקרים נוספים', () => {
 })
 
 /* ══════════════════════════════════════════════════════════════════════════ */
+describe('יעדי למידה בהדגמה', () => {
+  /* היעדים הניתנים למדידה לפי הקטלוג: יעד שיש לו אתגר מתויג (לא דילמת מוסר) או שאלה מתויגת במבחן סיכום */
+  const measurable = (q: DemoQuest): string[] => (q.objectives ?? []).map((o) => o.id).filter((id) => q.scenes.some((s) => {
+    const p = s.puzzle
+    if (!p || p.kind === 'moral') return false
+    return p.objectiveId === id || (p.kind === 'quiz' && p.questions.some((x) => x.objectiveId === id))
+  }))
+
+  /* חישוב בלתי-תלוי מתוך מסכי התלמיד: מי הצליח בפחות מ-OBJECTIVE_BANDS.partial מהיחידות של היעד */
+  function weakFromStudentViews(q: DemoQuest, subId: string, objectiveId: string, d: LensData, cv: ClassSubmissionView): { attempted: number; weak: string[] } {
+    let attempted = 0
+    const weak: string[] = []
+    for (const chip of cv.roster.completed) {
+      const sv = d.studentViews.get(`${subId}|${chip.id}`)!
+      let n = 0
+      let ok = 0
+      for (const s of q.scenes) {
+        const p = s.puzzle
+        if (!p || p.kind === 'moral') continue
+        const ch = sv.challenges.find((c) => c.sceneId === s.id)!
+        if (p.kind === 'quiz') {
+          p.questions.forEach((x, qi) => {
+            if ((x.objectiveId ?? p.objectiveId) !== objectiveId) return
+            const item = ch.items.find((i) => i.itemIndex === qi)
+            if (!item) return
+            n++
+            if (item.isCorrect === true) ok++
+          })
+        } else if (p.objectiveId === objectiveId && ch.outcome !== 'not_reached') {
+          n++
+          if (ch.outcome === 'correct') ok++
+        }
+      }
+      if (n === 0) continue
+      attempted++
+      if (ok / n < OBJECTIVE_BANDS.partial) weak.push(chip.id)
+    }
+    return { attempted, weak }
+  }
+
+  it('להדמיות עם יעדים — הם מוצגים לפי הסדר שהוגדר; לשאר — מערך ריק (אין טאב)', async () => {
+    const expected: Record<string, string[]> = {
+      [ID.fractionsV2]: ['obj_1', 'obj_2'], [ID.fractionsV1]: ['obj_1', 'obj_2'],
+      [ID.science]: ['obj_1', 'obj_2'],
+      [ID.historyV2]: ['obj_1', 'obj_2', 'obj_3'], [ID.historyV1]: ['obj_1', 'obj_2', 'obj_3'],
+    }
+    for (const { name, q } of LENSES) {
+      const d = await lensData(name, q)
+      for (const [id, cv] of d.classViews) {
+        const quest = questById(DEMO_SUBMISSIONS.find((s) => s.id === id)!.questId)!
+        expect(cv.objectives.map((o) => o.id), `${name}/${id}`).toEqual(expected[id] ?? [])
+        expect(cv.objectives.map((o) => o.id)).toEqual(measurable(quest))
+        for (const o of cv.objectives) expect(o.text).toBe(quest.objectives!.find((x) => x.id === o.id)!.text)
+      }
+    }
+    /* לפחות שלוש הדמיות (2 מקצועות לפחות) עם יעדים, כדי שהאורח יראה את הטאב */
+    expect(new Set(DEMO_QUESTS.filter((q) => (q.objectives ?? []).length > 0).map((q) => q.subject)).size).toBeGreaterThanOrEqual(3)
+  })
+
+  it('עקביות: ניסו ≤ סיימו; הצליחו + מתקשים = ניסו; המתקשים מבין מי שסיים; הרמה והמילה לפי הספים', async () => {
+    for (const { name, q } of LENSES) {
+      const d = await lensData(name, q)
+      for (const [id, cv] of d.classViews) {
+        const completed = new Set(cv.roster.completed.map((c) => c.id))
+        for (const o of cv.objectives) {
+          const where = `${name}/${id}/${o.id}`
+          expect(o.attempted, where).toBeLessThanOrEqual(completed.size)
+          expect(o.attempted, where).toBeGreaterThan(0)
+          expect(o.solved + o.weakStudents.length, where).toBe(o.attempted)
+          for (const s of o.weakStudents) expect(completed.has(s.id), where).toBe(true)
+          expect(o.weakStudents.map((s) => s.name), where).toEqual([...o.weakStudents.map((s) => s.name)].sort((x, y) => x.localeCompare(y, 'he')))
+          const share = o.solved / o.attempted
+          expect(o.level, where).toBe(share >= OBJECTIVE_BANDS.strong ? 'strong' : share >= OBJECTIVE_BANDS.partial ? 'partial' : 'weak')
+          expect(o.levelText, where).toBe(objectiveLevelText(o.level))
+        }
+      }
+    }
+  })
+
+  it('המתקשים והספירות זהים לחישוב בלתי-תלוי ממסכי התלמידים', async () => {
+    for (const { name, q } of LENSES) {
+      const d = await lensData(name, q)
+      for (const [id, cv] of d.classViews) {
+        const quest = questById(DEMO_SUBMISSIONS.find((s) => s.id === id)!.questId)!
+        for (const o of cv.objectives) {
+          const ref = weakFromStudentViews(quest, id, o.id, d, cv)
+          expect({ attempted: o.attempted, weak: o.weakStudents.map((s) => s.id).sort() }, `${name}/${id}/${o.id}`).toEqual({ attempted: ref.attempted, weak: [...ref.weak].sort() })
+        }
+      }
+    }
+  })
+
+  it('האורח רואה את שלוש הרמות (למדו, למדו חלקית, עדיין קשה) לפחות פעם אחת, וגם הדמיה בלי יעדים', async () => {
+    const d = await lensData('homeroom', HOMEROOM)
+    const levels = new Set([...d.classViews.values()].flatMap((cv) => cv.objectives.map((o) => o.level)))
+    expect(levels).toEqual(new Set(['strong', 'partial', 'weak']))
+    expect(d.classViews.get(ID.hebrewV2)!.objectives).toEqual([])
+    /* מי שמתקשה ביעד נפתח כתלמיד/ה: המזהה קיים ברשימת הכיתה */
+    const weak = d.classViews.get(ID.historyV2)!.objectives.flatMap((o) => o.weakStudents)
+    expect(weak.length).toBeGreaterThan(0)
+    for (const s of weak) expect(d.studentViews.has(`${ID.historyV2}|${s.id}`)).toBe(true)
+  })
+
+  it('יעדי המורה נשארים תוכן דומיין: הניסוח בקטלוג בלבד, והרמות במילים מ-findingsNarrative', async () => {
+    const d = await lensData('homeroom', HOMEROOM)
+    const words = new Set(Object.values(OBJECTIVE_LEVEL_TEXT))
+    for (const cv of d.classViews.values()) for (const o of cv.objectives) expect(words.has(o.levelText)).toBe(true)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 describe('הרשאות לפי עדשה', () => {
   it('מנהל: אין תוצאות — 403 בכל נקודת קצה', async () => {
     for (const run of [
@@ -604,6 +715,7 @@ describe('יציבות על פני ימות השנה', () => {
       return {
         id: s.def.id, counts: cv.head.counts, summary: cv.summary, commonErrors: cv.commonErrors.map((e) => [e.id, e.studentsCount, e.studentsExposed]),
         challenges: cv.challenges.map((c) => [c.attempted, c.solved, c.gaveUp]), attention: allChips(cv).filter((c) => c.attention).map((c) => [c.id, c.attentionReasons]),
+        objectives: cv.objectives.map((o) => [o.id, o.attempted, o.solved, o.level, o.weakStudents.map((s) => s.id)]),
       }
     })
     const base = snap(new Date('2026-10-19T09:00:00Z'))

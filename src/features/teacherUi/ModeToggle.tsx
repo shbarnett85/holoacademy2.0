@@ -25,7 +25,7 @@ export default function ModeToggle({ options, value, onChange, ariaLabel }: Mode
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>): void {
     const idx = Math.max(0, options.findIndex((o) => o.id === value))
     const rtl = ref.current ? getComputedStyle(ref.current).direction === 'rtl' : true
-    let next = idx
+    let next: number
     if (e.key === (rtl ? 'ArrowLeft' : 'ArrowRight') || e.key === 'ArrowDown') next = (idx + 1) % options.length
     else if (e.key === (rtl ? 'ArrowRight' : 'ArrowLeft') || e.key === 'ArrowUp') next = (idx - 1 + options.length) % options.length
     else return

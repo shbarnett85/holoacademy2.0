@@ -5,7 +5,7 @@ import { countOf, detailAvailableLine, RESULTS_TEXT } from '../../shared/lib/fin
 import type { ChallengeResult, ClassSubmissionView, ItemResult, OptionCount } from '../../shared/types/resultsV1'
 import { EmptyState, FONT, Icon, ProgressBar, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import { ExtraIcon } from './marks'
-import { secondaryButton, soft } from './styles'
+import { caption, secondaryButton, soft } from './styles'
 import { UI } from './text'
 
 const MORAL = 'moralDilemma'
@@ -21,9 +21,9 @@ function OptionRow({ o, moral }: { o: OptionCount; moral: boolean }) {
   return (
     <li data-option={o.optionId} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderTop: `1px solid ${T.border}` }}>
       {moral ? (
-        <span style={{ width: 86, flexShrink: 0 }} />
+        <span style={{ width: 92, flexShrink: 0 }} />
       ) : (
-        <span style={{ width: 86, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: FONT, fontSize: 14, fontWeight: 800, color: T.text }}>
+        <span style={{ width: 92, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text }}>
           <span style={{ color: o.isCorrect ? T.good : T.bad, display: 'inline-flex' }}>{o.isCorrect ? <Icon name="check" size={18} strokeWidth={2.6} /> : <ExtraIcon name="cross" size={18} />}</span>
           {o.isCorrect ? UI.optCorrect : UI.optWrong}
         </span>
@@ -43,7 +43,7 @@ function ItemDetail({ item, moral, showPrompt }: { item: ItemResult; moral: bool
   return (
     <div data-item={item.itemIndex} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {showPrompt && <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text, lineHeight: 1.5 }}>{item.prompt}</div>}
-      {!moral && <div style={{ ...soft, fontSize: 16 }}>{countOf(item.solved, item.attempted)} {UI.succeeded}</div>}
+      {!moral && <div style={soft}>{countOf(item.solved, item.attempted)} {UI.succeeded}</div>}
       {item.options && item.options.length > 0 && (
         <ul style={{ listStyle: 'none', margin: '2px 0 0', padding: 0 }}>
           {item.options.map((o) => <OptionRow key={o.optionId} o={o} moral={moral} />)}
@@ -60,7 +60,7 @@ function Detail({ c, id }: { c: ChallengeResult; id: string }) {
     <div id={id} data-challenge-detail style={{ margin: '0 0 2px', padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {moral && <p style={{ ...soft, margin: 0 }}>{UI.moralNote}</p>}
       {c.items.map((item) => <ItemDetail key={item.itemIndex} item={item} moral={moral} showPrompt={showPrompts} />)}
-      {c.items.length === 0 && c.attempted > 0 && <div style={{ ...soft, fontSize: 16 }}>{countOf(c.solved, c.attempted)} {UI.succeeded}</div>}
+      {c.items.length === 0 && c.attempted > 0 && <div style={soft}>{countOf(c.solved, c.attempted)} {UI.succeeded}</div>}
       {c.gaveUp > 0 && (
         <div style={{ fontFamily: FONT, fontSize: 16, lineHeight: 1.5, color: T.text }}>
           <span style={{ fontWeight: 800 }}>{UI.gaveUpLine(c.gaveUp)}</span>
@@ -84,7 +84,7 @@ function ChallengeRow({ c }: { c: ChallengeResult }) {
           <div style={{ fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
             <VisuallyHidden>{UI.challengeWord} {c.order}: </VisuallyHidden>{c.title}
           </div>
-          <div style={{ fontFamily: FONT, fontSize: 14, color: T.textSoft }}>{c.typeLabel}</div>
+          <div style={caption}>{c.typeLabel}</div>
         </div>
         {c.attempted > 0 ? (
           <div style={{ flex: '1 1 250px', maxWidth: 360, minWidth: 220 }}>
@@ -123,7 +123,7 @@ export default function ClassChallenges({ view }: { view: ClassSubmissionView })
         </p>
       )}
       {view.challenges.length === 0 ? (
-        <p style={{ ...soft, fontSize: 16 }}>{UI.noChallenges}</p>
+        <p style={soft}>{UI.noChallenges}</p>
       ) : !anyAttempt ? (
         <EmptyState title={UI.noAttemptsYet} whatNext={UI.noAttemptsYetNext} />
       ) : (

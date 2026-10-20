@@ -20,8 +20,11 @@ export const primaryButton: CSSProperties = {
   ...secondaryButton, fontWeight: 800, background: T.accentFill, border: `2px solid ${T.accent}`, boxShadow: `inset 0 -4px 0 ${T.accent}`,
 }
 
-/* שורת טקסט משנית (≥14px) */
-export const soft: CSSProperties = { fontFamily: FONT, fontSize: 15, color: T.textSoft, lineHeight: 1.6 }
+/* שורת טקסט משנית (משפט, רמז, מספרים): 16px — גוף טקסט לא יורד מזה */
+export const soft: CSSProperties = { fontFamily: FONT, fontSize: 16, color: T.textSoft, lineHeight: 1.6 }
+
+/* כיתוב (תווית של עובדה, סוג אתגר): כמו שורת משנית אבל צפוף יותר. גם הוא 16px — בתוכן התוצאות שום טקסט לא קטן מזה */
+export const caption: CSSProperties = { ...soft, lineHeight: 1.4 }
 
 /* אזור גלילה פנימי */
 export const scrollArea: CSSProperties = { flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }
