@@ -6,7 +6,7 @@
    · בשלב 5 הקלט (World) יוחלף בנתוני demoSim שנכתבו ל-DB, והפלט יגיע מהמנוע האמיתי — אותה צורת פלט.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  BEHAVIOR_VECTOR_KINDS, CLASS_IMPROVEMENT_MIN_MEAN_DELTA, CLASS_IMPROVEMENT_WINDOW_DAYS, CONTENT_VECTOR_KINDS, FDR_ALPHA, AGE_NORM, KIND_THRESHOLDS,
+  BEHAVIOR_VECTOR_KINDS, CLASS_IMPROVEMENT_MIN_MEAN_DELTA, CLASS_IMPROVEMENT_WINDOW_DAYS, CONTENT_VECTOR_KINDS, CURRENT_LEVEL_SESSIONS, FDR_ALPHA, AGE_NORM, KIND_THRESHOLDS,
   MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_WINDOWS, VECTOR_MIN_N, type FindingKind,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import { narrateFinding, narrateInsufficient } from '../../../../src/shared/lib/findingsNarrative.js'
@@ -303,7 +303,7 @@ export function analyze(w: World): Analysis {
     const series = new Map<string, number[]>()
     for (const s of sess) series.set(monthKey(s.date), [...(series.get(monthKey(s.date)) ?? []), s.level])
     const levelSeries = [...series.entries()].map(([k, v]) => ({ date: monthStartIso(k), level: round1(mean(v)), n: v.length }))
-    const lastN = [...sess].slice(-4).map((s) => s.level)
+    const lastN = [...sess].slice(-CURRENT_LEVEL_SESSIONS).map((s) => s.level)
     const currentLevel = lastN.length ? round1(mean(lastN)) : null
     const norm = ageNormOf(st.grade)
 

@@ -9,15 +9,13 @@ import { Router } from 'express'
 import type { Request } from 'express'
 import { CAVEAT_AGE_NORM, CAVEAT_CROSS_SUBJECT, CAVEAT_TREND } from '../../../src/shared/lib/findingsNarrative.js'
 import { isSubjectCode, type SubjectCode } from '../../../src/shared/lib/subjects.js'
-import { EP, QuerySchema, type Envelope } from '../../../src/shared/types/analyticsV2.js'
-import { loadViewer } from '../lib/authz.js'
-import { DEMO_HOMEROOM_CLASS, DEMO_SUBJECT_PERSONAS, type V2Viewer } from '../lib/analyticsV2/access.js'
+import { EP, type Envelope } from '../../../src/shared/types/analyticsV2.js'
+import type { V2Viewer } from '../lib/analyticsV2/access.js'
 import { demoProvider } from '../lib/analyticsV2/demoProvider.js'
 import { resolveV2Viewer } from '../lib/analyticsV2/viewer.js'
 import { realProvider, type AnalyticsV2Provider } from '../lib/analyticsV2/provider.js'
-import { subjectById } from '../lib/subjects.js'
 import { AppError } from '../middleware/errors.js'
-import { isDemoGuest, requireStaff } from '../middleware/staffAuth.js'
+import { requireStaff } from '../middleware/staffAuth.js'
 
 export const analyticsV2Router = Router()
 analyticsV2Router.use(requireStaff)
@@ -69,12 +67,22 @@ analyticsV2Router.get('/roster', async (req, res, next) => {
   try { res.json(validated(EP.roster.response, await providerFor().roster(await need(req)))) } catch (e) { next(e) }
 })
 
+/* מסך הכניסה "בחרו כיתה": כיתות + עד 3 התרעות (מנהל: מערכים ריקים) */
+analyticsV2Router.get('/entry', async (req, res, next) => {
+  try { res.json(validated(EP.entry.response, await providerFor().entry(await need(req)))) } catch (e) { next(e) }
+})
+
 analyticsV2Router.get('/student/:id', async (req, res, next) => {
   try { res.json(validated(EP.student.response, await providerFor().student(await need(req), req.params.id))) } catch (e) { next(e) }
 })
 
 analyticsV2Router.get('/student/:id/feedback', async (req, res, next) => {
   try { res.json(validated(EP.feedback.response, await providerFor().feedback(await need(req), req.params.id))) } catch (e) { next(e) }
+})
+
+/* "סקירה" של כיתה — מחנך הכיתה בלבד (מורה מקצועי / מנהל: 403) */
+analyticsV2Router.get('/class/:classId/overview', async (req, res, next) => {
+  try { res.json(validated(EP.classOverview.response, await providerFor().classOverview(await need(req), req.params.classId))) } catch (e) { next(e) }
 })
 
 analyticsV2Router.get('/class/:classId/subject/:subject', async (req, res, next) => {

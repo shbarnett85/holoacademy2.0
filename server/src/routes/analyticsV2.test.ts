@@ -8,7 +8,8 @@ vi.mock('../lib/authz.js', async (orig) => {
 vi.mock('../lib/subjects.js', () => ({ subjectById: vi.fn(async (id: string) => (id === 'sid-history' ? { id, code: 'history', nameHe: 'היסטוריה' } : null)) }))
 
 import { loadViewer, type Viewer } from '../lib/authz.js'
-import { resolveV2Viewer } from './analyticsV2.js'
+import { EP } from '../../../src/shared/types/analyticsV2.js'
+import { analyticsV2Router, resolveV2Viewer } from './analyticsV2.js'
 
 const req = (staff: Record<string, unknown>, query: Record<string, string> = {}): Request => ({ staff, query } as unknown as Request)
 const viewer = (over: Partial<Viewer>): Viewer => ({ userId: 'u1', role: 'teacher', schoolId: 's1', grants: new Map(), seesSynthetic: false, ...over })
@@ -62,5 +63,65 @@ describe('דגל ANALYTICS_V2 — מי רואה את האנליטיקה החדש
   it('kill-switch: ANALYTICS_V2=0 מכבה גם לאורח', async () => {
     process.env.ANALYTICS_V2 = '0'
     expect(await resolveV2Viewer(req({ role: 'teacher', isGuest: true }, { lens: 'admin' }))).toBeNull()
+  })
+})
+
+/* ── נקודות הקצה החדשות ב-router (חיווט + אימות תגובה מול הסכמה + הרשאות) ── */
+interface Layer { route?: { path: string; stack: { handle: (req: Request, res: unknown, next: (e?: unknown) => void) => Promise<void> }[] } }
+const layers = (): Layer[] => (analyticsV2Router as unknown as { stack: Layer[] }).stack.filter((l) => l.route)
+async function callRoute(path: string, r: Request): Promise<{ body?: unknown; error?: { status?: number } }> {
+  const layer = layers().find((l) => l.route!.path === path)
+  if (!layer) throw new Error(`נתיב לא רשום: ${path}`)
+  let body: unknown
+  let error: { status?: number } | undefined
+  await layer.route!.stack[0].handle(r, { json: (b: unknown) => { body = b } }, (e) => { error = e as { status?: number } })
+  return { body, error }
+}
+const guestReq = (query: Record<string, string>, params: Record<string, string> = {}): Request => ({ staff: { role: 'teacher', isGuest: true }, query, params } as unknown as Request)
+
+describe('נתיבי האנליטיקה החדשה: חיווט', () => {
+  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.DEMO_ANALYTICS })
+
+  it('כל נקודת קצה ברישום EP רשומה ב-router (GET)', () => {
+    const registered = new Set(layers().map((l) => l.route!.path))
+    for (const [name, ep] of Object.entries(EP)) {
+      const local = ep.path.replace('/api/analytics-v2', '')
+      expect(registered.has(local), `${name}: ${local}`).toBe(true)
+    }
+    expect(registered.has('/entry')).toBe(true)
+    expect(registered.has('/class/:classId/overview')).toBe(true)
+  })
+
+  it('GET /entry: מחנך מקבל את כיתתו, מנהל מקבל מערכים ריקים (התגובה מאומתת מול הסכמה)', async () => {
+    const hr = await callRoute('/entry', guestReq({ lens: 'homeroom' }))
+    expect(hr.error).toBeUndefined()
+    const data = (hr.body as { dataState: string; data: { classes: { id: string }[]; alerts: unknown[] } })
+    expect(data.dataState).toBe('ok')
+    expect(data.data.classes.map((c) => c.id)).toEqual(['c-v2'])
+    expect(data.data.alerts.length).toBeLessThanOrEqual(3)
+    expect(EP.entry.response.safeParse(hr.body).success).toBe(true)
+
+    const ad = await callRoute('/entry', guestReq({ lens: 'admin' }))
+    expect((ad.body as { data: unknown }).data).toEqual({ classes: [], alerts: [] })
+  })
+
+  it('GET /class/:classId/overview: מחנך — כן; מורה מקצועי ומנהל — 403', async () => {
+    const ok = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v2' }))
+    expect(ok.error).toBeUndefined()
+    expect(EP.classOverview.response.safeParse(ok.body).success).toBe(true)
+    const t = await callRoute('/class/:classId/overview', guestReq({ lens: 'subject_teacher', subject: 'math' }, { classId: 'c-v2' }))
+    expect(t.body).toBeUndefined()
+    expect(t.error?.status).toBe(403)
+    const a = await callRoute('/class/:classId/overview', guestReq({ lens: 'admin' }, { classId: 'c-v2' }))
+    expect(a.error?.status).toBe(403)
+    const other = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v1' }))
+    expect(other.error?.status).toBe(403)
+  })
+
+  it('משתמש אמיתי (הדגל כבוי): entry ו-overview מחזירים 403', async () => {
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: { classId: 'c-v2' } } as unknown as Request
+    expect((await callRoute('/entry', real)).error?.status).toBe(403)
+    expect((await callRoute('/class/:classId/overview', real)).error?.status).toBe(403)
   })
 })

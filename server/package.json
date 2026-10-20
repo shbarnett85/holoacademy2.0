@@ -17,6 +17,7 @@
     "seed-nesher-demo": "tsx src/scripts/seedNesherDemo.ts",
     "demo-data:accept": "tsx src/scripts/demoDataAcceptance.ts",
     "authz:accept": "tsx src/scripts/authzAcceptance.ts",
+    "results:accept": "tsx src/scripts/resultsAcceptance.ts",
     "compat:smoke": "tsx src/scripts/compatSmoke.ts"
   },
   "dependencies": {

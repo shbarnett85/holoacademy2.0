@@ -7,6 +7,9 @@
    היקף: הטוקנים האלה מופיעים אך ורק בקבצי מסכי-הצוות. הנגן, דף הבית ומסכי
    הכניסה משתמשים בצבעים משלהם ולכן נשארים כהים תמיד — בלי צורך בהחרגה.
 
+   ברירת מחדל: **בהיר**. כשאין העדפה שמורה (localStorage['holo-theme']) המסך נפתח
+   בהיר; מי שבחר במפורש כהה נשאר כהה. ההעדפה נשמרת רק ב-set()/toggle().
+
    API:  HoloTheme.isLight() | .set('light'|'dark') | .toggle() | .resolve(v)
          HoloTint('47,243,255', .3)  — טריפלט RGB בתוך template string
    אירוע: window 'holo-theme' בכל החלפה (לצבעים שמחושבים ב-JS). */
@@ -32,9 +35,11 @@
     ':root{' + DARK + ';--t-studio-bg:' + STUDIO_BG_DARK + ';--t-on-accent:' + ON_ACCENT_DARK + '}' +
     ':root[data-holo-theme="light"]{' + LIGHT + ';--t-studio-bg:' + STUDIO_BG_LIGHT + ';--t-on-accent:' + ON_ACCENT_LIGHT + '}' +
     /* SVG: אי-אפשר var() בתוך אטריביוט, ולכן override לפי הערך המקורי */
-    ':root[data-holo-theme="light"] [stroke="#2ff3ff"]{stroke:hsl(184 92% 30%)}' +
-    ':root[data-holo-theme="light"] [fill="#2ff3ff"]{fill:hsl(184 92% 30%)}' +
-    ':root[data-holo-theme="light"] [stop-color="#2ff3ff"]{stop-color:hsl(184 92% 30%)}' +
+    /* מוגבל ל-body.holo-studio: עם ברירת מחדל בהירה, כלל גלובלי היה משנה גם SVG
+       בדף הבית ובנגן (שמכילים #2ff3ff מילולי) — והם צריכים להישאר כהים תמיד. */
+    ':root[data-holo-theme="light"] body.holo-studio [stroke="#2ff3ff"]{stroke:hsl(184 92% 30%)}' +
+    ':root[data-holo-theme="light"] body.holo-studio [fill="#2ff3ff"]{fill:hsl(184 92% 30%)}' +
+    ':root[data-holo-theme="light"] body.holo-studio [stop-color="#2ff3ff"]{stop-color:hsl(184 92% 30%)}' +
     /* רקע ה-body הגלובלי כהה, ומציץ בשוליים/בגלילה מעבר לתוכן. מבהירים אותו
        **רק** כשמסך אולפן מורכב (StudioTopBar מוסיף את הקלאס ומסיר בפירוק),
        כדי שהנגן ומסכי הכניסה ימשיכו לשבת על הרקע הכהה שלהם. */
@@ -55,6 +60,9 @@
   }
   /* הלוגו: וריאנט בהיר באותו שם + "-light" (הכיתוב הלבן הומר לדיו) */
   function swapLogos() {
+    /* רק במסכי אולפן (body.holo-studio). בדף הבית הלוגו נשאר כהה תמיד — ועם ברירת
+       מחדל בהירה, החלפה גורפת הייתה מפנה ל-holoacademy-logo-light.png (לא קיים). */
+    if (!document.body || !document.body.classList.contains('holo-studio')) return
     var lightMode = isLight()
     var imgs = document.querySelectorAll('img[src*="holoacademy-logo"]')
     for (var i = 0; i < imgs.length; i++) {
@@ -66,7 +74,8 @@
   }
   function isLight() { return document.documentElement.getAttribute('data-holo-theme') === 'light' }
 
-  apply(saved() === 'light' ? 'light' : 'dark')
+  /* ברירת מחדל בהירה; רק בחירה מפורשת בכהה נשארת כהה */
+  apply(saved() === 'dark' ? 'dark' : 'light')
 
   window.HoloTheme = {
     isLight: isLight,

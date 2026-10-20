@@ -16,8 +16,9 @@ import { demoViewerClasses } from './demoProvider.js'
 const flagOn = (): boolean => process.env.ANALYTICS_V2 !== '0'
 
 /* גזירת הצופה: מורה אורח — מבורר העדשה; ארגון הדגמה — מהתפקיד האמיתי; אחרת null (הדגל כבוי) */
-export async function resolveV2Viewer(req: Request): Promise<V2Viewer | null> {
-  if (!flagOn()) return null
+/* ignoreFlag: טאב "תוצאות" (הדגמה) אינו תלוי בדגל ANALYTICS_V2 */
+export async function resolveV2Viewer(req: Request, opts: { ignoreFlag?: boolean } = {}): Promise<V2Viewer | null> {
+  if (!opts.ignoreFlag && !flagOn()) return null
   const q = QuerySchema.safeParse(req.query)
   const query = q.success ? q.data : {}
 

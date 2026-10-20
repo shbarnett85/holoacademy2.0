@@ -104,3 +104,34 @@ export const COMMON_ERROR_MIN_STUDENTS = 2
 
 /* סף לניסוח "רוב הכיתה הצליחה" (חלק האתגרים שנפתרו בממוצע בין מי שסיימו) */
 export const CLASS_SUCCESS_BANDS = { most: 0.75, some: 0.5 } as const
+
+/* ── אנליטיקה v2 — מסכי מורה בעיצוב החדש (שלב UX; תוספת בלבד) ── */
+
+/* מגמה (פר תלמיד / כיתה / שכבה) — מילים בלבד בממשק: משתפר/ת · יציב/ה · בירידה · אין עדיין מספיק נתונים */
+export const TRENDS = ['improving', 'steady', 'declining', 'insufficient'] as const
+export type Trend = (typeof TRENDS)[number]
+export const POSITIONS = ['above', 'within', 'below'] as const
+export type Position = (typeof POSITIONS)[number]
+
+/* מגמה = ממוצע הרמה ב-60 ימי הלימוד האחרונים פחות ממוצע הרמה ב-90 עד 150 ימי הלימוד שלפני כן.
+   הפרש של לפחות חצי רמה = שיפור/ירידה; חסר אחד הצדדים = אין עדיין מספיק נתונים. */
+export const TREND_LABEL_MIN_DELTA = 0.5
+/* לצבירה כיתתית/שכבתית: מינימום תלמידים שיש להם מגמה כדי לדווח מגמה לקבוצה */
+export const GROUP_TREND_MIN_STUDENTS = 3
+
+/* תחום (סוג תוכן) נחשב "חזק" / "מאתגר" כשהרמה בו רחוקה מרמת המקצוע לפחות ברמה אחת, והוא מדווח (N מספיק) */
+export const AREA_MIN_DELTA = 1
+/* ברמת כיתה: מינימום תלמידים שהתחום מדווח אצלם */
+export const CLASS_AREA_MIN_STUDENTS = MIN_CELL_SIZE
+
+/* מסך הכניסה: כמה התרעות "דורש תשומת לב" מוצגות לכל היותר */
+export const ENTRY_MAX_ALERTS = 3
+/* "מה קרה לאחרונה" בסיכום המקצוע */
+export const SUMMARY_RECENT_MAX = 3
+/* טקסטי התרעות בשורת מקצוע בסקירת הכיתה */
+export const OVERVIEW_ALERT_TEXTS_MAX = 3
+/* אירועים על ציר הזמן של ההתקדמות */
+export const PROGRESS_EVENTS_MAX = 12
+
+/* "הרמה הנוכחית" = ממוצע הרמה בכמה ההדמיות האחרונות במקצוע */
+export const CURRENT_LEVEL_SESSIONS = 4

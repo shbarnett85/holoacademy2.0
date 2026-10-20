@@ -31,7 +31,7 @@ vi.mock('./activeColumn.js', () => ({ hasClassTeachers: async () => true, hasDat
 
 import {
   MIN_CELL_SIZE, studentScope, questVisible, canPatchLevels, classAccess, assignmentVisible, belowMinCell,
-  loadViewer, logAccess, type Viewer, type TeachGrant,
+  loadViewer, logAccess, canUseResults, submissionVisible, type Viewer, type TeachGrant,
 } from './authz.js'
 import type { Request } from 'express'
 
@@ -203,5 +203,82 @@ describe('loadViewer — טעינת טווח הרשאות מ-class_teachers', ()
     await logAccess(v, { studentId: 'stu-1', scope: 'student_detail', endpoint: 'GET /student/:id' })
     expect(h.db.data_access_log).toHaveLength(1)
     expect(h.db.data_access_log[0]).toMatchObject({ viewer_id: 't-home', viewer_role: 'teacher', student_id: 'stu-1', scope: 'student_detail' })
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   מטריצת הרשאות של טאב "תוצאות": תפקיד × (רשימה / מסך הדמיה / מסך תלמיד)
+   · רשימה = השער canUseResults; מסך הדמיה = submissionVisible (שולח / יוצר / מחנך / מורה מקצוע בכיתה);
+   · מסך תלמיד = אותה גישה לשליחה + התלמיד חבר בכיתת השליחה (הספק מחזיר 404 אחרת).
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('מטריצת הרשאות: תוצאות', () => {
+  const OTHER = 'someone-else'
+  const SENDER_ID = 'u-sender'
+  const mathQuest = { subject_id: MATH, created_by: OTHER }
+  const histQuest = { subject_id: HIST, created_by: OTHER }
+  const unclassified = { subject_id: null, created_by: OTHER }
+
+  /* מורה ששלח (user_id של ההקצאה) אך אינו מחנך ולא מורה המקצוע: שיוך כללי לכיתה */
+  const sender = viewer('teacher', [grant(CLASS_A, { unspecified: true })], { userId: SENDER_ID })
+  /* מורה שיצר את ההדמיה (created_by) ושלח מורה אחר */
+  const creator = viewer('teacher', [grant(CLASS_A, { unspecified: true })], { userId: 'u-creator' })
+  const sameSubject = mathTeacher
+  const otherSubject = histTeacher
+  const unlinked = viewer('teacher', [grant(CLASS_B, { homeroom: true })], { userId: 'u-unlinked' })
+  /* גם אם הוא השולח/היוצר — בלי קישור לכיתה אין גישה */
+  const unlinkedSender = viewer('teacher', [grant(CLASS_B, { homeroom: true })], { userId: SENDER_ID })
+
+  type Case = readonly [string, Viewer, { subject_id: string | null; created_by: string | null }, string | null, boolean]
+  const cases: Case[] = [
+    ['מורה ששלח, בכיתה שלו, הדמיה במקצוע אחר', sender, histQuest, SENDER_ID, true],
+    ['מורה ששלח — אך לא הוא השולח (שולח אחר)', sender, histQuest, OTHER, false],
+    ['יוצר ההדמיה (לא השולח), בכיתה שלו', creator, { subject_id: HIST, created_by: 'u-creator' }, OTHER, true],
+    ['מחנך הכיתה — כל שליחה, גם "לא סווג"', homeroom, unclassified, OTHER, true],
+    ['מחנך הכיתה — שליחה של מורה אחר במקצוע אחר', homeroom, histQuest, OTHER, true],
+    ['מורה מקצוע (אותו מקצוע)', sameSubject, mathQuest, OTHER, true],
+    ['מורה מקצוע (מקצוע אחר)', otherSubject, mathQuest, OTHER, false],
+    ['מורה מקצוע — הדמיה "לא סווג" שלא שלח ולא יצר', sameSubject, unclassified, OTHER, false],
+    ['מורה שאינו מקושר לכיתה', unlinked, mathQuest, OTHER, false],
+    ['מורה שאינו מקושר לכיתה, גם כשהוא השולח', unlinkedSender, mathQuest, SENDER_ID, false],
+    ['מנהל', admin, mathQuest, OTHER, false],
+    ['מנהל עירוני', municipal, mathQuest, OTHER, false],
+    ['מנהל-על', superAdmin, unclassified, OTHER, true],
+  ]
+
+  describe('מסך הדמיה (submissionVisible)', () => {
+    it.each(cases)('%s', (_n, v, quest, senderId, allowed) => {
+      expect(submissionVisible(v, CLASS_A, quest, senderId)).toBe(allowed)
+    })
+  })
+
+  describe('מסך תלמיד: גישה לשליחה + התלמיד בכיתת השליחה', () => {
+    const studentView = (v: Viewer, quest: Case[2], senderId: string | null, studentClassIds: string[]) =>
+      studentClassIds.includes(CLASS_A) && submissionVisible(v, CLASS_A, quest, senderId)
+    it.each(cases)('%s', (_n, v, quest, senderId, allowed) => {
+      expect(studentView(v, quest, senderId, [CLASS_A])).toBe(allowed)
+    })
+    it('תלמיד מכיתה אחרת — נדחה לכל תפקיד, גם מחנך ומנהל-על', () => {
+      for (const v of [homeroom, sameSubject, sender, superAdmin]) expect(studentView(v, mathQuest, SENDER_ID, [CLASS_B])).toBe(false)
+    })
+  })
+
+  describe('רשימה (canUseResults)', () => {
+    it.each([
+      ['מורה ששלח', sender, true], ['יוצר', creator, true], ['מחנך', homeroom, true],
+      ['מורה מקצוע', sameSubject, true], ['מורה לא מקושר (הרשימה ריקה אצלו, אך השער פתוח)', unlinked, true],
+      ['מנהל', admin, false], ['מנהל עירוני', municipal, false], ['מנהל-על', superAdmin, true],
+    ] as const)('%s', (_n, v, allowed) => {
+      expect(canUseResults(v)).toBe(allowed)
+    })
+  })
+
+  it('מנהלים לעולם לא רואים שליחה, בכל כיתה ובכל מקצוע', () => {
+    for (const q of [mathQuest, histQuest, unclassified, { subject_id: MATH, created_by: admin.userId }]) {
+      for (const c of [CLASS_A, CLASS_B]) {
+        expect(submissionVisible(admin, c, q, admin.userId)).toBe(false)
+        expect(submissionVisible(municipal, c, q, municipal.userId)).toBe(false)
+      }
+    }
   })
 })

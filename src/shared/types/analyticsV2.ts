@@ -8,10 +8,13 @@
    · כל טקסט בשפה טבעית (`text`, caveats, המלצות, תדריך) מגיע ממודול התבניות findingsNarrative.ts.
    · ממצא מדווח (`reported`) חייב p מתוקן BH, גודל אפקט ו-N מעל ספי analyticsConfig;
      אחרת הוא `insufficient` ואין בו ראיות — רק הסיבה ו-N.
-   · בעדשת מנהל: שום שדה עם שם/מזהה תלמיד (AdminOverview לא כולל students בכלל).
+   · בעדשת מנהל: שום שדה עם שם/מזהה תלמיד (AdminOverview לא כולל students בכלל; גם /entry ריק).
+   · (שלב UX) כל משפט שמוצג למשתמש הוא מחרוזת מוכנה מ-findingsNarrative בעברית פשוטה: הנתונים
+     הסטטיסטיים (pAdjusted / effectSize / evidence) נשארים בחוזה רק ל"איך חישבנו?" ולא מוצגים כטקסט.
+   · כל מספר שמוצג כספירה ניתן להצגה כ"X מתוך Y" (studentsShowing/studentsExposed, hits/exposures, countText).
    ────────────────────────────────────────────────────────────────────────── */
 import { z } from 'zod'
-import { FINDING_KINDS, CONTENT_VECTOR_KINDS, BEHAVIOR_VECTOR_KINDS } from '../lib/analyticsConfig'
+import { FINDING_KINDS, CONTENT_VECTOR_KINDS, BEHAVIOR_VECTOR_KINDS, ENTRY_MAX_ALERTS, POSITIONS, SUMMARY_RECENT_MAX, TRENDS } from '../lib/analyticsConfig'
 import { isSubjectCode } from '../lib/subjects'
 
 /* ── בסיס ── */
@@ -22,6 +25,11 @@ export type Lens = z.infer<typeof LensSchema>
 const Iso = z.string().min(10)
 const SubjectCodeSchema = z.string().refine(isSubjectCode, 'קוד מקצוע לא מוכר')
 const Unit = z.number().min(0).max(1)
+
+/* מגמה (improving/steady/declining/insufficient) ומיקום מול הטווח המיועד לשכבה (above/within/below).
+   בממשק תמיד מילים (trendText / positionText) — לא צבע בלבד. */
+export const TrendSchema = z.enum(TRENDS)
+export const PositionSchema = z.enum(POSITIONS)
 
 export const SubjectRefSchema = z.object({ code: SubjectCodeSchema, nameHe: z.string().min(1) })
 export type SubjectRef = z.infer<typeof SubjectRefSchema>
@@ -126,6 +134,13 @@ export const BehaviorVectorSchema = z.object({
   status: z.enum(['reported', 'insufficient']),
 })
 
+/* תחומים (סוגי תוכן) חזקים / מאתגרים של תלמיד/ה במקצוע — שמות "תחום" בעברית פשוטה.
+   חזק/מאתגר = הרמה בתחום רחוקה לפחות ברמה אחת מהרמה הכללית של המקצוע, והתחום מדווח (נאספו מספיק תשובות).
+   הרמה הכללית = ממוצע 60 ימי הלימוד האחרונים (אותו חלון שבו נמדדים התחומים; בלי נתון — הרמה הנוכחית). */
+export const AreasSchema = z.object({ strong: z.array(z.string()), challenging: z.array(z.string()) })
+/* טעות נפוצה של התלמיד/ה עצמו/ה: hits מתוך exposures שאלות ("3 מתוך 4") */
+export const StudentCommonErrorSchema = z.object({ id: z.string(), title: z.string(), hits: z.number().int(), exposures: z.number().int() })
+
 export const SubjectPanelSchema = z.discriminatedUnion('access', [
   z.object({
     access: z.literal('visible'),
@@ -133,10 +148,19 @@ export const SubjectPanelSchema = z.discriminatedUnion('access', [
     currentLevel: z.number().nullable(),
     levelSeries: z.array(LevelPointSchema),
     ageNorm: AgeNormSchema,
-    positionVsNorm: z.enum(['above', 'within', 'below']).nullable(),
+    positionVsNorm: PositionSchema.nullable(),
+    /* "מעל / בתוך / מתחת לטווח המיועד לשכבה" או null כשאין רמה */
+    positionText: z.string().nullable(),
+    /* מגמה: ממוצע הרמה ב-60 ימי הלימוד האחרונים מול 90–150 לפני כן (סף חצי רמה) */
+    trend: TrendSchema,
+    trendText: z.string().min(1), /* משתפר/ת · יציב/ה · בירידה · אין עדיין מספיק נתונים */
+    areas: AreasSchema,
+    commonErrors: z.array(StudentCommonErrorSchema), /* ממוינות: הכי הרבה פגיעות קודם */
     sessionsCount: z.number().int().nonnegative(),
     contentVectors: z.array(ContentVectorSchema),
     behaviorVectors: z.array(BehaviorVectorSchema),
+    /* כל הממצאים (מדווחים ו"אין עדיין מספיק נתונים"). המסך מציג רק את status='reported';
+       כשאין אף אחד — שורה אחת פשוטה (EMPTY_TEXT.noFindings). */
     findings: z.array(FindingSchema),
   }),
   /* מקצוע שהצופה אינו רשאי לראות — שם בלבד, בלי נתונים */
@@ -157,6 +181,8 @@ export const CaveatsSchema = z.object({
 
 export const StudentOverviewSchema = z.object({
   student: StudentRefSchema,
+  /* משפט סיכום אחד על התלמיד/ה — לפני הפירוט */
+  summary: z.string().min(1),
   access: z.enum(['full', 'subject_only']),
   panels: z.array(SubjectPanelSchema),
   /* התרעות מוקדמות חוצות-מקצועות — למחנך בלבד */
@@ -183,6 +209,28 @@ export const RosterSchema = z.object({
 })
 export type Roster = z.infer<typeof RosterSchema>
 
+/* ── מסך הכניסה "בחרו כיתה" (GET /entry) ──
+   · attentionCount = מספר **התלמידים** (לא ממצאים) בכיתה שיש להם לפחות ממצא מדווח אחד בטון "תשומת לב"
+     בהיקף שהצופה רשאי לראות: למחנך — כל המקצועות (כולל התרעה חוצת-מקצועות); למורה מקצועי — רק מקצועו.
+   · alerts = עד ENTRY_MAX_ALERTS התרעות מוקדמות "דורש תשומת לב" (התלמיד/ה עם הממצא החשוב ביותר, אחד לתלמיד).
+   · בעדשת מנהל: שני המערכים ריקים תמיד (אין כאן שם/מזהה תלמיד, וגם לא רשימת כיתות). */
+export const EntryClassSchema = z.object({
+  id: z.string(), name: z.string(), gradeLabel: z.string(),
+  studentCount: z.number().int().nonnegative(),
+  attentionCount: z.number().int().nonnegative(),
+})
+export const EntryAlertSchema = z.object({
+  studentId: z.string().min(1), studentName: z.string().min(1),
+  classId: z.string().min(1), className: z.string().min(1),
+  /* משפט קצר אחד בעברית פשוטה (narrateShort) */
+  text: z.string().min(1),
+})
+export const EntrySchema = z.object({
+  classes: z.array(EntryClassSchema),
+  alerts: z.array(EntryAlertSchema).max(ENTRY_MAX_ALERTS),
+})
+export type Entry = z.infer<typeof EntrySchema>
+
 /* ── תפיסות שגויות והמלצות (מורה מקצועי / מנהל) ── */
 export const CurriculumGoalSchema = z.object({
   title: z.string(), gradeFrom: z.number().int(), gradeTo: z.number().int(),
@@ -200,6 +248,8 @@ export const MisconceptionRowSchema = z.object({
   studentsShowing: z.number().int().nonnegative(),
   studentsExposed: z.number().int().nonnegative(),
   sharePct: z.number().int().min(0).max(100).nullable(),
+  /* "21 מתוך 50 תלמידים (42%)" — או, כשאין מספיק נתונים, משפט שאומר זאת */
+  countText: z.string().min(1),
   /* בעדשת מנהל: מערך ריק תמיד */
   students: z.array(z.object({ id: z.string(), displayName: z.string(), hits: z.number().int(), exposures: z.number().int() })),
   linkedQuest: LinkedQuestSchema.nullable(),
@@ -213,33 +263,103 @@ export const RecommendationSchema = z.object({
   linkedQuest: LinkedQuestSchema.nullable(),
 })
 
+/* ── מקצוע בכיתה: ארבעה טאבים — סיכום | טעויות נפוצות | התקדמות | תלמידים ── */
+/* טאב "סיכום": משפט אחד, מה קרה לאחרונה (עד 3 משפטים פשוטים), ו"מה ללמד" (= recommendations, אותו מערך).
+   מורים רשאים לראות שמות תלמידים בשורות האלה (הצופה כאן הוא תמיד מורה; מנהל מקבל 403). */
+export const ClassSubjectSummarySchema = z.object({
+  headline: z.string().min(1),
+  recent: z.array(z.string().min(1)).max(SUMMARY_RECENT_MAX),
+  whatToTeach: z.array(RecommendationSchema).max(3),
+})
+/* טאב "התקדמות": ממוצע הרמה של הכיתה לכל חודש (n = כמה תלמידים תרמו נתון בחודש), רצועת הטווח המיועד,
+   ואירועים מדווחים שמסומנים על ציר הזמן. */
+export const ProgressEventSchema = z.object({ date: Iso, text: z.string().min(1), tone: ToneSchema })
+export const ClassProgressSchema = z.object({
+  series: z.array(LevelPointSchema),
+  ageNorm: AgeNormSchema,
+  events: z.array(ProgressEventSchema),
+})
+/* טאב "תלמידים": שורה לתלמיד/ה — רמה, מיקום, מגמה (במילים) */
+export const ClassSubjectStudentSchema = z.object({
+  id: z.string(), displayName: z.string(), level: z.number().nullable(),
+  positionVsNorm: PositionSchema.nullable(),
+  positionText: z.string().nullable(),
+  trend: TrendSchema,
+  trendText: z.string().min(1),
+})
+
 export const ClassSubjectViewSchema = z.object({
   class: z.object({ id: z.string(), name: z.string(), gradeLabel: z.string(), studentCount: z.number().int() }),
   subject: SubjectRefSchema,
   classLevel: z.object({ mean: z.number().nullable(), ageNorm: AgeNormSchema }),
+  /* טאב "סיכום" */
+  summary: ClassSubjectSummarySchema,
+  /* טאב "טעויות נפוצות" — כל מספר ניתן להצגה כ"X מתוך Y" */
   misconceptions: z.array(MisconceptionRowSchema),
+  /* "מה ללמד" — אותו מערך כמו summary.whatToTeach */
   recommendations: z.array(RecommendationSchema).max(3),
+  /* טאב "התקדמות" */
+  progress: ClassProgressSchema,
   classFindings: z.array(FindingSchema),
   studentFindings: z.array(z.object({ studentId: z.string(), studentName: z.string(), finding: FindingSchema })),
-  students: z.array(z.object({ id: z.string(), displayName: z.string(), level: z.number().nullable(), positionVsNorm: z.enum(['above', 'within', 'below']).nullable() })),
+  /* טאב "תלמידים" */
+  students: z.array(ClassSubjectStudentSchema),
+  /* מגמת הכיתה כולה במקצוע (במילים) */
+  trend: TrendSchema,
+  trendText: z.string().min(1),
   /* מקצועות אחרים של תלמידי הכיתה — אפור, לא לחיץ */
   otherSubjects: z.array(SubjectRefSchema),
   caveats: CaveatsSchema,
 })
 export type ClassSubjectView = z.infer<typeof ClassSubjectViewSchema>
 
+/* ── "סקירה" (טאב מחנך בלבד): GET /class/:classId/overview — שורה לכל מקצוע, נכנס במסך אחד.
+   מורה מקצועי ומנהל מקבלים 403. */
+export const ClassOverviewRowSchema = z.object({
+  subject: SubjectRefSchema,
+  /* ממוצע הרמה הנוכחית של תלמידי הכיתה במקצוע (או null) */
+  level: z.number().nullable(),
+  ageNorm: AgeNormSchema,
+  positionVsNorm: PositionSchema.nullable(),
+  positionText: z.string().nullable(),
+  trend: TrendSchema,
+  trendText: z.string().min(1),
+  /* תחומים (תוויות בעברית פשוטה): הרמה בתחום מעל/מתחת לרמת המקצוע ברמה אחת לפחות, ומדווח בכיתה */
+  strongAreas: z.array(z.string()),
+  challengingAreas: z.array(z.string()),
+  /* alerts = מספר התלמידים עם ממצא מדווח בטון "תשומת לב" במקצוע; alertTexts = עד 3 משפטים קצרים */
+  alerts: z.number().int().nonnegative(),
+  alertTexts: z.array(z.string().min(1)),
+})
+export const ClassOverviewSchema = z.object({
+  class: z.object({ id: z.string(), name: z.string(), gradeLabel: z.string(), studentCount: z.number().int() }),
+  /* משפט סיכום אחד על הכיתה */
+  summary: z.string().min(1),
+  rows: z.array(ClassOverviewRowSchema),
+  caveats: CaveatsSchema,
+})
+export type ClassOverview = z.infer<typeof ClassOverviewSchema>
+
 /* ── מנהל ── */
 export const AdminCellSchema = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('shown'),
-    grade: z.number().int(), subject: SubjectRefSchema,
+    grade: z.number().int(), gradeLabel: z.string(), subject: SubjectRefSchema,
     studentCount: z.number().int().min(5),
     avgLevel: z.number(), normCenter: z.number(), deltaVsNorm: z.number(),
     /* שינוי ברמה הממוצעת לאורך חלון הצפייה */
     trendDelta: z.number(),
+    /* במילים: מיקום מול הטווח המיועד לשכבה, ומגמה */
+    position: PositionSchema,
+    positionText: z.string().min(1),
+    trend: TrendSchema,
+    trendText: z.string().min(1),
   }),
   /* פחות מ-5 תלמידים: לא מציגים אפילו את הכמות */
-  z.object({ status: z.literal('hidden'), grade: z.number().int(), subject: SubjectRefSchema, reason: z.literal('small_cell') }),
+  z.object({
+    status: z.literal('hidden'), grade: z.number().int(), gradeLabel: z.string(), subject: SubjectRefSchema,
+    reason: z.literal('small_cell'), text: z.string().min(1),
+  }),
 ])
 export type AdminCell = z.infer<typeof AdminCellSchema>
 
@@ -247,13 +367,33 @@ export const AdminMisconceptionSchema = z.object({
   id: z.string(), titleHe: z.string(), text: z.string().min(1), subject: SubjectRefSchema, grade: z.number().int(),
   gradeLabel: z.string(),
   sharePct: z.number().int().min(0).max(100),
+  /* "21 מתוך 50": showing מתוך exposed */
+  studentsShowing: z.number().int().nonnegative(),
   studentsExposed: z.number().int().min(5), /* מכנה — לעולם ≥ סף התא */
+  countText: z.string().min(1),
   curriculumGoal: CurriculumGoalSchema.nullable(),
+})
+
+/* חיתוכי המנהל לטאבים: סקירה (highlights) | שכבות (gradeRows) | מקצועות (subjectRows) | טעויות נפוצות (misconceptions).
+   אין כאן שם/מזהה תלמיד ואין מידע על מורים; תא קטן מ-5 מוסתר בכל החיתוכים. */
+export const AdminGradeRowSchema = z.object({
+  grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int(),
+  summary: z.string().min(1),
+  cells: z.array(AdminCellSchema), /* שורה לכל מקצוע בשכבה */
+})
+export const AdminSubjectRowSchema = z.object({
+  subject: SubjectRefSchema,
+  summary: z.string().min(1),
+  cells: z.array(AdminCellSchema), /* שורה לכל שכבה */
 })
 
 export const AdminOverviewSchema = z.object({
   school: z.object({ id: z.string(), name: z.string() }),
+  /* עד 3 משפטים פשוטים לטאב "סקירה" */
+  highlights: z.array(z.string().min(1)).max(3),
   grades: z.array(z.object({ grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int() })),
+  gradeRows: z.array(AdminGradeRowSchema),
+  subjectRows: z.array(AdminSubjectRowSchema),
   cells: z.array(AdminCellSchema),
   progress: z.array(z.object({
     grade: z.number().int(), subject: SubjectRefSchema,
@@ -283,7 +423,8 @@ export const BriefingSchema = z.object({
   title: z.string(), subtitle: z.string(),
   generatedAt: Iso,
   sections: z.array(z.object({
-    id: z.enum(['strengths', 'difficulties', 'trend', 'recommendations', 'unknowns', 'evidence_basis']),
+    /* how_we_calculated = "איך חישבנו?": המקום היחיד בתדריך שבו מופיעים מונחים/מספרים טכניים */
+    id: z.enum(['strengths', 'difficulties', 'trend', 'recommendations', 'unknowns', 'evidence_basis', 'how_we_calculated']),
     title: z.string(),
     items: z.array(BriefingItemSchema),
   })),
@@ -323,8 +464,10 @@ export type AnalyticsConfig = z.infer<typeof ConfigSchema>
 export const EP = {
   config: { path: '/api/analytics-v2/config', response: envelope(ConfigSchema) },
   roster: { path: '/api/analytics-v2/roster', response: envelope(RosterSchema) },
+  entry: { path: '/api/analytics-v2/entry', response: envelope(EntrySchema) },
   student: { path: '/api/analytics-v2/student/:id', response: envelope(StudentOverviewSchema) },
   feedback: { path: '/api/analytics-v2/student/:id/feedback', response: envelope(StudentFeedbackSchema) },
+  classOverview: { path: '/api/analytics-v2/class/:classId/overview', response: envelope(ClassOverviewSchema) },
   classSubject: { path: '/api/analytics-v2/class/:classId/subject/:subject', response: envelope(ClassSubjectViewSchema) },
   admin: { path: '/api/analytics-v2/admin/overview', response: envelope(AdminOverviewSchema) },
   briefing: { path: '/api/analytics-v2/briefing/:scope/:id', response: envelope(BriefingSchema) },

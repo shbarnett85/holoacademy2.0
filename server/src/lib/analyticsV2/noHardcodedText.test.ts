@@ -11,7 +11,7 @@ const SENTENCE = /(['"`])(?:(?!\1)[^\n])*?[א-ת]{2,}[ ,][א-ת]{2,}(?:(?!\1)[^\
 const ALLOWED = ['בית הספר "אופק" (הדגמה)']
 
 describe('אין טקסט קשיח ב-fixtures', () => {
-  for (const file of ['demoWorld.ts', 'engine.ts', 'demoProvider.ts', 'access.ts']) {
+  for (const file of ['demoWorld.ts', 'engine.ts', 'demoProvider.ts', 'access.ts', 'derive.ts', 'provider.ts', 'viewer.ts']) {
     it(file, () => {
       const code = strip(readFileSync(here(`./${file}`), 'utf8'))
       const hits = (code.match(SENTENCE) ?? []).filter((m) => !ALLOWED.some((a) => m.includes(a)))

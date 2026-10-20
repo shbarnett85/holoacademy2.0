@@ -43,6 +43,9 @@ export function canViewClassSubject(v: V2Viewer, classId: string, subject: Subje
 
 export const canSeeCrossSubject = (v: V2Viewer): boolean => v.lens === 'homeroom'
 
+/* "סקירה" של כיתה (כל המקצועות זה לצד זה) — מחנך הכיתה בלבד. מורה מקצועי ומנהל: אין גישה. */
+export const canViewClassOverview = (v: V2Viewer, classId: string): boolean => v.lens === 'homeroom' && v.homeroomClassId === classId
+
 /* תא אגרגט מוצג רק אם ≥ MIN_CELL_SIZE תלמידים */
 export const cellVisible = (n: number): boolean => n >= MIN_CELL_SIZE
 
@@ -51,5 +54,5 @@ export function requireNotAdmin(v: V2Viewer): void {
 }
 
 /* פרסונות ההדגמה: מורה מקצועי אורח בוחר מקצוע; מלמד בכל הכיתות שיש בהן את המקצוע */
-export const DEMO_SUBJECT_PERSONAS: SubjectCode[] = ['math', 'hebrew', 'history', 'science', 'english']
+export const DEMO_SUBJECT_PERSONAS: SubjectCode[] = ['math', 'hebrew', 'history', 'science', 'english', 'bible']
 export const DEMO_HOMEROOM_CLASS = 'c-v2'

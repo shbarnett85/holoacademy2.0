@@ -144,3 +144,20 @@ export async function hasQuestVariants(): Promise<boolean> {
 export async function hasQuestGrade(): Promise<boolean> {
   return check('__quest_grade', () => supabaseAdmin.from('quests').select('grade_min').limit(1))
 }
+
+/* ── תוצאות (טאב "תוצאות"): טבלאות הפירוט — עמידות אם המיגרציה טרם הורצה ── */
+export async function hasAnswersTable(): Promise<boolean> {
+  return check('__answers_table', () => supabaseAdmin.from('answers').select('id').limit(1))
+}
+export async function hasOptionTags(): Promise<boolean> {
+  return check('__option_tags', () => supabaseAdmin.from('option_tags').select('id').limit(1))
+}
+export async function hasMisconceptions(): Promise<boolean> {
+  return check('__misconceptions', () => supabaseAdmin.from('misconceptions').select('id').limit(1))
+}
+export async function hasMisconceptionLinks(): Promise<boolean> {
+  return check('__misconception_links', () => supabaseAdmin.from('misconception_content_links').select('quest_id').limit(1))
+}
+export async function hasMoralChoices(): Promise<boolean> {
+  return check('__moral_choices', () => supabaseAdmin.from('moral_choices').select('id').limit(1))
+}

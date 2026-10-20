@@ -60,6 +60,8 @@ describe('חוזה: כל ה-fixtures עוברים את סכמות ה-zod', () =>
       expect(EP.config.response.safeParse(await demoProvider.config(v)).success).toBe(true)
       const r = EP.roster.response.safeParse(await demoProvider.roster(v))
       expect(r.success, JSON.stringify(r.error?.issues?.slice(0, 2))).toBe(true)
+      const e = EP.entry.response.safeParse(await demoProvider.entry(v))
+      expect(e.success, JSON.stringify(e.error?.issues?.slice(0, 2))).toBe(true)
     }
   })
   it('student + feedback + briefing לכל תלמידי הכיתה (מחנך)', async () => {
@@ -92,6 +94,8 @@ describe('חוזה: כל ה-fixtures עוברים את סכמות ה-zod', () =>
     const checks = [
       [EP.config.response, await realProvider.config(v)],
       [EP.roster.response, await realProvider.roster(v)],
+      [EP.entry.response, await realProvider.entry(v)],
+      [EP.classOverview.response, await realProvider.classOverview(v, 'c')],
       [EP.student.response, await realProvider.student(v, 'x')],
       [EP.feedback.response, await realProvider.feedback(v, 'x')],
       [EP.classSubject.response, await realProvider.classSubject(v, 'c', 'math')],
@@ -250,6 +254,7 @@ describe('הרשאות בבורר העדשה', () => {
     const payloads = [
       JSON.stringify(await demoProvider.admin(admin)),
       JSON.stringify(await demoProvider.roster(admin)),
+      JSON.stringify(await demoProvider.entry(admin)),
       JSON.stringify(await demoProvider.config(admin)),
     ].join('\n')
     for (const st of A.world.students) {
@@ -261,7 +266,8 @@ describe('הרשאות בבורר העדשה', () => {
     await expect(demoProvider.feedback(admin, studentIdByCast('alon'))).rejects.toMatchObject({ status: 403 })
     await expect(demoProvider.briefing(admin, 'student', studentIdByCast('alon'))).rejects.toMatchObject({ status: 403 })
     await expect(demoProvider.classSubject(admin, 'c-v2', 'math')).rejects.toMatchObject({ status: 403 })
-    const noTeacherInfo = JSON.stringify([await demoProvider.admin(admin), await demoProvider.roster(admin)])
+    await expect(demoProvider.classOverview(admin, 'c-v2')).rejects.toMatchObject({ status: 403 })
+    const noTeacherInfo = JSON.stringify([await demoProvider.admin(admin), await demoProvider.roster(admin), await demoProvider.entry(admin)])
     expect(noTeacherInfo).not.toMatch(/teacher|מורה/i)
   })
   it('מנהל: תא עם פחות מ-5 תלמידים מוסתר (ערבית בשכבה ו׳) ואינו חושף כמות', async () => {
