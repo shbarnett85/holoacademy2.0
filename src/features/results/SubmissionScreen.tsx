@@ -14,7 +14,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { howWeCalcResultsLines, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, StudentSubmissionView } from '../../shared/types/resultsV1'
-import { EmptyState, FONT, ScreenShell, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
+import { AiSummaryPanel } from '../aiSummary'
+import { EmptyState, FONT, guestLensParams, ScreenShell, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem } from '../teacherUi'
 import ClassChallenges from './ClassChallenges'
 import CommonErrors from './CommonErrors'
@@ -99,7 +100,7 @@ function Layout({ wide, busy, head, sentence, people, panel }: LayoutProps) {
 export default function SubmissionScreen({ submissionId, studentId }: { submissionId: string; studentId: string | null }) {
   const navigate = useNavigate()
   const wide = useWideScreen()
-  const { isGuest, scope, apiQs, link } = useLens()
+  const { isGuest, scope, apiQs, link, state: lensState } = useLens()
   const [sp] = useSearchParams()
   const mode: Mode = studentId ? 'student' : 'class'
   /* ?tab= פותח ישר טאב מסוים (למשל "תרגול חזרה" מההצעה של ד״ר הולו). בלעדיו, או עם טאב שלא קיים במסך — הטאב הראשון של המסך
@@ -149,7 +150,10 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
         people={<ClassRoster roster={d.roster} onOpen={toStudent} />}
         panel={(
           <MainPanel tabs={CLASS_TABS} active={shownTab} onTab={setTab}>
-            {shownTab === 'glance' && <Glance view={d} />}
+            {shownTab === 'glance' && (
+              /* הסיכום המילולי של ד״ר הולו: כרטיס מוטמע בחריץ שמתחת לגרפים (מורה אורח: העדשה נשלחת איתו) */
+              <Glance view={d} summary={<AiSummaryPanel key={d.head.id} compact target={{ scope: 'submission', id: d.head.id }} params={guestLensParams(lensState)} exportName={d.head.title} />} />
+            )}
             {shownTab === 'challenges' && <ClassChallenges view={d} />}
             {shownTab === 'objectives' && (d.objectives.length > 0
               ? <Objectives objectives={d.objectives} onOpenStudent={toStudent} />

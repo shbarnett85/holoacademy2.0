@@ -42,6 +42,9 @@ export interface SubjectAnalysis {
   /* מדדים גולמיים שמשמשים תדריכים/כיתה */
   level60: number | null /* ממוצע רמה ב-60 ימי הלימוד האחרונים */
   level90to150: number | null
+  /* כמה משחקים עומדים מאחורי כל אחד משני הממוצעים (סף תווית המגמה: TREND_LABEL_MIN_SESSIONS) */
+  level60N: number
+  level90to150N: number
 }
 
 export interface MisStat {
@@ -391,13 +394,16 @@ export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, basel
       const key = `${st.grade}|${sub}|${k}`
       baselineBehavior.set(key, [...(baselineBehavior.get(key) ?? []), v])
     }
-    const level60 = mean(d.sessions.filter((s) => s.day < R).map((s) => s.level))
-    const level90 = mean(d.sessions.filter((s) => s.day >= 90 && s.day < 150).map((s) => s.level))
+    const in60 = d.sessions.filter((s) => s.day < R)
+    const in90 = d.sessions.filter((s) => s.day >= 90 && s.day < 150)
+    const level60 = mean(in60.map((s) => s.level))
+    const level90 = mean(in90.map((s) => s.level))
     const sa: SubjectAnalysis = {
       studentId: st.id, subject: sub, sessionsCount: d.sessions.length, currentLevel, levelSeries, ageNorm: norm,
       positionVsNorm: positionOf(currentLevel, norm),
       contentVectors, behaviorVectors: [], findings: [],
       level60: Number.isFinite(level60) ? round1(level60) : null, level90to150: Number.isFinite(level90) ? round1(level90) : null,
+      level60N: in60.length, level90to150N: in90.length,
     }
     ss.set(skey(st.id, sub), sa)
     pending.push({ st, sub, sa, raw })

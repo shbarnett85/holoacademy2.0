@@ -4,7 +4,8 @@
    · POST {scope,id[,subject],regenerate?} — יצירה / כתיבה מחדש. אורח וארגון הדגמה: תבנית בלי LLM ובלי שמירה.
    · PATCH /:summaryId {editedText|null} — עריכת המורה (אישית לצופה); null = חזרה לטקסט המקורי.
    · **החיבור לספקים נעשה בהזרקה** (AiSummaryRouteDeps): authorize (הרשאה לפי חוקים 8/9/10, מחזירה audienceKey ו-demo) ו-load*Facts (חוזה v2/תוצאות לפי היקף).
-     עד שהם מחוברים (index.ts) כל הנקודות עונות 503 "לא מחובר". הנתיב עצמו אינו מייבא ספק v2/תוצאות.
+     ה-deps האמיתיות נבנות ב-lib/aiSummary/deps.ts (createAiSummaryDeps) ומורכבות ב-index.ts; בלי deps (ברירת מחדל) כל הנקודות עונות 503 "לא מחובר".
+     הנתיב עצמו אינו מייבא ספק v2/תוצאות.
    · requireStaff; הגבלת קצב: פר-IP נדיב, פר-משתמש 120/דק׳ לקריאה/עריכה, ו-6/דק׳ ליצירה (POST). תקרה יומית וקירור לכתיבה מחדש — בשירות.
    · יומן גישה (data_access_log): תלמיד — ברמת תלמיד, **ממתינים לכתיבה לפני שמחזירים נתונים** (נכשל-סגור למנהל-על); כיתה/הגשה — שורה בלי תלמיד.
    · בסביבה שאינה פרודקשן כל תגובה מאומתת מול סכמת החוזה (500 קולני על חריגה).
@@ -59,12 +60,16 @@ export interface AiSummaryRouteDeps {
 const notConnected = async (): Promise<never> => { throw new AppError(503, ERR_SUMMARY_NOT_CONNECTED) }
 export const NOT_CONNECTED_DEPS: AiSummaryRouteDeps = { authorize: notConnected, loadStudentFacts: notConnected, loadClassFacts: notConnected, loadSubmissionFacts: notConnected }
 
-/* ברירת המחדל ליומן: ברמת תלמיד לתלמיד (fail-closed למנהל-על), שורה בלי תלמיד לכיתה/הגשה. הדגמה — לא נרשם (אין DB) */
+/* מדיניות כשל היומן ברמת תלמיד: כמו בנתיבי v2 — נכשל-סגור למנהל-על, מורה best-effort; ANALYTICS_V2_AUDIT_FAIL_CLOSED=all מרחיב לכל התפקידים */
+const auditPolicy = (): 'all' | undefined => (process.env.ANALYTICS_V2_AUDIT_FAIL_CLOSED === 'all' ? 'all' : undefined)
+
+/* ברירת המחדל ליומן: ברמת תלמיד לתלמיד (ממתינים לכתיבה; נכשל-סגור לפי המדיניות), שורה בלי תלמיד לכיתה/הגשה. הדגמה — לא נרשם (אין DB) */
 async function defaultLogAccess({ req, target, authz }: SummaryLoadCtx): Promise<void> {
   if (authz.demo) return
   const viewer = await loadViewer(req)
   if (target.scope === 'student') {
-    await logAccess(viewer, { studentId: target.id, scope: 'ai_summary_student', endpoint: 'ai-summary' }, { studentLevel: true })
+    const failClosed = auditPolicy()
+    await logAccess(viewer, { studentId: target.id, scope: 'ai_summary_student', endpoint: 'ai-summary' }, { studentLevel: true, ...(failClosed ? { failClosed } : {}) })
     return
   }
   await logAccess(viewer, { studentId: null, scope: target.scope === 'submission' ? 'ai_summary_submission' : 'ai_summary_class', endpoint: 'ai-summary' })
@@ -169,6 +174,3 @@ export function registerAiSummaryRoutes(deps: AiSummaryRouteDeps = NOT_CONNECTED
 
   return router
 }
-
-/* ברירת המחדל שמורכבת ב-index.ts: לא מחובר (503) עד שמחברים את ספקי v2/תוצאות */
-export const aiSummaryRouter = registerAiSummaryRoutes()

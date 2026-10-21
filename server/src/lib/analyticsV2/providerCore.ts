@@ -31,7 +31,8 @@ import type {
 } from '../../../../src/shared/types/analyticsV2.js'
 import { AppError } from '../../middleware/errors.js'
 import {
-  canSeeCrossSubject, canViewClassOverview, canViewStudent, canViewSubject, classSubjectAccess, grantOf, isAggregateOnly, isHomeroomOf, requireNotAdmin, type V2Viewer,
+  accessAllowsSubject, accessSeesCrossSubject, canViewClassOverview, classSubjectAccess, grantOf, grantsOf, isAggregateOnly, isHomeroomOf, requireNotAdmin, studentAccess,
+  type StudentAccess, type V2Viewer,
 } from './access.js'
 import {
   MIN_CELL_CLASSES, cellVerdict, gradeVisible, publishableMonthlySeries, publishableTrend, shareDisplay, totalsPublishable,
@@ -66,16 +67,35 @@ const countTone = (fs: Finding[], tone: 'attention' | 'positive'): number => fs.
 const studentsOf = (a: Analysis, cls: WorldClass): WorldStudent[] => cls.studentIds.map((sid) => a.studentById.get(sid)).filter((s): s is WorldStudent => !!s)
 const saOf = (a: Analysis, studentId: string, subject: SubjectCode): SubjectAnalysis | undefined => a.ss.get(skey(studentId, subject))
 const defined = <T>(x: T | undefined): x is T => x !== undefined
-/* המקצועות של התלמיד שגלויים לצופה (לפי ההרשאה בכיתת התלמיד) */
-const visibleSubjectsOf = (v: V2Viewer, st: WorldStudent): SubjectCode[] => st.subjects.filter((s) => canViewSubject(v, s, st.classId))
-/* תלמיד שמופיע ברשימות הצופה: מחנך — כל תלמידי כיתתו (גם בלי נתונים); מורה מקצועי — מי שלומד אצלו את המקצוע */
-const isListed = (v: V2Viewer, st: WorldStudent): boolean => isHomeroomOf(v, st.classId) || visibleSubjectsOf(v, st).length > 0
+
+/* ── הרשאה לתלמיד שרשום בכמה כיתות ──
+   מקור האמת לכיתות התלמיד הוא world.classes[].studentIds; st.classId היא רק הכיתה העיקרית שלו (שנבחרה במיזוג הכיתות).
+   ההרשאה היא **איחוד** ההרשאות של הצופה בכל כיתות התלמיד (כמו authz.studentScope): מחנך באחת + מקצוע בשנייה רואה מה שהיה רואה בכל כיתה לחוד,
+   ולא יותר (תלמיד שרשום רק בכיתה הראשונה לא נחשף במקצוע של השנייה). מסך הכיתה, הרשימה, הכניסה והמסך האישי מסכימים כי כולם עוברים כאן. */
+const CLASS_IDS_OF = new WeakMap<Analysis, Map<string, string[]>>()
+function classIdsOfStudent(a: Analysis, st: WorldStudent): string[] {
+  let byStudent = CLASS_IDS_OF.get(a)
+  if (!byStudent) {
+    byStudent = new Map()
+    for (const c of a.world.classes) for (const sid of c.studentIds) { const list = byStudent.get(sid); if (list) list.push(c.id); else byStudent.set(sid, [c.id]) }
+    CLASS_IDS_OF.set(a, byStudent)
+  }
+  return byStudent.get(st.id) ?? [st.classId]
+}
+const accessOf = (v: V2Viewer, a: Analysis, st: WorldStudent): StudentAccess => studentAccess(v, classIdsOfStudent(a, st))
+/* המקצועות של התלמיד שגלויים לצופה (איחוד ההרשאות בכיתות התלמיד) */
+const visibleSubjectsOf = (v: V2Viewer, a: Analysis, st: WorldStudent): SubjectCode[] => {
+  const acc = accessOf(v, a, st)
+  return st.subjects.filter((s) => accessAllowsSubject(acc, s))
+}
+/* תלמיד שמופיע ברשימת הכיתה classId של הצופה: מחנך הכיתה — כל תלמידיה (גם בלי נתונים); אחרת — מי שלומד מקצוע שהצופה רשאי לראות */
+const isListed = (v: V2Viewer, a: Analysis, st: WorldStudent, classId: string): boolean => isHomeroomOf(v, classId) || visibleSubjectsOf(v, a, st).length > 0
 
 /* ── שורות מקצוע ── */
 /* רמת הייחוס לתחומים של תלמיד/ה: ממוצע הרמה בחלון שבו נמדדים התחומים (60 ימי הלימוד האחרונים); אם אין — הרמה הנוכחית */
 const areaReference = (sa: SubjectAnalysis): number | null => sa.level60 ?? sa.currentLevel
-function panelOf(v: V2Viewer, a: Analysis, sa: SubjectAnalysis, classId: string): SubjectPanel {
-  if (!canViewSubject(v, sa.subject, classId)) return { access: 'greyed', subject: sref(sa.subject) }
+function panelOf(acc: StudentAccess, a: Analysis, sa: SubjectAnalysis): SubjectPanel {
+  if (!accessAllowsSubject(acc, sa.subject)) return { access: 'greyed', subject: sref(sa.subject) }
   const trend = studentTrend(sa)
   const areas = studentAreaKeys(sa.contentVectors, areaReference(sa))
   return {
@@ -135,6 +155,14 @@ function subjectStats(a: Analysis, cls: WorldClass, subject: SubjectCode): Subje
 const NAME_COLLATOR = new Intl.Collator('he')
 const byGradeThenName = (x: WorldClass, y: WorldClass): number => x.grade - y.grade || NAME_COLLATOR.compare(x.name, y.name) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)
 
+/* "כיתת התלמיד" כפי שהצופה רואה אותה — תמיד כיתה שבהיקפו, לא שם של כיתה אחרת: כיתה שהוא מחנך בה (אם יש), אחרת העיקרית של התלמיד אם יש לצופה הרשאה בה,
+   אחרת הראשונה בהיקפו (שכבה ושם) */
+function displayClassOf(v: V2Viewer, a: Analysis, st: WorldStudent): WorldClass | null {
+  const mine = classIdsOfStudent(a, st).filter((id) => grantOf(v, id) !== null).map((id) => a.classById.get(id)).filter(defined)
+  const pick = (xs: WorldClass[]): WorldClass | undefined => xs.find((c) => c.id === st.classId) ?? [...xs].sort(byGradeThenName)[0]
+  return pick(mine.filter((c) => isHomeroomOf(v, c.id))) ?? pick(mine) ?? null
+}
+
 const ctxOf = (a: Analysis, studentId: string, f: Finding): { studentName: string; subjectName: string | null } => ({
   studentName: a.studentById.get(studentId)?.displayName ?? '',
   subjectName: f.subjectCode ? subjectName(f.subjectCode) : null,
@@ -161,10 +189,14 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
     if (!cls || grantOf(v, classId) === null) return notFound()
     return cls
   }
-  const studentInScope = (v: V2Viewer, a: Analysis, id: string): WorldStudent => {
+  /* תלמיד שהצופה רשאי לפתוח (באחת מכיתותיו) + ההרשאה המאוחדת שלו + הכיתה שמוצגת לצופה. אחרת 404 אחיד */
+  const studentInScope = (v: V2Viewer, a: Analysis, id: string): { st: WorldStudent; acc: StudentAccess; cls: WorldClass } => {
     const st = a.studentById.get(id)
-    if (!st || !canViewStudent(v, st.classId)) return notFound()
-    return st
+    if (!st) return notFound()
+    const acc = accessOf(v, a, st)
+    const cls = acc.kind === 'scoped' ? displayClassOf(v, a, st) : null
+    if (!cls) return notFound()
+    return { st, acc, cls }
   }
 
   return {
@@ -202,12 +234,12 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       }
       for (const c of classes) {
         for (const st of studentsOf(a, c)) {
-          if (!isListed(v, st)) continue
-          const fs = visibleSubjectsOf(v, st).flatMap((s) => saOf(a, st.id, s)?.findings ?? [])
+          if (!isListed(v, a, st, c.id)) continue
+          const fs = visibleSubjectsOf(v, a, st).flatMap((s) => saOf(a, st.id, s)?.findings ?? [])
           out.students.push({
             id: st.id, displayName: st.displayName, classId: c.id,
             attention: countTone(fs, 'attention'), positive: countTone(fs, 'positive'),
-            earlyWarning: canSeeCrossSubject(v, c.id) && (a.crossSubject.get(st.id)?.length ?? 0) > 0,
+            earlyWarning: accessSeesCrossSubject(accessOf(v, a, st)) && (a.crossSubject.get(st.id)?.length ?? 0) > 0,
           })
         }
       }
@@ -221,22 +253,29 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       if (isAggregateOnly(v)) return ok<Entry>({ classes: [], alerts: [], alertsTotal: 0, alertsTitle: narrateAlertsTitle(0, 0), alertsMore: null, unclassifiedCount: 0, coverageNote: null })
       const a = await source.analysis(v)
       const alerts: { finding: ReportedFinding; studentId: string; classId: string }[] = []
+      /* תלמיד שרשום בכמה כיתות של הצופה נספר בכל כיתה (attentionCount), אך מופיע ברצועת ההתרעות פעם אחת */
+      const alerted = new Set<string>()
       const classes = scoped(v, a).map((c) => {
-        const students = studentsOf(a, c).filter((st) => isListed(v, st))
+        const students = studentsOf(a, c).filter((st) => isListed(v, a, st, c.id))
         let attentionCount = 0
         let hasResults = false
         for (const st of students) {
-          const sas = visibleSubjectsOf(v, st).map((s) => saOf(a, st.id, s)).filter(defined)
+          const sas = visibleSubjectsOf(v, a, st).map((s) => saOf(a, st.id, s)).filter(defined)
           if (sas.some((sa) => sa.sessionsCount > 0)) hasResults = true
-          const cross = canSeeCrossSubject(v, c.id) ? (a.crossSubject.get(st.id) ?? []) : []
+          const cross = accessSeesCrossSubject(accessOf(v, a, st)) ? (a.crossSubject.get(st.id) ?? []) : []
           const best = [...sas.flatMap((sa) => sa.findings), ...cross].filter(isAttention).sort(compareAlert)[0]
-          if (best) { attentionCount++; alerts.push({ finding: best, studentId: st.id, classId: c.id }) }
+          if (best) {
+            attentionCount++
+            if (!alerted.has(st.id)) { alerted.add(st.id); alerts.push({ finding: best, studentId: st.id, classId: c.id }) }
+          }
         }
         return { id: c.id, name: c.name, gradeLabel: c.gradeLabel, studentCount: students.length, attentionCount, hasResults }
       })
       alerts.sort((x, y) => compareAlert(x.finding, y.finding) || x.studentId.localeCompare(y.studentId))
       const shown = alerts.slice(0, ENTRY_MAX_ALERTS)
-      const unclassified = source.coverage(v, a).unclassifiedSessions
+      /* הערת "הדמיות בלי מקצוע" רלוונטית רק למי שיש לו מה לראות מולה: מחנך, או מורה עם מקצוע פתוח. שיוך בלי מקצוע — אין לו אף מקצוע, ולכן אין לו מה לסווג מולו */
+      const hasOpenSubject = grantsOf(v).some((g) => g.homeroom || g.subjects.length > 0)
+      const unclassified = hasOpenSubject ? source.coverage(v, a).unclassifiedSessions : 0
       opts?.audit?.expose(shown.map((s) => s.studentId))
       return state(classes.some((c) => c.hasResults), {
         classes,
@@ -244,7 +283,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           studentId, studentName: a.studentById.get(studentId)!.displayName, classId, className: a.classById.get(classId)!.name,
           text: narrateShort(finding.evidence, ctxOf(a, studentId, finding)),
         })),
-        /* כמה תלמידים לתשומת לב יש בסך הכול בהיקף הצופה (שווה לסכום attentionCount) — הרצועה מציגה רק את הדחופים */
+        /* כמה תלמידים (שונים) לתשומת לב יש בסך הכול בהיקף הצופה — הרצועה מציגה רק את הדחופים. שווה לסכום attentionCount כשאין תלמיד שרשום בכמה כיתות */
         alertsTotal: alerts.length,
         alertsTitle: narrateAlertsTitle(shown.length, alerts.length),
         alertsMore: narrateAlertsMore(shown.length, alerts.length, classes.length > 1),
@@ -256,20 +295,19 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
     async student(v, id, opts) {
       requireNotAdmin(v)
       const a = await source.analysis(v)
-      const st = studentInScope(v, a, id)
-      const cls = a.classById.get(st.classId) ?? notFound()
-      const panels = st.subjects.map((sub) => saOf(a, id, sub)).filter(defined).map((sa) => panelOf(v, a, sa, st.classId))
+      const { st, acc, cls } = studentInScope(v, a, id)
+      const panels = st.subjects.map((sub) => saOf(a, id, sub)).filter(defined).map((sa) => panelOf(acc, a, sa))
       const visibleFindings = panels.flatMap((p) => (p.access === 'visible' ? p.findings : []))
-      const crossSubject = canSeeCrossSubject(v, st.classId) ? (a.crossSubject.get(id) ?? []) : []
+      const crossSubject = accessSeesCrossSubject(acc) ? (a.crossSubject.get(id) ?? []) : []
       /* הממצא החשוב ביותר שהצופה רשאי לראות — כדי שהמשפט בראש העמוד יגיד מה נצפה ולא רק "יש משהו לבדוק" */
       const topFinding = [...crossSubject.filter(isReported), ...visibleFindings.filter(isAttention)].sort(compareAlert)[0]
       const o: StudentOverview = {
-        student: { id, displayName: st.displayName, classId: cls.id, className: cls.name, grade: st.grade, gradeLabel: cls.gradeLabel },
+        student: { id, displayName: st.displayName, classId: cls.id, className: cls.name, grade: cls.grade, gradeLabel: cls.gradeLabel },
         summary: narrateStudentHeadline({
           firstName: st.firstName, attention: countTone(visibleFindings, 'attention'), positive: countTone(visibleFindings, 'positive'), crossSubject: crossSubject.length > 0,
           topAttention: topFinding ? narrateShortBody(topFinding.evidence, { subjectName: topFinding.subjectCode ? subjectName(topFinding.subjectCode) : null }) : null,
         }),
-        access: isHomeroomOf(v, st.classId) ? 'full' : 'subject_only',
+        access: accessSeesCrossSubject(acc) ? 'full' : 'subject_only',
         panels,
         crossSubject,
         caveats: CAVEATS,
@@ -281,11 +319,11 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
     async feedback(v, id, opts) {
       requireNotAdmin(v)
       const a = await source.analysis(v)
-      const st = studentInScope(v, a, id)
+      const { st } = studentInScope(v, a, id)
       const w = a.world
       const since = w.days[Math.min(120, w.days.length - 1)]
       const items: StudentFeedback['items'] = []
-      const visibleSubjects = visibleSubjectsOf(v, st)
+      const visibleSubjects = visibleSubjectsOf(v, a, st)
       for (const sub of visibleSubjects) {
         const sa = saOf(a, id, sub)
         if (!sa) continue
@@ -418,10 +456,11 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       if (!isAggregateOnly(v)) denied()
       const a = await source.analysis(v)
       const w = a.world
-      /* שכבות: מוצגות רק אם יש בהן ≥ MIN_CELL_SIZE תלמידים. שכבה קטנה נעלמת לגמרי (גם תאיה) */
+      /* שכבות: מוצגות רק אם יש בהן ≥ MIN_CELL_SIZE תלמידים. שכבה קטנה נעלמת לגמרי (גם תאיה).
+         ספירה לפי מזהים **שונים** בשכבה: תלמיד שרשום בשתי כיתות של אותה שכבה נספר פעם אחת (אחרת שכבה של 4 תלמידים שונים הייתה "5" ומתפרסמת) */
       const allGrades = [...new Set(w.classes.map((c) => c.grade))].sort((x, y) => x - y).map((g) => {
         const cls = w.classes.filter((c) => c.grade === g)
-        return { grade: g, gradeLabel: a.ageNormOf(g).gradeLabel, classCount: cls.length, studentCount: cls.reduce((s, c) => s + c.studentIds.length, 0) }
+        return { grade: g, gradeLabel: a.ageNormOf(g).gradeLabel, classCount: cls.length, studentCount: new Set(cls.flatMap((c) => c.studentIds)).size }
       })
       const grades = allGrades.filter((g) => gradeVisible(g.studentCount))
       const cells: AdminCell[] = []
@@ -451,7 +490,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           const avg = round1(mean(sas.map((x) => x.currentLevel as number)))
           const position = positionOf(avg, norm) as Position
           /* מגמה ושינוי: רק מ-≥ MIN_CELL_SIZE הפרשים. מתחת לזה לא מתפרסם גם המספר (שינוי של 1–4 תלמידים הוא כמעט אישי) */
-          const tr = publishableTrend(sas.filter((x) => x.level60 !== null && x.level90to150 !== null).map((x) => (x.level60 as number) - (x.level90to150 as number)))
+          const tr = publishableTrend(sas.map((x) => trendDelta(x)).filter((d): d is number => d !== null))
           const trend = tr ? trendOfDelta(tr.delta) : 'insufficient'
           cells.push({
             status: 'shown', grade: g.grade, gradeLabel: g.gradeLabel, subject: sref(sub), studentCount: verdict.contributors,
@@ -543,9 +582,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const plainBasis = (f: ReportedFinding): string[] => [basisLine(basisWhat(f.evidence), f.window.start, f.window.end)]
 
       if (scope === 'student') {
-        const st = studentInScope(v, a, id)
-        const cls = a.classById.get(st.classId) ?? notFound()
-        const visible = visibleSubjectsOf(v, st)
+        const { st, acc, cls } = studentInScope(v, a, id)
+        const visible = visibleSubjectsOf(v, a, st)
         const strengths: Item[] = []
         const difficulties: Item[] = []
         const trend: Item[] = []
@@ -587,7 +625,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         const mostNotable = (xs: { gap: number; item: Item }[]): Item[] => [...xs].sort((x, y) => compareLevels(y.gap, x.gap)).slice(0, BRIEFING_MAX_AREAS).map((x) => x.item)
         strengths.push(...mostNotable(areaStrengths))
         difficulties.push(...mostNotable(areaGaps))
-        if (canSeeCrossSubject(v, st.classId)) for (const f of a.crossSubject.get(id) ?? []) {
+        if (accessSeesCrossSubject(acc)) for (const f of a.crossSubject.get(id) ?? []) {
           if (f.status !== 'reported') continue
           trend.push({ text: f.text, subjectCode: null, evidence: plainBasis(f) })
           how.push(howItem(f, null))
@@ -596,7 +634,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         unknowns.push({ text: EVIDENCE_LIMITS_NOTE, subjectCode: null, evidence: [] })
         const b: Briefing = {
           scope: 'student', entityId: id, title: briefingTitleStudent(st.displayName),
-          subtitle: briefingSubtitleStudent(cls.name, isHomeroomOf(v, st.classId) ? null : visible.map(subjectName)),
+          subtitle: briefingSubtitleStudent(cls.name, accessSeesCrossSubject(acc) ? null : visible.map(subjectName)),
           generatedAt,
           sections: [
             { id: 'strengths', title: BRIEFING_SECTION_TITLES.strengths, items: strengths },

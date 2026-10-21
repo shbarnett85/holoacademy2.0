@@ -10,6 +10,8 @@ import type { Position, Trend } from '../../shared/lib/analyticsConfig'
 import type { SubjectRef } from '../../shared/types/analyticsV2'
 import { FONT, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { IconName, Tone } from '../teacherUi'
+import { isRetryable, v2ErrorMessage } from './errors'
+import type { V2Error } from './errors'
 import { L } from './labels'
 
 /* ── כרטיס וכותרת קטע ── */
@@ -161,13 +163,15 @@ export function LoadingBlock({ label = L.loading }: { label?: string }) {
   return <div role="status" style={{ padding: '28px 0', textAlign: 'center', fontSize: 17, color: T.textSoft }}>{label}</div>
 }
 
-export function ErrorBlock({ message, onRetry, backTo }: { message: string; onRetry?: () => void; backTo?: string }) {
+/* שגיאת טעינה בעברית פשוטה לפי הסטטוס (errors.ts). "נסו שוב" רק כשיש טעם (תקלה זמנית / עומס / אין חיבור); הרשאה ו"לא נמצא" — נתיב חזרה */
+export function ErrorBlock({ error, onRetry, backTo }: { error: V2Error; onRetry?: () => void; backTo?: string }) {
+  const retry = onRetry && isRetryable(error.status)
   return (
-    <section role="alert" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${T.bad}` }}>
+    <section role="alert" data-v2-error={error.status} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${T.bad}` }}>
       <span style={{ color: T.bad, display: 'inline-flex' }}><Icon name="alert" size={26} /></span>
-      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text, flex: '1 1 280px' }}>{message}</p>
-      {onRetry && <ActionButton onClick={onRetry}>{L.retry}</ActionButton>}
-      {backTo && <LinkButton to={backTo} kind="primary">{L.backToEntry}</LinkButton>}
+      <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text, flex: '1 1 280px' }}>{v2ErrorMessage(error.status, error.message)}</p>
+      {retry && <ActionButton onClick={onRetry}>{L.retry}</ActionButton>}
+      {backTo && <LinkButton to={backTo} kind={retry ? 'secondary' : 'primary'}>{L.backToEntry}</LinkButton>}
     </section>
   )
 }

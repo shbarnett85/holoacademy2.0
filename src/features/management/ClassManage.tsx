@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { apiJson, apiFetch } from '../../shared/lib/api'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
+import { checkNavGuard } from '../../shared/lib/navGuard'
 import { glass, micro } from '../creator/studioStyles'
 import ConfirmModal from '../superadmin/ConfirmModal'
-import PedagogicalSummary from '../analytics/PedagogicalSummary'
+import { withGuestLens } from '../teacherUi/guestLens'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 import type { ClassRow, ClassTeacher } from './index'
 import { SUBJECTS } from '../../shared/lib/subjects'
@@ -71,7 +74,8 @@ function PinModal({ title, students, onClose }: { title: string; students: NewSt
 }
 
 export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: () => void }) {
-  const { isAdmin } = useStaffAuth()
+  const { isAdmin, role, user } = useStaffAuth()
+  const navigate = useNavigate()
   const [students, setStudents] = useState<Student[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [single, setSingle] = useState('')
@@ -90,6 +94,13 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   const [newT, setNewT] = useState({ teacherId: '', subjectCode: '', isHomeroom: false })
 
   const link = `holoacademy.ai/class/${cls.url_code}`
+
+  /* הסיכום הפדגוגי של הכיתה נמצא באנליטיקה, והוא פתוח למחנך/ת הכיתה בלבד (מה שהשרת מחזיר ב-teachers): בלי כפתור לאחרים */
+  const isHomeroomTeacher = role === 'teacher' && !!user && teachers.some((t) => t.teacherId === user.userId && t.isHomeroom === true)
+  async function openClassSummary() {
+    if (!(await checkNavGuard())) return
+    navigate(withGuestLens(`/analytics/class/${encodeURIComponent(cls.id)}?sum=class:${encodeURIComponent(cls.id)}`))
+  }
 
   function load() {
     apiJson<{ students: Student[] }>(`/api/staff/classes/${cls.id}/students`).then((b) => setStudents(b.students)).catch((e: Error) => setError(e.message))
@@ -245,8 +256,16 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
         <HoloBtn label={copiedLink ? 'הועתק ✓' : 'העתק 📋'} onClick={() => { navigator.clipboard?.writeText('https://' + link); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1500) }} />
       </div>
 
-      {/* סיכום פדגוגי */}
-      <PedagogicalSummary scope="class" id={cls.id} title={`כיתה ${gradeLabel}`} />
+      {/* סיכום פדגוגי — באנליטיקה; מחנך/ת הכיתה בלבד */}
+      {isHomeroomTeacher && (
+        <div style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <SectionTitle>{V2_CLIENT_TEXT.classSummary.title}</SectionTitle>
+            <div style={{ fontSize: 13, color: 'var(--t12)' }}>{V2_CLIENT_TEXT.classSummary.sentence}</div>
+          </div>
+          <HoloBtn label={V2_CLIENT_TEXT.classSummary.open} onClick={() => { void openClassSummary() }} />
+        </div>
+      )}
 
       {/* הוספת תלמידים */}
       <div style={{ ...glass, padding: '14px 16px' }}>

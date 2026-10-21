@@ -1,11 +1,12 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
 import StudioTopBar from '../creator/StudioTopBar'
 import { glass, micro } from '../creator/studioStyles'
-import StudentDetail from '../analytics/StudentDetail'
+import { withGuestLens } from '../teacherUi/guestLens'
 import ManagementSidebar from './ManagementSidebar'
 import { PROFILE_PUZZLE_TYPES, gradeToLevel, type ProfilePuzzleType } from '../../shared/lib/difficultyCalibration'
-import { setNavGuard } from '../../shared/lib/navGuard'
+import { checkNavGuard, setNavGuard } from '../../shared/lib/navGuard'
 import { holoConfirm, holoAlert } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
@@ -16,6 +17,8 @@ import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 interface StudentRow {
   id: string
   name: string
+  /* הכיתה שבה התלמיד/ה רשום/ה (מזהה) — נדרש כדי לפתוח את עמוד התלמיד/ה באנליטיקה */
+  classId: string
   class: string
   classCode: string
   secret: string | null
@@ -496,8 +499,7 @@ export default function Students() {
   /* Difficulty modal open for student id */
   const [diffModalStudentId, setDiffModalStudentId] = useState<string | null>(null)
 
-  /* Analytics drill-down */
-  const [detail, setDetail] = useState<{ student: StudentRow; mode: 'progress' | 'summary' } | null>(null)
+  const navigate = useNavigate()
 
   const [saving, setSaving] = useState(false)
 
@@ -545,6 +547,15 @@ export default function Students() {
     }
     return () => setNavGuard(null)
   }, [isDirty, pendingStudentName, cancelAll])
+
+  /* ── מעבר לעמוד התלמיד/ה באנליטיקה (v2). הניווט הישיר עוקף את מגן הניווט של הסרגל העליון, ולכן שינויי שם/מגדר/קושי שלא נשמרו
+     נבדקים כאן (checkNavGuard) — אחרת הם היו אובדים בשקט. אורח: נשמרת העדשה שבחר. ── */
+  async function openInAnalytics(st: StudentRow, summary: boolean) {
+    if (!(await checkNavGuard())) return
+    const q = new URLSearchParams({ class: st.classId })
+    if (summary) q.set('sum', `student:${st.id}`)
+    navigate(withGuestLens(`/analytics/student/${encodeURIComponent(st.id)}?${q.toString()}`))
+  }
 
   /* ── Pending profile helpers ── */
   async function ensureProfilePending(student: StudentRow): Promise<ProfilePending | null> {
@@ -690,10 +701,7 @@ export default function Students() {
             <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', flex: '0 0 auto' }}>👥 תלמידים</div>
             {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
 
-            {detail ? (
-              <StudentDetail studentId={detail.student.id} className={detail.student.class} backLabel="תלמידים" mode={detail.mode} onBack={() => setDetail(null)} />
-            ) : (
-              <>
+            <>
                 {/* סינון */}
                 <div style={{ ...glass, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: '0 0 auto' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 10, padding: '7px 14px', flex: '1 1 180px', minWidth: 150 }}>
@@ -735,15 +743,14 @@ export default function Students() {
                           onNameCommit={(name) => handleNameCommit(st, name)}
                           onGenderChange={(g) => handleGenderChange(st, g)}
                           onOpenDifficulty={() => openDifficulty(st)}
-                          onOpenProgress={() => setDetail({ student: st, mode: 'progress' })}
-                          onOpenSummary={() => setDetail({ student: st, mode: 'summary' })}
+                          onOpenProgress={() => { void openInAnalytics(st, false) }}
+                          onOpenSummary={() => { void openInAnalytics(st, true) }}
                         />
                       )
                     })}
                   </div>
                 </div>
-              </>
-            )}
+            </>
           </div>
         </div>
       </div>

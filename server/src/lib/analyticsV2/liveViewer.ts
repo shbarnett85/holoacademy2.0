@@ -71,3 +71,61 @@ export async function toV2Viewer(base: Viewer): Promise<V2Viewer> {
     classGrants,
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   מטמון קצר של הצופה (authz.Viewer של המשתמש). כל בקשה לאנליטיקה הייתה מבצעת כמה סבבי DB רק כדי לדעת מי הצופה (class_teachers, schools, classes),
+   גם כשהניתוח עצמו כבר במטמון. כאן: TTL קצר (ברירת מחדל 20 שניות), single-flight (בקשות מקבילות של אותו משתמש = טעינה אחת), וכשל לא נשמר.
+   · המפתח כולל משתמש + תפקיד + בית ספר (אלה נקראים טרי ב-requireStaff בכל בקשה), ולכן שינוי תפקיד/בית ספר ו**השבתת חשבון** נאכפים מיד.
+   · **שינוי הרשאות (שיוך מורה לכיתה/מקצוע, סימון מחנך) יתפוס תוך TTL לכל היותר** — זה המחיר המוצהר. ANALYTICS_V2_VIEWER_TTL_MS=0 מכבה את המטמון.
+   · בבדיקות (VITEST) המטמון כבוי כברירת מחדל; בדיקות שבודקות אותו מגדירות TTL ושעון במפורש.
+   ══════════════════════════════════════════════════════════════════════════ */
+export const VIEWER_MEMO_DEFAULT_TTL_MS = 20_000
+export const VIEWER_MEMO_MAX_ENTRIES = 500
+
+export function viewerMemoTtlMs(): number {
+  const raw = process.env.ANALYTICS_V2_VIEWER_TTL_MS
+  if (raw !== undefined && raw !== '') {
+    const n = Number(raw)
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : VIEWER_MEMO_DEFAULT_TTL_MS
+  }
+  return process.env.VITEST ? 0 : VIEWER_MEMO_DEFAULT_TTL_MS
+}
+
+export interface ViewerMemoOptions { ttlMs: () => number; maxEntries: number; now: () => number }
+
+export class ViewerMemo<T> {
+  private readonly opts: ViewerMemoOptions
+  private slots = new Map<string, { at: number; value?: T; promise?: Promise<T> }>()
+  constructor(opts: Partial<ViewerMemoOptions> = {}) {
+    this.opts = { ttlMs: viewerMemoTtlMs, maxEntries: VIEWER_MEMO_MAX_ENTRIES, now: () => Date.now(), ...opts }
+  }
+  get size(): number { return this.slots.size }
+  clear(): void { this.slots.clear() }
+
+  get(key: string, load: () => Promise<T>): Promise<T> {
+    const ttl = this.opts.ttlMs()
+    if (ttl <= 0) { this.slots.clear(); return load() }
+    const hit = this.slots.get(key)
+    if (hit) {
+      if (hit.promise) return hit.promise /* טעינה בטיסה: כולם מחכים לאותה */
+      if (this.opts.now() - hit.at < ttl) return Promise.resolve(hit.value as T)
+      this.slots.delete(key)
+    }
+    const slot: { at: number; value?: T; promise?: Promise<T> } = { at: 0 }
+    const promise = load().then(
+      (value) => {
+        if (this.slots.get(key) === slot) { slot.value = value; slot.at = this.opts.now(); slot.promise = undefined }
+        return value
+      },
+      (err) => {
+        /* כשל לא נשמר: הבקשה הבאה תנסה שוב */
+        if (this.slots.get(key) === slot) this.slots.delete(key)
+        throw err
+      },
+    )
+    slot.promise = promise
+    this.slots.set(key, slot)
+    while (this.slots.size > this.opts.maxEntries) this.slots.delete(this.slots.keys().next().value as string)
+    return promise
+  }
+}

@@ -4,7 +4,7 @@
    · ספק ההדגמה והספק האמיתי העתידי משתמשים באותן פונקציות, כך שהמסכים מתנהגים זהה.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  AREA_MIN_DELTA, CLASS_AREA_MIN_STUDENTS, CONTENT_VECTOR_KINDS, GROUP_TREND_MIN_STUDENTS, TREND_LABEL_MIN_DELTA,
+  AREA_MIN_DELTA, CLASS_AREA_MIN_STUDENTS, CONTENT_VECTOR_KINDS, GROUP_TREND_MIN_STUDENTS, TREND_LABEL_MIN_DELTA, TREND_LABEL_MIN_SESSIONS,
   type Position, type Trend,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
@@ -36,8 +36,11 @@ export function trendOfDelta(delta: number | null): Trend {
   if (delta === null || !Number.isFinite(delta)) return 'insufficient'
   return levelAtLeast(delta, TREND_LABEL_MIN_DELTA) ? 'improving' : levelAtMost(delta, -TREND_LABEL_MIN_DELTA) ? 'declining' : 'steady'
 }
-type TrendInput = Pick<SubjectAnalysis, 'level60' | 'level90to150'>
-export const trendDelta = (sa: TrendInput): number | null => (sa.level60 !== null && sa.level90to150 !== null ? sa.level60 - sa.level90to150 : null)
+/* ספירות החלונות אופציונליות בקלט (בדיקות טהורות); כשהן ידועות — כל חלון חייב לעמוד בסף: שני משחקים בחלון אחד אינם מגמה */
+type TrendInput = Pick<SubjectAnalysis, 'level60' | 'level90to150'> & Partial<Pick<SubjectAnalysis, 'level60N' | 'level90to150N'>>
+const enoughSessions = (n: number | undefined): boolean => n === undefined || n >= TREND_LABEL_MIN_SESSIONS
+export const trendDelta = (sa: TrendInput): number | null =>
+  sa.level60 !== null && sa.level90to150 !== null && enoughSessions(sa.level60N) && enoughSessions(sa.level90to150N) ? sa.level60 - sa.level90to150 : null
 export const studentTrend = (sa: TrendInput): Trend => trendOfDelta(trendDelta(sa))
 /* מגמת קבוצה = ממוצע ההפרשים של מי שיש לו מגמה; פחות מ-GROUP_TREND_MIN_STUDENTS → אין עדיין מספיק נתונים */
 export function groupTrend(sas: TrendInput[]): Trend {

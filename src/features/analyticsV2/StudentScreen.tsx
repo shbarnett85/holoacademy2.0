@@ -2,7 +2,7 @@
    מחנך: "סקירה" ואז כל מקצוע. מורה מקצועי: מקצועו פעיל, שאר המקצועות באפור עם מנעול והסבר גלוי.
    בתוך מקצוע: מסלול הרמה עם הטווח המיועד והסתייגות, תחומים, טעויות נפוצות, ואירועים/דפוסים (מדווחים בלבד). */
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { countNb, EMPTY_TEXT, HOW_WE_CALC, numberRange } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_PANEL_TEXT, countNb, EMPTY_TEXT, HOW_WE_CALC, numberRange, V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import { subjectName } from '../../shared/lib/subjects'
 import type { Finding, StudentOverview, SubjectPanel } from '../../shared/types/analyticsV2'
 import { bySubjectOrderOf, EmptyState, FONT, Icon, RADIUS, Sentence, SubjectLinkButton, T, TabBar, tabPanelProps } from '../teacherUi'
@@ -10,7 +10,8 @@ import type { BreadcrumbItem, TabItem, Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, titles } from './labels'
-import { overviewTabItem } from './tabs'
+import { studentHeadline } from './logic'
+import { overviewTabItem, resolveClassTab } from './tabs'
 import { AnalyticsShell } from './Shell'
 import { ActionButton, AreasText, Card, CardTitle, ErrorBlock, LoadingBlock, Note, PositionWord, SubjectOrb, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
@@ -115,6 +116,8 @@ const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, vertica
 
 function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; subjectHref: (code: string) => string; crossText: string }) {
   const visible = byOrder(data.panels).filter((p): p is Visible => p.access === 'visible')
+  /* מקף בתא תחומים: מסבירים במילים מה הוא אומר */
+  const anyDash = visible.some((p) => p.areas.strong.length === 0 || p.areas.challenging.length === 0)
   const cross = data.crossSubject.filter((f) => f.status === 'reported')
   return (
     <>
@@ -166,7 +169,7 @@ function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; 
           </tbody>
         </table>
       </div>
-      <Note>{crossText}</Note>
+      <Note>{crossText}{anyDash ? ` ${V2_CLIENT_TEXT.areasDash}` : ''}</Note>
     </>
   )
 }
@@ -176,12 +179,12 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   const navigate = useNavigate()
   const [sp] = useSearchParams()
   const root = useRootCrumb()
-  const { data, loading, error, reload } = useV2<StudentOverview>(`/student/${studentId}`, env.params)
+  const { data, dataState, loading, error, reload } = useV2<StudentOverview>(`/student/${studentId}`, env.params)
 
   if (!data || loading) {
     return (
       <AnalyticsShell title={titles.studentGeneric} breadcrumb={[root]}>
-        {error ? <ErrorBlock message={error} onRetry={reload} backTo={env.href('/analytics')} /> : <LoadingBlock />}
+        {error ? <ErrorBlock error={error} onRetry={reload} backTo={env.href('/analytics')} /> : <LoadingBlock />}
       </AnalyticsShell>
     )
   }
@@ -201,9 +204,8 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   const full = data.access === 'full'
   const panels = byOrder(data.panels)
   const openCodes = panels.filter((p) => p.access === 'visible').map((p) => p.subject.code as string)
-  const tabParam = sp.get('tab')
-  const tab = tabParam === 'overview' && full ? 'overview' : openCodes.includes(tabParam ?? '') ? (tabParam as string) : full ? 'overview' : openCodes[0] ?? 'overview'
-  const active = panels.find((p): p is Visible => p.access === 'visible' && p.subject.code === tab)
+  const { tab, kind } = resolveClassTab({ tabParam: sp.get('tab'), homeroom: full, openCodes })
+  const active = kind === 'subject' ? panels.find((p): p is Visible => p.access === 'visible' && p.subject.code === tab) : undefined
 
   const classHref = (q: Record<string, string | null> = {}): string => env.href(`/analytics/class/${classId}`, q)
   const studentHref = (q: Record<string, string | null>): string => env.href(`/analytics/student/${studentId}`, { class: classId, ...q })
@@ -227,18 +229,21 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   return (
     <AnalyticsShell title={titles.student(firstName)} breadcrumb={crumbs} howExtra={<EvidenceBlock findings={evidenceFor} subject={active?.subject.nameHe} />}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 480px', minWidth: 0 }}><Sentence tone={hasAttention ? 'attention' : 'neutral'}>{data.summary}</Sentence></div>
+        <div style={{ flex: '1 1 480px', minWidth: 0 }}><Sentence tone={hasAttention ? 'attention' : 'neutral'}>{studentHeadline(dataState, firstName, data.summary)}</Sentence></div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <ActionButton kind="primary" onClick={() => env.openBriefing('student', studentId)} >{L.briefing}</ActionButton>
+          {/* סיכום מילולי של ד״ר הולו: למחנך/ת על כל המקצועות, למורה מקצועי על מקצועו בלבד (השרת מחליט); מנהל/ת לא מגיע/ה למסך הזה */}
+          {env.lens !== 'admin' && <ActionButton onClick={() => env.openSummary('student', studentId)}>{AI_SUMMARY_PANEL_TEXT.openButton}</ActionButton>}
           <ActionButton onClick={() => env.openFeedback(studentId)}>{L.studentPreview}</ActionButton>
         </div>
       </div>
       <TabBar ariaLabel="מקצועות התלמיד/ה" idPrefix="stu" withPanels value={tab} items={items}
         onChange={(id) => navigate(studentHref({ tab: id }))} />
-      <div {...tabPanelProps('stu', tab)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
+      <div {...tabPanelProps('stu', tab)} data-v2-ready style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {active
           ? <SubjectTab p={active} caveat={data.caveats.ageNorm} trendCaveat={data.caveats.trend} firstName={firstName} />
-          : full ? <OverviewTab data={data} crossText={data.caveats.crossSubject} subjectHref={(code) => studentHref({ tab: code })} /> : <EmptyState title={L.noAccess} />}
+          : kind === 'overview' ? <OverviewTab data={data} crossText={data.caveats.crossSubject} subjectHref={(code) => studentHref({ tab: code })} />
+            : <EmptyState title={V2_CLIENT_TEXT.noOpenSubjectStudent.title} whatNext={V2_CLIENT_TEXT.noOpenSubjectStudent.whatNext} />}
       </div>
     </AnalyticsShell>
   )

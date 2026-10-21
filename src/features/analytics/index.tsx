@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense } from 'react'
+import { Link } from 'react-router-dom'
 import ProgressLens from './ProgressLens'
 import ChallengeTypesPanel from './ChallengeTypesPanel'
-import { ScreenShell } from '../teacherUi'
+import { FONT, MIN_TARGET, RADIUS, ScreenShell, T } from '../teacherUi'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
-import { apiJson } from '../../shared/lib/api'
+import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 
 const AnalyticsV2App = lazy(() => import('../analyticsV2/AnalyticsV2App'))
 
@@ -21,14 +22,27 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
   )
 }
 
-/* האנליטיקה הקיימת (משתמשים אמיתיים, בלי נתוני הדגמה): ההתקדמות לאורך זמן + "ביצועים לפי סוג אתגר".
+/* התצוגה הקודמת: ההתקדמות לאורך זמן + "ביצועים לפי סוג אתגר" (גרף ההתקדמות הכללי).
    רשימת השיעורים ומסך ההדמיה עברו לטאב "תוצאות" (src/features/results) — אין כאן כפילות.
-   עמודה אחת; הסקופ מהשרת (הרשאה A להתקדמות). */
-function LegacyAnalyticsPanel() {
+   עמודה אחת; הסקופ מהשרת (הרשאה A להתקדמות).
+   מוצגת במקרה אחד מ-שניים: (א) מתג הכיבוי של האנליטיקה החדשה (config.enabled=false), (ב) מורה אמיתי שבחר "התצוגה הקודמת" במסך הכניסה —
+   ואז backTo הוא נתיב חזרה גלוי לתצוגה החדשה. */
+function LegacyAnalyticsPanel({ backTo }: { backTo?: string }) {
   const { isGuest } = useStaffAuth()
+  const breadcrumb = backTo
+    ? [{ label: 'אנליטיקה', to: backTo }, { label: V2_CLIENT_TEXT.previous.crumb }]
+    : [{ label: 'אנליטיקה' }]
   return (
-    <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={[{ label: 'אנליטיקה' }]}>
+    <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={breadcrumb}>
       <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
+      {backTo && (
+        <div style={{ alignSelf: 'flex-start' }}>
+          <Link to={backTo} data-tu-press
+            style={{ display: 'inline-flex', alignItems: 'center', minHeight: MIN_TARGET, padding: '0 18px', borderRadius: RADIUS.md, fontFamily: FONT, fontSize: 16, fontWeight: 800, textDecoration: 'none', color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}` }}>
+            {V2_CLIENT_TEXT.previous.backToNew}
+          </Link>
+        </div>
+      )}
       {/* מצב הדגמה — סימון שהנתונים סינתטיים (כיתת דמו וירטואלית) */}
       {isGuest && (
         <p style={{ margin: 0, alignSelf: 'flex-start', fontSize: 14, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
@@ -43,18 +57,10 @@ function LegacyAnalyticsPanel() {
   )
 }
 
-/* האנליטיקה החדשה (analyticsV2) מוצגת רק כשהשרת מדליק את הדגל (מורה אורח / ארגון הדגמה).
-   כל משתמש אחר ממשיך במסכים הקיימים; כל כשל בבדיקת הדגל = המסכים הקיימים. */
+/* האנליטיקה (analyticsV2) היא המסך של כל המורים והמנהלים. AnalyticsV2App טוען את התצורה פעם אחת ומחליט:
+   מתג כיבוי → התצוגה הקודמת (או /admin למנהל-על); "התצוגה הקודמת" מבקשת-במפורש (?view=previous) של מורה אמיתי → גם היא. */
+const Loading = () => <div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />
+
 export default function AnalyticsPanel() {
-  const [flag, setFlag] = useState<'loading' | 'on' | 'off'>('loading')
-  useEffect(() => {
-    let cancelled = false
-    apiJson<{ data?: { enabled?: boolean } }>('/api/analytics-v2/config')
-      .then((r) => { if (!cancelled) setFlag(r.data?.enabled === true ? 'on' : 'off') })
-      .catch(() => { if (!cancelled) setFlag('off') })
-    return () => { cancelled = true }
-  }, [])
-  if (flag === 'loading') return <div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />
-  if (flag === 'on') return <Suspense fallback={<div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />}><AnalyticsV2App /></Suspense>
-  return <LegacyAnalyticsPanel />
+  return <Suspense fallback={<Loading />}><AnalyticsV2App Legacy={LegacyAnalyticsPanel} /></Suspense>
 }

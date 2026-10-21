@@ -1,7 +1,7 @@
 /* ארבעת התכנים של מקצוע בכיתה. כולם צורכים את אותה תגובה (ClassSubjectView) ונכנסים במסך אחד ב-1366×768. */
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { EMPTY_TEXT, countNb, dateHe, numberRange } from '../../shared/lib/findingsNarrative'
+import { Link } from 'react-router-dom'
+import { EMPTY_TEXT, V2_CLIENT_TEXT, countNb, dateHe, numberRange } from '../../shared/lib/findingsNarrative'
 import type { ClassSubjectView, MisconceptionRow } from '../../shared/types/analyticsV2'
 import { FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { Tone } from '../teacherUi'
@@ -9,7 +9,8 @@ import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import type { ChartMarker } from './charts'
 import { useV2Env } from './context'
 import { L } from './labels'
-import { ActionButton, Card, CardTitle, CountBar, Note, Tag, ToneMark, TrendWord } from './ui'
+import { questHref } from './logic'
+import { ActionButton, Card, CardTitle, CountBar, LinkButton, Note, Tag, ToneMark, TrendWord } from './ui'
 
 const GRID_2 = 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))'
 
@@ -65,9 +66,7 @@ export function SummaryPanel({ d }: { d: ClassSubjectView }) {
 /* ── טעויות נפוצות ── */
 function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
   const env = useV2Env()
-  const navigate = useNavigate()
   const [who, setWho] = useState(false)
-  const [quest, setQuest] = useState(false)
   const reported = m.status === 'reported' && m.sharePct !== null
   return (
     <Card style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -82,18 +81,18 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
           {m.curriculumGoal.mappingStatus === 'sample' && <Tag>{L.sampleMapping}</Tag>}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <ActionButton kind="primary" expanded={quest} onClick={() => setQuest((o) => !o)}>{L.makeQuest}</ActionButton>
-        {m.students.length > 0 && <ActionButton expanded={who} onClick={() => setWho((o) => !o)}>{who ? L.hideWho : `${L.whoShows} (${m.students.length})`}</ActionButton>}
-      </div>
-      {quest && (
-        <div role="note" style={{ padding: '10px 14px', borderRadius: RADIUS.md, border: `1.5px dashed ${T.accent}`, fontSize: 16, lineHeight: 1.6, color: T.text }}>
-          {m.linkedQuest ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span>{L.questExists} <strong>«{m.linkedQuest.title}»</strong></span>
-              <ActionButton onClick={() => navigate('/creator/library')}>{L.openQuestInLibrary}</ActionButton>
-            </div>
-          ) : L.noQuestYet}
+      {/* הדמיה ממוקדת: כפתור רק כשיש הדמיה אמיתית לפתוח. כשאין — משפט (מידע), לא כפתור שלא עושה כלום */}
+      {m.linkedQuest ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: 16, lineHeight: 1.5, color: T.text }}>
+          <span>{V2_CLIENT_TEXT.focusedQuest.exists} <strong>«{m.linkedQuest.title}»</strong></span>
+          <LinkButton to={questHref(m.linkedQuest.questId)} kind="primary">{L.openQuestInLibrary}</LinkButton>
+        </div>
+      ) : (
+        <Note style={{ color: T.text }}>{V2_CLIENT_TEXT.focusedQuest.none}</Note>
+      )}
+      {m.students.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <ActionButton expanded={who} onClick={() => setWho((o) => !o)}>{who ? L.hideWho : `${L.whoShows} (${m.students.length})`}</ActionButton>
         </div>
       )}
       {who && (
@@ -184,7 +183,7 @@ export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: st
     return (
       <>
         <Sentence compact>{d.tabSummaries.students}</Sentence>
-        <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noStudents}</Note></Card>
+        <Card><Note style={{ fontSize: 16 }}>{V2_CLIENT_TEXT.noStudentsInSubject}</Note></Card>
       </>
     )
   }

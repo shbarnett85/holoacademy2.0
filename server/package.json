@@ -18,6 +18,9 @@
     "demo-data:accept": "tsx src/scripts/demoDataAcceptance.ts",
     "authz:accept": "tsx src/scripts/authzAcceptance.ts",
     "results:accept": "tsx src/scripts/resultsAcceptance.ts",
+    "ai-summary:accept": "tsx src/scripts/aiSummaryAccept.ts",
+    "v2:accept": "tsx src/scripts/v2Acceptance.ts",
+    "fixture:v2": "tsx src/scripts/analyticsFixture.ts",
     "compat:smoke": "tsx src/scripts/compatSmoke.ts"
   },
   "dependencies": {

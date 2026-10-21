@@ -506,9 +506,30 @@ export async function loadReviewBasis(req: Request, assignmentId: string, questI
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   גישה לשירות הסיכום המילולי (lib/aiSummary): אותה הרשאה בדיוק כמו מסך ההדמיה (needViewer + loadOne: מנהלים — 403, לא גלויה / לא קיימת — 404 אחיד),
+   אך **בלי** רישום ביומן לכל תלמיד ברשימה — שירות הסיכום רושם בעצמו שורה אחת (בלי תלמיד) לכל סיכום, והתוצאה לא חושפת שמות ל-AI.
+   ההרשאה נבדקת מיד (זול: שליחה + הדמיה + כיתה); הטעינה הכבדה נדחית עד classView(), כך שבקשת GET של סיכום שמור לא טוענת את כל נתוני הכיתה.
+   ══════════════════════════════════════════════════════════════════════════ */
+export interface SubmissionSummaryAccess {
+  /* מסך ההדמיה (אותו מבנה כמו GET /api/results/submission/:id), בלי רישום ביומן */
+  classView(): Promise<ClassSubmissionView>
+}
+
+export async function openSubmissionForSummary(req: Request, submissionId: string): Promise<SubmissionSummaryAccess> {
+  const viewer = await needViewer(req)
+  const lite = await loadOne(viewer, submissionId)
+  return {
+    async classView() {
+      const bundle = await loadBundle(viewer, [lite], { detail: true })
+      return buildClassView(toCoreInput(lite, bundle))
+    },
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    הספק
    ══════════════════════════════════════════════════════════════════════════ */
-const subjectOrder = (code: string): number => SUBJECTS.findIndex((s) => s.code === code)
+const subjectOrder =(code: string): number => SUBJECTS.findIndex((s) => s.code === code)
 const newestFirst = (a: AsgRow, b: AsgRow): number => (Date.parse(b.created_at) - Date.parse(a.created_at)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
 export const realResultsProvider: ResultsProvider = {

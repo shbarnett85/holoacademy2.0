@@ -22,8 +22,8 @@ export default function SubjectArea({ classId, subject, sub, onSub }: { classId:
         <div style={{ flex: 1 }} />
         <ActionButton onClick={() => env.openBriefing('class', classId)}>{L.briefingClass}</ActionButton>
       </div>
-      <div {...tabPanelProps('sub', sub)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
-        {error ? <ErrorBlock message={error} onRetry={reload} /> : !fresh ? <LoadingBlock /> : (
+      <div {...tabPanelProps('sub', sub)} data-v2-ready={fresh ? true : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
+        {error ? <ErrorBlock error={error} onRetry={reload} /> : !fresh ? <LoadingBlock /> : (
           <>
             {sub === 'summary' && <SummaryPanel d={fresh} />}
             {sub === 'errors' && <ErrorsPanel d={fresh} classId={classId} />}

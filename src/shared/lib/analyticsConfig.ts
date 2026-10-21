@@ -136,6 +136,9 @@ export type Position = (typeof POSITIONS)[number]
 export const TREND_LABEL_MIN_DELTA = 0.5
 /* לצבירה כיתתית/שכבתית: מינימום תלמידים שיש להם מגמה כדי לדווח מגמה לקבוצה */
 export const GROUP_TREND_MIN_STUDENTS = 3
+/* תווית מגמה לתלמיד/ה (ולכל תת-קבוצה): לפחות כך וכך משחקים בכל אחד משני החלונות (האחרון והקודם).
+   מתחת לזה — "אין עדיין מספיק נתונים", ולא "משתפר/ת" על סמך שני משחקים. (ממצא מגמה מדווח דורש הרבה יותר: KIND_THRESHOLDS.level_trend.minN.) */
+export const TREND_LABEL_MIN_SESSIONS = 3
 
 /* תחום (סוג תוכן) נחשב "חזק" / "מאתגר" כשהרמה בו רחוקה מרמת המקצוע לפחות ברמה אחת, והוא מדווח (N מספיק) */
 export const AREA_MIN_DELTA = 1

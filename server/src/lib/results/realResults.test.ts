@@ -76,7 +76,7 @@ vi.mock('../subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),
 }))
 
-import { ASSIGNMENT_SCAN_CAP, loadReviewBasis, realResultsProvider } from './realResults.js'
+import { ASSIGNMENT_SCAN_CAP, loadReviewBasis, openSubmissionForSummary, realResultsProvider } from './realResults.js'
 
 const uid = (n: number): string => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 const SCHOOL = uid(1), C1 = uid(10), C2 = uid(11)
@@ -445,5 +445,50 @@ describe('בסיס הדמיית חזרה (loadReviewBasis): אותה הרשאה 
     finish(2)
     await loadReviewBasis(req(T_HOME), A1, Q1)
     expect(h.db.data_access_log).toEqual([expect.objectContaining({ scope: 'results_review', student_id: null })])
+  })
+})
+
+describe('גישה לשירות הסיכום המילולי (openSubmissionForSummary): אותה הרשאה כמו מסך ההדמיה, בלי רישום לכל תלמיד', () => {
+  it('אותה הרשאה בדיוק: מנהלים 403, שליחה שאינה גלויה / לא קיימת / פגומה — אותו 404 אחיד; מורה גלוי (מחנך, יוצר-ושולח, מנהל-על) — נפתח', async () => {
+    for (const role of ['admin', 'municipal_admin'] as const) {
+      expect((await fail(openSubmissionForSummary(req(ADMIN, role), A1))).status).toBe(403)
+      expect((await fail(openSubmissionForSummary(req(ADMIN, role), NIL))).status).toBe(403)
+    }
+    const missing = await fail(openSubmissionForSummary(req(T_OUT), NIL))
+    expect(missing.status).toBe(404)
+    expect(await fail(openSubmissionForSummary(req(T_OUT), A1))).toMatchObject({ status: 404, message: missing.message })
+    expect(await fail(openSubmissionForSummary(req(T_OUT), 'not-a-uuid'))).toMatchObject({ status: 404, message: missing.message })
+    for (const r of [req(T_HOME), req(T_SCI), req(SUPER, 'super_admin')]) await expect(openSubmissionForSummary(r, A1)).resolves.toBeTruthy()
+  })
+
+  it('ההרשאה נבדקת מיד והטעינה הכבדה נדחית: עד classView() אין שאילתת סשנים / תשובות / אירועים', async () => {
+    const access = await openSubmissionForSummary(req(T_HOME), A1)
+    for (const t of HEAVY) expect(h.calls, t).not.toContain(t)
+    await access.classView()
+    expect(h.calls).toContain('sessions')
+  })
+
+  it('לא נרשם ביומן הגישה (שירות הסיכום רושם בעצמו שורה אחת) — גם לא אצל מנהל-על, ומנהל-על אינו נחסם כשהיומן תקול', async () => {
+    const access = await openSubmissionForSummary(req(T_HOME), A1)
+    await access.classView()
+    expect(h.db.data_access_log).toHaveLength(0)
+    h.flags.insertError = true
+    await expect((await openSubmissionForSummary(req(SUPER, 'super_admin'), A1)).classView()).resolves.toBeTruthy()
+  })
+
+  it('התוכן זהה למסך ההדמיה (אותה ליבה): אין סטייה בין מה שהמורה רואה למה שמסוכם', async () => {
+    ins('sessions', [session('s1', STU[0], true), session('s2', STU[1], true), session('s3', STU[2], false)])
+    ins('answers', [answer('s1', STU[0], 'a', 'correct'), answer('s2', STU[1], 'b', 'wrong')])
+    ins('events', [solvedEvent('s1', STU[0], true), solvedEvent('s2', STU[1], false)])
+    const viaSummary = await (await openSubmissionForSummary(req(T_HOME), A1)).classView()
+    const viaScreen = await realResultsProvider.classView(req(T_HOME), A1)
+    expect(viaSummary).toEqual(viaScreen)
+    expect(ClassSubmissionViewSchema.safeParse(viaSummary).success).toBe(true)
+  })
+
+  it('תלמיד מושבת: אותה הסתרה כמו במסך', async () => {
+    h.db.users.find((u) => u.id === STU[2])!.is_active = false
+    const view = await (await openSubmissionForSummary(req(T_HOME), A1)).classView()
+    expect(view.head.counts.total).toBe(STU.length - 1)
   })
 })

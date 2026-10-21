@@ -5,6 +5,8 @@
    · ארגון הדגמה (demo_data_enabled): ספק הדגמה, העדשה מהתפקיד האמיתי ולא ניתנת לעקיפה בשאילתה.
    · כל מורה / מנהל / מנהל עירוני אחר: ספק חי (grants פר-כיתה מ-class_teachers). מנהל-על: אין (נשאר בפאנל הקודם / ב-/admin).
    · כיבויים: ANALYTICS_V2=0 (גלובלי, גם לאורח) ו-ANALYTICS_V2_LIVE=0 (רק הספק החי → enabled:false → הלקוח מציג את הפאנל הקודם).
+   · ביצועים: הצופה של משתמש אמיתי (authz.Viewer + ה-V2Viewer שנגזר ממנו) נשמר במטמון קצר לפי משתמש (ViewerMemo, 20 שניות, single-flight).
+     שינוי הרשאות מורה תופס תוך TTL לכל היותר; תפקיד / בית ספר / השבתה נקראים טרי ב-requireStaff בכל בקשה והם חלק מהמפתח. ראו liveViewer.ts.
    ────────────────────────────────────────────────────────────────────────── */
 import type { Request } from 'express'
 import { type SubjectCode } from '../../../../src/shared/lib/subjects.js'
@@ -13,7 +15,7 @@ import { loadViewer, type Viewer } from '../authz.js'
 import { isDemoGuest } from '../../middleware/staffAuth.js'
 import { DEMO_HOMEROOM_CLASS, DEMO_SUBJECT_PERSONAS, type V2Viewer } from './access.js'
 import { demoViewerClasses } from './demoProvider.js'
-import { codesOfSubjectIds, toV2Viewer } from './liveViewer.js'
+import { ViewerMemo, codesOfSubjectIds, toV2Viewer, viewerMemoTtlMs } from './liveViewer.js'
 
 export interface V2Context {
   viewer: V2Viewer
@@ -28,6 +30,32 @@ const flagOn = (): boolean => process.env.ANALYTICS_V2 !== '0'
 const liveOn = (): boolean => process.env.ANALYTICS_V2_LIVE !== '0'
 
 const DEMO_BASE = { guest: false, source: 'demo' as const }
+
+/* ── מטמון הצופה האמיתי ── */
+const baseViewerMemo = new ViewerMemo<Viewer>()
+/* ה-V2Viewer החי נגזר מאובייקט ה-Viewer: כשה-Viewer במטמון מתחלף (פג התוקף), גם הנגזר מתחלף — שניהם באותו גיל, לא TTL כפול */
+const liveViewerOf = new WeakMap<Viewer, Promise<V2Viewer>>()
+const viewerKey = (req: Request): string | null => {
+  const s = req.staff
+  return s && typeof s.userId === 'string' && s.userId ? `${s.userId}|${s.role}|${s.schoolId ?? ''}` : null
+}
+function baseViewerOf(req: Request): Promise<Viewer> {
+  const key = viewerKey(req)
+  return key ? baseViewerMemo.get(key, () => loadViewer(req)) : loadViewer(req)
+}
+function liveViewerFor(base: Viewer): Promise<V2Viewer> {
+  if (viewerMemoTtlMs() <= 0) return toV2Viewer(base)
+  let p = liveViewerOf.get(base)
+  if (!p) {
+    p = toV2Viewer(base)
+    liveViewerOf.set(base, p)
+    const mine = p
+    mine.catch(() => { if (liveViewerOf.get(base) === mine) liveViewerOf.delete(base) }) /* כשל לא נשמר */
+  }
+  return p
+}
+/* לבדיקות */
+export function resetViewerCaches(): void { baseViewerMemo.clear() }
 
 /* מורה אורח: העדשה והמקצוע מהבורר */
 function guestViewer(query: V2Query): V2Viewer {
@@ -57,11 +85,11 @@ export async function resolveV2Context(req: Request, opts: { ignoreFlag?: boolea
     return { viewer: guestViewer(q.success ? q.data : {}), provider: 'demo', authz: null }
   }
   if (req.staff?.role === 'super_admin') return null
-  const base = await loadViewer(req)
+  const base = await baseViewerOf(req)
   if (base.role === 'super_admin') return null
   if (base.seesSynthetic) return { viewer: await demoOrgViewer(base), provider: 'demo', authz: base }
   if (opts.demoOnly || !liveOn()) return null
-  return { viewer: await toV2Viewer(base), provider: 'live', authz: base }
+  return { viewer: await liveViewerFor(base), provider: 'live', authz: base }
 }
 
 /* עטיפה תואמת-לאחור (demoResults ובדיקות): רק צופה של ספק ההדגמה; לכל השאר null */

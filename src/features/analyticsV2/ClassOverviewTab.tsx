@@ -1,12 +1,12 @@
 /* "סקירה" (מחנך): טבלה אחת, שורה לכל מקצוע — רמה ומגמה, תחומים חזקים ומאתגרים, תלמידים לתשומת לב.
    שם המקצוע הוא כפתור (תג מקצוע, 44px) אל "סיכום" של המקצוע; מספר התלמידים לתשומת לב — כפתור אל "תלמידים" שלו. נכנסת במסך אחד. */
 import { Link } from 'react-router-dom'
-import { attentionBadgeText } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_PANEL_TEXT, V2_CLIENT_TEXT, attentionBadgeText } from '../../shared/lib/findingsNarrative'
 import type { ClassOverview } from '../../shared/types/analyticsV2'
 import { bySubjectOrderOf, EmptyState, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
 import { useV2Env } from './context'
 import { L } from './labels'
-import { AreasText, ErrorBlock, LoadingBlock, Note, PositionWord, ToneMark, TrendWord } from './ui'
+import { ActionButton, AreasText, ErrorBlock, LoadingBlock, Note, PositionWord, ToneMark, TrendWord } from './ui'
 import { useV2 } from './v2api'
 
 const th = { textAlign: 'start', padding: '6px 12px', fontSize: 16, fontWeight: 700, color: T.textSoft, borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' } as const
@@ -16,15 +16,21 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
   const env = useV2Env()
   const { data, loading, error, reload } = useV2<ClassOverview>(`/class/${classId}/overview`, env.params)
   if (loading && !data) return <LoadingBlock />
-  if (error) return <ErrorBlock message={error} onRetry={reload} />
+  if (error) return <ErrorBlock error={error} onRetry={reload} />
   if (!data) return null
   const anyAlert = data.rows.some((r) => r.alerts > 0)
   /* אותו סדר מקצועות כמו בטאבים (shared/lib/subjects) */
   const rows = bySubjectOrderOf(data.rows, (r) => r.subject.code)
+  /* מקף בתא תחומים: מסבירים במילים מה הוא אומר (אין תחום בולט / עוד אין מספיק נתונים) */
+  const anyDash = rows.some((r) => r.strongAreas.length === 0 || r.challengingAreas.length === 0)
 
   return (
-    <>
-      <Sentence tone={anyAlert ? 'attention' : 'neutral'}>{data.summary}</Sentence>
+    <div data-v2-ready style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* סיכום מילולי על הכיתה: למחנך/ת הכיתה בלבד (חוק 10) — הכפתור מופיע רק לו/לה, והשרת אוכף */}
+      <Sentence tone={anyAlert ? 'attention' : 'neutral'}
+        aside={env.isHomeroomClass(classId) ? <ActionButton onClick={() => env.openSummary('class', classId)}>{AI_SUMMARY_PANEL_TEXT.openButton}</ActionButton> : undefined}>
+        {data.summary}
+      </Sentence>
       {rows.length === 0 ? (
         <EmptyState title={`עוד אין נתונים על כיתה ${className}.`} whatNext="הסקירה תופיע כאן כשתלמידי הכיתה ישחקו בהדמיות." />
       ) : (
@@ -69,7 +75,7 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
           </table>
         </div>
       )}
-      <Note>{data.caveats.crossSubject} {data.caveats.ageNorm}</Note>
-    </>
+      <Note>{data.caveats.crossSubject} {data.caveats.ageNorm}{anyDash ? ` ${V2_CLIENT_TEXT.areasDash}` : ''}</Note>
+    </div>
   )
 }

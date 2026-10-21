@@ -2,6 +2,7 @@
    אין שם או מזהה תלמיד, אין השוואה בין מורים; תא קטן מדי נשאר מוסתר עם מנעול והסבר, בלי שום מספר. */
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import type { AdminCell, AdminOverview } from '../../shared/types/analyticsV2'
 import { bySubjectOrderOf, EmptyState, FONT, Icon, ModeToggle, RADIUS, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem } from '../teacherUi'
@@ -49,7 +50,8 @@ function OverviewTab({ d }: { d: AdminOverview }) {
   const [first, ...rest] = d.highlights
   return (
     <>
-      {first && <Sentence tone="neutral">{first}</Sentence>}
+      {/* אין עדיין מה להציג: משפט אחד שאומר מה קורה ומה יקרה (כולל למה תא קטן נשאר מוסתר) */}
+      <Sentence tone="neutral">{first ?? V2_CLIENT_TEXT.adminNoResults}</Sentence>
       <Card label="מה בולט">
         <CardTitle>מה בולט</CardTitle>
         {rest.length === 0 ? <Note style={{ fontSize: 16 }}>עוד אין מספיק נתונים כדי להדגיש משהו. הם יופיעו כאן כשתלמידים ישחקו בהדמיות.</Note> : (
@@ -205,8 +207,8 @@ export default function AdminScreen() {
     <AnalyticsShell title={titles.admin} breadcrumb={data ? crumbs : [{ label: L.analytics }]}>
       <TabBar ariaLabel="חלקי תמונת בית הספר" idPrefix="adm" withPanels value={tab}
         items={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))} onChange={(id) => navigate(env.href('/analytics', { tab: id }))} />
-      <div {...tabPanelProps('adm', tab)} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
-        {loading && !data ? <LoadingBlock /> : error ? <ErrorBlock message={error} onRetry={reload} /> : data && (
+      <div {...tabPanelProps('adm', tab)} data-v2-ready={data && !loading ? true : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
+        {loading && !data ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={reload} /> : data && (
           <>
             {tab === 'overview' && <OverviewTab d={data} />}
             {tab === 'grades' && <GradesTab d={data} />}

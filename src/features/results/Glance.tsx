@@ -3,7 +3,7 @@
      כמה אתגרים הצליחו התלמידים שסיימו?  (ברוב · בחלק · במעט — view.successBands, מהליבה; הספים הם אלה של "לתשומת לב" ו"רוב הכיתה הצליחה")
    כל גרף: מקרא גלוי עם אייקון, מילה, "X מתוך Y" ואחוז בנוסף (teacherUi/DonutChart). אין hover ואין אנימציה.
    מתחת לגרפים נשמר חריץ לכרטיס הסיכום המילולי של ד״ר הולו: <div data-ai-summary-slot />. כשאין בו תוכן הוא לא תופס מקום
-   (בלי ריווח, בלי גובה) — הכרטיס שיוכנס אליו מביא איתו marginTop משלו. */
+   (בלי ריווח, בלי גובה) — הכרטיס שיוכנס אליו מביא איתו marginTop משלו. SubmissionScreen מכניס אליו (prop summary) את AiSummaryPanel במצב compact. */
 import type { ReactNode } from 'react'
 import { DONUT_TEXT, donutAriaLabel } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView } from '../../shared/types/resultsV1'
@@ -26,7 +26,7 @@ function DonutCard({ id, name, title, children }: { id: string; name: string; ti
   )
 }
 
-export default function Glance({ view }: { view: ClassSubmissionView }) {
+export default function Glance({ view, summary }: { view: ClassSubmissionView; /* כרטיס הסיכום המילולי (aiSummary), נכנס לחריץ מתחת לגרפים */ summary?: ReactNode }) {
   const counts = view.head.counts
   const bands = view.successBands
 
@@ -62,7 +62,7 @@ export default function Glance({ view }: { view: ClassSubmissionView }) {
         </DonutCard>
       </div>
       <div data-ai-summary-area style={{ minWidth: 0 }}>
-        <div data-ai-summary-slot />
+        <div data-ai-summary-slot>{summary}</div>
       </div>
     </div>
   )

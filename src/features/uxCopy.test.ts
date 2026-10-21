@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
    גודל אפקט / הסתברות. פרטים סטטיסטיים מותרים רק מאחורי "איך חישבנו?".
 
    מה נסרק: כל מחרוזת-ליטרל (גם תבנית), וכל טקסט JSX, בקבצי .ts/.tsx של
-     src/features/{results, analyticsV2, teacherUi}  (בלי קבצי בדיקה)  +  src/shared/lib/findingsNarrative.ts.
+     src/features/{results, analyticsV2, teacherUi, aiSummary}  (בלי קבצי בדיקה)  +  src/shared/lib/findingsNarrative.ts.
    מה לא נסרק: הערות, שמות משתנים/מאפיינים, וטיפוסי-מחרוזת (type X = 'a' | 'b') — אינם מוצגים למשתמש.
    משלים את e2e/lib/forbidden.ts (שסורק את ה-DOM בפועל, ב-npm run e2e:ux) ואת forbiddenWords.test.ts בשרת (תגובות הספק).
 
@@ -46,6 +46,7 @@ const RAW = import.meta.glob(
     '/src/features/results/**/*.{ts,tsx}',
     '/src/features/analyticsV2/**/*.{ts,tsx}',
     '/src/features/teacherUi/**/*.{ts,tsx}',
+    '/src/features/aiSummary/**/*.{ts,tsx}',
     '/src/shared/lib/findingsNarrative.ts',
   ],
   { query: '?raw', import: 'default', eager: true },
@@ -175,6 +176,7 @@ describe('uxCopy — מילים אסורות בקוד שמוצג למורה', ()
     expect(files.some((f) => f.startsWith('src/features/results/'))).toBe(true)
     expect(files.some((f) => f.startsWith('src/features/analyticsV2/'))).toBe(true)
     expect(files.some((f) => f.startsWith('src/features/teacherUi/'))).toBe(true)
+    expect(files.some((f) => f.startsWith('src/features/aiSummary/'))).toBe(true)
     expect(files.some((f) => isTest(f))).toBe(false)
     /* ושהסורק מוצא טקסט עברי אמיתי בתוכם */
     const nar = SOURCES.find(([f]) => f === 'src/shared/lib/findingsNarrative.ts')![1]

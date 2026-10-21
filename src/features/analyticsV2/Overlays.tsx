@@ -6,22 +6,29 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import type { Briefing, StudentFeedback } from '../../shared/types/analyticsV2'
-import { FONT, HowWeCalc, RADIUS, T } from '../teacherUi'
+import { AiSummaryPanel } from '../aiSummary'
+import { EmptyState, FONT, HowWeCalc, RADIUS, T } from '../teacherUi'
 import { L } from './labels'
+import { briefingHasContent, feedbackHasContent } from './logic'
 import { ActionButton, ErrorBlock, LoadingBlock, Note } from './ui'
 import { useV2, type V2Params } from './v2api'
 
 /* שכבת מסך מלא. מודפסת לבדה: ה-portal הוא ילד של body, וכל שאר הילדים מוסתרים בהדפסה. */
 function Sheet({ children, onClose, printable, label }: { children: ReactNode; onClose: () => void; printable?: boolean; label: string }) {
   const ref = useRef<HTMLDivElement>(null)
+  /* onClose הוא לרוב למבדה חדשה בכל רינדור של ההורה. אם הוא היה תלות של האפקט הראשי, כל רינדור-אב (למשל באמצע הקלדה בשדה עריכה
+     בתוך השכבה) היה מחזיר את הפוקוס למקום שממנו נפתחה השכבה. לכן נשמר ב-ref, והאפקט הראשי רץ פעם אחת בלבד. */
+  const closeRef = useRef(onClose)
+  useEffect(() => { closeRef.current = onClose })
   useEffect(() => {
     const returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
     ref.current?.focus()
     /* שאר העמוד אינו נגיש בזמן שהשכבה פתוחה (מקלדת וקורא מסך נשארים בתוך השכבה) */
     const others = [...document.body.children].filter((el) => el !== ref.current && !el.hasAttribute('inert'))
     others.forEach((el) => el.setAttribute('inert', ''))
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') closeRef.current() }
     window.addEventListener('keydown', onKey)
     /* הדפסה תמיד בערכה בהירה (נייר) ועם כל הפירוטים פתוחים — מחזירים את המצב הקודם אחרי */
     let restoreTheme: 'dark' | null = null
@@ -44,7 +51,7 @@ function Sheet({ children, onClose, printable, label }: { children: ReactNode; o
       others.forEach((el) => el.removeAttribute('inert'))
       returnTo?.focus()
     }
-  }, [onClose])
+  }, [])
   return createPortal(
     <div ref={ref} id="v2-print-portal" data-teacher-ui dir="rtl" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
       style={{ position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', background: T.studioBg, fontFamily: FONT, fontSize: 16, color: T.text, outline: 'none' }}>
@@ -76,13 +83,16 @@ const EMPTY_SECTION: Record<string, string> = {
 
 /* תדריך לישיבה פדגוגית + בסיס ראייתי לתל״א — מסמך אחד להדפסה */
 export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope: 'student' | 'class'; id: string; params: V2Params; notice: string | null; onClose: () => void }) {
-  const { data, loading, error, reload } = useV2<Briefing>(`/briefing/${scope}/${id}`, params)
+  const { data, dataState, loading, error, reload } = useV2<Briefing>(`/briefing/${scope}/${id}`, params)
+  /* אין עדיין על מה לבסס תדריך: לא פותחים מסמך ריק (כותרת וסעיפים בלי תוכן) אלא מסבירים מה קורה ומה יקרה */
+  const empty = !!data && (dataState === 'insufficient' || !briefingHasContent(data))
   return (
-    <Sheet onClose={onClose} printable label={L.briefing}>
+    <Sheet onClose={onClose} printable={!empty} label={L.briefing}>
       <article className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '32px 44px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, color: T.text, lineHeight: 1.7 }}>
         {loading && !data && <LoadingBlock />}
-        {error && <ErrorBlock message={error} onRetry={reload} />}
-        {data && (
+        {error && <ErrorBlock error={error} onRetry={reload} />}
+        {empty && <EmptyState title={V2_CLIENT_TEXT.briefingEmpty.title} whatNext={V2_CLIENT_TEXT.briefingEmpty.whatNext} ctaLabel={L.close} onCta={onClose} />}
+        {data && !empty && (
           <>
             <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 18 }}>
               <div style={{ fontSize: 16, color: T.textSoft }}>HoloAcademy · {L.briefing}</div>
@@ -124,12 +134,32 @@ export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope:
   )
 }
 
+/* הסיכום המילולי של ד״ר הולו על תלמיד/ה או כיתה (?sum=student:<id>|class:<id>). השרת מחליט הרשאות (מחנך/ת: הכול; מורה מקצועי: רק מקצועו; כיתה: מחנך/ת בלבד);
+   השם בכותרת ובייצוא מגיע מרשימת הכיתות של המסך — לא מהבינה המלאכותית, שאינה מקבלת שמות. */
+export function SummaryOverlay({ scope, id, params, name, subjectOnly, onClose }: { scope: 'student' | 'class'; id: string; params: V2Params; name: string; subjectOnly: boolean; onClose: () => void }) {
+  const heading = AI_SUMMARY_TEXT.headingByScope[scope]
+  return (
+    <Sheet onClose={onClose} label={heading}>
+      <article data-ai-overlay className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '28px 40px 32px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, color: T.text }}>
+        <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 16, color: T.textSoft }}>{AI_SUMMARY_PANEL_TEXT.doc.brand}</div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.text }}>{heading}</h1>
+          {name && <div style={{ fontSize: 19, fontWeight: 700, color: T.text }}>{name}</div>}
+        </header>
+        <AiSummaryPanel key={`${scope}:${id}`} target={{ scope, id }} params={params} exportName={name} showHeading={false} plain
+          note={subjectOnly ? AI_SUMMARY_PANEL_TEXT.subjectOnly : null} />
+      </article>
+    </Sheet>
+  )
+}
+
 const KIND_ICON: Record<'growth' | 'streak' | 'next_step', string> = { growth: '🌱', streak: '🔥', next_step: '🎯' }
 const KIND_LABEL: Record<'growth' | 'streak' | 'next_step', string> = { growth: 'צמיחה', streak: 'התמדה', next_step: 'הצעד הבא' }
 
 /* משוב לתלמיד/ה: מה שהתלמיד רואה. מכוון צמיחה; בלי השוואה לחברים ובלי תוויות. */
 export function FeedbackOverlay({ studentId, params, onClose }: { studentId: string; params: V2Params; onClose: () => void }) {
   const { data, loading, error, reload } = useV2<StudentFeedback>(`/student/${studentId}/feedback`, params)
+  const empty = !!data && !feedbackHasContent(data)
   return (
     <Sheet onClose={onClose} label={L.studentPreview}>
       <div style={{ maxWidth: 460, margin: '24px auto 60px', padding: '0 16px' }}>
@@ -138,8 +168,9 @@ export function FeedbackOverlay({ studentId, params, onClose }: { studentId: str
         </p>
         <div style={{ border: `2px solid ${T.accent}`, borderRadius: 24, padding: 22, background: T.surface }}>
           {loading && !data && <LoadingBlock />}
-          {error && <ErrorBlock message={error} onRetry={reload} />}
-          {data && (
+          {error && <ErrorBlock error={error} onRetry={reload} />}
+          {empty && <EmptyState title={V2_CLIENT_TEXT.feedbackEmpty.title} whatNext={V2_CLIENT_TEXT.feedbackEmpty.whatNext} ctaLabel={L.close} onCta={onClose} />}
+          {data && !empty && (
             <>
               <h1 style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.5, margin: '0 0 16px', color: T.text }}>{data.headline}</h1>
               <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>

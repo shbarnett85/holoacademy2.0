@@ -340,6 +340,62 @@ async function main() {
       const bad = await api(selfTok, 'PATCH', `/staff/classes/${newClassId}`, { gradeLevel: 13 })
       check('שכבה מחוץ ל-1–12: 400', bad.status === 400)
     }
+
+    /* ── 13) אנליטיקה v2 (הספק החי): מטריצת הרשאות קטנה על אותו ארגון. הכיסוי המלא (נתונים, יומן, מנהל) ב-npm run v2:accept ── */
+    console.log('\n— אנליטיקה v2: הרשאות פר-כיתה —')
+    const { error: lvErr } = await supabaseAdmin.from('classes').update({ grade_level: 6 }).in('id', [clsA, clsB, clsC])
+    if (lvErr) console.log('(דילוג: classes.grade_level חסרה — כיתות בלי שכבה אינן נכנסות לאנליטיקה v2)')
+    else {
+      const v2 = (t: Tok, p: string) => api(t.token, 'GET', '/analytics-v2' + p)
+      const cls = (r: any, id: string) => (r.json.data?.classes ?? []).find((c: any) => c.id === id) // eslint-disable-line
+      const codes = (xs: any[] | undefined) => (xs ?? []).map((s: any) => s.code).sort().join() // eslint-disable-line
+      const NIL = '00000000-0000-0000-0000-000000000000'
+
+      const rHomeV = await v2(tHome, '/roster')
+      check('v2 מחנך של A ו-C: שתי הכיתות, שתיהן isHomeroom, 9 תלמידים (A + C, בלי B)',
+        rHomeV.status === 200 && rHomeV.json.data.classes.length === 2 && cls(rHomeV, clsA)?.isHomeroom === true && cls(rHomeV, clsC)?.isHomeroom === true && !cls(rHomeV, clsB) && rHomeV.json.data.students.length === 9,
+        'status=' + rHomeV.status)
+
+      const rMathV = await v2(tMath, '/roster')
+      check('v2 מורה מתמטיקה (A ו-C): isHomeroom=false; בשתיהן פתוחה רק מתמטיקה; ב-A היסטוריה נעולה',
+        rMathV.status === 200 && cls(rMathV, clsA)?.isHomeroom === false && codes(cls(rMathV, clsA)?.subjects) === 'math' && codes(cls(rMathV, clsA)?.lockedSubjects).includes('history') && codes(cls(rMathV, clsC)?.subjects) === 'math' && !cls(rMathV, clsB),
+        codes(cls(rMathV, clsA)?.subjects) + ' / ' + codes(cls(rMathV, clsA)?.lockedSubjects))
+      check('v2 מורה מתמטיקה: מסך מתמטיקה ב-A = 200; היסטוריה ב-A = 403 (נעול); סקירת A = 403; כיתה B = 404',
+        (await v2(tMath, '/class/' + clsA + '/subject/math')).status === 200 && (await v2(tMath, '/class/' + clsA + '/subject/history')).status === 403
+        && (await v2(tMath, '/class/' + clsA + '/overview')).status === 403 && (await v2(tMath, '/class/' + clsB + '/subject/math')).status === 404)
+
+      const rHistV = await v2(tHist, '/roster')
+      check('v2 מורה היסטוריה (A בלבד): רק A, פתוחה רק היסטוריה; C = 404 אחיד כמו כיתה שאינה קיימת',
+        rHistV.status === 200 && rHistV.json.data.classes.length === 1 && codes(cls(rHistV, clsA)?.subjects) === 'history'
+        && (await v2(tHist, '/class/' + clsC + '/subject/math')).status === 404
+        && JSON.stringify((await v2(tHist, '/class/' + clsC + '/subject/math')).json) === JSON.stringify((await v2(tHist, '/class/' + NIL + '/subject/math')).json))
+
+      const rOutV = await v2(tOut, '/roster')
+      check('v2 מורה מעורב (מחנך B + מדעים ב-A, שיוך שהמנהל הוסיף): ב-B מחנך; ב-A פתוחים מדעים בלבד; אין לו את C',
+        rOutV.status === 200 && cls(rOutV, clsB)?.isHomeroom === true && cls(rOutV, clsA)?.isHomeroom === false && codes(cls(rOutV, clsA)?.subjects) === 'science' && !cls(rOutV, clsC),
+        codes(cls(rOutV, clsA)?.subjects))
+      check('v2 אותו מורה: מתמטיקה ב-A = 403 (לא מכפלה קרטזית עם מחנכות B); מדעים ב-A = 200; סקירת A = 403; סקירת B = 200',
+        (await v2(tOut, '/class/' + clsA + '/subject/math')).status === 403 && (await v2(tOut, '/class/' + clsA + '/subject/science')).status === 200
+        && (await v2(tOut, '/class/' + clsA + '/overview')).status === 403 && (await v2(tOut, '/class/' + clsB + '/overview')).status === 200)
+
+      const sHistOnC = await v2(tHist, '/student/' + stuC[0])
+      const sNil = await v2(tHist, '/student/' + NIL)
+      check('v2 תלמיד מכיתה ללא קישור = 404 אחיד (≡ תלמיד שאינו קיים)', sHistOnC.status === 404 && sNil.status === 404 && JSON.stringify(sHistOnC.json) === JSON.stringify(sNil.json))
+      const sMath = await v2(tMath, '/student/' + s1)
+      check('v2 מורה מתמטיקה על תלמיד ב-A: access=subject_only, כל לוחות המקצוע של אחרים באפור (שם בלבד)',
+        sMath.status === 200 && sMath.json.data.access === 'subject_only' && sMath.json.data.panels.filter((pn: any) => pn.access === 'greyed').every((pn: any) => Object.keys(pn).sort().join() === 'access,subject')) // eslint-disable-line
+
+      for (const [label, who] of [['מנהל', admin], ['מנהל עירוני', mun]] as const) {
+        const st = await v2(who, '/student/' + s1)
+        const ro = await v2(who, '/roster')
+        const ov = await v2(who, '/admin/overview')
+        const text = JSON.stringify([ro.json, ov.json])
+        const leak = [...stuA, ...stuC, clsA, clsB, clsC, tHome.userId, tMath.userId].some((id) => text.includes(id)) || /zz-authz (stu|home|math|hist|outsider)/.test(text)
+        check('v2 ' + label + ': נקודות תלמיד = 403; roster ריק; admin/overview = 200 ובלי שם / מזהה של תלמיד, כיתה או מורה',
+          st.status === 403 && ro.status === 200 && ro.json.data.classes.length === 0 && ro.json.data.students.length === 0 && ov.status === 200 && !leak, 'student=' + st.status + ' overview=' + ov.status)
+      }
+      check('v2 מורה מול admin/overview = 403', (await v2(tMath, '/admin/overview')).status === 403)
+    }
   } finally {
     /* ניקוי: כל השורות שנוצרו (סדר: תלות → הורה) */
     const { data: sess } = await supabaseAdmin.from('sessions').select('id').in('quest_id', cleanup.quests.length ? cleanup.quests : ['00000000-0000-0000-0000-000000000000'])

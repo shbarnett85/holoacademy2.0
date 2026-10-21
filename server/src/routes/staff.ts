@@ -5,7 +5,7 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
-import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
+import { demoClassesV2, demoRosterV2 } from '../lib/analyticsV2/demoRoster.js'
 import { hasIsActive, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
 import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
@@ -235,8 +235,8 @@ staffRouter.post('/teachers/:id/reactivate', async (req, res, next) => {
 
 staffRouter.get('/classes', async (req, res, next) => {
   try {
-    /* מצב הדגמה — הכיתה הווירטואלית בלבד */
-    if (isDemoGuest(req)) { res.json(demoClasses()); return }
+    /* מצב הדגמה — הכיתה הווירטואלית בלבד (אותה כיתה כמו ברוסטר ובאנליטיקה) */
+    if (isDemoGuest(req)) { res.json(demoClassesV2(req.staff!.userId)); return }
     const withGrade = await hasGradeLabel()
     let query = supabaseAdmin.from('classes').select('*').order('name')
     if (isAdmin(req)) {
@@ -500,8 +500,8 @@ staffRouter.post('/classes/:id/reactivate', async (req, res, next) => {
    מנהל → בית ספרו; מורה → כיתותיו. כולל קוד כיתה (url_code), PIN, מגדר ופעילות אחרונה. */
 staffRouter.get('/students', async (req, res, next) => {
   try {
-    /* מצב הדגמה — רוסטר התלמידים הווירטואליים בלבד */
-    if (isDemoGuest(req)) { res.json(demoRoster(new Date())); return }
+    /* מצב הדגמה — תלמידי עולם ההדגמה של האנליטיקה (אותם מזהים, כדי שהמעבר לעמוד התלמיד/ה לא יחזיר 404) */
+    if (isDemoGuest(req)) { res.json(demoRosterV2(new Date())); return }
     const withGrade = await hasGradeLabel()
     const withGender = await hasUserGender()
     const withActive = await hasIsActive('users')
