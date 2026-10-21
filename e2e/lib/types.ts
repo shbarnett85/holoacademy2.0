@@ -2,7 +2,10 @@
    טיפוסים משותפים לתשתית ביקורת ה-UX (Playwright + axe). ראו docs/ux-audit.md.
    ────────────────────────────────────────────────────────────────────────── */
 
-/* מי צופה במסך. guest-* = מורה אורח (חשבון הדגמה) עם בורר עדשה; real-* = מורה אמיתי מה-fixture. */
+/* מי צופה במסך. guest-* = מורה אורח (חשבון הדגמה) עם בורר עדשה; real-* = מורה אמיתי מה-fixture.
+   שתי משפחות של real-*, כל אחת מ-fixture אחר (הקידומות נפרדות, ולכן אפשר להזריע את שניהם באותה ריצה):
+     · real-homeroom | real-subject | real-unlinked | real-admin  ← resultsFixture.ts (zz-ux-res-): שליחות, מסכי התוצאות
+     · real-v2-*                                                  ← analyticsFixture.ts (zz-ux-v2-w8-): נתוני אנליטיקה v2 */
 export type Who =
   | 'guest-homeroom'
   | 'guest-subject-math'
@@ -12,14 +15,31 @@ export type Who =
   | 'real-subject'
   | 'real-unlinked'
   | 'real-admin'
+  /* analyticsFixture */
+  | 'real-v2-homeroom'
+  | 'real-v2-subject'
+  | 'real-v2-mixed'
+  | 'real-v2-cross'
+  | 'real-v2-unspecified'
+  | 'real-v2-empty'
+  | 'real-v2-no-classes'
+  | 'real-v2-dual'
+  | 'real-v2-admin'
+  | 'real-v2-municipal'
+  | 'real-v2-admin-small'
+  | 'real-v2-admin-empty'
 
 export const ALL_WHO: readonly Who[] = [
   'guest-homeroom', 'guest-subject-math', 'guest-subject-hebrew', 'guest-admin',
   'real-homeroom', 'real-subject', 'real-unlinked', 'real-admin',
+  'real-v2-homeroom', 'real-v2-subject', 'real-v2-mixed', 'real-v2-cross', 'real-v2-unspecified', 'real-v2-empty',
+  'real-v2-no-classes', 'real-v2-dual', 'real-v2-admin', 'real-v2-municipal', 'real-v2-admin-small', 'real-v2-admin-empty',
 ]
 
 export const isGuestWho = (w: Who): boolean => w.startsWith('guest-')
 export const isRealWho = (w: Who): boolean => w.startsWith('real-')
+/* משפחת ה-fixture של האנליטיקה (analyticsFixture.ts) */
+export const isAnalyticsFixtureWho = (w: Who): boolean => w.startsWith('real-v2-')
 
 /* איתור אלמנט: מחרוזת = CSS / text=… / role=… (תחביר locator של Playwright); או אובייקט */
 export type Target =
@@ -35,7 +55,11 @@ export type Step =
   | { wait: number }
   | { press: string }
 
-export type Group = 'results' | 'analytics' | 'admin' | 'existing'
+export type Group = 'results' | 'analytics' | 'admin' | 'ai' | 'existing'
+
+/* תנאי שחייבים להתקיים במסך אחרי שהוא מוכן. מחרוזת/אובייקט = Target. כשל = כשל קשיח (exit 1).
+   present = חייב להיות גלוי; absent = אסור שיהיה גלוי (למשל כפתור שמנהל/ת לא רואה). */
+export interface Expectation { present?: Target[]; absent?: Target[] }
 
 export interface Scenario {
   /* שם ייחודי וקצר (אותיות לטיניות/מספרים/מקפים) — משמש לשם קובץ וסינון --only */
@@ -54,6 +78,13 @@ export interface Scenario {
   /* כמה לחיצות מהטאב הראשי של האזור (/results, /analytics) עד המסך. אם חסר — נספרים צעדי ה-click */
   clicksFromMainTab?: number
   note?: string
+  /* תנאים לכל הצופים של התרחיש / לצופה מסוים (נוספים לאלה שבכלל) */
+  expect?: Expectation
+  expectBy?: Partial<Record<Who, Expectation>>
+  /* מסך שהמטרה שלו היא להציג שגיאה (403/404/429…): בלי זה, [data-v2-error] גלוי הוא כשל קשיח */
+  allowError?: boolean
+  /* באג מוצר מתועד שהמסך הזה חושף: כשלי התנאים שלו מדווחים כ"בעיה ידועה" (לא מפילים את הריצה). נעלם מהדוח ברגע שהבאג מתוקן — אז מסירים את השדה */
+  knownIssue?: string
 }
 
 /* ── תוצאות ── */
@@ -156,6 +187,10 @@ export interface ScreenResult {
   note: string | null
   /* כמה פעמים הרצנו (>1 = ניסיון חוזר אחרי ניווט/דף ריק רגעי) */
   attempts: number
+  /* כשלי תנאים (expect / שגיאה בלתי צפויה במסך) — נספרים ככשל קשיח. חסר בדוחות ישנים */
+  assertFailures?: string[]
+  /* כשלי תנאים של תרחיש עם knownIssue — מדווחים אך אינם כשל קשיח */
+  knownIssues?: string[]
   /* נוסף ב-writeReports לפני כתיבת report.json */
   checklist?: ScreenChecklist
 }

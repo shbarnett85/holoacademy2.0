@@ -9,8 +9,8 @@ import { launchBrowser, newContext } from './lib/browser.ts'
 import { DEFAULT_API, DEFAULT_BASE, DEFAULT_OUT, DEFAULT_VIEWPORTS, parseViewport } from './lib/config.ts'
 import { discover, type ApiCtx } from './lib/discover.ts'
 import {
-  REAL_ROLES, REAL_WHO, cleanupOnly, guestLogin, lensParams, seedRealFixture,
-  type RealFixture, type StaffSession,
+  cleanupOnly, fixtureOf, freshSession, guestLogin, lensParams, seedFixture,
+  type FixtureId, type FixtureRun, type StaffSession,
 } from './lib/login.ts'
 import { readReport, writeChecklist } from './lib/checklist.ts'
 import { writeReports, type RunMeta } from './lib/report.ts'
@@ -31,7 +31,11 @@ const HELP = `ביקורת UX/נגישות (Playwright + axe)
   --out <dir>         תיקיית פלט (ברירת מחדל: e2e/out)
   --base <url>        כתובת הקליינט (E2E_BASE_URL; ברירת מחדל ${DEFAULT_BASE})
   --api <url>         כתובת השרת (E2E_API_URL; ברירת מחדל ${DEFAULT_API})
-  --jobs <n>          הקשרי דפדפן במקביל (ברירת מחדל 3)
+  --jobs <n>          הקשרי דפדפן במקביל למורים אמיתיים (ברירת מחדל 3; אף פעם לא שני הקשרים של אותו משתמש בו-זמנית)
+  --guest-jobs <n>    הקשרי דפדפן במקביל לאורח (ברירת מחדל 1: חשבון האורח משותף ומוגבל ל-120 בקשות בדקה ל-IP)
+  --guest-pause <ms>  הפסקה בין מסכי אורח (ברירת מחדל 1500): מכסת הבקשות של האורח ~60 בדקה (ראו docs/ux-audit.md → "מכסות בקשות")
+  --parallel          להריץ במקביל את קבוצת האורח וקבוצת המורים האמיתיים (ברירת מחדל: קודם האמיתיים ואז האורח).
+                      לא מומלץ: מכסת ה-IP של האנליטיקה משותפת (תנועה של מורים אמיתיים צורכת את מכסת האורח → 429)
   --headed            דפדפן גלוי
   --no-screenshots    בלי PNG
   --timeout <ms>      timeout לפעולה (ברירת מחדל 15000)
@@ -61,11 +65,25 @@ function matchesOnly(item: { scenario: Scenario; who: Who }, only: string[]): bo
 
 const usesPlaceholders = (sc: Scenario): boolean => /\{\w+\}/.test(JSON.stringify([sc.url, sc.steps ?? []]))
 
-async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>): Promise<void> {
-  const queue = [...items]
-  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, items.length)) }, async () => {
-    for (let x = queue.shift(); x !== undefined; x = queue.shift()) await fn(x)
-  }))
+/* מריץ קבוצות עם עד n במקביל, אבל אף פעם לא שתי קבוצות של אותו צופה בו-זמנית (מכסת הבקשות היא פר-משתמש) */
+async function schedule<G extends { who: Who }>(groups: G[], n: number, fn: (g: G) => Promise<void>): Promise<void> {
+  const queue = [...groups]
+  const running = new Set<Who>()
+  let active = 0
+  await new Promise<void>((resolve, reject) => {
+    const pump = (): void => {
+      while (active < Math.max(1, n)) {
+        const idx = queue.findIndex((g) => !running.has(g.who))
+        if (idx < 0) break
+        const [g] = queue.splice(idx, 1)
+        running.add(g.who)
+        active++
+        fn(g).then(() => undefined, reject).finally(() => { running.delete(g.who); active--; pump() })
+      }
+      if (!queue.length && active === 0) resolve()
+    }
+    pump()
+  })
 }
 
 async function main(): Promise<number> {
@@ -75,7 +93,7 @@ async function main(): Promise<number> {
       viewport: { type: 'string', multiple: true },
       dark: { type: 'boolean' }, 'no-real': { type: 'boolean' }, strict: { type: 'boolean' },
       out: { type: 'string' }, base: { type: 'string' }, api: { type: 'string' },
-      jobs: { type: 'string' }, headed: { type: 'boolean' }, 'no-screenshots': { type: 'boolean' },
+      jobs: { type: 'string' }, 'guest-jobs': { type: 'string' }, 'guest-pause': { type: 'string' }, parallel: { type: 'boolean' }, headed: { type: 'boolean' }, 'no-screenshots': { type: 'boolean' },
       timeout: { type: 'string' }, list: { type: 'boolean' }, 'keep-fixture': { type: 'boolean' },
       'cleanup-only': { type: 'boolean' }, selftest: { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
       checklist: { type: 'boolean' }, 'checklist-only': { type: 'boolean' },
@@ -102,6 +120,7 @@ async function main(): Promise<number> {
   const only = (v.only ?? []).flatMap((x) => x.split(',')).map((x) => x.trim()).filter(Boolean)
   const noReal = !!v['no-real']
   const timeoutMs = Number(v.timeout ?? 15_000)
+  const guestPauseMs = Number(v['guest-pause'] ?? 1500)
 
   const items = expand().filter((i) => matchesOnly(i, only) && !(noReal && isRealWho(i.who)))
   if (v.list) {
@@ -117,39 +136,50 @@ async function main(): Promise<number> {
 
   /* ── כניסה ── */
   const needGuest = items.some((i) => isGuestWho(i.who))
-  const needReal = !noReal && items.some((i) => isRealWho(i.who))
   const sessions = new Map<Who, StaffSession>()
   const skipReason = new Map<Who, string>()
   if (needGuest) {
     const guest = await guestLogin(api)
     for (const w of new Set(items.map((i) => i.who))) if (isGuestWho(w)) sessions.set(w, guest)
   }
-  let fixture: RealFixture | null = null
+  const runs = new Map<FixtureId, FixtureRun>()
   let fixtureUsed = false
   let fixtureNote: string | null = noReal ? 'כבוי ב---no-real' : null
   const cleanup = async (): Promise<void> => {
-    if (!fixture) return
+    if (!runs.size) return
     if (v['keep-fixture']) { console.warn('⚠ --keep-fixture: שורות zz-ux- נשארו ב-DB. לניקוי: npx tsx e2e/run.ts --cleanup-only'); return }
-    try { await fixture.cleanup(); console.log('fixture נוקה.') } catch (e) { console.error('ניקוי ה-fixture נכשל — הריצו --cleanup-only:', e instanceof Error ? e.message : e) }
-    fixture = null
+    for (const [id, run] of [...runs]) {
+      try { await run.cleanup(); console.log(`fixture ${id} נוקה.`) } catch (e) { console.error(`ניקוי ה-fixture ${id} נכשל — הריצו --cleanup-only:`, e instanceof Error ? e.message : e) }
+      runs.delete(id)
+    }
   }
   process.once('SIGINT', () => { void cleanup().finally(() => process.exit(130)) })
 
-  if (needReal) {
-    try {
-      console.log('מזריע fixture של מורים אמיתיים…')
-      fixture = await seedRealFixture(api, outDir)
-      fixtureUsed = true
-      for (const role of REAL_ROLES) {
-        const s = fixture.sessions[role]
-        if (s) sessions.set(REAL_WHO[role], s)
-        else skipReason.set(REAL_WHO[role], `ה-fixture לא החזיר טוקן ל-${role} (ראו docs/ux-audit.md → צורת ה-fixture)`)
+  /* כל fixture מוזרע רק אם נבחר מסך שצופה שלו משתתף בו; כשל בהזרעה של אחד מדלג רק על הצופים שלו */
+  const needed = new Set<FixtureId>()
+  if (!noReal) for (const i of items) { const f = fixtureOf(i.who); if (f) needed.add(f) }
+  if (needed.size) {
+    const notes: string[] = []
+    for (const id of [...needed].sort()) {
+      try {
+        console.log(`מזריע fixture ${id} (מורים אמיתיים)…`)
+        const run = await seedFixture(id, api, outDir)
+        runs.set(id, run)
+        fixtureUsed = true
+        for (const w of new Set(items.map((i) => i.who))) {
+          if (fixtureOf(w) !== id) continue
+          const s = run.sessions[w]
+          if (s) sessions.set(w, s)
+          else skipReason.set(w, `ה-fixture ${id} לא החזיר טוקן ל-${w} (ראו docs/ux-audit.md → צורת ה-fixture)`)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message.split(String.fromCharCode(10))[0] : String(e)
+        notes.push(`${id}: ${msg}`)
+        console.warn(`⚠ מסכי ${id === 'results' ? 'real-*' : 'real-v2-*'} ידולגו: ${msg}`)
+        for (const w of new Set(items.map((i) => i.who))) if (fixtureOf(w) === id) skipReason.set(w, msg)
       }
-    } catch (e) {
-      fixtureNote = e instanceof Error ? e.message.split('\n')[0] : String(e)
-      console.warn(`⚠ מסכי real-* ידולגו: ${fixtureNote}`)
-      for (const w of new Set(items.map((i) => i.who))) if (isRealWho(w)) skipReason.set(w, fixtureNote)
     }
+    fixtureNote = notes.length ? notes.join(' | ') : `הוזרעו: ${[...runs.keys()].join(', ')}`
   }
 
   const results: ScreenResult[] = []
@@ -161,7 +191,8 @@ async function main(): Promise<number> {
       if (!s || !items.some((i) => i.who === w && usesPlaceholders(i.scenario))) { varsByWho.set(w, { vars: {}, notes: [] }); continue }
       const ctx: ApiCtx = { api, token: s.access_token, query: lensParams(w) }
       /* מזהי ה-fixture הם של הארגון האמיתי הזמני — רלוונטיים רק לצופי real-*, לא לאורח */
-      varsByWho.set(w, await discover(w, ctx, isRealWho(w) ? fixture?.ids ?? {} : {}))
+      const fxRun = isRealWho(w) ? runs.get(fixtureOf(w)!) : undefined
+      varsByWho.set(w, await discover(w, ctx, fxRun?.ids ?? {}, fxRun?.vars[w] ?? {}))
       const d = varsByWho.get(w)!
       console.log(`גילוי ${w}: ${Object.entries(d.vars).filter(([, x]) => x).map(([k]) => k).join(', ') || '— (כלום)'}${d.notes.length ? `  [${d.notes.join('; ')}]` : ''}`)
     }
@@ -179,8 +210,11 @@ async function main(): Promise<number> {
     const slots: (ScreenResult | undefined)[] = new Array(total)
     let done = 0
     try {
-      await pool(groups, Number(v.jobs ?? 3), async (g) => {
-        const session = sessions.get(g.who) ?? null
+      const runGroup = async (g: (typeof groups)[number]): Promise<void> => {
+        /* בריצה ארוכה: טוקן ישן מ-35 דקות מוחלף בטרי לפני יצירת ההקשר (רק כשיש סיסמה ב-fixture; אחרת הקיים) */
+        const fxId = fixtureOf(g.who)
+        const fxRun = fxId ? runs.get(fxId) : undefined
+        const session = fxRun ? await freshSession(fxRun, g.who, api) : sessions.get(g.who) ?? null
         const skip = skipReason.get(g.who) ?? null
         const needsSession = isGuestWho(g.who) || isRealWho(g.who)
         const ctx = await newContext(browser, { viewport: parseViewport(g.viewport), theme, session })
@@ -203,13 +237,26 @@ async function main(): Promise<number> {
             }
             slots[i] = res
             done++
+            if (isGuestWho(g.who)) await new Promise((r) => setTimeout(r, guestPauseMs))
             const flag = res.hardFailures.length ? 'FAIL' : res.strictFailures.length && v.strict ? 'FAIL(strict)' : res.status.toUpperCase()
             console.log(`[${String(done).padStart(String(total).length)}/${total}] ${res.id} @ ${res.viewport}  ${flag}${res.statusDetail ? `  — ${res.statusDetail.slice(0, 110)}` : ''}${res.hardFailures.length ? `  — ${res.hardFailures.join(' | ').slice(0, 140)}` : ''}`)
           }
         } finally {
           await ctx.close().catch(() => {})
         }
-      })
+      }
+      /* חשבון האורח משותף (מכסת בקשות פר-IP) ולכן רץ בהקשר אחד בכל פעם; מורים אמיתיים (מכסה פר-משתמש) עד --jobs במקביל */
+      const guestGroups = groups.filter((g) => isGuestWho(g.who))
+      const otherGroups = groups.filter((g) => !isGuestWho(g.who))
+      const guestN = Number(v['guest-jobs'] ?? 1)
+      const realN = Number(v.jobs ?? 3)
+      if (v.parallel) {
+        await Promise.all([schedule(guestGroups, guestN, runGroup), schedule(otherGroups, realN, runGroup)])
+      } else {
+        /* קודם המורים האמיתיים (הטוקנים טריים), ואז האורח — בלי תנועה מקבילה שצורכת את מכסת ה-IP המשותפת של האורח */
+        await schedule(otherGroups, realN, runGroup)
+        await schedule(guestGroups, guestN, runGroup)
+      }
     } finally {
       await browser.close().catch(() => {})
     }
@@ -230,7 +277,7 @@ async function main(): Promise<number> {
       console.log(`צ'קליסט: ${c.md}\n${c.totals.screens} מסכים מובחנים (${c.totals.measured} נמדדו) · נכנסים במסך אחד: ${c.totals.fit} מתוך ${c.totals.measured}`)
     } catch (e) { console.error('כתיבת הצ\'קליסט נכשלה:', e instanceof Error ? e.message : e) }
   }
-  console.log(`מסכים ${summary.screens}: ok ${summary.ok} · missing ${summary.missing} · skipped ${summary.skipped} · error ${summary.error} | כשלים קשיחים ${summary.failing} (axe חמור/קריטי ${summary.axeSeriousCritical}, מילים אסורות ${summary.forbiddenHits}) | strict ${summary.strictFailing}`)
+  console.log(`מסכים ${summary.screens}: ok ${summary.ok} · missing ${summary.missing} · skipped ${summary.skipped} · error ${summary.error} | כשלים קשיחים ${summary.failing} (axe חמור/קריטי ${summary.axeSeriousCritical}, מילים אסורות ${summary.forbiddenHits}, תנאי תרחיש ${summary.assertFailing}) | strict ${summary.strictFailing} | בעיות ידועות (באגי מוצר מתועדים) ${summary.knownIssues}`)
   const fail = summary.failing > 0 || summary.error > 0 || (!!v.strict && summary.strictFailing > 0)
   return fail ? 1 : 0
 }

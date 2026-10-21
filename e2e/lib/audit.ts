@@ -71,9 +71,11 @@ export async function auditPage(page: Page, screenshotPath: string | null): Prom
 }
 
 /* ── פסיקה ── */
-export function judge(r: Pick<ScreenResult, 'axe' | 'forbidden' | 'layout' | 'inner' | 'clicksFromMainTab'>): { hard: string[]; strict: string[] } {
+export function judge(r: Pick<ScreenResult, 'axe' | 'forbidden' | 'layout' | 'inner' | 'clicksFromMainTab'> & { assertFailures?: string[] }): { hard: string[]; strict: string[] } {
   const hard: string[] = []
   const strict: string[] = []
+  /* תנאי התרחיש (expect / שגיאה בלתי צפויה במסך) — כשל קשיח */
+  for (const f of r.assertFailures ?? []) hard.push(f)
   if (r.axe) {
     const bad = r.axe.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
     if (bad.length) hard.push(`axe: ${bad.length} הפרות חמורות/קריטיות (${bad.map((v) => v.id).join(', ')})`)

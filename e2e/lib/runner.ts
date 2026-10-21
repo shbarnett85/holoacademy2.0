@@ -8,7 +8,7 @@ import { auditPage, judge } from './audit.ts'
 import { substitute } from './discover.ts'
 import { lensParams } from './login.ts'
 import { MissingError, SkipError, isGuestWho } from './types.ts'
-import type { Scenario, ScreenResult, Step, Target, Vars, Who } from './types.ts'
+import type { Expectation, Scenario, ScreenResult, Step, Target, Vars, Who } from './types.ts'
 
 export interface ScreenJob {
   scenario: Scenario
@@ -33,7 +33,44 @@ function locate(page: Page, t: Target, vars: Vars): Locator {
   if ('text' in t) return page.getByText(substitute(t.text, vars, false).value, { exact: t.exact }).first()
   return page.getByRole(t.role as Parameters<Page['getByRole']>[0], { name: t.name ? substitute(t.name, vars, false).value : undefined, exact: t.exact }).first()
 }
+/* כל ההתאמות (בלי .first()) — לבדיקת "אסור שיהיה גלוי" */
+function locateAll(page: Page, t: Target, vars: Vars): Locator {
+  if (typeof t === 'string') return page.locator(substitute(t, vars, false).value)
+  if ('text' in t) return page.getByText(substitute(t.text, vars, false).value, { exact: t.exact })
+  return page.getByRole(t.role as Parameters<Page['getByRole']>[0], { name: t.name ? substitute(t.name, vars, false).value : undefined, exact: t.exact })
+}
 const targetLabel = (t: Target): string => (typeof t === 'string' ? t : 'text' in t ? `text="${t.text}"` : `role=${t.role}${t.name ? `[name="${t.name}"]` : ''}`)
+
+/* ── תנאים אחרי שהמסך מוכן ──
+   (1) שגיאה בלתי צפויה: [data-v2-error] גלוי במסך שלא ביקש שגיאה (allowError) = כשל קשיח (תופס 429/5xx/403 שנשארו בממשק).
+   (2) expect / expectBy: present = חייב להיות גלוי (ממתינים עד 4ש׳); absent = אסור שאף התאמה תהיה גלויה. */
+export const UI_ERROR_PREFIX = 'שגיאה בלתי צפויה במסך'
+/* קודי הסטטוס של בלוקי שגיאה גלויים (ErrorBlock: [data-v2-error=<status>]) */
+async function visibleUiErrors(page: Page): Promise<string[]> {
+  return page.locator('[data-v2-error]').evaluateAll((els) =>
+    els.filter((e) => { const r = (e as HTMLElement).getBoundingClientRect(); return r.width > 0 && r.height > 0 }).map((e) => e.getAttribute('data-v2-error') ?? '?'))
+}
+async function checkExpectations(page: Page, sc: Scenario, who: Who, vars: Vars): Promise<string[]> {
+  const fails: string[] = []
+  if (!sc.allowError) {
+    const errs = await visibleUiErrors(page)
+    if (errs.length) fails.push(`${UI_ERROR_PREFIX} (data-v2-error=${errs.join(',')})`)
+  }
+  const exps: Expectation[] = [sc.expect, sc.expectBy?.[who]].filter((e): e is Expectation => !!e)
+  for (const e of exps) {
+    for (const t of e.present ?? []) {
+      try { await locate(page, t, vars).waitFor({ state: 'visible', timeout: 4000 }) } catch { fails.push(`חסר (אמור להיות גלוי): ${targetLabel(t)}`) }
+    }
+    for (const t of e.absent ?? []) {
+      const loc = locateAll(page, t, vars)
+      const n = await loc.count()
+      let visible = 0
+      for (let i = 0; i < Math.min(n, 20); i++) if (await loc.nth(i).isVisible().catch(() => false)) visible++
+      if (visible > 0) fails.push(`מופיע (אסור שיהיה גלוי): ${targetLabel(t)}`)
+    }
+  }
+  return fails
+}
 
 /* ממתין שהדף "יתייצב": DOM, רשת, מחוון "טוען…" נעלם, גופנים, מעט זמן לאנימציות */
 export async function settle(page: Page, extraMs = 450): Promise<void> {
@@ -89,14 +126,19 @@ function clicksOf(s: Scenario): number | null {
 /* Vite HMR (כשמישהו שומר קובץ) טוען את הדף מחדש באמצע המדידה → "Execution context was destroyed"; ודף ריק רגעי בזמן בנייה מחדש.
    לכן ניסיון חוזר: עד 2 על שגיאת ניווט, ו-1 על "דף ריק/הופנה" (כדי לא להכפיל זמן על מסלול שבאמת לא קיים). */
 const NAV_ERR = /Execution context was destroyed|Target (page|closed)|net::ERR|frame was detached/i
+/* שגיאת ממשק חולפת (429 מגבלת קצב / 502-504 השרת מתאתחל / 503 "מתחמם") שהמסך הציג: ממתינים ומנסים שוב (לא נסתרת: אם נשארה אחרי הניסיונות — כשל) */
+const isTransientUi = (f: string): boolean => f.startsWith(UI_ERROR_PREFIX) && /data-v2-error=[\d,]*(429|502|503|504)/.test(f)
 export async function runScreen(ctx: BrowserContext, job: ScreenJob): Promise<ScreenResult> {
   let res = await runScreenOnce(ctx, job)
   let attempts = 1
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const nav = res.status === 'error' && NAV_ERR.test(res.statusDetail ?? '')
     const blank = res.status === 'missing' && /דף ריק|הופנה/.test(res.statusDetail ?? '') && attempts < 2
-    if (!nav && !blank) break
-    await new Promise((r) => setTimeout(r, 2000))
+    /* page.goto שלא חזר ב-45ש׳: שרת הפיתוח (Vite) עמוס רגעית — לא מסך חסר. ניסיון חוזר אחרי הפסקה (עד 2) */
+    const gotoSlow = res.status === 'missing' && /page.goto: Timeout/.test(res.statusDetail ?? '')
+    const transient = (res.assertFailures ?? []).some(isTransientUi)
+    if (!nav && !blank && !transient && !gotoSlow) break
+    await new Promise((r) => setTimeout(r, transient ? 15_000 : gotoSlow ? 6000 : 2000))
     res = await runScreenOnce(ctx, job)
     attempts++
   }
@@ -166,12 +208,22 @@ async function runScreenOnce(ctx: BrowserContext, job: ScreenJob): Promise<Scree
       }
       await settle(page, 250)
     }
+    result.assertFailures = await checkExpectations(page, sc, who, job.vars)
+    if (sc.knownIssue) {
+      const fails = result.assertFailures
+      result.assertFailures = []
+      result.knownIssues = [fails.length ? `${sc.knownIssue} — ${fails.join('; ')}` : `${sc.knownIssue} — לא הופיעה בריצה הזו: ייתכן שתוקנה (הסירו knownIssue מהתרחיש)`]
+    }
     result.loadMs = Date.now() - t0
     result.finalUrl = page.url().replace(job.base, '')
 
     const shot = job.screenshots ? path.join(job.outDir, `${slug(id)}-${job.viewport}${job.theme === 'dark' ? '-dark' : ''}.png`) : null
     auditing = true
     const audit = await auditPage(page, shot)
+    /* הדף חזר למצב "טוען…" בזמן המדידה (טעינה מחדש של Vite אחרי גילוי תלות חדשה / HMR): המדידה לא אמינה — ניסיון חוזר */
+    if (await page.evaluate(() => /טוען…|טוען\.\.\./.test(document.body?.innerText ?? '')).catch(() => false)) {
+      throw new Error('Execution context was destroyed: הדף חזר למצב טעינה בזמן המדידה')
+    }
     result.screenshot = shot ? path.relative(job.outDir, shot).replace(/\\/g, '/') : null
     result.axe = audit.axe
     result.forbidden = audit.forbidden
@@ -182,6 +234,11 @@ async function runScreenOnce(ctx: BrowserContext, job: ScreenJob): Promise<Scree
     if (e instanceof MissingError) {
       result.status = 'missing'
       result.statusDetail = `route/element missing: ${e.message}`
+      /* אם המסך הציג בלוק שגיאה (למשל 429) — מתעדים אותו כדי שהניסיון החוזר יזהה שגיאה חולפת */
+      try {
+        const errs = await visibleUiErrors(page)
+        if (errs.length) result.assertFailures = [`${UI_ERROR_PREFIX} (data-v2-error=${errs.join(',')})`]
+      } catch { /* הדף נסגר/התנווט */ }
     } else if (e instanceof SkipError) {
       result.status = 'skipped'
       result.statusDetail = e.message

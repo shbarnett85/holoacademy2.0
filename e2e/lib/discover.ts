@@ -6,6 +6,7 @@
    ("לא ניתן לגלות …"), בלי קריסה — כך זה עובד גם לפני שהשרת/המסכים נבנו.
    ────────────────────────────────────────────────────────────────────────── */
 import type { Vars, Who } from './types.ts'
+import { isAnalyticsFixtureWho } from './types.ts'
 import { fetchRetry, lensParams } from './login.ts'
 import { subjectName } from '../../src/shared/lib/subjects.ts'
 
@@ -102,11 +103,13 @@ async function discoverAnalytics(ctx: ApiCtx, who: Who, vars: Vars, notes: strin
 }
 
 /* ── ציבורי ── */
-export async function discover(who: Who, ctx: ApiCtx, fallbackIds: Record<string, string | undefined> = {}): Promise<Discovery> {
+/* forced = משתנים קבועים מה-fixture (מזהי כיתות/תלמידים ידועים מראש) — דורסים את הגילוי. צופי fixture האנליטיקה אינם משתמשים בתוצאות, ולכן לא מגלים אותן */
+export async function discover(who: Who, ctx: ApiCtx, fallbackIds: Record<string, string | undefined> = {}, forced: Vars = {}): Promise<Discovery> {
   const vars: Vars = {}
   const notes: string[] = []
-  await discoverResults(ctx, vars, notes)
+  if (!isAnalyticsFixtureWho(who)) await discoverResults(ctx, vars, notes)
   await discoverAnalytics(ctx, who, vars, notes)
+  for (const [k, v] of Object.entries(forced)) if (v !== undefined) vars[k] = v
   /* גיבוי מה-fixture (רק כשה-API לא מצא) */
   for (const k of ['classId', 'submissionId', 'studentId', 'subject', 'resultsStudentId', 'resultsAttentionStudentId'] as const) {
     if (!vars[k] && fallbackIds[k]) { vars[k] = fallbackIds[k]; notes.push(`{${k}} נלקח מה-fixture`) }

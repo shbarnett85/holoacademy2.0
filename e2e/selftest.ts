@@ -9,7 +9,9 @@ import {
   axeCell, buildChecklist, clicksCell, crumbCell, distinctScreens, fitsCell, forbiddenCell, minFontCell, questionCell, rolesCell, screenChecklist, screenshotsCell,
 } from './lib/checklist.ts'
 import { scanForbidden } from './lib/forbidden.ts'
+import { ALL_WHO } from './lib/types.ts'
 import type { LayoutMetrics, ScreenResult, Who } from './lib/types.ts'
+import { SCENARIOS } from './scenarios.ts'
 
 let failed = 0
 const check = (name: string, ok: boolean, extra = ''): void => {
@@ -128,8 +130,34 @@ function checklistUnit(): void {
   check('מסמך: שורה לכל מסך מובחן (3), כותרות בעברית', rows.length === 3 && md.includes('על איזו שאלה הוא עונה') && md.includes('נכנס במסך אחד ב-1366×768') && md.includes('לחיצות מהטאב הראשי'), String(rows.length))
 }
 
+/* ── תרחישים: מבנה תקין (שמות ייחודיים, צופים מוכרים, משתני-גילוי מוכרים, תנאים לצופים שבתרחיש) ── */
+const KNOWN_VARS = new Set([
+  'submissionId', 'submissionClassId', 'resultsStudentId', 'resultsAttentionStudentId', 'classId', 'className', 'studentId', 'subject', 'subjectName',
+  'richClassId', 'sparseClassId', 'emptyClassId', 'otherClassId', 'dualAClassId', 'dualBClassId',
+  'attentionStudentId', 'calmStudentId', 'emptyStudentId', 'sparseStudentId', 'otherStudentId', 'sharedStudentId', 'biasStudentId', 'memoryStudentId', 'trendUpStudentId', 'skipperStudentId',
+])
+function scenariosUnit(): void {
+  console.log('— יחידה: תרחישים —')
+  const names = SCENARIOS.map((s) => s.name)
+  check('שמות תרחישים ייחודיים', new Set(names).size === names.length, names.filter((n, i) => names.indexOf(n) !== i).join(','))
+  check('שמות בלטינית/מספרים/מקפים', names.every((n) => /^[a-z0-9-]+$/.test(n)), names.filter((n) => !/^[a-z0-9-]+$/.test(n)).join(','))
+  const whos = (s: (typeof SCENARIOS)[number]): Who[] => (Array.isArray(s.who) ? s.who : [s.who])
+  const unknownWho = SCENARIOS.flatMap((s) => whos(s).filter((w) => !ALL_WHO.includes(w)).map((w) => `${s.name}:${w}`))
+  check('כל ה-who מוכרים', unknownWho.length === 0, unknownWho.join(','))
+  const badVars = SCENARIOS.flatMap((s) => [...JSON.stringify([s.url, s.steps ?? [], s.expect ?? {}, s.expectBy ?? {}]).matchAll(/{(w+)}/g)].map((m) => m[1]).filter((v) => !KNOWN_VARS.has(v)).map((v) => `${s.name}:{${v}}`))
+  check('כל משתני {…} מוכרים', badVars.length === 0, badVars.join(','))
+  const badBy = SCENARIOS.flatMap((s) => Object.keys(s.expectBy ?? {}).filter((w) => !whos(s).includes(w as Who)).map((w) => `${s.name}:${w}`))
+  check('expectBy רק לצופים שבתרחיש', badBy.length === 0, badBy.join(','))
+  /* משתני fixture-בלבד (real-v2-*) לא מתגלים אצל אורח: תרחיש עם אורח לא יכול להשתמש בהם */
+  const FIXTURE_ONLY = ['richClassId', 'sparseClassId', 'emptyClassId', 'otherClassId', 'dualAClassId', 'dualBClassId', 'attentionStudentId', 'calmStudentId', 'emptyStudentId', 'sparseStudentId', 'otherStudentId', 'sharedStudentId', 'biasStudentId', 'memoryStudentId', 'trendUpStudentId', 'skipperStudentId']
+  const guestFixtureVars = SCENARIOS.filter((s) => whos(s).some((w) => w.startsWith('guest-') || w === 'real-homeroom' || w === 'real-subject' || w === 'real-unlinked'))
+    .filter((s) => FIXTURE_ONLY.some((v) => JSON.stringify([s.url, s.steps ?? []]).includes(`{${v}}`))).map((s) => s.name)
+  check('אורח/fixture-התוצאות לא משתמשים במשתני fixture-האנליטיקה', guestFixtureVars.length === 0, guestFixtureVars.join(','))
+}
+
 async function main(): Promise<number> {
   checklistUnit()
+  scenariosUnit()
   console.log('— יחידה: מילים אסורות —')
   const hits = scanForbidden('הדפוס מובהק, ה-p-value נמוך, BH מתוקן. p מתוקן. גודל אפקט. קורלציות. וקטורים. אינדקסים. הסתברותי. Benjamini–Hochberg')
   const words = new Set(hits.map((h) => h.word))
@@ -171,6 +199,8 @@ async function main(): Promise<number> {
     check('אין יעדים קטנים', g.layout.smallTargets.count === 0, JSON.stringify(g.layout.smallTargets))
     check('גופן ≥ 16', g.layout.fonts.min !== null && g.layout.fonts.min >= 16)
     check('judge: אין כשלים', vg.hard.length === 0 && vg.strict.length === 0, JSON.stringify(vg))
+    const va = judge({ axe: g.axe, forbidden: g.forbidden, layout: g.layout, inner: false, clicksFromMainTab: 0, assertFailures: ['חסר (אמור להיות גלוי): x'] })
+    check('judge: כשל תנאי תרחיש → כשל קשיח', va.hard.length === 1 && va.hard[0].startsWith('חסר'), JSON.stringify(va))
     await ctx.close()
   } finally {
     await browser.close()

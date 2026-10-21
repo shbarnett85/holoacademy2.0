@@ -1,17 +1,21 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   כניסה: (א) מורה אורח; (ב) מורים אמיתיים מה-fixture של שלב התוצאות
-   (server/src/scripts/resultsFixture.ts — נכתב ע"י סוכן אחר; כאן נצרך בהגנה).
+   כניסה: (א) מורה אורח; (ב) מורים אמיתיים משני fixtures (נפרדים, בקידומות שונות — אפשר להזריע את שניהם באותה ריצה):
+     · results   — server/src/scripts/resultsFixture.ts   (zz-ux-res-):   real-homeroom | real-subject | real-unlinked | real-admin
+     · analytics — server/src/scripts/analyticsFixture.ts (zz-ux-v2-w8-):  real-v2-*   (מחנך עשיר, מורה מקצועי, מעורב, צולב, בלי כיתות, מנהלים…)
    · ה-session נכתב ל-localStorage['holo_staff_session'] (init script ב-browser.ts) באותו פורמט כמו
      src/shared/lib/staffSession.ts: { access_token, refresh_token, expires_at, staff }.
    · ה-fixture רץ בתהליך-בן (cwd=server, כדי שה-.env ו-node_modules של השרת יטענו נכון) ומחזיר JSON.
-     אסור להדפיס טוקנים; שורת התוצאה (שמכילה טוקנים) לא מועברת ל-stdout.
+     אסור להדפיס טוקנים/סיסמאות; שורת התוצאה (שמכילה אותם) לא מועברת ל-stdout.
+   · טוקן Supabase חי כשעה, ו-expires_at בדפדפן 50 דקות: בריצה ארוכה מחדשים את הכניסה (freshSession) לפני יצירת הקשר דפדפן חדש,
+     לפי הסיסמאות שה-fixture של האנליטיקה מחזיר (בזיכרון בלבד). ל-fixture של התוצאות אין סיסמאות — אין חידוש (הריצה שלו קצרה).
    ────────────────────────────────────────────────────────────────────────── */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile, rm } from 'node:fs/promises'
 import path from 'node:path'
 import { E2E_DIR, REPO_ROOT, SERVER_DIR } from './config.ts'
-import type { Who } from './types.ts'
+import { isAnalyticsFixtureWho, isRealWho } from './types.ts'
+import type { Vars, Who } from './types.ts'
 
 export interface StaffProfile {
   userId: string
@@ -63,21 +67,61 @@ export function lensParams(who: Who): Record<string, string> {
   }
 }
 
-/* ── (ב) מורים אמיתיים מה-fixture ── */
+/* ── (ב) מורים אמיתיים מה-fixtures ── */
+export type FixtureId = 'results' | 'analytics'
+export const FIXTURE_IDS: readonly FixtureId[] = ['results', 'analytics']
+const FIXTURE_FILES: Record<FixtureId, string> = {
+  results: path.join(SERVER_DIR, 'src/scripts/resultsFixture.ts'),
+  analytics: path.join(SERVER_DIR, 'src/scripts/analyticsFixture.ts'),
+}
+/* לתאימות לאחור (שם ישן) */
+export const FIXTURE_FILE = FIXTURE_FILES.results
+
+/* לאיזה fixture שייך צופה real-* */
+export function fixtureOf(w: Who): FixtureId | null {
+  if (isAnalyticsFixtureWho(w)) return 'analytics'
+  if (isRealWho(w)) return 'results'
+  return null
+}
+
+/* fixture התוצאות */
 export type RealRole = 'homeroom' | 'subject' | 'unlinked' | 'admin'
 export const REAL_WHO: Record<RealRole, Who> = { homeroom: 'real-homeroom', subject: 'real-subject', unlinked: 'real-unlinked', admin: 'real-admin' }
 export const REAL_ROLES = Object.keys(REAL_WHO) as RealRole[]
 
-export interface RealFixture {
-  sessions: Partial<Record<RealRole, StaffSession>>
-  /* מזהים שהמבנה שה-fixture החזיר חשף (לשימוש גילוי כגיבוי) */
+/* fixture האנליטיקה: מפתח ב-fx.teachers + תפקיד הצוות + בית הספר */
+type AnalyticsRole = { key: string; role: StaffProfile['role']; school: 'main' | 'other' | 'empty' }
+export const ANALYTICS_ROLES: Partial<Record<Who, AnalyticsRole>> = {
+  'real-v2-homeroom': { key: 'homeroom', role: 'teacher', school: 'main' },
+  'real-v2-subject': { key: 'subject', role: 'teacher', school: 'main' },
+  'real-v2-mixed': { key: 'mixed', role: 'teacher', school: 'main' },
+  'real-v2-cross': { key: 'cross', role: 'teacher', school: 'main' },
+  'real-v2-unspecified': { key: 'unspecified', role: 'teacher', school: 'main' },
+  'real-v2-empty': { key: 'emptyHomeroom', role: 'teacher', school: 'main' },
+  'real-v2-no-classes': { key: 'noClasses', role: 'teacher', school: 'main' },
+  'real-v2-dual': { key: 'dual', role: 'teacher', school: 'main' },
+  'real-v2-admin': { key: 'admin', role: 'admin', school: 'main' },
+  'real-v2-municipal': { key: 'municipal', role: 'municipal_admin', school: 'main' },
+  'real-v2-admin-small': { key: 'outsiderAdmin', role: 'admin', school: 'other' },
+  'real-v2-admin-empty': { key: 'emptySchoolAdmin', role: 'admin', school: 'empty' },
+}
+
+export interface FixtureRun {
+  id: FixtureId
+  sessions: Partial<Record<Who, StaffSession>>
+  /* פרטי כניסה — בזיכרון בלבד (אסור להדפיס או לכתוב לדיסק); קיימים רק ל-fixture האנליטיקה */
+  creds: Partial<Record<Who, { email: string; password: string }>>
+  issuedAt: Partial<Record<Who, number>>
+  /* משתנים קבועים לצופה (מזהי כיתות/תלמידים מה-fixture) — דורסים את הגילוי */
+  vars: Partial<Record<Who, Vars>>
+  /* מזהים שהמבנה שה-fixture החזיר חשף (גיבוי לגילוי) */
   ids: Record<string, string | undefined>
   /* התוצאה הגולמית — לא להדפיס (מכילה טוקנים) */
   raw: unknown
   cleanup: () => Promise<void>
 }
 
-/* כינויים שבהם ה-fixture עשוי לקרוא למורים (A1 עוד לא סיים — לכן סלחני) */
+/* כינויים שבהם ה-fixture של התוצאות עשוי לקרוא למורים (סלחני) */
 const ROLE_ALIASES: Record<RealRole, string[]> = {
   homeroom: ['homeroom', 'homeroomTeacher', 'teacherHomeroom', 'tHome', 'home', 'educator', 'mechanech'],
   subject: ['subject', 'subjectSame', 'subjectTeacher', 'teacherSubject', 'tSubject', 'tMath', 'math', 'professional'],
@@ -201,14 +245,19 @@ function stripSecrets(v: unknown): unknown {
   return Object.fromEntries(Object.entries(r).filter(([k]) => !/token|password|secret|session/i.test(k)).map(([k, x]) => [k, stripSecrets(x)]))
 }
 
-async function staffLogin(api: string, email: string, password: string): Promise<StaffSession | null> {
-  const res = await fetchRetry(`${api}/api/auth/staff-login`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }),
-  })
-  if (!res.ok) return null
-  const j = (await res.json()) as { session?: { access_token: string; refresh_token: string; expires_at?: number }; staff?: StaffProfile }
-  if (!j.session?.access_token || !j.staff) return null
-  return { access_token: j.session.access_token, refresh_token: j.session.refresh_token, expires_at: j.session.expires_at, staff: j.staff }
+/* staff-login מוגבל ל-10 בדקה ל-IP: על 429 ממתינים ומנסים שוב (משמש רק לחידוש טוקן בריצה ארוכה) */
+export async function staffLogin(api: string, email: string, password: string): Promise<StaffSession | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetchRetry(`${api}/api/auth/staff-login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }),
+    })
+    if (res.status === 429) { await new Promise((r) => setTimeout(r, 62_000)); continue }
+    if (!res.ok) return null
+    const j = (await res.json()) as { session?: { access_token: string; refresh_token: string; expires_at?: number }; staff?: StaffProfile }
+    if (!j.session?.access_token || !j.staff) return null
+    return { access_token: j.session.access_token, refresh_token: j.session.refresh_token, expires_at: j.session.expires_at, staff: j.staff }
+  }
+  return null
 }
 
 /* ── תהליך-בן ── */
@@ -219,18 +268,16 @@ function tsxCli(): string {
   throw new Error('tsx לא מותקן (npm install -D tsx בשורש)')
 }
 
-export const FIXTURE_FILE = path.join(SERVER_DIR, 'src/scripts/resultsFixture.ts')
-
-function runChild(mode: 'seed' | 'cleanup', argFile: string | null): Promise<{ result: unknown; log: string }> {
+function runChild(fixture: FixtureId, mode: 'seed' | 'cleanup', argFile: string | null): Promise<{ result: unknown; log: string }> {
   return new Promise((resolve, reject) => {
-    const args = [tsxCli(), path.join(E2E_DIR, 'lib/fixtureChild.ts'), mode, FIXTURE_FILE]
+    const args = [tsxCli(), path.join(E2E_DIR, 'lib/fixtureChild.ts'), mode, FIXTURE_FILES[fixture]]
     if (argFile) args.push(argFile)
     execFile(process.execPath, args, { cwd: SERVER_DIR, env: { ...process.env, NODE_OPTIONS: process.env.NODE_OPTIONS ?? '--use-system-ca' }, maxBuffer: 64 * 1024 * 1024, timeout: 10 * 60_000 }, (err, stdout, stderr) => {
       const lines = String(stdout).split(/\r?\n/)
       const markerLine = lines.find((l) => l.startsWith(MARKER))
       const log = [...lines.filter((l) => !l.startsWith(MARKER)), ...String(stderr).split(/\r?\n/)].filter(Boolean).slice(-12).join('\n')
       if (err || !markerLine) {
-        reject(new Error(`resultsFixture ${mode} נכשל${err ? ` (${err.message.split('\n')[0]})` : ''}${log ? `\n${log}` : ''}`))
+        reject(new Error(`${fixture}Fixture ${mode} נכשל${err ? ` (${err.message.split('\n')[0]})` : ''}${log ? `\n${log}` : ''}`))
         return
       }
       try { resolve({ result: JSON.parse(markerLine.slice(MARKER.length)), log }) } catch (e) { reject(e as Error) }
@@ -238,49 +285,127 @@ function runChild(mode: 'seed' | 'cleanup', argFile: string | null): Promise<{ r
   })
 }
 
-export function fixtureExists(): boolean { return existsSync(FIXTURE_FILE) }
+export function fixtureExists(id: FixtureId = 'results'): boolean { return existsSync(FIXTURE_FILES[id]) }
 
-/* מזריע fixture (אם הקובץ קיים), בונה sessions לשלושת התפקידים. זורק עם הודעה ברורה אם חסר/נכשל. */
-export async function seedRealFixture(api: string, outDir: string): Promise<RealFixture> {
-  if (!fixtureExists()) {
-    throw new Error(`הקובץ ${path.relative(REPO_ROOT, FIXTURE_FILE)} עוד לא קיים (נכתב ע"י סוכן A1). מסכי real-* ידולגו; הריצו עם --no-real כדי להשתיק.`)
+/* ── משתנים קבועים מה-fixture של האנליטיקה ── */
+function analyticsVars(raw: unknown): Partial<Record<Who, Vars>> {
+  const top = asRec(raw)
+  const cls = asRec(top?.classes)
+  const stu = asRec(top?.students)
+  const idOfClass = (k: string): string | undefined => str(asRec(cls?.[k])?.id)
+  const idOf = (group: string, k: string): string | undefined => str(asRec(asRec(stu?.[group])?.[k])?.id)
+  const ids = asRec(top?.ids)
+  const common: Vars = {
+    richClassId: idOfClass('rich'), sparseClassId: idOfClass('sparse'), emptyClassId: idOfClass('empty'), otherClassId: idOfClass('other'),
+    dualAClassId: idOfClass('dualA'), dualBClassId: idOfClass('dualB'),
+    /* crossDip: ירידה בשני מקצועות (התרעה חוצת-מקצועות) · steadyB: בלי ממצאים · e1: כיתה בלי נתונים · o1: בית ספר אחר (404) */
+    attentionStudentId: str(ids?.attentionStudentId) ?? idOf('rich', 'crossDip'),
+    calmStudentId: str(ids?.calmStudentId) ?? idOf('rich', 'steadyB'),
+    emptyStudentId: str(ids?.emptyStudentId) ?? idOf('empty', 'e1'),
+    sparseStudentId: idOf('sparse', 's1'), otherStudentId: idOf('other', 'o1'), sharedStudentId: idOf('dual', 'shared'),
+    biasStudentId: idOf('rich', 'positionBias'), memoryStudentId: idOf('rich', 'memoryRandom'), trendUpStudentId: idOf('rich', 'trendUp'), skipperStudentId: idOf('rich', 'readingSkipper'),
   }
-  const { result: raw } = await runChild('seed', null)
-  const sessions: RealFixture['sessions'] = {}
-  for (const role of REAL_ROLES) {
-    let s = findRoleSession(raw, role)
-    if (!s) {
-      /* אולי הוחזרו email+password */
-      for (const alias of ROLE_ALIASES[role]) {
-        const r = asRec(asRec(raw)?.[alias]) ?? asRec(asRec(asRec(raw)?.teachers)?.[alias])
-        const email = pickStr(r, ['email']); const password = pickStr(r, ['password'])
-        if (email && password) { s = await staffLogin(api, email, password); if (s) break }
+  const rich = common.richClassId
+  const crossDip = common.attentionStudentId
+  const mk = (extra: Vars): Vars => ({ ...common, ...extra })
+  return {
+    'real-v2-homeroom': mk({ classId: rich, studentId: crossDip, subject: 'math' }),
+    'real-v2-subject': mk({ classId: rich, studentId: crossDip, subject: 'math' }),
+    'real-v2-mixed': mk({ classId: rich, studentId: crossDip, subject: 'hebrew' }),
+    'real-v2-cross': mk({ classId: rich, studentId: crossDip, subject: 'history' }),
+    'real-v2-unspecified': mk({ classId: rich, studentId: crossDip }),
+    'real-v2-empty': mk({ classId: common.emptyClassId, studentId: common.emptyStudentId }),
+    'real-v2-no-classes': mk({}),
+    'real-v2-dual': mk({ classId: common.dualAClassId, studentId: common.sharedStudentId }),
+    'real-v2-admin': mk({}), 'real-v2-municipal': mk({}), 'real-v2-admin-small': mk({}), 'real-v2-admin-empty': mk({}),
+  }
+}
+
+async function runFixtureCleanup(id: FixtureId, raw: unknown, outDir: string): Promise<void> {
+  await mkdir(outDir, { recursive: true })
+  const argFile = path.join(outDir, `.fixture-${id}-${process.pid}.json`)
+  try {
+    await writeFile(argFile, JSON.stringify(stripSecrets(raw)))
+    await runChild(id, 'cleanup', argFile)
+  } finally {
+    await rm(argFile, { force: true })
+  }
+}
+
+/* מזריע fixture אחד (אם הקובץ קיים). זורק עם הודעה ברורה אם חסר/נכשל. */
+export async function seedFixture(id: FixtureId, api: string, outDir: string): Promise<FixtureRun> {
+  if (!fixtureExists(id)) {
+    throw new Error(`הקובץ ${path.relative(REPO_ROOT, FIXTURE_FILES[id])} לא קיים. מסכי ${id === 'results' ? 'real-*' : 'real-v2-*'} ידולגו; הריצו עם --no-real כדי להשתיק.`)
+  }
+  const { result: raw } = await runChild(id, 'seed', null)
+  const sessions: FixtureRun['sessions'] = {}
+  const creds: FixtureRun['creds'] = {}
+  const issuedAt: FixtureRun['issuedAt'] = {}
+  let ids: FixtureRun['ids'] = {}
+  let vars: FixtureRun['vars'] = {}
+
+  if (id === 'results') {
+    for (const role of REAL_ROLES) {
+      let s = findRoleSession(raw, role)
+      if (!s) {
+        /* אולי הוחזרו email+password */
+        for (const alias of ROLE_ALIASES[role]) {
+          const r = asRec(asRec(raw)?.[alias]) ?? asRec(asRec(asRec(raw)?.teachers)?.[alias])
+          const email = pickStr(r, ['email']); const password = pickStr(r, ['password'])
+          if (email && password) { s = await staffLogin(api, email, password); if (s) break }
+        }
       }
+      /* עקיפה ידנית: E2E_REAL_<ROLE>_TOKEN */
+      const envTok = process.env[`E2E_REAL_${role.toUpperCase()}_TOKEN`]
+      if (!s && envTok) s = toSession(envTok, role)
+      if (s) { sessions[REAL_WHO[role]] = s; issuedAt[REAL_WHO[role]] = Date.now() }
     }
-    /* עקיפה ידנית: E2E_REAL_<ROLE>_TOKEN */
-    const envTok = process.env[`E2E_REAL_${role.toUpperCase()}_TOKEN`]
-    if (!s && envTok) s = toSession(envTok, role)
-    if (s) sessions[role] = s
+    ids = idsFromFixture(raw)
+  } else {
+    const top = asRec(raw)
+    const teachers = asRec(top?.teachers)
+    const schoolOf = { main: str(top?.schoolId), other: str(top?.otherSchoolId), empty: str(top?.emptySchoolId) }
+    for (const [who, def] of Object.entries(ANALYTICS_ROLES) as [Who, AnalyticsRole][]) {
+      const t = asRec(teachers?.[def.key])
+      const token = str(t?.token)
+      if (!t || !token) continue
+      sessions[who] = {
+        access_token: token, refresh_token: '', expires_at: Math.floor(Date.now() / 1000) + 3000,
+        staff: { userId: str(t.userId) ?? '', name: str(t.name) ?? `zz-ux-v2-w8-${def.key}`, role: def.role, schoolId: schoolOf[def.school] ?? null, email: str(t.email) ?? '' },
+      }
+      issuedAt[who] = Date.now()
+      const email = str(t.email); const password = str(t.password)
+      if (email && password) creds[who] = { email, password }
+    }
+    vars = analyticsVars(raw)
+    ids = { classId: str(asRec(asRec(top?.classes)?.rich)?.id), subject: 'math' }
   }
-  const ids = idsFromFixture(raw)
+
   let cleaned = false
   const cleanup = async (): Promise<void> => {
     if (cleaned) return
     cleaned = true
-    await mkdir(outDir, { recursive: true })
-    const argFile = path.join(outDir, `.fixture-${process.pid}.json`)
-    try {
-      await writeFile(argFile, JSON.stringify(stripSecrets(raw)))
-      await runChild('cleanup', argFile)
-    } finally {
-      await rm(argFile, { force: true })
-    }
+    await runFixtureCleanup(id, raw, outDir)
   }
-  return { sessions, ids, raw, cleanup }
+  return { id, sessions, creds, issuedAt, vars, ids, raw, cleanup }
 }
 
-/* ניקוי-בלבד (אחרי ריצה שקרסה): קורא cleanupResultsFixture() בלי ארגומנט */
+/* טוקן טרי לצופה: אם הקיים ישן מ-maxAgeMs ויש סיסמה — מתחברים מחדש (בזיכרון בלבד); אחרת מחזירים את הקיים */
+export async function freshSession(run: FixtureRun, who: Who, api: string, maxAgeMs = 35 * 60_000): Promise<StaffSession | null> {
+  const cur = run.sessions[who] ?? null
+  const cred = run.creds[who]
+  const at = run.issuedAt[who] ?? 0
+  if (!cur || !cred || Date.now() - at < maxAgeMs) return cur
+  const next = await staffLogin(api, cred.email, cred.password)
+  if (!next) return cur
+  run.sessions[who] = next
+  run.issuedAt[who] = Date.now()
+  return next
+}
+
+/* ניקוי-בלבד (אחרי ריצה שקרסה): קורא cleanup*Fixture() בלי ארגומנט — לכל ה-fixtures הקיימים */
 export async function cleanupOnly(): Promise<void> {
-  if (!fixtureExists()) throw new Error('resultsFixture.ts לא קיים — אין מה לנקות')
-  await runChild('cleanup', null)
+  const present = FIXTURE_IDS.filter((id) => fixtureExists(id))
+  if (!present.length) throw new Error('אין קבצי fixture — אין מה לנקות')
+  for (const id of present) await runChild(id, 'cleanup', null)
 }

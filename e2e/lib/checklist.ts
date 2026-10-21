@@ -29,6 +29,18 @@ export const WHO_LABEL: Record<Who, string> = {
   'real-subject': 'מורה מקצועי · אמיתי',
   'real-unlinked': 'מורה בלי כיתה · אמיתי',
   'real-admin': 'מנהל/ת · אמיתי',
+  'real-v2-homeroom': 'מחנך/ת · אמיתי (כיתה עשירה)',
+  'real-v2-subject': 'מורה מתמטיקה · אמיתי',
+  'real-v2-mixed': 'מחנך/ת בדלה + עברית בעשירה · אמיתי',
+  'real-v2-cross': 'מתמטיקה בדלה + היסטוריה בעשירה · אמיתי',
+  'real-v2-unspecified': 'שיוך בלי מקצוע · אמיתי',
+  'real-v2-empty': 'מחנך/ת כיתה בלי תוצאות · אמיתי',
+  'real-v2-no-classes': 'מורה בלי כיתות · אמיתי',
+  'real-v2-dual': 'מורה עם תלמיד בשתי כיתות · אמיתי',
+  'real-v2-admin': 'מנהל/ת · אמיתי (ארגון עשיר)',
+  'real-v2-municipal': 'מנהל/ת עירוני · אמיתי',
+  'real-v2-admin-small': 'מנהל/ת בית ספר קטן · אמיתי',
+  'real-v2-admin-empty': 'מנהל/ת בית ספר בלי כיתות · אמיתי',
 }
 const roleLabel = (w: Who): string => WHO_LABEL[w] ?? w
 
@@ -230,6 +242,10 @@ export interface ChecklistTotals {
   axeFail: number
   forbiddenFail: number
   clicksFail: number
+  /* מסכים שנכשלו בתנאי התרחיש (expect / שגיאת ממשק בלתי צפויה) */
+  assertFail: number
+  /* מסכים עם בעיה ידועה (באג מוצר מתועד) */
+  knownIssues: number
 }
 export function checklistTotals(screens: DistinctScreen[]): ChecklistTotals {
   const m = screens.filter((s) => s.measured.length)
@@ -242,6 +258,8 @@ export function checklistTotals(screens: DistinctScreen[]): ChecklistTotals {
     axeFail: m.filter((s) => seriousAxeIds(s).length > 0).length,
     forbiddenFail: m.filter((s) => forbiddenWordsOf(s).length > 0).length,
     clicksFail: screens.filter((s) => (s.all.find((r) => r.clicksFromMainTab !== null)?.clicksFromMainTab ?? 0) > THRESHOLDS.maxClicks).length,
+    assertFail: screens.filter((s) => s.all.some((r) => (r.assertFailures ?? []).length > 0)).length,
+    knownIssues: screens.filter((s) => s.all.some((r) => (r.knownIssues ?? []).length > 0)).length,
   }
 }
 
@@ -268,6 +286,8 @@ function detailLines(s: DistinctScreen): string[] {
     if (r.layout.smallTargets.count) for (const e of r.layout.smallTargets.examples.slice(0, 3)) out.push(`  - יעד קטן: \`${e.selector}\` ${quoted(e.text)} ${e.w}×${e.h}`)
     for (const v of r.axe!.violations.filter((x) => x.impact === 'serious' || x.impact === 'critical')) out.push(`  - axe \`${v.id}\` (${v.impact}, ${v.nodes} צמתים): ${esc(v.help)}`)
     for (const h of r.forbidden.slice(0, 3)) out.push(`  - מילה אסורה "${h.word}": …${esc(h.context)}…`)
+    for (const f of r.assertFailures ?? []) out.push(`  - **תנאי נכשל:** ${esc(f)}`)
+    for (const f of r.knownIssues ?? []) out.push(`  - **בעיה ידועה (באג מוצר):** ${esc(f)}`)
   }
   out.push('')
   return out
@@ -293,7 +313,7 @@ export function buildChecklist(meta: RunMeta, results: ScreenResult[]): string {
     L.push(`- בלי כותרת h1 (השאלה שהמסך עונה עליה): ${t.noH1} מתוך ${t.measured}.`)
     L.push(`- הפרות axe חמורות/קריטיות: ${t.axeFail} מתוך ${t.measured} מסכים. מילים אסורות: ${t.forbiddenFail} מתוך ${t.measured} מסכים.`)
   }
-  L.push(`- יותר מ-${THRESHOLDS.maxClicks} לחיצות מהטאב הראשי: ${t.clicksFail} מתוך ${t.screens} מסכים.`)
+  L.push(`- יותר מ-${THRESHOLDS.maxClicks} לחיצות מהטאב הראשי: ${t.clicksFail} מתוך ${t.screens} מסכים. תנאי תרחיש שנכשלו (כפתור שאמור/אסור להופיע, שגיאת ממשק בלתי צפויה): ${t.assertFail} מסכים; מסכים עם בעיה ידועה (באג מוצר מתועד): ${t.knownIssues}.`)
   L.push('')
   L.push('## טבלת המסכים')
   L.push('')

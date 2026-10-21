@@ -26,16 +26,22 @@ export interface Summary {
   error: number
   axeSeriousCritical: number
   forbiddenHits: number
+  /* מסכים שנכשלו בתנאי תרחיש (expect / שגיאת ממשק בלתי צפויה) */
+  assertFailing: number
+  /* מסכים עם בעיה ידועה (תרחיש עם knownIssue שכשל בתנאיו) — לא כשל קשיח */
+  knownIssues: number
   failing: number
   strictFailing: number
 }
 
 export function summarize(results: ScreenResult[]): Summary {
-  const s: Summary = { screens: results.length, ok: 0, missing: 0, skipped: 0, error: 0, axeSeriousCritical: 0, forbiddenHits: 0, failing: 0, strictFailing: 0 }
+  const s: Summary = { screens: results.length, ok: 0, missing: 0, skipped: 0, error: 0, axeSeriousCritical: 0, forbiddenHits: 0, assertFailing: 0, knownIssues: 0, failing: 0, strictFailing: 0 }
   for (const r of results) {
     s[r.status]++
     if (r.axe) s.axeSeriousCritical += r.axe.serious + r.axe.critical
     s.forbiddenHits += r.forbidden.length
+    if ((r.assertFailures ?? []).length) s.assertFailing++
+    if ((r.knownIssues ?? []).length) s.knownIssues++
     if (r.hardFailures.length) s.failing++
     if (r.strictFailures.length) s.strictFailing++
   }
@@ -70,6 +76,7 @@ function details(r: ScreenResult): string[] {
   if (r.statusDetail) out.push(`- סטטוס: **${r.status}** — ${r.statusDetail}`)
   for (const f of r.hardFailures) out.push(`- **כשל:** ${f}`)
   for (const f of r.strictFailures) out.push(`- strict: ${f}`)
+  for (const f of r.knownIssues ?? []) out.push(`- **בעיה ידועה:** ${f}`)
   if (r.axe) {
     for (const v of r.axe.violations) {
       out.push(`- axe \`${v.id}\` (${v.impact}, ${v.nodes} צמתים): ${v.help} — ${v.targets.slice(0, 2).map((t) => `\`${t.slice(0, 80)}\``).join(', ')}`)
@@ -115,8 +122,8 @@ export function buildMarkdown(meta: RunMeta, results: ScreenResult[], sum: Summa
   lines.push(`- הופק: ${meta.generatedAt} · base: ${meta.base} · ערכה: **${meta.theme}** · viewports: ${meta.viewports.join(', ')}${meta.strict ? ' · **strict**' : ''}`)
   lines.push(`- fixture מורים אמיתיים: ${meta.fixture.used ? 'כן' : 'לא'}${meta.fixture.note ? ` — ${meta.fixture.note}` : ''}`)
   lines.push(`- מסכים: ${sum.screens} · תקינים (ok): ${sum.ok} · missing: ${sum.missing} · skipped: ${sum.skipped} · error: ${sum.error}`)
-  lines.push(`- **כשלים קשיחים (גורמים ל-exit 1):** ${sum.failing} מסכים — axe חמור/קריטי: ${sum.axeSeriousCritical} הפרות · מילים אסורות: ${sum.forbiddenHits} · שגיאות הרצה: ${sum.error}`)
-  lines.push(`- כשלי strict (פריסה/יעדים/גופן/hover/breadcrumb/לחיצות): ${sum.strictFailing} מסכים`)
+  lines.push(`- **כשלים קשיחים (גורמים ל-exit 1):** ${sum.failing} מסכים — axe חמור/קריטי: ${sum.axeSeriousCritical} הפרות · מילים אסורות: ${sum.forbiddenHits} · מסכים שנכשלו בתנאי תרחיש: ${sum.assertFailing} · שגיאות הרצה: ${sum.error}`)
+  lines.push(`- כשלי strict (פריסה/יעדים/גופן/hover/breadcrumb/לחיצות): ${sum.strictFailing} מסכים · מסכים עם בעיה ידועה (באג מוצר מתועד, לא כשל): ${sum.knownIssues}`)
   lines.push('')
   lines.push('| Screen | Viewport | Status | Fits 1 screen | Axe serious+critical | Small targets (<44px) | Min font | Forbidden words | Breadcrumb | Clicks from main tab |')
   lines.push('|---|---|---|---|---|---|---|---|---|---|')
@@ -125,7 +132,7 @@ export function buildMarkdown(meta: RunMeta, results: ScreenResult[], sum: Summa
   lines.push('מקרא: ✓ עבר · ✗ נכשל · ~ אזהרה (גופן קטן מ-16px) · — לא רלוונטי/לא נמדד. "Axe" = מספר כללי axe שנכשלו ב-impact serious/critical. "Small targets" = קטנים/סה"כ יעדי לחיצה גלויים.')
   lines.push('')
 
-  const problem = results.filter((r) => r.status !== 'ok' || r.hardFailures.length || r.strictFailures.length || (r.layout && (r.layout.clickableNonSemantic.count || r.layout.fonts.below16)) || r.consoleErrors.count)
+  const problem = results.filter((r) => r.status !== 'ok' || r.hardFailures.length || r.strictFailures.length || (r.knownIssues ?? []).length || (r.layout && (r.layout.clickableNonSemantic.count || r.layout.fonts.below16)) || r.consoleErrors.count)
   if (problem.length) {
     lines.push('## פירוט')
     lines.push('')
