@@ -14,7 +14,7 @@ interface QuestDetails {
   title: string
   created_at: string
   status: string
-  game_data: { scenes: Scene[]; endingGood?: EndingScene; endingBad?: EndingScene; objectives?: { id: string; text: string }[] } | null
+  game_data: { scenes: Scene[]; endingGood?: EndingScene; endingBad?: EndingScene; objectives?: { id: string; text: string }[]; readingScale?: number } | null
 }
 
 /* מצב טיוטה מהספרייה — אותה סביבת עבודה כמו החלון שאחרי יצירה (QuestWorkspace) */
@@ -142,6 +142,7 @@ export default function QuestView() {
       patchScene={patchScene}
       patchEnding={patchEnding}
       objectives={quest.game_data?.objectives}
+      readingScale={quest.game_data?.readingScale}
       onTitleSave={saveTitle}
       actions={
         <WorkspaceActions

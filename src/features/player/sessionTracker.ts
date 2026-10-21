@@ -20,6 +20,9 @@ export interface SceneTime {
      עד scene_exit/סגירה (ולא עד האירוע האחרון), בניכוי זמן שהלשונית הייתה מוסתרת */
   wordCount?: number
   closedDwellMs?: number
+  /* כלל אורך הטקסט לתלמיד: כמה עמודים הוצגו בסצנה, וזמן (ms) על כל עמוד */
+  pages?: number
+  pageMs?: number[]
 }
 
 export interface AnalyticsSummary {

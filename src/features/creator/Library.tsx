@@ -23,6 +23,8 @@ interface QuestSummary {
   /* הדמיית חזרה — נוצרה מהמושגים החלשים של מטלה (reviewOf ב-game_data) */
   is_review?: boolean
   sceneCount: number
+  /* כלל "אורך טקסט לתלמיד": כמה סצנות ארוכות מדי למסך אחד (נספר בשרת; למורה בלבד) */
+  longSceneCount?: number
   subject?: string | null
   /* קוד המקצוע (subjects.code); null = "לא סווג" */
   subjectCode?: string | null
@@ -164,6 +166,7 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
           <Chip>{q.sceneCount} סצנות</Chip>
+          {(q.longSceneCount ?? 0) > 0 && <Chip>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
           {q.subject && <Chip>{q.subject}</Chip>}
           <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
         </div>

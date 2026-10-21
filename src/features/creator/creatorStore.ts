@@ -50,10 +50,13 @@ export interface GeneratedQuest {
   id: string
   title: string
   game_data: {
+    /* רמת הטקסט (1-20) — קובעת את שכבת הגיל לבדיקת אורך הטקסט (כלל "אורך טקסט לתלמיד") */
+    readingScale?: number
     scenes: {
       id: string
       title: string
       narrative?: string
+      drHoloDialog?: string
       imagePrompt?: string
       imageUrl?: string
       drHoloExpression?: string

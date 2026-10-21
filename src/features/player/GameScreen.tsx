@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { CrystalBar, ItemSlots } from './BottomHUD'
@@ -6,7 +6,7 @@ import TopHUD from './TopHUD'
 import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import { type Placement } from './stageRouting'
-import { useTypingScroll } from './useTypingScroll'
+import { useScenePages } from './useScenePages'
 import LoadingQuest from './LoadingQuest'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
@@ -167,7 +167,33 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* ⚠️ חייב לפני ה-early-return של עמוד הסיכום (engine.finished): hook שמופיע
      אחרי return מותנה מדלג על עצמו ברגע הסיום — "Rendered fewer hooks than
      expected" — וכל ההדמיה קרסה ל-ErrorBoundary בדיוק במעבר לסיכום. */
-  const typingScrollRef = useTypingScroll(reveal === 'typing')
+  /* ── כלל אורך הטקסט לתלמיד: תיבת הטקסט **לעולם לא גוללת**. טקסט שלא נכנס בגובה התיבה (בגודל הגופן
+     שנקבע — לא מוקטן) מתחלק לעמודים בגבולות משפט, עם "המשך ›" ו-"1/2". האתגר/הכפתורים מופיעים רק אחרי
+     העמוד האחרון. ⚠️ ה-hooks כאן חייבים להיות לפני ה-early-return של עמוד הסיכום (engine.finished). */
+  const textAreaRef = useRef<HTMLDivElement | null>(null)
+  const curScene = engine.scene
+  const sceneText = useMemo(
+    () => [curScene.narrative, curScene.drHoloDialog ? `ד״ר הולו אומר: "${curScene.drHoloDialog}"` : null].filter(Boolean).join('\n\n'),
+    [curScene.narrative, curScene.drHoloDialog],
+  )
+  const pages = useScenePages(sceneText, textAreaRef, !!sceneText)
+  const [pageState, setPageState] = useState<{ sceneId: string; idx: number }>({ sceneId: curScene.id, idx: 0 })
+  const pageIdx = pageState.sceneId === curScene.id ? Math.min(pageState.idx, Math.max(0, pages.length - 1)) : 0
+  const lastPage = pageIdx >= pages.length - 1
+  const pageKey = `${curScene.id}:${pageIdx}`
+  const [donePageKey, setDonePageKey] = useState<string | null>(null)
+  const pageDone = donePageKey === pageKey
+  const goNextPage = useCallback(() => setPageState({ sceneId: curScene.id, idx: pageIdx + 1 }), [curScene.id, pageIdx])
+  /* גובה אזור הפעולות שמור מראש לפי מספר הכפתורים המרבי בסצנה — כך תיבת הטקסט (ומספר העמודים) יציבה גם כשהבחירות מופיעות */
+  const actionRows = Math.max(1, (curScene.puzzle ? 1 : 0) + (curScene.collectableItem ? 1 : 0))
+  /* טלמטריה: זמן על כל עמוד (נרשם ביציאה מהעמוד/הסצנה/סיום המשחק) */
+  const recordPageTime = engine.recordPageTime
+  useEffect(() => {
+    const enter = performance.now()
+    const sid = curScene.id
+    const idx = pageIdx
+    return () => recordPageTime(sid, idx, performance.now() - enter)
+  }, [curScene.id, pageIdx, engine.finished, recordPageTime])
   useEffect(() => {
     /* בלי חור-תולעת בכניסה (reduced-motion מקצר/משטח את ההבזק) — נכנסים מיד */
     if (prefersReducedMotion() || engine.transitionType !== 'wormhole') { setEntered(true); return }
@@ -308,7 +334,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [revealTick])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
-  const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setDoneSceneId(scene.id); setReveal('buttons') }, [scene.id])
+  const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setReveal('buttons') }, [scene.id])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
   const skipped = skipSceneId === scene.id
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
@@ -595,6 +621,32 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       />
   )
 
+  /* כפתורי הבחירה (מבנה Hub) — משותפים לאזור הפעולות (בחירה יחידה) ולבמה (2+ בחירות) */
+  const choiceButtons = (scene.choices ?? []).map((c) => {
+    const locked =
+      !!c.requiredItemIds?.length &&
+      c.requiredItemIds.some((id) => !engine.inventory.some((i) => i.id === id))
+    return (
+      <button
+        key={c.id}
+        className={`holo-button ${locked && engine.shakeGate ? 'gate-shake' : ''} ${engine.gateGlow ? 'gate-glow' : ''}`}
+        style={{
+          padding: '0.8rem 1.5rem',
+          opacity: locked ? 0.75 : 1,
+          ...(locked ? { background: 'rgba(0,60,100,0.5)', border: '1px solid rgba(0,246,255,0.3)' } : {}),
+        }}
+        onClick={() => engine.chooseChoice(c)}
+      >
+        {locked ? '🔒 ' : ''}
+        {c.text}
+      </button>
+    )
+  })
+  /* 2+ בחירות ניווט: מופיעות במרכז עמוד התמונה (כמו אתגרים) רק אחרי העמוד האחרון של הטקסט */
+  const choicesOnStage =
+    (scene.choices?.length ?? 0) > 1 && lastPage && textDone && reveal === 'buttons' && !advancing && !puzzleOpen &&
+    (!scene.puzzle || engine.puzzleSolved) && !engine.canCollect
+
   return (
     <div className="min-h-dvh holo-scene-root flex flex-col">
       {/* מסך הטעינה נשאר מעל הסצנה עד הפריים הלבן המלא — ראו entered למעלה */}
@@ -691,65 +743,77 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             opacity: onStage ? 0.62 : 1,
             filter: onStage ? 'saturate(.85)' : 'none',
             transition: 'opacity .35s ease, filter .35s ease, flex-basis .35s ease',
+            ['--actions-rows' as string]: actionRows,
           }}
         >
-          {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה */}
-          {/* עטיפת fade — מעבר fade-out→fade-in בין הטקסט לאתגר (החלפת inline) */}
-          <div ref={typingScrollRef} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
-          {/* כשהאתגר פתוח — הוא מחליף את הנרטיב/הפעולות במקום (inline), ללא שכבת כיסוי */}
-          {/* עמוד הטקסט מחזיק נרטיב בלבד ואינו נמחק כשאתגר פעיל — התלמיד יכול
-              לחזור ולקרוא את ההקשר תוך כדי פתרון. */}
-          {(
-          <>
-          {/* חלון טקסט אחד — הנרטיב + דיבור ד"ר הולו מקופלים לתוכו כדיבור מצוטט.
-             מופיע רק אחרי שהסצנה "נחה" (reveal !== 'scene'), ב-materialize מרשים. */}
-          {reveal !== 'scene' && !transitioning && (scene.narrative || scene.drHoloDialog) && (
-            <DigitalEntrance instant={stageInstant} className="mt-6">
+          {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה.
+              אזור הטקסט: גובה קבוע, **בלי גלילה**; הטקסט מתחלק לעמודים (useScenePages). הוא נשאר גלוי
+              גם כשאתגר פעיל — התלמיד יכול לחזור לקרוא את ההקשר. */}
+          <div ref={textAreaRef} className="holo-text-area" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          {reveal !== 'scene' && !transitioning && !!sceneText && (
+            <DigitalEntrance instant={stageInstant}>
             <div className="holo-panel text-start">
-              {/* אין תווית "ד״ר הולו" מעל הטקסט: הנרטיב בגוף שלישי, והדיבור של
-                 הדוקטור כבר מסומן בתוך הפרוזה עצמה (ד״ר הולו אומר: "…") — תווית
-                 קבועה סימנה את כל החלון כדיבור שלו (סתירה) ואכלה גובה במצב רוחבי. */}
+              {/* אין תווית "ד״ר הולו" מעל הטקסט: הנרטיב בגוף שלישי, והדיבור של הדוקטור כבר מסומן
+                 בתוך הפרוזה עצמה (ד״ר הולו אומר: "…") — תווית קבועה אכלה גובה. */}
               <Typewriter
-                text={[
-                  scene.narrative,
-                  scene.drHoloDialog ? `ד״ר הולו אומר: "${scene.drHoloDialog}"` : null,
-                ].filter(Boolean).join('\n\n')}
+                key={pageKey}
+                text={pages[pageIdx] ?? sceneText}
                 scale={gameData.readingScale ?? 6}
                 /* ההקלדה מתחילה רק אחרי ה-materialize של הקופסה (שלב 'typing'); בסיומה → 'buttons' */
                 start={reveal === 'typing' || reveal === 'buttons'}
-                onDone={() => { setDoneSceneId(scene.id); setReveal('buttons') }}
-                /* ביקור חוזר/דילוג → הטקסט במלואו מיד, בלי הקלדה */
+                onDone={() => {
+                  setDonePageKey(pageKey)
+                  if (lastPage) { setDoneSceneId(scene.id); setReveal('buttons') }
+                }}
+                /* ביקור חוזר/דילוג → העמוד במלואו מיד, בלי הקלדה */
                 instant={engine.transitionDir === 'back' || skipped}
-                /* לחיצה שנייה מתקדמת רק כשהפעולה הזמינה היא "המשך" לינארי — אותו תנאי
-                   בדיוק של כפתור המשך/סיום, כך שאין שינוי בלוגיקת המשחק (רק טריגר חלופי). */
+                /* לחיצה שנייה: עמוד ביניים ← העמוד הבא; עמוד אחרון ← המשך לסצנה הבאה, רק כשהפעולה הזמינה היא
+                   "המשך" לינארי (אותו תנאי בדיוק של כפתור המשך/סיום — אין שינוי בלוגיקת המשחק) */
                 onAdvance={
-                  (!scene.puzzle || engine.puzzleSolved) && !engine.canCollect && !scene.choices?.length && !engine.gateLocked
-                    ? engine.advance
-                    : undefined
+                  !lastPage
+                    ? goNextPage
+                    : (!scene.puzzle || engine.puzzleSolved) && !engine.canCollect && !scene.choices?.length && !engine.gateLocked
+                      ? engine.advance
+                      : undefined
                 }
               />
             </div>
             </DigitalEntrance>
           )}
+          {/* הודעות מערכת — מרחפות מעל תחתית אזור הטקסט (לא משנות את הפריסה) */}
+          {engine.message && (
+            <div
+              className="holo-panel mx-auto"
+              style={{ position: 'absolute', insetInline: '0.4rem', bottom: '0.3rem', zIndex: 3, padding: '0.5rem 0.9rem', borderColor: 'rgba(255,200,0,0.4)', background: 'rgba(7,13,28,0.94)' }}
+            >
+              {engine.message}
+            </div>
+          )}
+          </div>
 
-          {/* פעולות — מרונדרות **רק** בשלב 'buttons', כלומר אחרי שההקלדה הסתיימה.
-             קודם הן היו תמיד ב-DOM עם visibility:hidden כדי "לשמור מקום", אבל
-             בפריסה החדשה עמוד הטקסט בגובה קבוע עם גלילה פנימית — אין מה לשמור,
-             והקופסה השמורה דחפה את "פתרו את האתגר" לראש העמוד עוד לפני הטקסט. */}
-          {/* אזור הכפתורים שמור תמיד בתחתית החלון, כך שקופסת הטקסט שמעליו לא
-              משנה גודל כשהם מופיעים. התוכן עצמו נכנס רק בשלב 'buttons' — כלומר
-              אחרי סיום ההקלדה — ולכן הוא גם לא מקדים את הטקסט. */}
-          <div className="holo-panel-actions">
-          {/* שער כפול: גם הטקסט הושלם **וגם** רצף החשיפה הגיע לשלב הכפתורים —
-              כך שום נתיב (reduced-motion / ביקור-חוזר / onDone מוקדם) לא יכול
-              להציג כפתור לפני שהטקסט נגמר בפועל. */}
-          {textDone && reveal === 'buttons' && !advancing && (
-          <div>
+          {/* אזור הפעולות — גובה שמור (לפי מספר הכפתורים המרבי בסצנה) בתחתית החלון, כך שתיבת הטקסט שמעליו
+              לא משנה גודל כשהם מופיעים. עמוד ביניים: "המשך ›" + "1/2". אחרי העמוד האחרון: כפתורי הסצנה.
+              שער כפול: גם הטקסט הושלם **וגם** רצף החשיפה הגיע לשלב הכפתורים — כך שום נתיב לא מציג כפתור
+              לפני שהטקסט נגמר בפועל. */}
+          <div className="holo-panel-actions" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          {pages.length > 1 && (
+            <span className="holo-page-indicator" data-page-indicator aria-label={`עמוד ${pageIdx + 1} מתוך ${pages.length}`}>
+              {pageIdx + 1}/{pages.length}
+            </span>
+          )}
+          {!lastPage && pageDone && !advancing && (
+            <DigitalEntrance key={`pg-${pageKey}`} instant={stageInstant} delay={0.05} className="flex flex-col items-center gap-3">
+              <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={goNextPage} data-next-page>
+                המשך ›
+              </button>
+            </DigitalEntrance>
+          )}
+          {lastPage && textDone && reveal === 'buttons' && !advancing && (
           <DigitalEntrance
             key={reveal === 'buttons' ? 'btns-in' : 'btns-wait'}
             instant={stageInstant || reveal !== 'buttons'}
             delay={0.05}
-            className="flex flex-col items-center gap-3 mt-8"
+            className="flex flex-col items-center gap-3 w-full"
           >
             {scene.puzzle && !engine.puzzleSolved && (
               <button className="holo-button text-lg" style={{ padding: '0.8rem 2rem' }} onClick={openPuzzle}>
@@ -769,29 +833,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
             {(!scene.puzzle || engine.puzzleSolved) && !engine.canCollect && (
               scene.choices?.length ? (
-                /* בחירות ניווט — מבנה Hub */
-                <div className="flex flex-col gap-3 w-full max-w-md">
-                  {scene.choices.map((c) => {
-                    const locked =
-                      !!c.requiredItemIds?.length &&
-                      c.requiredItemIds.some((id) => !engine.inventory.some((i) => i.id === id))
-                    return (
-                      <button
-                        key={c.id}
-                        className={`holo-button ${locked && engine.shakeGate ? 'gate-shake' : ''} ${engine.gateGlow ? 'gate-glow' : ''}`}
-                        style={{
-                          padding: '0.8rem 1.5rem',
-                          opacity: locked ? 0.75 : 1,
-                          ...(locked ? { background: 'rgba(0,60,100,0.5)', border: '1px solid rgba(0,246,255,0.3)' } : {}),
-                        }}
-                        onClick={() => engine.chooseChoice(c)}
-                      >
-                        {locked ? '🔒 ' : ''}
-                        {c.text}
-                      </button>
-                    )
-                  })}
-                </div>
+                /* בחירת ניווט יחידה — כפתור באזור הפעולות. 2+ בחירות מוצגות על הבמה (ראו choicesOnStage):
+                   רשימה אנכית של בחירות לא נכנסת בגובה אזור הפעולות, והגדלתו הייתה גוזלת את גובה הטקסט */
+                scene.choices.length === 1 ? <div className="flex flex-col gap-3 w-full max-w-md">{choiceButtons}</div> : null
               ) : engine.gateLocked ? (
                 /* שער נעול לינארי — אין כפתור; הלחיצה על החפץ ב-HUD היא הפעולה */
                 <div
@@ -811,20 +855,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               )
             )}
           </DigitalEntrance>
-          </div>
-          )}
-          </div>
-
-          {/* הודעות מערכת */}
-          {engine.message && (
-            <div
-              className="holo-panel mt-5 mx-auto inline-block"
-              style={{ padding: '0.6rem 1.2rem', borderColor: 'rgba(255,200,0,0.4)' }}
-            >
-              {engine.message}
-            </div>
-          )}
-          </>
           )}
           </div>
         </div>
@@ -873,12 +903,21 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* שכבת כהיה **מקומית** למלבן — האתגר קריא, והתמונה נשארת נוכחת מאחוריו */}
           {onStage && <div className="holo-stage-scrim" />}
           {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
+          {choicesOnStage && <div className="holo-stage-scrim" />}
+          {choicesOnStage && (
+            <div className="holo-stage" data-choices-stage>
+              <div className="holo-panel text-center" style={{ width: '100%', maxWidth: '30rem' }}>
+                <div className="holo-stage-instruction">לאן ממשיכים?</div>
+                <div className="flex flex-col gap-3 mt-3">{choiceButtons}</div>
+              </div>
+            </div>
+          )}
         </div>
         </div>{/* holo-scene-band */}
 
-        {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons'), כך שאינה בולעת קליקים
-            על הכפתורים אחרי שהופיעו. לחיצה/טאץ' מקפיצים לסוף הרצף. */}
-        {reveal !== 'buttons' && (
+        {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons' ולא אחרי שעמוד ביניים הוקלד), כך שאינה בולעת
+            קליקים על הכפתורים אחרי שהופיעו ("המשך ›" כולל). לחיצה/טאץ' מקפיצים לסוף הרצף. */}
+        {reveal !== 'buttons' && !(pageDone && !lastPage) && (
           <div
             aria-hidden
             onPointerDown={skipReveal}

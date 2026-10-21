@@ -38,6 +38,9 @@ import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE, SAFETY_TECH_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
+import { enforceSceneFit, analyzeQuest, bandOfGameData, type FitStats } from '../lib/sceneFit.js'
+import { proposeSceneShortening } from '../lib/sceneShorten.js'
+import { rateLimitByUser } from '../middleware/rateLimit.js'
 import { weakConceptsFromReview, reviewContextBlock } from '../lib/weakConcepts.js'
 import { groundCurriculum } from '../lib/factBrief.js'
 import { callGeminiText, callGeminiJSON } from '../lib/gemini.js'
@@ -120,6 +123,8 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       is_public: pub ? q.is_public === true : false,
       is_review: !!q.game_data?.reviewOf,
       sceneCount: q.game_data?.scenes?.length ?? 0,
+      /* כלל "אורך טקסט לתלמיד": כמה סצנות ארוכות מדי למסך אחד (לפי fitsScreen המכוילת; למורה בלבד) */
+      longSceneCount: q.game_data?.scenes ? analyzeQuest({ scenes: q.game_data.scenes as never }, bandOfGameData(q.game_data as { readingScale?: number })).long : 0,
       /* subject = שם לתצוגה; subjectCode = המזהה היציב; שניהם null = "לא סווג" */
       ...(await questSubjectOut({ subject: subj ? q.subject : undefined, subject_id: subjId ? (q.subject_id ?? null) : undefined })),
     })))
@@ -712,6 +717,26 @@ interface EditableEnding {
   drHoloExpression?: string
 }
 
+/* POST /api/quests/:id/scene/:sceneId/shorten — הצעת קיצור לסצנה ארוכה מדי למסך אחד (כלל "אורך טקסט לתלמיד").
+   body (אופציונלי): { narrative?, drHoloDialog? } — הטקסט הנוכחי בעורך (שטרם נשמר). לא שומר: מחזיר לפני/אחרי + בדיקות. */
+const shortenBodySchema = z.object({ narrative: z.string().max(4000).optional(), drHoloDialog: z.string().max(2000).optional() })
+questsRouter.post('/:id/scene/:sceneId/shorten', requireCreator, rateLimitByUser('scene-shorten', 12), async (req, res, next) => {
+  try {
+    const body = shortenBodySchema.safeParse(req.body ?? {})
+    if (!body.success) throw new AppError(400, 'בקשה לא תקינה')
+    const { data: quest, error } = await supabaseAdmin.from('quests').select('id, game_data, created_by, anon_id').eq('id', req.params.id).single()
+    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    const gd = quest.game_data as GameData & { readingScale?: number }
+    const scene = gd.scenes?.find((s) => s.id === req.params.sceneId)
+    if (!scene) throw new AppError(404, 'סצנה לא נמצאה')
+    const probe = { ...scene, ...(body.data.narrative !== undefined ? { narrative: body.data.narrative } : {}), ...(body.data.drHoloDialog !== undefined ? { drHoloDialog: body.data.drHoloDialog } : {}) }
+    res.json(await proposeSceneShortening(probe, { level: gd.readingScale ?? 10 }))
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* PATCH /api/quests/:id/scene — עדכון חלקי של שדות סצנה בתוך game_data
    body: { sceneId, narrative?, imagePrompt?, puzzle? } */
 questsRouter.patch('/:id/scene', requireCreator, async (req, res, next) => {
@@ -902,7 +927,7 @@ questsRouter.post('/:id/refine', requireCreator, async (req, res, next) => {
 
 /* מטא יצירה שנשמר בתוך game_data בזמן/בסיום היצירה — הקליינט עושה polling וקורא אותו.
    generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
-interface GenMeta { warnings?: string[]; hub?: HubInfo | null }
+interface GenMeta { warnings?: string[]; hub?: HubInfo | null; fit?: FitStats | null }
 
 /* ניתוב היצירה הראשית: Gemini (CONTENT_GEMINI) או Sonnet (callClaude, ברירת מחדל).
    ל-Gemini מקפלים שיחת-retry רב-הודעתית להודעת-user אחת (systemInstruction נפרד),
@@ -1141,6 +1166,19 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
     if (!gameData) throw new AppError(502, 'יצירת ההדמיה נכשלה')
 
+    /* כלל "אורך טקסט לתלמיד" (CLAUDE.md): סצנה שחורגת מגובה המסך — קיצור (בקשה אחת, עם העובדות שהאתגר נשען עליהן),
+       אחרת פיצול (סצנה ליניארית בלבד), אחרת סימון (התצוגה תחלק לעמודים). **לפני** בדיקת הבטיחות — כדי שהטקסט הסופי
+       הוא שנבדק; בדיקות העובדות/הדקדוק הרקעיות רצות עליו אחרי. best-effort: כשל לא מפיל את היצירה. */
+    let fitStats: FitStats | null = null
+    try {
+      fitStats = await enforceSceneFit(gameData, { level: clampLevel(params.difficultySettings?.puzzleDifficulty as number | undefined), form: params.formOfAddress ?? 'plural' })
+    } catch (err) {
+      logError('[gen] בדיקת אורך הטקסט נכשלה:', err instanceof Error ? err.message : err)
+    }
+    if (fitStats && fitStats.flagged > 0) {
+      warnings.push(`${fitStats.flagged} סצנות ארוכות מדי למסך אחד של התלמיד — הן יוצגו בכמה עמודים עם "המשך". אפשר לקצר אותן בעורך הסצנה.`)
+    }
+
     /* שכבת בטיחות — בדיקת פלט (רשת ביטחון, חוסמת *לפני* השמירה/החשיפה למורה בשורה
        למטה — לא ברקע כמו fact-check; תוכן חסום אסור שהמורה יראה אפילו לרגע) */
     const outputSafety = await runOutputSafetyCheck(gameData)
@@ -1194,7 +1232,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending', startedAt: new Date().toISOString() }
-    ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null }
+    ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null, fit: fitStats }
 
     /* עדכון השורה (שכבר נוצרה כ-stub) עם ה-game_data המוכן */
     const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)

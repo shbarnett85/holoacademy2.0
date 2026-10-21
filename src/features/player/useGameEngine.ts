@@ -184,6 +184,8 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const hiddenAtRef = useRef<number | null>(null)
   const hiddenByEnterRef = useRef<Map<number, number>>(new Map())
   const currentEnterTsRef = useRef<number>(0)
+  /* כלל אורך הטקסט: זמן (ms) על כל עמוד טקסט, לפי סצנה — sceneId → [עמוד 0, עמוד 1, …]. נצבר מקומית, נשלח ב-complete */
+  const pageMsRef = useRef<Map<string, number[]>>(new Map())
   const track = useCallback(
     (type: LocalEventType, sceneId?: string | null, payload: Record<string, unknown> = {}) => {
       const clientTs = Date.now()
@@ -559,6 +561,13 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   }), [])
   /* סימון סגירת הסצנה הנוכחית (יציאה באמצע) — לא נוסף ל-eventsRef כדי שחישובי ההיסטוריה לא יזוזו */
   const markSceneExit = useCallback(() => { closeTsRef.current = Date.now() }, [])
+  const recordPageTime = useCallback((sceneId: string, pageIdx: number, ms: number) => {
+    if (!(ms >= 0) || !Number.isFinite(ms)) return
+    const arr = pageMsRef.current.get(sceneId) ?? []
+    while (arr.length <= pageIdx) arr.push(0)
+    arr[pageIdx] += ms
+    pageMsRef.current.set(sceneId, arr)
+  }, [])
 
   /* שהייה אמיתית בסצנה האחרונה: הלשונית מוסתרת / הדף נסגר → חותמת סגירה, ובניכוי זמן הסתרה */
   useEffect(() => {
@@ -643,11 +652,14 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       const closeEnd = next ? ts(next) : Math.max(lastTs, closeTsRef.current)
       const hidden = hiddenByEnterRef.current.get(ts(e)) ?? 0
       const sc = sceneById.get(e.sceneId ?? '')
+      const pm = pageMsRef.current.get(e.sceneId ?? '')
       return {
         sceneId: e.sceneId ?? '',
         dwellMs: Math.max(0, end - ts(e)),
         wordCount: sc ? slideWordCount(sc) : 0,
         closedDwellMs: Math.max(0, closeEnd - ts(e) - hidden),
+        /* כלל אורך הטקסט: מספר העמודים שהוצגו וזמן על כל עמוד (לניתוח זמן קריאה) */
+        ...(pm && pm.length ? { pages: pm.length, pageMs: pm.map((x) => Math.round(x)) } : {}),
       }
     })
 
@@ -733,6 +745,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     recordPresentation,
     exportTelemetry,
     markSceneExit,
+    recordPageTime,
     getAnalytics,
     collectCurrentItem,
     restart,

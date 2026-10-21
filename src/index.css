@@ -310,11 +310,15 @@ html.holo-playing { font-size: 144%; }
    מחוץ למסך. לכן הכרום (מסגרת ציאן, זוהר, רקע) עבר לחלון עצמו, שגובהו קבוע,
    והתוכן פשוט גולל בתוכו. */
 .holo-side-panel > * { width: 100%; }
-/* אזור התוכן הגליל — כל מה שמעל אזור הכפתורים */
-.holo-side-panel > *:first-child {
+/* ── אזור הטקסט: גובה קבוע, **בלי גלילה לעולם** ──
+   כלל "אורך טקסט לתלמיד" (CLAUDE.md): טקסט שלא נכנס בגובה התיבה לא גולל — הוא מתחלק לעמודים
+   (useScenePages) עם "המשך ›". הגופן לא מוקטן. overflow:hidden רק כרשת ביטחון ויזואלית. */
+.holo-side-panel > .holo-text-area {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
+  position: relative;
+  padding: 0.4rem 0.2rem;
 }
 /* הקופסה הפנימית מאבדת כרום כפול — המסגרת היא כבר החלון */
 .holo-side-panel .holo-panel {
@@ -323,19 +327,36 @@ html.holo-playing { font-size: 144%; }
   box-shadow: none;
   backdrop-filter: none;
   margin: 0;
-  padding: 0.9rem 0.2rem;
+  padding: 0;
 }
 /* אזור הכפתורים — גובה שמור קבוע, כדי שאזור הטקסט לא ישנה גודל כשהם מופיעים */
 @keyframes holo-actions-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
 .holo-panel-actions > * { animation: holo-actions-in .22s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .holo-panel-actions > * { animation: none } }
 
+/* גובה שמור לפי מספר הכפתורים המרבי בסצנה (--actions-rows, נקבע ב-GameScreen) — כך גובה תיבת הטקסט,
+   ולכן גם חלוקת העמודים, יציב גם כשהבחירות/האתגר מופיעים אחרי העמוד האחרון. */
 .holo-panel-actions {
   flex: 0 0 auto;
-  min-height: 4.2rem;
+  min-height: calc(var(--actions-rows, 1) * 4.3rem + 0.6rem);
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.5rem;
+  padding-block: 0.3rem;
+}
+/* "1/2" — מחוון עמוד, בפינת אזור הפעולות (לא מתנגש עם הכפתור הממורכז) */
+.holo-page-indicator {
+  position: absolute;
+  inset-block-start: 0.15rem;
+  inset-inline-start: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(190, 240, 255, 0.85);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 /* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
    (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
@@ -492,6 +513,8 @@ html.holo-playing { font-size: 144%; }
 
   /* פאנל הנרטיב — פחות ריפוד אנכי, כדי שהטקסט ייכנס ל-~270px הפנויים */
   .holo-playing .holo-panel { padding-block: 0.75rem; }
+  /* בתוך עמוד הטקסט הריפוד האנכי מוגדר ע"י .holo-text-area — לא מוסיפים עוד */
+  .holo-playing .holo-side-panel .holo-panel { padding-block: 0; }
 
   /* ── רוחב במובייל: הגובה נדיר, הרוחב יש בשפע ──
      הפאנל מצטמצם לרצועה צדדית והבמה מקבלת את רוב הרוחב. שניהם ממלאים את
@@ -518,6 +541,21 @@ html.holo-playing { font-size: 144%; }
   .holo-hud-bottom {
     padding-inline: max(var(--hud-pad-x, 1rem), env(safe-area-inset-left), env(safe-area-inset-right));
   }
+}
+
+@media (max-height: 700px) and (min-height: 501px) {
+  .holo-stage .holo-answers { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .8rem; }
+  .holo-stage .holo-answers > * { margin: 0 !important; }
+  .holo-stage .holo-answers > .holo-button { padding: .55rem .6rem !important; }
+  .holo-stage .holo-panel { padding-block: 1.1rem; }
+  .holo-stage-instruction { margin: .5rem 0 .2rem; }
+}
+
+/* בחירה מרובה עם 5–6 אפשרויות: רשימה אנכית לא נכנסת בגובה הבמה גם ב-768 (נמדד: גלישה של 55px עם 5, 143px עם 6,
+   אפילו עם שאלה של 4 מילים) — שתי עמודות. מ-901px גובה ומעלה הרשימה האנכית נכנסת כרגיל. */
+@media (max-height: 900px) {
+  .holo-stage .holo-answers:has(> :nth-child(5)) { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .holo-stage .holo-answers:has(> :nth-child(5)) > * { margin: 0 !important; }
 }
 
 html {

@@ -125,6 +125,7 @@ export default function QuestPreview() {
       patchScene={patchScene}
       patchEnding={patchEnding}
       objectives={result.game_data.objectives}
+      readingScale={result.game_data.readingScale}
       actions={
         <WorkspaceActions
           onSave={() => { reset(); navigate('/creator/library') }}

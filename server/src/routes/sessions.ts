@@ -305,12 +305,15 @@ const challengeSchema = z.object({
   solveTimeMs: z.number().nullable().optional(),
   shards: z.number().optional(),
 })
-const sceneTimeSchema = z.object({
+export const sceneTimeSchema = z.object({
   sceneId: z.string(),
   dwellMs: z.number().nonnegative(),
   /* 1B — שדות טלמטריה: פגומים לא מפילים את ה-complete (catch → undefined) */
   wordCount: z.number().int().min(0).max(20000).optional().catch(undefined),
   closedDwellMs: z.number().min(0).max(86_400_000).optional().catch(undefined),
+  /* כלל אורך הטקסט לתלמיד: מספר עמודי הטקסט שהוצגו + זמן על כל עמוד (פגום → נזרק, לא מפיל) */
+  pages: z.number().int().min(1).max(50).optional().catch(undefined),
+  pageMs: z.array(z.number().min(0).max(86_400_000)).max(50).optional().catch(undefined),
 })
 const summarySchema = z.object({
   totalChallenges: z.number().int().nonnegative(),
@@ -372,6 +375,8 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
       const sp: Record<string, unknown> = { dwellMs: s.dwellMs }
       if (s.wordCount !== undefined) sp.word_count = s.wordCount
       if (s.closedDwellMs !== undefined) sp.closed_dwell_ms = Math.round(s.closedDwellMs)
+      if (s.pages !== undefined) sp.pages = s.pages
+      if (s.pageMs !== undefined) sp.page_ms = s.pageMs.map((x) => Math.round(x))
       rows.push({ ...base, type: 'scene_enter', scene_id: s.sceneId, payload: sp })
     }
     if (summary) {

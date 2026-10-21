@@ -41,6 +41,8 @@ interface Props {
   onTitleSave?: (newTitle: string) => Promise<void> | void
   /* יעדי הלמידה של ההדמיה — לבורר התיוג במודאל עריכת הסצנה */
   objectives?: { id: string; text: string }[]
+  /* רמת הטקסט של ההדמיה (game_data.readingScale) — שכבת הגיל לבדיקת אורך הטקסט בעורך */
+  readingScale?: number | null
 }
 
 /* כפתור פעולה בעיצוב הטיוטות — primary (גרדיאנט) / ghost (זכוכית ציאן) / play (זכוכית סגולה).
@@ -230,7 +232,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
 
 /* סביבת עבודה משותפת על הדמיה — כרטיסי סצנות, יצירה/עריכת תמונות, עריכת סצנה.
    זהה לחלון שלאחר יצירה (QuestPreview) ולמצב טיוטה מהספרייה (QuestView). */
-export default function QuestWorkspace({ questId, title, subtitle, scenes, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions, onTitleSave, objectives }: Props) {
+export default function QuestWorkspace({ questId, title, subtitle, scenes, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions, onTitleSave, objectives, readingScale }: Props) {
   const [imgProgress, setImgProgress] = useState<ImageProgress | null>(null)
   const [imgWarnings, setImgWarnings] = useState<string[]>([])
   const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null)
@@ -596,6 +598,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           onRegenerateImage={regenerateImage}
           regenerating={regeneratingSceneId === editingScene.id}
           objectives={objectives}
+          readingScale={readingScale}
         />
       )}
 
