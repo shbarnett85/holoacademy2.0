@@ -49,6 +49,8 @@ const AI_OVERLAY_SETTLED = '[data-ai-overlay] [data-ai-summary]:not([data-ai-sta
 const AI_OVERLAY_READY = '[data-ai-overlay] [data-ai-summary][data-ai-state="ready"]'
 
 const LOCKED_TAB = '[role="tab"][aria-disabled="true"]'
+/* טאב נעול שאינו "טעויות נפוצות" (שנעול בכוונה כשהקטלוג ריק בחשבון אמיתי) */
+const LOCKED_TAB_NOT_ERRORS = '[role="tab"][aria-disabled="true"]:not([data-tab-id="errors"])'
 const PREV_VIEW: Target = { role: 'link', name: 'התצוגה הקודמת' }
 const BACK_TO_NEW: Target = { role: 'link', name: 'חזרה לתצוגה החדשה' }
 const SUMMARY_BUTTON: Target = { role: 'button', name: 'סיכום מד״ר הולו' }
@@ -197,7 +199,7 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'analytics-class-summary', group: 'analytics', who: [...GUEST_TEACHERS, ...V2_HOMEROOM, ...V2_SUBJECT],
     url: '/analytics/class/{classId}?tab={subject}&sub=summary', inner: true, clicksFromMainTab: 1, ready: V2_READY,
-    expectBy: { ...forAll(V2_HOMEROOM, { absent: [LOCKED_TAB] }), ...forAll(V2_SUBJECT, { present: [LOCKED_TAB] }) },
+    expectBy: { ...forAll(V2_HOMEROOM, { absent: [LOCKED_TAB_NOT_ERRORS] }), ...forAll(V2_SUBJECT, { present: [LOCKED_TAB] }) },
     note: 'טאב מקצוע › סיכום. לחיצה אחת: כפתור המקצוע בכרטיס הכיתה במסך הכניסה (נתיב: אנליטיקה › כיתה › מקצוע). מורה מקצועי: סקירה ושאר המקצועות נעולים',
   },
   {
