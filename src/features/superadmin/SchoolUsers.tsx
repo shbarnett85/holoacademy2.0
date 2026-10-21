@@ -8,6 +8,8 @@ interface AdminUser {
   role: 'teacher' | 'admin' | 'super_admin' | 'student'
   school_id: string | null
   is_active: boolean
+  /* 'pending' = בקשת הצטרפות של מורה שנרשם לבית ספר קיים וממתין לאישור */
+  approval_status?: 'pending' | null
 }
 
 const ROLE_LABEL: Record<string, string> = { teacher: 'מורה', admin: 'מנהל', super_admin: 'מנהל-על', student: 'תלמיד' }
@@ -37,6 +39,17 @@ export default function SchoolUsers({ schoolId, schoolName, onBack }: { schoolId
     setConfirm(null)
     try {
       await apiFetch(`/api/admin/users/${user.id}/${active ? 'reactivate' : 'deactivate'}`, { method: 'POST' })
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'שגיאה')
+    }
+  }
+
+  /* בקשת הצטרפות ממתינה: אישור/דחייה דרך נתיבי בקשות ההצטרפות (בודקים שהמייל אומת) */
+  async function decide(user: AdminUser, action: 'approve' | 'reject') {
+    setError(null)
+    try {
+      await apiJson(`/api/staff/teacher-requests/${user.id}/${action}`, { method: 'POST' })
       load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'שגיאה')
@@ -94,7 +107,7 @@ export default function SchoolUsers({ schoolId, schoolName, onBack }: { schoolId
       ) : (
         <div className="flex flex-col gap-2">
           {users.map((u) => (
-            <div key={u.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: u.is_active ? 1 : 0.45 }}>
+            <div key={u.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: u.is_active || u.approval_status === 'pending' ? 1 : 0.45 }}>
               <div className="flex items-center gap-3">
                 <span className="font-bold">{u.name}</span>
                 <span className="text-xs rounded-full px-2 py-0.5" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>{ROLE_LABEL[u.role] ?? u.role}</span>
@@ -104,10 +117,15 @@ export default function SchoolUsers({ schoolId, schoolName, onBack }: { schoolId
                     ? { background: 'rgba(0,255,150,0.15)', border: '1px solid rgba(0,255,150,0.5)', color: '#5fffb0' }
                     : { background: 'rgba(255,120,150,0.12)', border: '1px solid rgba(255,120,150,0.5)', color: '#ff9bb3' }}
                 >
-                  {u.is_active ? '● פעיל' : '○ מושבת'}
+                  {u.approval_status === 'pending' ? '⏳ ממתין לאישור' : u.is_active ? '● פעיל' : '○ מושבת'}
                 </span>
               </div>
-              {u.is_active ? (
+              {u.approval_status === 'pending' ? (
+                <div className="flex gap-2">
+                  <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,255,150,0.4)', color: '#5fffb0', background: 'transparent' }} onClick={() => decide(u, 'approve')}>אישור</button>
+                  <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3', background: 'transparent' }} onClick={() => decide(u, 'reject')}>דחייה</button>
+                </div>
+              ) : u.is_active ? (
                 <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3', background: 'transparent' }} onClick={() => setConfirm({ user: u })}>השבתה</button>
               ) : (
                 <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,255,150,0.4)', color: '#5fffb0', background: 'transparent' }} onClick={() => setActive(u, true)}>הפעלה</button>

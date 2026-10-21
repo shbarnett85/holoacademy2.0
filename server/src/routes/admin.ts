@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireSuperAdmin } from '../middleware/staffAuth.js'
-import { hasQuestReports, hasFictitious } from '../lib/activeColumn.js'
+import { hasQuestReports, hasFictitious, hasApprovalStatus } from '../lib/activeColumn.js'
 
 /* כל ה-routes כאן מוגנים ב-requireSuperAdmin (role=super_admin בלבד) */
 export const adminRouter = Router()
@@ -138,7 +138,10 @@ async function setSchoolActive(schoolId: string, active: boolean): Promise<void>
   const withActive = await hasIsActive()
   if (withActive) {
     await supabaseAdmin.from('schools').update({ is_active: active }).eq('id', schoolId)
-    await supabaseAdmin.from('users').update({ is_active: active }).eq('school_id', schoolId)
+    let uq = supabaseAdmin.from('users').update({ is_active: active }).eq('school_id', schoolId)
+    /* הפעלה מחדש של בית ספר לא מאשרת בקשות הצטרפות ממתינות — הן נשארות לא-פעילות עד אישור מפורש */
+    if (active && (await hasApprovalStatus())) uq = uq.is('approval_status', null)
+    await uq
   }
   /* חסימת/שחרור התחברות לכל אנשי הצוות של בית הספר (עובד גם ללא העמודה) */
   const { data: staff } = await supabaseAdmin.from('users').select('auth_id').eq('school_id', schoolId)
@@ -171,9 +174,10 @@ adminRouter.post('/schools/:id/reactivate', async (req, res, next) => {
 adminRouter.get('/users', async (req, res, next) => {
   try {
     const withActive = await hasIsActive()
+    const withApproval = await hasApprovalStatus()
     let query = supabaseAdmin
       .from('users')
-      .select(withActive ? 'id, name, role, school_id, auth_id, is_active, can_share' : 'id, name, role, school_id, auth_id, can_share')
+      .select('id, name, role, school_id, auth_id, can_share' + (withActive ? ', is_active' : '') + (withApproval ? ', approval_status' : ''))
       .order('name')
     const schoolId = req.query.schoolId
     if (typeof schoolId === 'string' && schoolId) query = query.eq('school_id', schoolId)
@@ -183,12 +187,13 @@ adminRouter.get('/users', async (req, res, next) => {
     if (error) throw new AppError(500, 'שגיאה בשליפת משתמשים: ' + error.message)
     const banned = await bannedAuthIds()
     res.json({
-      users: ((data ?? []) as unknown as { id: string; name: string; role: string; school_id: string | null; auth_id: string | null; is_active?: boolean; can_share?: boolean }[]).map((u) => ({
+      users: ((data ?? []) as unknown as { id: string; name: string; role: string; school_id: string | null; auth_id: string | null; is_active?: boolean; can_share?: boolean; approval_status?: string | null }[]).map((u) => ({
         id: u.id,
         name: u.name,
         role: u.role,
         school_id: u.school_id,
         can_share: u.can_share !== false,
+        approval_status: u.approval_status === 'pending' ? 'pending' : null,
         is_active: u.is_active !== false && !(u.auth_id && banned.has(u.auth_id)),
       })),
     })
@@ -281,6 +286,13 @@ adminRouter.patch('/schools/:id/policy', async (req, res, next) => {
 /* השבתה/הפעלה של משתמש בודד — ban (עובד תמיד) + is_active אם קיים */
 async function setSingleUserActive(userId: string, active: boolean): Promise<void> {
   const { data: u } = await supabaseAdmin.from('users').select('auth_id').eq('id', userId).single()
+  /* בקשת הצטרפות ממתינה מאושרת רק דרך teacher-requests/:id/approve (שבודק שהמייל אומת) */
+  if (active && (await hasApprovalStatus())) {
+    const { data: ap } = await supabaseAdmin.from('users').select('approval_status').eq('id', userId).maybeSingle()
+    if ((ap as { approval_status?: string | null } | null)?.approval_status === 'pending') {
+      throw new AppError(409, 'זו בקשת הצטרפות ממתינה — יש לאשר או לדחות אותה (בקשות הצטרפות), לא להפעיל')
+    }
+  }
   await setBan((u as { auth_id: string | null } | null)?.auth_id, !active)
   if (await hasIsActive()) await supabaseAdmin.from('users').update({ is_active: active }).eq('id', userId)
 }

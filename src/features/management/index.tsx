@@ -5,6 +5,7 @@ import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import ConfirmModal from '../superadmin/ConfirmModal'
 import ClassManage from './ClassManage'
 import DemoDataPanel from './DemoDataPanel'
+import TeacherRequests from './TeacherRequests'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
@@ -111,6 +112,9 @@ export default function ManagementPanel() {
             <Stat label="כיתות" value={classes.length} />
             <Stat label="תלמידים" value={totalStudents} />
           </div>
+
+          {/* בקשות הצטרפות של מורים שנרשמו לבית הספר — מוצג רק כשיש */}
+          <TeacherRequests onChanged={load} />
 
           {/* מורים */}
           <div className="w-full flex justify-between items-center mt-2">

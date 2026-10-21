@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { apiJson } from '../../shared/lib/api'
+import { apiJson, ApiError } from '../../shared/lib/api'
 import { setSession, type StaffSession } from '../../shared/lib/staffSession'
 import EntryShell from '../../shared/ui/EntryShell'
 import WelcomeBurst from '../../shared/ui/WelcomeBurst'
@@ -26,8 +26,17 @@ export default function StaffLogin() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  /* חזרה מקישור אימות המייל (?verified=1). קישור שפג תוקף חוזר עם error_code=otp_expired ב-hash. */
+  const [verified] = useState(() => new URLSearchParams(window.location.search).get('verified') === '1' && !window.location.hash.includes('error'))
+  const [linkExpired] = useState(() => window.location.hash.includes('otp_expired'))
+  const [error, setError] = useState<string | null>(linkExpired ? 'קישור האימות פג תוקף — אפשר לשלוח אחר' : null)
   const [shake, setShake] = useState(false)
+  const [needsConfirm, setNeedsConfirm] = useState(linkExpired)
+  const [resent, setResent] = useState(false)
+  /* ה-hash מהקישור נושא access_token של Supabase — מנקים אותו מהכתובת וההיסטוריה */
+  useEffect(() => {
+    if (window.location.hash || window.location.search) window.history.replaceState(null, '', window.location.pathname)
+  }, [])
   /* מעבר חגיגי אחרי התחברות מוצלחת — מציג WelcomeBurst ואז מנווט */
   const [welcome, setWelcome] = useState<{ name: string; role: StaffSession['staff']['role']; to: string } | null>(null)
 
@@ -65,10 +74,21 @@ export default function StaffLogin() {
       setWelcome({ name: staff.name, role: staff.role, to: staff.role === 'super_admin' ? '/admin' : '/creator' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ההתחברות נכשלה')
+      setNeedsConfirm(err instanceof ApiError && err.code === 'EMAIL_NOT_CONFIRMED')
       setShake(true)
       setTimeout(() => setShake(false), 500)
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function resendConfirmation() {
+    if (!/S+@S+/.test(email)) { setError('הזינו את כתובת האימייל כדי לשלוח שוב את מייל האימות'); return }
+    try {
+      await apiJson('/api/auth/resend-confirmation', { method: 'POST', body: JSON.stringify({ email: email.trim() }) })
+      setResent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'השליחה נכשלה')
     }
   }
 
@@ -109,7 +129,13 @@ export default function StaffLogin() {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="••••••••" style={{ ...fieldStyle, fontSize: 18, letterSpacing: '.12em' }} />
         </div>
 
-        {error && <p style={{ fontSize: 13, color: '#ff9bb3', marginBottom: 18 }}>⚠️ {error}</p>}
+        {verified && !error && <p style={{ fontSize: 13, color: '#5fffb0', marginBottom: 18 }}>✓ כתובת האימייל אושרה — אפשר להתחבר</p>}
+        {error && <p style={{ fontSize: 13, color: '#ff9bb3', marginBottom: needsConfirm ? 8 : 18 }}>⚠️ {error}</p>}
+        {(needsConfirm || linkExpired) && (
+          <button onClick={resendConfirmation} disabled={resent} style={{ background: 'none', border: 'none', cursor: resent ? 'default' : 'pointer', color: 'var(--holo-cyan-bright)', fontSize: 13, marginBottom: 18, textDecoration: 'underline', fontFamily: 'var(--font-display)' }}>
+            {resent ? 'מייל האימות נשלח ✓' : 'שלחו שוב את מייל האימות'}
+          </button>
+        )}
 
         <div style={{ display: 'flex', gap: 12 }}>
           <button

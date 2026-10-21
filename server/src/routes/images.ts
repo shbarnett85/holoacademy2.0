@@ -157,7 +157,7 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
 
@@ -226,7 +226,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
     const artStyle = (style || quest.art_style) as string | undefined

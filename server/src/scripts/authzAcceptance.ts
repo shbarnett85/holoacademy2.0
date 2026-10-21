@@ -298,12 +298,18 @@ async function main() {
     const slugSelf = 'zz-authz-self-' + randomBytes(3).toString('hex')
     const selfEmail = `${slugSelf}@example.com`
     const selfPass = randomBytes(18).toString('base64url')
-    const su = await fetch(API + '/auth/staff-signup', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: selfEmail, password: selfPass, name: 'zz-authz self', role: 'teacher', newSchoolName: slugSelf }),
-    })
-    const suJson = (await su.json()) as { user?: { id: string; school_id: string } }
-    check('הרשמה עצמית של מורה בלי מנהל: 201', su.status === 201 && !!suJson.user?.id, 'status=' + su.status)
+    /* הרשמה עצמית דורשת עכשיו אימות מייל (ו-Supabase דוחה כתובות example.com בשליחה), לכן כאן מקימים
+       ישירות את המצב שנוצר *אחרי* הרשמה + אימות: בית ספר חדש + מורה בודד (teacher). נתיב ההרשמה עצמו
+       (כולל חסימת role=admin בבית ספר קיים, אימות מייל ואישור הצטרפות) נבדק ב: npm run signup:accept */
+    const { data: selfSch, error: selfSchErr } = await supabaseAdmin.from('schools').insert({ name: slugSelf, slug: slugSelf }).select('id').single()
+    if (selfSchErr || !selfSch) throw new Error('self school: ' + selfSchErr?.message)
+    const { data: selfAu, error: selfAuErr } = await supabaseAdmin.auth.admin.createUser({ email: selfEmail, password: selfPass, email_confirm: true })
+    if (selfAuErr || !selfAu.user) throw new Error('self createUser: ' + selfAuErr?.message)
+    const { data: selfUser, error: selfUserErr } = await supabaseAdmin.from('users')
+      .insert({ name: 'zz-authz self', role: 'teacher', school_id: selfSch.id, auth_id: selfAu.user.id }).select('id, school_id').single()
+    if (selfUserErr || !selfUser) throw new Error('self users insert: ' + selfUserErr?.message)
+    const suJson = { user: { id: selfUser.id as string, school_id: selfUser.school_id as string } }
+    check('מורה שנרשם לבד בלי מנהל (מצב אחרי אימות מייל): נוצר', !!suJson.user?.id)
     if (suJson.user) {
       cleanup.users.push(suJson.user.id)
       selfSchool = suJson.user.school_id

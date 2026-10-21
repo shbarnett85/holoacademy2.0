@@ -6,9 +6,11 @@ import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { hasIsActive, hasApprovalStatus, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
 import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
+import { canManageJoinRequest } from '../lib/staffSignup.js'
+import { info as logInfo } from '../lib/log.js'
 import { subjectByCode, subjectById } from '../lib/subjects.js'
 import { isSubjectCode, subjectName as subjectNameOf } from '../../../src/shared/lib/subjects.js'
 
@@ -138,6 +140,11 @@ async function loadSchoolUser(req: Request, userId: string, role: 'teacher' | 's
     .eq('id', userId)
     .single()
   if (error || !u || u.role !== role) throw new AppError(404, role === 'teacher' ? 'מורה לא נמצא' : 'תלמיד לא נמצא')
+  /* מנהל (לא מנהל-על) מוגבל לבית ספרו. בלי הבדיקה הזו מנהל של בית ספר אחד יכול היה להשבית/להפעיל
+     מורים של בית ספר אחר — ובכלל זה "להפעיל" בקשת הצטרפות ממתינה ולעקוף את האישור. */
+  if (isAdmin(req) && req.staff!.role !== 'super_admin' && (u as { school_id: string | null }).school_id !== req.staff!.schoolId) {
+    throw new AppError(403, role === 'teacher' ? 'המורה אינו בבית ספרך' : 'התלמיד אינו בבית ספרך')
+  }
   return u
 }
 
@@ -153,6 +160,8 @@ staffRouter.get('/teachers', async (req, res, next) => {
       .select(withActive ? 'id, name, role, is_active' : 'id, name, role')
       .eq('role', 'teacher')
     if (req.staff!.schoolId) tq = tq.eq('school_id', req.staff!.schoolId)
+    /* בקשות הצטרפות ממתינות מוצגות בנפרד (teacher-requests) ולא כ"מורים מושבתים" */
+    if (await hasApprovalStatus()) tq = tq.is('approval_status', null)
     const { data, error } = await tq.order('name')
     if (error) throw new AppError(500, 'שגיאה בשליפת מורים: ' + error.message)
     const teachers = (data ?? []) as unknown as { id: string; name: string; is_active?: boolean }[]
@@ -216,8 +225,19 @@ staffRouter.post('/teachers', async (req, res, next) => {
   }
 })
 
+/* האם המשתמש הוא בקשת הצטרפות שטרם אושרה (approval_status='pending') */
+async function isPendingJoinRequest(userId: string): Promise<boolean> {
+  if (!(await hasApprovalStatus())) return false
+  const { data } = await supabaseAdmin.from('users').select('approval_status').eq('id', userId).maybeSingle()
+  return (data as { approval_status?: string | null } | null)?.approval_status === 'pending'
+}
+
 async function setUserActive(req: Request, userId: string, role: 'teacher' | 'student', active: boolean, res: import('express').Response) {
   if (isAdmin(req)) await loadSchoolUser(req, userId, role)
+  /* בקשת הצטרפות ממתינה מופעלת רק דרך אישור מפורש (teacher-requests/:id/approve), לא דרך "הפעלה" */
+  if (active && role === 'teacher' && (await isPendingJoinRequest(userId))) {
+    throw new AppError(409, 'זו בקשת הצטרפות ממתינה — אשרו או דחו אותה בלשונית "בקשות הצטרפות"')
+  }
   if (!(await hasIsActive('users'))) requireMigration()
   const { error } = await supabaseAdmin.from('users').update({ is_active: active }).eq('id', userId)
   if (error) throw new AppError(500, 'שגיאה בעדכון הסטטוס: ' + error.message)
@@ -229,6 +249,98 @@ staffRouter.post('/teachers/:id/deactivate', async (req, res, next) => {
 })
 staffRouter.post('/teachers/:id/reactivate', async (req, res, next) => {
   try { requireAdminRole(req); await setUserActive(req, req.params.id, 'teacher', true, res) } catch (e) { next(e) }
+})
+
+/* ── בקשות הצטרפות של מורים (הרשמה עצמית לבית ספר קיים) ──────────────────────────
+   מורה שנרשם לבית ספר קיים נוצר approval_status='pending' (+ is_active=false כשהעמודה קיימת), ואינו
+   יכול להתחבר עד אישור — האכיפה על approval_status ב-staff-login וב-requireStaff. מאשרים: מנהל / מנהל ארגון של אותו בית ספר בלבד, או מנהל-על (לכל בית ספר —
+   גם כזה בלי מנהל). אישור דורש גם שהמייל אומת — מי שלא לחץ על קישור האימות לא יכול להתחבר ממילא. */
+
+type PendingRow = { id: string; name: string; role: string; school_id: string | null; auth_id: string | null; approval_status?: string | null; created_at?: string | null }
+
+async function loadPendingRequest(req: Request, id: string): Promise<PendingRow> {
+  if (!(await hasApprovalStatus())) throw new AppError(503, 'בקשות הצטרפות דורשות את migrations/staff_signup_approval.sql')
+  const { data } = await supabaseAdmin.from('users').select('*').eq('id', id).maybeSingle()
+  const u = data as PendingRow | null
+  /* אותה תגובה (404) לכל מי שאינו בקשה ממתינה שבסמכותך — לא חושפים משתמשים של בתי ספר אחרים */
+  if (!u || u.role !== 'teacher' || u.approval_status !== 'pending' || !canManageJoinRequest(req.staff!, u.school_id)) {
+    throw new AppError(404, 'בקשת ההצטרפות לא נמצאה')
+  }
+  return u
+}
+
+async function authEmailState(authId: string | null): Promise<{ email: string; verified: boolean }> {
+  if (!authId) return { email: '', verified: false }
+  const { data } = await supabaseAdmin.auth.admin.getUserById(authId)
+  return { email: data?.user?.email ?? '', verified: !!data?.user?.email_confirmed_at }
+}
+
+staffRouter.get('/teacher-requests', async (req, res, next) => {
+  try {
+    requireAdminRole(req)
+    if (!(await hasApprovalStatus())) { res.json({ requests: [] }); return }
+    let q = supabaseAdmin.from('users').select('*').eq('role', 'teacher').eq('approval_status', 'pending')
+    if (req.staff!.role !== 'super_admin') {
+      if (!req.staff!.schoolId) { res.json({ requests: [] }); return }
+      q = q.eq('school_id', req.staff!.schoolId)
+    }
+    const { data, error } = await q.limit(100)
+    if (error) throw new AppError(500, 'שגיאה בשליפת בקשות: ' + error.message)
+    const rows = (data ?? []) as PendingRow[]
+    const schoolIds = [...new Set(rows.map((r) => r.school_id).filter((x): x is string => !!x))]
+    const schoolNames = new Map<string, string>()
+    if (schoolIds.length) {
+      const { data: ss } = await supabaseAdmin.from('schools').select('id, name').in('id', schoolIds)
+      for (const sc of (ss ?? []) as { id: string; name: string }[]) schoolNames.set(sc.id, sc.name)
+    }
+    const requests = await Promise.all(rows.map(async (r) => {
+      const st = await authEmailState(r.auth_id)
+      return {
+        id: r.id, name: r.name, email: st.email, emailVerified: st.verified,
+        schoolId: r.school_id, schoolName: (r.school_id && schoolNames.get(r.school_id)) || '',
+        requestedAt: r.created_at ?? null,
+      }
+    }))
+    res.json({ requests })
+  } catch (err) {
+    next(err)
+  }
+})
+
+staffRouter.post('/teacher-requests/:id/approve', async (req, res, next) => {
+  try {
+    requireAdminRole(req)
+    const u = await loadPendingRequest(req, req.params.id)
+    const st = await authEmailState(u.auth_id)
+    if (!st.verified) throw new AppError(409, 'המייל של המבקש/ת טרם אומת — אפשר לאשר רק אחרי שלחצו על קישור האימות')
+    /* עדכון מותנה — לא מאשרים פעמיים/בתחרות עם דחייה */
+    const { data: upd, error } = await supabaseAdmin
+      .from('users').update({ approval_status: null, ...((await hasIsActive('users')) ? { is_active: true } : {}) })
+      .eq('id', u.id).eq('approval_status', 'pending').select('id')
+    if (error) throw new AppError(500, 'האישור נכשל: ' + error.message)
+    if (!upd || upd.length !== 1) throw new AppError(404, 'בקשת ההצטרפות לא נמצאה')
+    logInfo('[teacher-requests] אושרה בקשה', u.id, 'על ידי', req.staff!.userId)
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+staffRouter.post('/teacher-requests/:id/reject', async (req, res, next) => {
+  try {
+    requireAdminRole(req)
+    const u = await loadPendingRequest(req, req.params.id)
+    /* מוחקים רק שורה שעדיין ממתינה (מותנה), ואז את חשבון ה-Auth — הכתובת מתפנה להרשמה מחדש */
+    const { data: del, error } = await supabaseAdmin
+      .from('users').delete().eq('id', u.id).eq('approval_status', 'pending').select('id')
+    if (error) throw new AppError(500, 'הדחייה נכשלה: ' + error.message)
+    if (!del || del.length !== 1) throw new AppError(404, 'בקשת ההצטרפות לא נמצאה')
+    if (u.auth_id) await supabaseAdmin.auth.admin.deleteUser(u.auth_id).catch(() => {})
+    logInfo('[teacher-requests] נדחתה בקשה', u.id, 'על ידי', req.staff!.userId)
+    res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
 })
 
 /* ── כיתות ── */

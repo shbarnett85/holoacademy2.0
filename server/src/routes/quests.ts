@@ -88,7 +88,7 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
 
 
 
-/* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה הכול. */
+/* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה את בית הספר שלו. */
 questsRouter.get('/', requireCreator, async (req, res, next) => {
   try {
     const [pub, subj, subjId] = await Promise.all([hasPublicQuests(), hasQuestSubject(), hasQuestSubjectId()])
@@ -98,7 +98,16 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       .select(cols)
       .order('created_at', { ascending: false })
     if (req.staff) {
-      if (req.staff.role !== 'admin') query = query.eq('created_by', req.staff.userId)
+      if (req.staff.role === 'admin' && req.staff.schoolId) {
+        /* מנהל רואה את הדמיות בית הספר שלו בלבד (יוצרים ששייכים לאותו בית ספר) — לא את כל המערכת */
+        query = supabaseAdmin
+          .from('quests')
+          .select(cols + ', creator:users!created_by!inner(school_id)')
+          .eq('creator.school_id', req.staff.schoolId)
+          .order('created_at', { ascending: false })
+      } else {
+        query = query.eq('created_by', req.staff.userId)
+      }
     } else {
       /* מבקר אנונימי — רק ההדמיות שנוצרו בדפדפן הזה */
       query = query.eq('anon_id', req.anonId!)
@@ -287,7 +296,7 @@ questsRouter.post('/:id/personalize', requireStaff, requireCanShare, async (req,
       .eq('id', req.params.id)
       .single()
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* קביעת צורת הפנייה: form מפורש > gender מפורש > מגדר התלמיד (studentId) > plural */
     let form: FormOfAddress = parsed.data.form ?? parsed.data.gender ?? 'plural'
@@ -329,7 +338,7 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
 
     const { data: quest } = await supabaseAdmin.from('quests').select('*').eq('id', questId).single()
     if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
+    await ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
 
     /* ── שלוף מגדר + כיתת התלמיד (class_members, לא users.class_id) ── */
     const hasGender = await hasUserGender()
@@ -414,7 +423,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (baseErr || !base?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureOwner(req, base.created_by)
+    await ensureOwner(req, base.created_by)
 
     const concepts = await computeWeakConcepts(base.id, asg.class_id, base.game_data)
     if (concepts.length === 0) {
@@ -487,7 +496,7 @@ questsRouter.post('/:id/share', requireStaff, requireCanShare, async (req, res, 
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* שער איכות (תיקון 3): תוכן פגום לא נכנס לספרייה שכל המורים מעתיקים ממנה.
        סתירת תשובה/הסבר חיה (כולל כזו שנוצרה בעריכת מורה) — חסימה קשיחה עד תיקון;
@@ -528,7 +537,7 @@ questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה')
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
     const { error: upErr } = await supabaseAdmin.from('quests').update({ is_public: false }).eq('id', quest.id)
     if (upErr) throw new AppError(500, 'שגיאה בהסרה: ' + upErr.message)
     res.json({ ok: true, is_public: false })
@@ -552,7 +561,7 @@ questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res,
 
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* סינון כיתות שכבר מוקצות — מניעת כפילויות ללא unique constraint */
     const { data: existing } = await supabaseAdmin
@@ -584,7 +593,7 @@ questsRouter.delete('/:id', requireCreator, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: delError } = await supabaseAdmin.from('quests').delete().eq('id', quest.id)
     if (delError) throw new AppError(500, 'שגיאה במחיקה: ' + delError.message)
@@ -701,7 +710,7 @@ questsRouter.patch('/:id/scene', requireCreator, async (req, res, next) => {
       .single()
 
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as { scenes: EditableScene[]; endingGood?: EditableEnding; endingBad?: EditableEnding }
 
@@ -783,7 +792,7 @@ questsRouter.patch('/:id/restore', requireCreator, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: updateError } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
     if (updateError) throw new AppError(500, 'שגיאה בשחזור: ' + updateError.message)
@@ -808,7 +817,7 @@ questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const patch: Record<string, unknown> = {}
     if (title !== undefined) patch.title = title
@@ -843,7 +852,7 @@ questsRouter.post('/:id/refine', requireCreator, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
-    ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
+    await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameData
     const fc = await runFactCheck(gameData)

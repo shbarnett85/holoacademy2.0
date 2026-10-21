@@ -56,6 +56,12 @@ export async function hasCanShare(): Promise<boolean> {
   return check('__users_can_share', () => supabaseAdmin.from('users').select('can_share').limit(1))
 }
 
+/* האם עמודת users.approval_status קיימת (migrations/staff_signup_approval.sql) — בקשות הצטרפות
+   של מורים שנרשמו לבית ספר קיים. בלעדיה אסור ליצור מורה כזה (נכשלים סגור). */
+export async function hasApprovalStatus(): Promise<boolean> {
+  return check('__users_approval_status', () => supabaseAdmin.from('users').select('approval_status').limit(1))
+}
+
 export async function hasIsActive(table: 'users' | 'classes' | 'schools'): Promise<boolean> {
   return check(table, () => supabaseAdmin.from(table).select('is_active').limit(1))
 }
