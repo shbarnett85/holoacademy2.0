@@ -161,9 +161,10 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   const otherIds = Object.values(OT).map((s) => s.id)
   const DU = fx.students.dual
   const dualIds = Object.values(DU).map((s) => s.id)
-  const TOTAL_STUDENTS = richIds.length + sparseIds.length + emptyIds.length + dualIds.length /* בית הספר שלנו; התלמיד/ה המשותף/ת נספר/ת פעם אחת */
-  const allStudentIds = new Set([...richIds, ...sparseIds, ...emptyIds, ...otherIds, ...dualIds])
-  const allClassIds = new Set([C.rich.id, C.sparse.id, C.empty.id, C.other.id, C.dualA.id, C.dualB.id])
+  const wideIds = Object.values(fx.students.wide).map((s) => s.id)
+  const TOTAL_STUDENTS = richIds.length + sparseIds.length + emptyIds.length + dualIds.length + wideIds.length /* בית הספר שלנו; התלמיד/ה המשותף/ת נספר/ת פעם אחת */
+  const allStudentIds = new Set([...richIds, ...sparseIds, ...emptyIds, ...otherIds, ...dualIds, ...wideIds])
+  const allClassIds = new Set([C.rich.id, C.sparse.id, C.empty.id, C.other.id, C.dualA.id, C.dualB.id, C.wide.id])
   const attentionIds = fx.expected.attentionStories.map((k) => R[k].id)
   const P = (w: Who, path: string): Promise<Res> => get(w, tok(w), path)
 
@@ -360,7 +361,9 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   }
   {
     const d = ovRes.get(`homeroom|${C.rich.id}`)!.json.data
-    check('מחנך: סקירת הכיתה העשירה — שורה לכל מקצוע (חמישה), רמה בתוך הטווח, התרעות מנויות', d.rows.length === 5 && d.rows.filter((r: any) => r.level !== null).length === 4 && d.rows.find((r: any) => r.subject.code === 'history')?.level === null && d.rows.every((r: any) => r.level === null || r.positionVsNorm === 'within'), d.rows.map((r: any) => `${r.subject.code}:${r.level}`).join(' '))
+    /* רמה כיתתית רק כש-CLASS_LEVEL_MIN_STUDENTS תלמידים לפחות עומדים בסף האישי (PERSONAL_LEVEL_MIN_SESSIONS משחקים): מתמטיקה / עברית / מדעים (5) כן; תנ"ך (תלמיד/ה אחד/ת עם סף) והיסטוריה (בלי נתונים) — לא */
+    const levelCodes = d.rows.filter((r: any) => r.level !== null).map((r: any) => r.subject.code).sort().join()
+    check('מחנך: סקירת הכיתה העשירה — שורה לכל מקצוע (חמישה); רמה רק במקצועות עם מספיק תלמידים (מתמטיקה, עברית, מדעים), בתוך הטווח; תנ"ך והיסטוריה בלי רמה', d.rows.length === 5 && levelCodes === 'hebrew,math,science' && d.rows.find((r: any) => r.subject.code === 'history')?.level === null && d.rows.find((r: any) => r.subject.code === 'bible')?.level === null && d.rows.every((r: any) => r.level === null || r.positionVsNorm === 'within'), d.rows.map((r: any) => `${r.subject.code}:${r.level}`).join(' '))
     const e = ovRes.get(`emptyHomeroom|${C.empty.id}`)!
     check('מחנך הכיתה הריקה: סקירה תקפה בלי שורות / בלי רמות, dataState=insufficient', e.json.dataState === 'insufficient' && e.json.data.rows.every((r: any) => r.level === null))
     const miss = await P('noClasses', ov(NIL))
@@ -391,7 +394,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   {
     const r = await P('homeroom', stu(R.positionBias.id))
     const f = findingsOf(r, 'math').find((x) => x.kind === 'position_bias')
-    check('הטיית מיקום: מדווחת, שיעור בחירת האפשרות הראשונה מעל 50% מול ~25% צפוי (30 פריטים)', f?.status === 'reported' && f.evidence.observedShare > 0.5 && f.evidence.expectedShare > 0.2 && f.evidence.expectedShare < 0.3 && f.evidence.items === 30, JSON.stringify(f?.evidence))
+    check('הטיית מיקום: מדווחת, שיעור בחירת האפשרות הראשונה מעל 50% מול ~25% צפוי (36 פריטים: 18 משחקים × 2 שאלות)', f?.status === 'reported' && f.evidence.observedShare > 0.5 && f.evidence.expectedShare > 0.2 && f.evidence.expectedShare < 0.3 && f.evidence.items === 36, JSON.stringify(f?.evidence))
   }
   {
     const r = await P('homeroom', stu(R.memoryRandom.id))
@@ -401,7 +404,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   {
     const r = await P('homeroom', stu(R.readingSkipper.id))
     const f = findingsOf(r, 'math').find((x) => x.kind === 'reading_skip')
-    check('דילוג קריאה: מדווח, זמן-למילה קטן מ-40% מהחציון הכיתתי', f?.status === 'reported' && f.evidence.ratio < 0.4 && f.evidence.scenes === 28, JSON.stringify(f?.evidence))
+    check('דילוג קריאה: מדווח, זמן-למילה קטן מ-40% מהחציון הכיתתי', f?.status === 'reported' && f.evidence.ratio < 0.4 && f.evidence.scenes === 36, JSON.stringify(f?.evidence))
   }
   {
     const r = await P('homeroom', stu(R.almost.id))
@@ -515,13 +518,15 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   {
     const d = adm.json.data
     const cell = (grade: number, code: string): any => d.cells.find((c: any) => c.grade === grade && c.subject.code === code)
-    check('תא שכבה ו׳ × עברית: מוצג, מ-17 תלמידים (14 + 3) משתי כיתות; מתמטיקה: 18 (ועוד התלמיד/ה המשותף/ת, פעם אחת)', cell(6, 'hebrew')?.status === 'shown' && cell(6, 'hebrew').studentCount === 17 && cell(6, 'math')?.status === 'shown' && cell(6, 'math').studentCount === 18)
+    /* תא מוצג רק מתורמים (מי שיש לו לפחות PERSONAL_LEVEL_MIN_SESSIONS משחקים במקצוע) ורק אם גם בלי הכיתה הגדולה ביותר נשארים ≥ ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS: הכיתה העשירה + הרחבה (+ המשותף/ת במתמטיקה, פעם אחת) */
+    const contrib = fx.expected.adminContributors
+    check(`תא שכבה ו׳ × עברית: מוצג, מ-${contrib.hebrew} תורמים משתי כיתות (עשירה + רחבה); מתמטיקה: ${contrib.math} (ועוד התלמיד/ה המשותף/ת, פעם אחת) — נספרים תורמים, לא רשומים`, cell(6, 'hebrew')?.status === 'shown' && cell(6, 'hebrew').studentCount === contrib.hebrew && cell(6, 'math')?.status === 'shown' && cell(6, 'math').studentCount === contrib.math, `hebrew=${cell(6, 'hebrew')?.studentCount} math=${cell(6, 'math')?.studentCount}`)
     check('תא שכולו כיתה אחת (מדעים, 5 תלמידים) מוסתר מסיבת "כיתה אחת" — מורה מזוהה, חוק 9', cell(6, 'science')?.status === 'hidden' && cell(6, 'science').reason === 'single_class')
     check('תא עם פחות מ-5 תורמים (תנ"ך, 2) מוסתר מסיבת "תא קטן"', cell(6, 'bible')?.status === 'hidden' && cell(6, 'bible').reason === 'small_cell')
     check('תא מוסתר אינו נושא מספר תלמידים או רמה (אין studentCount / avgLevel)', d.cells.filter((c: any) => c.status === 'hidden').every((c: any) => !('studentCount' in c) && !('avgLevel' in c) && !('deltaVsNorm' in c)))
     check('אין תא להיסטוריה (אין תורמים) — לא תא "מוסתר" שמרמז על נתונים', !cell(6, 'history'))
     check('שכבה ה׳ (כיתה ריקה): בלי תאים; hiddenCells=2', d.cells.filter((c: any) => c.grade === 5).length === 0 && d.hiddenCells === 2)
-    check(`התמונה מבית הספר הנכון: 2 שכבות, 5 כיתות, ${TOTAL_STUDENTS} תלמידים בסך הכול — תלמיד/ה בשתי כיתות נספר/ת פעם אחת (כל שכבה ≥ 5 תלמידים — הסכום מתפרסם)`, d.grades.length === 2 && d.highlights.some((h: string) => h.includes(String(TOTAL_STUDENTS))) && d.grades.reduce((s: number, g: any) => s + g.classCount, 0) === 5, d.highlights.join(' '))
+    check(`התמונה מבית הספר הנכון: 2 שכבות, 6 כיתות, ${TOTAL_STUDENTS} תלמידים בסך הכול — תלמיד/ה בשתי כיתות נספר/ת פעם אחת (כל שכבה ≥ 5 תלמידים — הסכום מתפרסם)`, d.grades.length === 2 && d.highlights.some((h: string) => h.includes(String(TOTAL_STUDENTS))) && d.grades.reduce((s: number, g: any) => s + g.classCount, 0) === 6, d.highlights.join(' '))
     check('admin: grades[].studentCount סופר תלמידים שונים — תלמיד/ה בשתי כיתות של אותה שכבה נספר/ת פעם אחת (סכום השכבות = סך בית הספר)', d.grades.reduce((s: number, g: any) => s + g.studentCount, 0) === TOTAL_STUDENTS, `שכבות=${d.grades.map((g: any) => g.gradeLabel + ':' + g.studentCount).join(' ')} · סך בית הספר=${TOTAL_STUDENTS}`)
     check('מנהל עירוני: אותה תמונה בדיוק כמו מנהל בית הספר (אותו בית ספר)', JSON.stringify(mun.json.data.cells) === JSON.stringify(d.cells))
   }

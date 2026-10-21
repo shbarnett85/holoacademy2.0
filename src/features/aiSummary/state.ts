@@ -7,7 +7,7 @@
    · הטקסטים באים מ-findingsNarrative (AI_SUMMARY_TEXT / AI_SUMMARY_PANEL_TEXT / ERR_*) — כאן אין משפט.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  ERR_SUMMARY_BAD_REQUEST, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE,
+  ERR_SUMMARY_BAD_REQUEST, ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE,
   ERR_V2_FORBIDDEN, ERR_V2_NOT_FOUND, ERR_V2_RATE_LIMIT, ERR_V2_UNAUTHORIZED, ERR_V2_UNAVAILABLE,
 } from '../../shared/lib/findingsNarrative'
 import type { AiSummary, SummaryEligibility, SummaryScope, SummaryState, SummaryTarget } from '../../shared/types/aiSummaryV1'
@@ -34,10 +34,12 @@ export interface SummaryUiState {
   wrote: boolean
   /** עריכה שלא נשמרת בשרת (סיכום בלי מזהה, לפני המיגרציה): עד סגירת המסך */
   localEdit: string | null
+  /** המורה ביקשה לכתוב מחדש סיכום שהיא ערכה: מוצג חלון אישור (כתיבה מחדש מוחקת את העריכה) */
+  confirmRegen: boolean
 }
 
 export const initialState: SummaryUiState = {
-  key: null, load: 'loading', data: null, busy: 'idle', error: null, editing: false, draft: '', wrote: false, localEdit: null,
+  key: null, load: 'loading', data: null, busy: 'idle', error: null, editing: false, draft: '', wrote: false, localEdit: null, confirmRegen: false,
 }
 
 export type SummaryDispatch =
@@ -46,6 +48,8 @@ export type SummaryDispatch =
   | { type: 'writeStarted'; key: string }
   | { type: 'written'; key: string; data: SummaryState }
   | { type: 'writeFailed'; key: string; error: ErrorInfo }
+  | { type: 'regenAsked'; key: string }
+  | { type: 'regenCancelled'; key: string }
   | { type: 'editStarted'; key: string }
   | { type: 'draftChanged'; key: string; text: string }
   | { type: 'editCancelled'; key: string }
@@ -68,9 +72,11 @@ export function summaryReducer(state: SummaryUiState, a: SummaryDispatch): Summa
   if (a.type === 'loadFailed') return { ...initialState, key: a.key, load: 'failed', error: a.error }
   if (state.key !== a.key) return state
   switch (a.type) {
-    case 'writeStarted': return { ...state, busy: 'writing', error: null, editing: false }
-    case 'written': return { ...state, data: a.data, busy: 'idle', error: null, editing: false, draft: '', wrote: true, localEdit: null }
+    case 'writeStarted': return { ...state, busy: 'writing', error: null, editing: false, confirmRegen: false }
+    case 'written': return { ...state, data: a.data, busy: 'idle', error: null, editing: false, draft: '', wrote: true, localEdit: null, confirmRegen: false }
     case 'writeFailed': return { ...state, busy: 'idle', error: a.error }
+    case 'regenAsked': return { ...state, confirmRegen: true, error: null, editing: false }
+    case 'regenCancelled': return { ...state, confirmRegen: false }
     case 'editStarted': return { ...state, editing: true, error: null, draft: joinParagraphs(shownParagraphs(state)) }
     case 'draftChanged': return { ...state, draft: a.text, error: state.error?.action === 'save' ? null : state.error }
     case 'editCancelled': return { ...state, editing: false, draft: '', error: null }
@@ -98,6 +104,8 @@ export function summaryErrorMessage(action: SummaryAction, status: number, serve
   if (status === 401) return ERR_V2_UNAUTHORIZED
   if (status === 403) return serverText || ERR_V2_FORBIDDEN
   if (status === 404) return ERR_V2_NOT_FOUND
+  /* 409: יש עריכה של המורה והכתיבה מחדש לא אושרה (למשל עריכה מלשונית אחרת) */
+  if (status === 409) return serverText || ERR_SUMMARY_EDIT_EXISTS
   if (status === 429) return serverText || ERR_V2_RATE_LIMIT
   if (status === 503) return serverText || ERR_V2_UNAVAILABLE
   return action === 'load' ? ERR_SUMMARY_LOAD : action === 'write' ? ERR_SUMMARY_WRITE : ERR_SUMMARY_SAVE
@@ -123,7 +131,10 @@ export interface ShownSummary {
   /** נערך על ידי המורה (בשרת או מקומית) */
   edited: boolean
   basisText: string
+  /** מועד כתיבת הטקסט (ISO) */
   generatedAt: string
+  /** ייתכן שהנתונים השתנו מאז שהסיכום נכתב */
+  stale: boolean
   caveat: string
   howWritten: string[]
 }
@@ -150,13 +161,15 @@ export interface PanelModel {
   canRegenerate: boolean
   /** "נסו שוב עם ד״ר הולו" — כשבמקומו הוצגה תבנית (בדיקת הפלט נכשלה), לא בהדמיה */
   canRetryAi: boolean
+  /** חלון האישור "הכתיבה מחדש תמחק את העריכה שלכם" מוצג (רק כשיש עריכה, ולא בהדמיה) */
+  confirmRegen: boolean
   /** יש מה להחזיר: עריכת המורה (בשרת או מקומית) */
   canRevert: boolean
 }
 
 export function derive(state: SummaryUiState, currentKey: string, scope: SummaryScope): PanelModel {
   const fresh = state.key === currentKey
-  const base = { scope, writing: false, saving: false, editing: false, draft: '', wrote: false, summary: null, eligibility: null, demo: false, persisted: false, persistenceNote: null, privacyNote: null, error: null, canEdit: false, canRegenerate: false, canRetryAi: false, canRevert: false }
+  const base = { scope, writing: false, saving: false, editing: false, draft: '', wrote: false, summary: null, eligibility: null, demo: false, persisted: false, persistenceNote: null, privacyNote: null, error: null, canEdit: false, canRegenerate: false, canRetryAi: false, canRevert: false, confirmRegen: false }
   if (!fresh || state.load === 'loading') return { ...base, phase: 'loading' }
   if (state.load === 'failed' || !state.data) return { ...base, phase: 'loadError', error: state.error }
   const d = state.data
@@ -169,14 +182,17 @@ export function derive(state: SummaryUiState, currentKey: string, scope: Summary
   const localEdited = state.localEdit !== null
   const shown: ShownSummary = {
     id: s.id, paragraphs: localEdited ? splitParagraphs(state.localEdit as string) : s.paragraphs, writtenBy: s.writtenBy, label: s.label, notice: s.notice,
-    edited: s.edited || localEdited, basisText: s.basisText, generatedAt: s.generatedAt, caveat: s.caveat, howWritten: s.howWritten,
+    edited: s.edited || localEdited, basisText: s.basisText, generatedAt: s.generatedAt, stale: s.stale === true && !d.demo, caveat: s.caveat, howWritten: s.howWritten,
   }
+  const canRegenerate = !d.demo && s.writtenBy === 'ai'
+  const canRetryAi = !d.demo && s.writtenBy === 'template'
   return {
     ...common, phase: 'ready', summary: shown,
     canEdit: !d.demo,
-    canRegenerate: !d.demo && s.writtenBy === 'ai',
-    canRetryAi: !d.demo && s.writtenBy === 'template',
+    canRegenerate,
+    canRetryAi,
     canRevert: !d.demo && shown.edited,
+    confirmRegen: state.confirmRegen && (canRegenerate || canRetryAi) && shown.edited,
   }
 }
 
@@ -200,13 +216,21 @@ export async function runLoad(c: FlowCtx): Promise<void> {
   }
 }
 
-export async function runWrite(c: FlowCtx, regenerate: boolean): Promise<void> {
+/** כתיבה / כתיבה מחדש. discardEdit: המורה אישרה במפורש למחוק את עריכתה (בלי זה השרת מסרב ב-409 כשיש עריכה) */
+export async function runWrite(c: FlowCtx, regenerate: boolean, discardEdit = false): Promise<void> {
   c.dispatch({ type: 'writeStarted', key: c.key })
   try {
-    const env = await c.api.create(c.target, c.params, regenerate)
+    const env = await c.api.create(c.target, c.params, regenerate, discardEdit)
     if (!c.cancelled()) c.dispatch({ type: 'written', key: c.key, data: env.data })
   } catch (e) {
-    if (!c.cancelled()) c.dispatch({ type: 'writeFailed', key: c.key, error: errorInfo('write', e) })
+    if (c.cancelled()) return
+    const error = errorInfo('write', e)
+    /* 409: מישהו (למשל לשונית אחרת) ערך את הסיכום. טוענים אותו מחדש כדי שהעריכה תוצג, ואז ההודעה — והכתיבה מחדש מבקשת אישור */
+    if (error.status === 409) {
+      try { const env = await c.api.get(c.target, c.params); if (!c.cancelled()) c.dispatch({ type: 'loaded', key: c.key, data: env.data }) } catch { /* ההודעה מספיקה */ }
+      if (c.cancelled()) return
+    }
+    c.dispatch({ type: 'writeFailed', key: c.key, error })
   }
 }
 

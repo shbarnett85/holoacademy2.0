@@ -63,7 +63,7 @@ import { adminViewer, grant, live } from '../lib/analyticsV2/providerTestkit.js'
 import { createAiSummaryDeps } from '../lib/aiSummary/deps.js'
 import { createSummaryService, type SummaryService } from '../lib/aiSummary/service.js'
 import { createMemoryStore } from '../lib/aiSummary/store.js'
-import { demoIdentifiers, fakeLlm, otherSubjectNames, type FakeLlm } from '../lib/aiSummary/testkit.js'
+import { demoIdentifiers, fakeLlm, homeroomOf, otherSubjectNames, type FakeLlm } from '../lib/aiSummary/testkit.js'
 import { MSG_ACCESS_LOG_UNAVAILABLE, canUseResults, submissionVisible } from '../lib/authz.js'
 import { buildClassView } from '../lib/results/core.js'
 import { getDemoResults } from '../lib/results/demoResults.js'
@@ -281,8 +281,12 @@ describe('מחנך הכיתה: כל ההיקפים', () => {
     const u = addUser('home')
     await post(u, 'student', S_V2)
     await post(u, 'class', V2)
+    /* סיכום כיתה סופר תלמידים עם נתונים לפי מקצוע: קריאה אחת לכל מקצוע שיש בו רמה (R4#1) — ולא יותר (מקצוע לא נטען פעמיים באותה בקשה) */
+    const withLevel = (await demoProvider.classOverview(homeroomOf(V2), V2)).data.rows.filter((r) => r.level !== null).length
+    expect(withLevel).toBeGreaterThan(0)
+    expect(providerCalls).toEqual({ student: 1, classOverview: 1, classSubject: withLevel })
     await post(u, 'class_subject', V2, { subject: 'math' })
-    expect(providerCalls).toEqual({ student: 1, classOverview: 1, classSubject: 1 })
+    expect(providerCalls).toEqual({ student: 1, classOverview: 1, classSubject: withLevel + 1 })
   })
 
   it('GET: אין סיכום עדיין → זכאות, בלי LLM; אחרי POST — הסיכום השמור', async () => {
@@ -504,7 +508,15 @@ describe('יומן גישה', () => {
     expect(r.body).toEqual({ error: MSG_ACCESS_LOG_UNAVAILABLE })
     expect(llm.calls).toHaveLength(0)
     expect(store.rows.size).toBe(0)
-    expect((await call('GET', q('student', S_V2), u)).status).toBe(503)
+    /* GET בלי סיכום שמור הוא בקשת זכאות בלבד — אינו נרשם ביומן ואינו נחסם (R5#2) */
+    expect((await call('GET', q('student', S_V2), u)).status).toBe(200)
+    /* אבל GET שמחזיר טקסט שמור על תלמיד נרשם, ובלי יומן — נחסם (נכשל-סגור) */
+    h.logFails = false
+    expect((await post(u, 'student', S_V2)).status).toBe(200)
+    h.logFails = true
+    const stored = await call('GET', q('student', S_V2), u)
+    expect(stored.status).toBe(503)
+    expect(JSON.stringify(stored.body)).not.toContain('paragraphs')
   })
 
   it('דחיות (404 / 403) לא נרשמות', async () => {

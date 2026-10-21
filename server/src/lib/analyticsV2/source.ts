@@ -7,6 +7,22 @@ import type { Lens } from '../../../../src/shared/types/analyticsV2.js'
 import type { V2Viewer } from './access.js'
 import type { Analysis } from './engine.js'
 
+/* כיסוי הנתונים של הניתוח: מה הוחרג ולמה. השדות האופציונליים — ספק חי בלבד (דמו: חסרים) */
+export interface SourceCoverage {
+  unclassifiedSessions: number
+  detailAvailableFrom: string | null
+  /* כיתות בהיקף שלא הוגדרה להן שכבה (לא מופיעות), ושמותיהן (למורה בלבד — המנהל אינו מקבל שמות כיתות) */
+  ungradedClasses?: number
+  ungradedClassNames?: string[]
+  /* כיתות שהטעינה שלהן נכשלה / עדיין נמשכת (שאר הכיתות מוצגות) */
+  classesNotLoaded?: number
+  classesLoading?: number
+  /* כיתות שההרכבה נכשלה על הנתונים שלהן (לא תקלת תשתית) */
+  classesDataError?: number
+  /* משחקים בהדמיות עם מקצוע שהרמה שלהם לא חושבה (אין רמה, או שחושבה לא לפי המקצוע) */
+  playsWithoutLevel?: number
+}
+
 export interface AnalyticsSource {
   kind: 'demo' | 'live'
   /** ניתוח מוגדר-היקף לצופה: מורה = כיתותיו; מנהל = כל כיתות בית הספר (ממוזג). אסור שיזרוק על נתונים ריקים. */
@@ -17,7 +33,7 @@ export interface AnalyticsSource {
   classSubjects(a: Analysis, classId: string): SubjectCode[]
   configParts(v: V2Viewer): { availableLenses: Lens[]; subjects: SubjectCode[]; dataNotice: string | null; curriculumNotice: string | null }
   /** כיסוי נתונים (חי: סשנים שהוחרגו כי להדמיה אין מקצוע; דמו: אפס) */
-  coverage(v: V2Viewer, a: Analysis): { unclassifiedSessions: number; detailAvailableFrom: string | null }
+  coverage(v: V2Viewer, a: Analysis): SourceCoverage
   /** רישום צפייה ברמת תלמיד (חי בלבד; דמו: אין) */
   logNamed?(v: V2Viewer, studentIds: string[], scope: string): Promise<void>
 }

@@ -75,7 +75,7 @@ describe('buildCatalog (חי)', () => {
     raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
     raw.quests.push({ id: 'q', subject: 'math' })
     raw.sessions.push({ id: 'x', studentId: 's1', questId: 'q', completedAt: '2026-03-04T08:00:00Z' })
-    raw.snapshots.push({ sessionId: 'x', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
+    raw.snapshots.push({ sessionId: 'x', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 })
     const a = analyze(assembleWorld(raw, new Date('2026-03-06T10:00:00Z')), cat)
     const vectors = a.ss.get('s1|math')!.contentVectors
     expect(vectors.map((v) => v.key)).toEqual(['concept_understanding'])

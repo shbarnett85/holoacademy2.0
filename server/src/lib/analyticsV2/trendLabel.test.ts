@@ -70,8 +70,8 @@ describe('engine: level60N / level90to150N', () => {
 /* ── הספק: לוח התלמיד, מסך המקצוע, המשוב והמנהל ── */
 describe('providerCore: תווית המגמה בכל המסכים עוברת דרך אותו סף', () => {
   const v = live([grant(CA.id, { homeroom: true })])
-  /* sparse: שני משחקים בחלון האחרון, אחד בחלון הקודם — הפרש 2.2 רמות. enough: שלושה בכל חלון — הפרש 2 רמות */
-  const sparse = (): SessionRec[] => [mkSession(5, 0.7, 11), mkSession(20, 0.7, 11), mkSession(100, 0.7, 8.8)]
+  /* sparse: שני משחקים בחלון האחרון, שניים בחלון הקודם — הפרש 2.2 רמות, ו-4 משחקים בסך הכול (עומד בסף הרמה האישית, אך לא בסף המגמה). enough: שלושה בכל חלון — הפרש 2 רמות */
+  const sparse = (): SessionRec[] => [mkSession(5, 0.7, 11), mkSession(20, 0.7, 11), mkSession(100, 0.7, 8.8), mkSession(120, 0.7, 8.8)]
   const enough = (): SessionRec[] => [mkSession(5, 0.7, 11), mkSession(20, 0.7, 11), mkSession(40, 0.7, 11), mkSession(100, 0.7, 9), mkSession(120, 0.7, 9), mkSession(140, 0.7, 9)]
   const w = world([CA], [
     { id: 'sp', classId: CA.id, subjects: ['math'], sessions: sparse },
@@ -110,7 +110,7 @@ describe('providerCore: תווית המגמה בכל המסכים עוברת ד�
   })
 
   it('תמונת המנהל: תא שכל תורמיו דלים — מגמה "אין עדיין מספיק נתונים" ושינוי 0 (גם כשיש ≥ MIN_CELL_SIZE ממוצעים)', async () => {
-    const half = Math.ceil(MIN_CELL_SIZE / 2) + 1
+    const half = MIN_CELL_SIZE /* כלל הדומיננטיות: בלי הכיתה הגדולה ביותר נשארים MIN_CELL_SIZE תורמים — אחרת התא מוסתר */
     const school = world([CA, CB], [
       ...ids('a', half).map((id) => ({ id, classId: CA.id, subjects: ['math'] as ['math'], sessions: sparse })),
       ...ids('b', half).map((id) => ({ id, classId: CB.id, subjects: ['math'] as ['math'], sessions: sparse })),

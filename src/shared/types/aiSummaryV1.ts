@@ -39,8 +39,11 @@ export const AiSummarySchema = z.object({
   edited: z.boolean(),
   /* "מבוסס על 14 הדמיות" / "מבוסס על 22 תלמידים" — היחידה לפי היקף */
   basisText: z.string().min(1),
+  /* מועד כתיבת הטקסט (כתיבה מחדש מחליפה אותו). הפאנל מציג אותו בולט, והייצוא מתוארך אליו ולא ליום הייצוא */
   generatedAt: Iso,
   updatedAt: Iso,
+  /* true = ייתכן שהנתונים השתנו מאז שנכתב (חותמת הנתונים שונה, או שחלפו יותר מ-14 יום). הלקוח מציג הסבר וקורא לכתוב מחדש. חסר = לא ידוע */
+  stale: z.boolean().optional(),
   /* CAVEAT_TREND — קבוע, לא מה-AI */
   caveat: z.string().min(1),
   /* שורות מאחורי "איך נכתב הסיכום?" */
@@ -67,7 +70,8 @@ export const SummaryStateSchema = z.object({
 })
 export type SummaryState = z.infer<typeof SummaryStateSchema>
 
-export const GenerateSummaryRequestSchema = SummaryTargetSchema.and(z.object({ regenerate: z.boolean().optional() }))
+/* regenerate על סיכום שהמורה ערך מחזיר 409 אלא אם discardEdit=true (המורה אישר במפורש למחוק את עריכתו) */
+export const GenerateSummaryRequestSchema = SummaryTargetSchema.and(z.object({ regenerate: z.boolean().optional(), discardEdit: z.boolean().optional() }))
 export type GenerateSummaryRequest = z.infer<typeof GenerateSummaryRequestSchema>
 
 /* editedText=null: חזרה לטקסט שנכתב במקור */

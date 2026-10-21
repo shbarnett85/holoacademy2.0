@@ -6,13 +6,13 @@ vi.mock('../lib/authz.js', async (orig) => {
   return { ...m, loadViewer: vi.fn(async () => ({ userId: 'u-A', role: 'teacher', schoolId: 's1', grants: new Map(), seesSynthetic: false })), logAccess: vi.fn(async () => undefined) }
 })
 
-import { ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_NOT_CONNECTED, ERR_SUMMARY_NOT_FOUND } from '../../../src/shared/lib/findingsNarrative.js'
+import { ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_NOT_CONNECTED, ERR_SUMMARY_NOT_FOUND } from '../../../src/shared/lib/findingsNarrative.js'
 import { AI_SUMMARY_EP, SummaryStateSchema, type SummaryTarget } from '../../../src/shared/types/aiSummaryV1.js'
 import { demoProvider, getAnalysis } from '../lib/analyticsV2/demoProvider.js'
 import { projectSource, type SummarySource } from '../lib/aiSummary/inputs.js'
 import { createSummaryService, type SummaryService } from '../lib/aiSummary/service.js'
 import { createMemoryStore } from '../lib/aiSummary/store.js'
-import { NOW, demoSources, fakeLlm, goodResponse, homeroomOf } from '../lib/aiSummary/testkit.js'
+import { NOW, demoClassSource, demoSources, fakeLlm, goodResponse, homeroomOf } from '../lib/aiSummary/testkit.js'
 import { logAccess, loadViewer } from '../lib/authz.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
@@ -53,7 +53,7 @@ function harness(over: Partial<AiSummaryRouteDeps> = {}, authz: Partial<SummaryA
   const store = createMemoryStore()
   const service: SummaryService = createSummaryService({ llm, store, now: () => NOW })
   const deps: AiSummaryRouteDeps = {
-    async authorize() { events.push('authorize'); return { demo: false, audienceKey: 'full', ...authz } },
+    async authorize() { events.push('authorize'); return { demo: false, audienceKey: 'full', cheap: true, ...authz } },
     async loadStudentFacts() { events.push('load'); return { overview: studentSource().overview, gender: studentSource().gender } },
     async loadClassFacts() { events.push('load'); throw new Error('not used') },
     async loadSubmissionFacts() { events.push('load'); throw new Error('not used') },
@@ -80,6 +80,19 @@ describe('חיווט', () => {
     expect(stack.findIndex((l) => l.handle === requireStaff)).toBeLessThan(stack.findIndex((l) => !!l.route))
   })
 
+  it('Cache-Control: private, no-store על כל תגובה (סיכום על ילד לא נשמר במטמון דפדפן/proxy משותף)', () => {
+    const { router } = harness()
+    const first = layersOf(router).find((l) => !l.route)!.handle as (req: Request, res: unknown, next: (e?: unknown) => void) => void
+    const headers: Record<string, string> = {}
+    let nexted = false
+    first({} as Request, { set: (k: string, v: string) => { headers[k] = v } }, () => { nexted = true })
+    expect(headers).toEqual({ 'Cache-Control': 'private, no-store' })
+    expect(nexted).toBe(true)
+    /* והוא רץ לפני הגבלת הקצב ו-requireStaff, כך שגם תגובת 401/429 לא נשמרת */
+    const stack = layersOf(router)
+    expect(stack.findIndex((l) => l.handle === first)).toBeLessThan(stack.findIndex((l) => l.handle === requireStaff))
+  })
+
   it('ברירת המחדל (לא מחובר): כל הנקודות 503', async () => {
     const router = registerAiSummaryRoutes(NOT_CONNECTED_DEPS, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore() }) })
     for (const [m, req] of [['get', reqOf({ query: studentQuery() })], ['post', reqOf({ body: { scope: 'student', id: sid } })]] as const) {
@@ -94,7 +107,7 @@ describe('חיווט', () => {
   it('הגבלת קצב: 6 בדקה ליצירה (POST בלבד), בלי הגבלה על GET', async () => {
     expect(SUMMARY_RATE.generatePerUser).toBe(6)
     const { router } = harness()
-    const limiter = layersOf(router).filter((l) => !l.route)[3].handle as (req: Request, res: unknown, next: (e?: unknown) => void) => void
+    const limiter = layersOf(router).filter((l) => !l.route)[4].handle as (req: Request, res: unknown, next: (e?: unknown) => void) => void
     const staff = { userId: `rate-${Math.random()}`, role: 'teacher', isGuest: false }
     const run = (method: string): unknown => { let out: unknown = 'none'; limiter({ method, staff, ip: '1.1.1.1' } as unknown as Request, {}, (e) => { out = e }); return out }
     for (let i = 0; i < 20; i++) expect(run('GET')).toBeUndefined()
@@ -144,7 +157,7 @@ describe('GET / POST', () => {
 
   it('class_subject: subject מהשאילתה מועבר ליעד', async () => {
     const seen: SummaryTarget[] = []
-    const { router } = harness({ async authorize({ target: t }) { seen.push(t); return { demo: true, audienceKey: 'full' } } })
+    const { router } = harness({ async authorize({ target: t }) { seen.push(t); return { demo: true, audienceKey: 'full', cheap: true } } })
     const r = await call(router, 'get', reqOf({ query: { scope: 'class_subject', id: 'c-v2', subject: 'math' } }))
     expect(seen).toEqual([{ scope: 'class_subject', id: 'c-v2', subject: 'math' }])
     /* בלי loadClassSubjectFacts (שלב ג׳) → "לא מחובר" */
@@ -156,13 +169,15 @@ describe('טעינת נתונים לפי היקף', () => {
   it('כל היקף נטען דרך ה-callback שלו, עם היעד ותוצאת ההרשאה', async () => {
     const all = await demoSources()
     const pick = (scope: SummarySource['scope']): SummarySource => all.find((x) => x.source.scope === scope)!.source
+    const classOverview = (pick('class') as Extract<SummarySource, { scope: 'class' }>).overview
+    const classFacts = { overview: classOverview, withData: (await demoClassSource(classOverview.class.id)).withData }
     const seen: string[] = []
     const mk = <T>(name: string, v: T) => async (ctx: { target: SummaryTarget; authz: SummaryAuthorization }): Promise<T> => { seen.push(`${name}:${ctx.target.scope}:${ctx.authz.audienceKey}`); return v }
     const view = (s: SummarySource, key: 'overview' | 'view'): never => (s as unknown as Record<string, never>)[key]
     const router = registerAiSummaryRoutes({
-      async authorize() { return { demo: true, audienceKey: 'full' } },
+      async authorize() { return { demo: true, audienceKey: 'full', cheap: true } },
       loadStudentFacts: mk('student', { overview: view(pick('student'), 'overview'), gender: null }),
-      loadClassFacts: mk('class', view(pick('class'), 'overview')),
+      loadClassFacts: mk('class', classFacts),
       loadClassSubjectFacts: mk('class_subject', view(pick('class_subject'), 'view')),
       loadSubmissionFacts: mk('submission', view(pick('submission'), 'view')),
     }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore(), now: () => NOW }) })
@@ -198,20 +213,58 @@ describe('הרשאות ויומן גישה', () => {
   })
 
   it('יומן ברירת המחדל: תלמיד → studentLevel (fail-closed למנהל-על); כיתה/הגשה → שורה בלי תלמיד; הדגמה → כלום', async () => {
-    const authorize = async (): Promise<SummaryAuthorization> => ({ demo: false, audienceKey: 'full' })
+    const authorize = async (): Promise<SummaryAuthorization> => ({ demo: false, audienceKey: 'full', cheap: true })
     const base = { authorize, async loadStudentFacts() { return { overview: studentSource().overview, gender: null } }, async loadClassFacts(): Promise<never> { throw new AppError(404, 'x') }, async loadSubmissionFacts(): Promise<never> { throw new AppError(404, 'x') } }
     const router = registerAiSummaryRoutes(base, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore(), now: () => NOW }) })
-    await call(router, 'get', reqOf({ query: studentQuery() }))
+    await call(router, 'post', reqOf({ body: { scope: 'student', id: sid } }))
     expect(vi.mocked(logAccess)).toHaveBeenLastCalledWith(expect.anything(), { studentId: sid, scope: 'ai_summary_student', endpoint: 'ai-summary' }, { studentLevel: true })
-    await call(router, 'get', reqOf({ query: { scope: 'class', id: 'c-v2' } }))
+    await call(router, 'post', reqOf({ body: { scope: 'class', id: 'c-v2' } }))
     expect(vi.mocked(logAccess)).toHaveBeenLastCalledWith(expect.anything(), { studentId: null, scope: 'ai_summary_class', endpoint: 'ai-summary' })
-    await call(router, 'get', reqOf({ query: { scope: 'submission', id: 'a-1' } }))
+    await call(router, 'post', reqOf({ body: { scope: 'submission', id: 'a-1' } }))
     expect(vi.mocked(logAccess)).toHaveBeenLastCalledWith(expect.anything(), { studentId: null, scope: 'ai_summary_submission', endpoint: 'ai-summary' })
 
     vi.mocked(logAccess).mockClear()
-    const demoRouter = registerAiSummaryRoutes({ ...base, async authorize() { return { demo: true, audienceKey: 'full' } } }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore(), now: () => NOW }) })
-    await call(demoRouter, 'get', reqOf({ query: studentQuery() }))
+    const demoRouter = registerAiSummaryRoutes({ ...base, async authorize() { return { demo: true, audienceKey: 'full', cheap: true } } }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore(), now: () => NOW }) })
+    await call(demoRouter, 'post', reqOf({ body: { scope: 'student', id: sid } }))
     expect(vi.mocked(logAccess)).not.toHaveBeenCalled()
+  })
+
+  it('GET לא כותב יומן בכל כניסה (R5#2): רק כשחוזר טקסט שמור על תלמיד; גם לא טוען הגשה אמיתית', async () => {
+    const authorize = async (): Promise<SummaryAuthorization> => ({ demo: false, audienceKey: 'full', cheap: true })
+    let loads = 0
+    const base = { authorize, async loadStudentFacts() { loads++; return { overview: studentSource().overview, gender: null } }, async loadClassFacts(): Promise<never> { throw new AppError(404, 'x') }, async loadSubmissionFacts(): Promise<never> { loads++; throw new AppError(404, 'x') } }
+    const store = createMemoryStore()
+    const router = registerAiSummaryRoutes(base, { service: createSummaryService({ llm: fakeLlm([GOOD]), store, now: () => NOW }) })
+    /* אין סיכום שמור: GET לא נרשם ביומן (בקשת זכאות בלבד) */
+    const none = await call(router, 'get', reqOf({ query: studentQuery() }))
+    expect(none.body!.data.summary).toBeNull()
+    expect(vi.mocked(logAccess)).not.toHaveBeenCalled()
+    /* POST נרשם; ואז GET שמחזיר טקסט שמור על תלמיד — נרשם (ממתין לכתיבה) */
+    await call(router, 'post', reqOf({ body: { scope: 'student', id: sid } }))
+    vi.mocked(logAccess).mockClear()
+    const stored = await call(router, 'get', reqOf({ query: studentQuery() }))
+    expect(stored.body!.data.summary).not.toBeNull()
+    expect(vi.mocked(logAccess)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logAccess)).toHaveBeenLastCalledWith(expect.anything(), { studentId: sid, scope: 'ai_summary_student', endpoint: 'ai-summary' }, { studentLevel: true })
+
+    /* הגשה אמיתית (טעינה כבדה): GET לא טוען ולא נרשם */
+    const heavy = registerAiSummaryRoutes({ ...base, authorize: async () => ({ demo: false, audienceKey: 'full', cheap: false }) }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: createMemoryStore(), now: () => NOW }) })
+    loads = 0
+    vi.mocked(logAccess).mockClear()
+    const sub = await call(heavy, 'get', reqOf({ query: { scope: 'submission', id: 'a-1' } }))
+    expect(sub.error).toBeUndefined()
+    expect(sub.body!.data.eligibility).toEqual({ ok: true })
+    expect(loads).toBe(0)
+    expect(vi.mocked(logAccess)).not.toHaveBeenCalled()
+  })
+
+  it('כשל ביומן ב-GET של סיכום שמור (fail-closed) חוסם: לא מוחזר טקסט', async () => {
+    const h = harness()
+    await call(h.router, 'post', reqOf({ body: { scope: 'student', id: sid } }))
+    const closed = registerAiSummaryRoutes({ ...h.deps, async logAccess() { throw new AppError(503, 'לא ניתן לתעד') } }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: h.store, now: () => NOW }) })
+    const r = await call(closed, 'get', reqOf({ query: studentQuery() }))
+    expect(r.error?.status).toBe(503)
+    expect(r.body).toBeUndefined()
   })
 
   it('אורח הוא תמיד הדגמה, גם אם ה-deps אמרו אחרת: תבנית, בלי LLM, בלי שמירה, ובלי עריכה', async () => {
@@ -262,5 +315,29 @@ describe('PATCH', () => {
 
     const changedAudience = registerAiSummaryRoutes({ ...harness().deps, async authorize() { return { demo: false, audienceKey: 'subj:math' } } }, { service: createSummaryService({ llm: fakeLlm([GOOD]), store: h.store, now: () => NOW }) })
     expect((await call(changedAudience, 'patch', reqOf({ params: { summaryId: id }, body: { editedText: 'x' } }))).error?.status).toBe(404)
+  })
+})
+
+describe('כתיבה מחדש על סיכום ערוך (R4#4)', () => {
+  it('POST regenerate בלי discardEdit → 409 והעריכה נשמרת; עם discardEdit:true → נכתב מחדש והעריכה נמחקת', async () => {
+    let t = NOW.getTime()
+    const llm = fakeLlm([GOOD])
+    const store = createMemoryStore()
+    const service = createSummaryService({ llm, store, now: () => new Date(t) })
+    const h = harness()
+    const router = registerAiSummaryRoutes(h.deps, { service })
+    const created = await call(router, 'post', reqOf({ body: { scope: 'student', id: sid } }))
+    const id = created.body!.data.summary!.id!
+    await call(router, 'patch', reqOf({ params: { summaryId: id }, body: { editedText: 'העריכה שלי' } }))
+    t += 25_000
+    const blocked = await call(router, 'post', reqOf({ body: { scope: 'student', id: sid, regenerate: true } }))
+    expect(blocked.error?.status).toBe(409)
+    expect(blocked.error?.message).toBe(ERR_SUMMARY_EDIT_EXISTS)
+    expect([...store.rows.values()][0].editedText).toBe('העריכה שלי')
+    expect(llm.calls).toHaveLength(1)
+    const confirmed = await call(router, 'post', reqOf({ body: { scope: 'student', id: sid, regenerate: true, discardEdit: true } }))
+    expect(confirmed.error).toBeUndefined()
+    expect(confirmed.body!.data.summary!.edited).toBe(false)
+    expect(llm.calls).toHaveLength(2)
   })
 })

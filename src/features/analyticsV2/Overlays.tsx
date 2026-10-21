@@ -12,6 +12,7 @@ import { AiSummaryPanel } from '../aiSummary'
 import { EmptyState, FONT, HowWeCalc, RADIUS, T } from '../teacherUi'
 import { L } from './labels'
 import { briefingHasContent, feedbackHasContent } from './logic'
+import { lockPageBehind } from './sheetLock'
 import { ActionButton, ErrorBlock, LoadingBlock, Note } from './ui'
 import { useV2, type V2Params } from './v2api'
 
@@ -25,9 +26,8 @@ function Sheet({ children, onClose, printable, label }: { children: ReactNode; o
   useEffect(() => {
     const returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
     ref.current?.focus()
-    /* שאר העמוד אינו נגיש בזמן שהשכבה פתוחה (מקלדת וקורא מסך נשארים בתוך השכבה) */
-    const others = [...document.body.children].filter((el) => el !== ref.current && !el.hasAttribute('inert'))
-    others.forEach((el) => el.setAttribute('inert', ''))
+    /* שאר העמוד אינו נגיש בזמן שהשכבה פתוחה (מקלדת וקורא מסך נשארים בתוך השכבה), וגם אינו מוצג — כך נשארת כותרת ראשית גלויה אחת (sheetLock.ts) */
+    const unlock = lockPageBehind([...document.body.children].filter((el): el is HTMLElement => el instanceof HTMLElement), ref.current)
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') closeRef.current() }
     window.addEventListener('keydown', onKey)
     /* הדפסה תמיד בערכה בהירה (נייר) ועם כל הפירוטים פתוחים — מחזירים את המצב הקודם אחרי */
@@ -48,7 +48,7 @@ function Sheet({ children, onClose, printable, label }: { children: ReactNode; o
     window.addEventListener('afterprint', after)
     return () => {
       window.removeEventListener('keydown', onKey); window.removeEventListener('beforeprint', before); window.removeEventListener('afterprint', after)
-      others.forEach((el) => el.removeAttribute('inert'))
+      unlock()
       returnTo?.focus()
     }
   }, [])

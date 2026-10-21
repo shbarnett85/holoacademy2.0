@@ -5,24 +5,26 @@
      נתוני מקצוע אחר; מחנך מקבל הכול (כולל התרעות חוצות-מקצועות) — רק בכיתות שבהן הוא מחנך.
    · ישות מחוץ להיקף הצופה (כיתה/תלמיד שאינם שלו, או שאינם קיימים) → 404 אחיד, כדי שלא יהיה אורקל קיום. 403 רק על תפקיד (מנהל מול מסך
      מורה) או על מקצוע/סקירה נעולים בכיתה שכן ברשות הצופה.
-   · תמונת המנהל עוברת את כללי adminPrivacy: תורמים לא רשומים, מגמה/ממוצע רק מ-N מספיק, תא שכולו כיתה אחת מוסתר, אין סכומים שניתן לחסר.
+   · תמונת המנהל עוברת את כללי adminPrivacy: תורמים לא רשומים, מגמה/ממוצע רק מ-N מספיק, תא שכולו כיתה אחת (או שנשען בעיקר עליה) מוסתר, אין סכומים שניתן לחסר.
+   · טענת רמה (מיקום מול הטווח המיועד, "הרמה בכיתה מתחת לטווח") רק מ-N מספיק: אישי — PERSONAL_LEVEL_MIN_SESSIONS משחקים; כיתתי — CLASS_LEVEL_MIN_STUDENTS תלמידים שעומדים בסף האישי;
+     אחרת position=null, הכותרת אומרת "אין עדיין מספיק נתונים" ומה יקרה, ו-dataState='insufficient'.
    · כל טקסט בשפה טבעית מגיע מ-findingsNarrative (אין מחרוזות ממצא כאן; נאכף ב-noHardcodedText.test.ts).
    · החישובים הטהורים (מגמה, תחומים, ציר זמן, התרעות) ב-derive.ts.
    · תלמידים שנחשפו בשמם מדווחים ל-opts.audit; הנתיב כותב ליומן הגישה לפני שהתגובה נשלחת.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  CLASS_COMMON_ERROR_MIN_SHARE_PCT, ENTRY_MAX_ALERTS, ERRORS_TAB_TITLES_MAX, MISCONCEPTION_RULE, OVERVIEW_ALERT_TEXTS_MAX, PROGRESS_EVENTS_MAX, SUMMARY_RECENT_MAX,
-  contentVectorLabel, type Position,
+  CLASS_COMMON_ERROR_MIN_SHARE_PCT, CLASS_LEVEL_MIN_STUDENTS, ENTRY_MAX_ALERTS, ERRORS_TAB_TITLES_MAX, MISCONCEPTION_RULE, OVERVIEW_ALERT_TEXTS_MAX, PERSONAL_LEVEL_MIN_SESSIONS,
+  PROGRESS_EVENTS_MAX, SUMMARY_RECENT_MAX, contentVectorLabel, type Position,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import {
-  ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ANALYTICS_CAVEATS, BRIEFING_SECTION_TITLES, ERR_NOT_FOUND, ERR_NO_ACCESS, EVIDENCE_LIMITS_NOTE, FEEDBACK_INTRO_TEXT, HOW_WE_CALC,
+  ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT, ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ANALYTICS_CAVEATS, BRIEFING_SECTION_TITLES, ERR_NOT_FOUND, ERR_NO_ACCESS, EVIDENCE_LIMITS_NOTE, FEEDBACK_INTRO_TEXT, HOW_WE_CALC,
   basedOnChallenges, basedOnSessions, basisLine, basisWhat, briefingSubtitleClass, briefingSubtitleStudent, briefingTitleClass, briefingTitleStudent, exposuresLine,
   groupTrendText, joinSubjectNames, narrateAdminGradeSummary, narrateAdminMisconception, narrateAdminPosition, narrateAdminSchool, narrateAdminSchoolPartial,
-  narrateAdminSubjectSummary, narrateAlertsMore, narrateAlertsTitle, narrateDifficultyBelow, narrateDifficultyFromTrend, narrateErrorsTabSummary,
+  narrateAdminSubjectSummary, narrateAlertsMore, narrateAlertsTitle, narrateCoverageGaps, narrateDifficultyBelow, narrateDifficultyFromTrend, narrateErrorsTabSummary,
   narrateEvidenceWindow, narrateFeedbackGrowth, narrateFeedbackHeadline, narrateFeedbackNextStep, narrateFeedbackStreak, narrateMisconceptionInsufficient,
   narrateOverviewSummary, narrateProgressTabSummary, narrateRecommendation, narrateRecommendationFromFinding, narrateShort, narrateShortBody, narrateStrengthAbove,
   narrateStudentHeadline, narrateStudentsTabSummary, narrateSubjectHeadline, narrateUnclassifiedNote, narrateVectorGap, narrateVectorStrength, needMoreLine, normBandLine,
-  positionText, studentsCountText, trendText,
+  positionText, studentsCountText, trendText, V2_CLIENT_TEXT,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type {
@@ -68,6 +70,11 @@ const studentsOf = (a: Analysis, cls: WorldClass): WorldStudent[] => cls.student
 const saOf = (a: Analysis, studentId: string, subject: SubjectCode): SubjectAnalysis | undefined => a.ss.get(skey(studentId, subject))
 const defined = <T>(x: T | undefined): x is T => x !== undefined
 
+/* ── סף N לטענות רמה ──
+   רמה "נוכחית" היא ממוצע ארבעת המשחקים האחרונים: מתלמיד/ה עם משחק אחד היא עדיין לא טענה. מיקום מול הטווח המיועד (אישי) — רק מ-PERSONAL_LEVEL_MIN_SESSIONS משחקים. */
+const hasEnoughSessions = (sa: Pick<SubjectAnalysis, 'sessionsCount'>): boolean => sa.sessionsCount >= PERSONAL_LEVEL_MIN_SESSIONS
+const personalPosition = (sa: SubjectAnalysis): Position | null => (hasEnoughSessions(sa) ? sa.positionVsNorm : null)
+
 /* ── הרשאה לתלמיד שרשום בכמה כיתות ──
    מקור האמת לכיתות התלמיד הוא world.classes[].studentIds; st.classId היא רק הכיתה העיקרית שלו (שנבחרה במיזוג הכיתות).
    ההרשאה היא **איחוד** ההרשאות של הצופה בכל כיתות התלמיד (כמו authz.studentScope): מחנך באחת + מקצוע בשנייה רואה מה שהיה רואה בכל כיתה לחוד,
@@ -100,7 +107,7 @@ function panelOf(acc: StudentAccess, a: Analysis, sa: SubjectAnalysis): SubjectP
   const areas = studentAreaKeys(sa.contentVectors, areaReference(sa))
   return {
     access: 'visible', subject: sref(sa.subject), currentLevel: sa.currentLevel, levelSeries: sa.levelSeries,
-    ageNorm: sa.ageNorm, positionVsNorm: sa.positionVsNorm, positionText: positionText(sa.positionVsNorm),
+    ageNorm: sa.ageNorm, positionVsNorm: personalPosition(sa), positionText: positionText(personalPosition(sa)),
     trend, trendText: trendText(trend),
     areas: { strong: areas.strong.map(contentVectorLabel), challenging: areas.challenging.map(contentVectorLabel) },
     commonErrors: commonErrorsOf(a, sa.studentId, sa.subject),
@@ -141,7 +148,9 @@ function subjectStats(a: Analysis, cls: WorldClass, subject: SubjectCode): Subje
   const pairs = studentsOf(a, cls).filter((st) => st.subjects.includes(subject)).map((st) => ({ id: st.id, sa: saOf(a, st.id, subject) })).filter((p): p is { id: string; sa: SubjectAnalysis } => !!p.sa)
   const studentIds = pairs.map((p) => p.id)
   const sas = pairs.map((p) => p.sa)
-  const levels = sas.map((x) => x.currentLevel).filter((x): x is number => x !== null)
+  /* רמת הכיתה: רק כש-CLASS_LEVEL_MIN_STUDENTS תלמידים לפחות עומדים בסף האישי, והממוצע מהם בלבד (משחק בודד של מי שרק התחיל לא מכריע את הכיתה) */
+  const qualifying = sas.filter(hasEnoughSessions)
+  const levels = qualifying.length >= CLASS_LEVEL_MIN_STUDENTS ? qualifying.map((x) => x.currentLevel).filter((x): x is number => x !== null) : []
   const level = levels.length ? round1(mean(levels)) : null
   const refs = sas.map((x) => x.level60).filter((x): x is number => x !== null)
   const attention = sas
@@ -273,9 +282,18 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       })
       alerts.sort((x, y) => compareAlert(x.finding, y.finding) || x.studentId.localeCompare(y.studentId))
       const shown = alerts.slice(0, ENTRY_MAX_ALERTS)
-      /* הערת "הדמיות בלי מקצוע" רלוונטית רק למי שיש לו מה לראות מולה: מחנך, או מורה עם מקצוע פתוח. שיוך בלי מקצוע — אין לו אף מקצוע, ולכן אין לו מה לסווג מולו */
+      /* הערת "הדמיות בלי מקצוע" רלוונטית רק למי שיש לו מה לראות מולה: מחנך, או מורה עם מקצוע פתוח. שיוך בלי מקצוע — אין לו אף מקצוע, ולכן אין לו מה לסווג מולו.
+         שאר ההערות (כיתה בלי שכבה / שלא נטענה, משחקים בלי רמה) מצטרפות לאותו משפט כיסוי — בלי שמות תלמידים */
       const hasOpenSubject = grantsOf(v).some((g) => g.homeroom || g.subjects.length > 0)
-      const unclassified = hasOpenSubject ? source.coverage(v, a).unclassifiedSessions : 0
+      const cov = source.coverage(v, a)
+      const unclassified = hasOpenSubject ? cov.unclassifiedSessions : 0
+      const notes = [
+        ...(unclassified > 0 ? [narrateUnclassifiedNote(unclassified)] : []),
+        ...narrateCoverageGaps({
+          ungradedClasses: cov.ungradedClasses ?? 0, ungradedClassNames: cov.ungradedClassNames, notLoadedClasses: cov.classesNotLoaded ?? 0, loadingClasses: cov.classesLoading ?? 0,
+          dataErrorClasses: cov.classesDataError ?? 0, playsWithoutLevel: hasOpenSubject ? (cov.playsWithoutLevel ?? 0) : 0,
+        }),
+      ]
       opts?.audit?.expose(shown.map((s) => s.studentId))
       return state(classes.some((c) => c.hasResults), {
         classes,
@@ -288,7 +306,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         alertsTitle: narrateAlertsTitle(shown.length, alerts.length),
         alertsMore: narrateAlertsMore(shown.length, alerts.length, classes.length > 1),
         unclassifiedCount: unclassified,
-        coverageNote: unclassified > 0 ? narrateUnclassifiedNote(unclassified) : null,
+        coverageNote: notes.length > 0 ? notes.join(' ') : null,
       } satisfies Entry)
     },
 
@@ -338,7 +356,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         }
       }
       const hasGrowth = items.some((i) => i.kind === 'growth')
-      const anchor = visibleSubjects[0] ?? st.subjects[0]
+      /* אין לצופה אף מקצוע גלוי אצל התלמיד/ה: אין משוב (לא נופלים למקצוע נעול — המשוב נמסר לתלמיד/ה בשם מורה שאינו מלמד אותו) */
+      const anchor = visibleSubjects[0]
       if (!hasGrowth && anchor) {
         const total = visibleSubjects.reduce((s, sub) => s + (saOf(a, id, sub)?.sessionsCount ?? 0), 0)
         /* אין שיפור בולט: פריט אחד מסכם. בלי משחקים בכלל — צעד הבא כללי (לא "השלמת 0 הדמיות") */
@@ -347,7 +366,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           : { subject: sref(anchor), kind: 'next_step', text: narrateFeedbackNextStep(subjectName(anchor), null) })
       }
       opts?.audit?.expose([id])
-      return ok({ firstName: st.firstName, intro: FEEDBACK_INTRO_TEXT, headline: narrateFeedbackHeadline(st.firstName, hasGrowth), items: items.slice(0, 5) })
+      return state(items.length > 0, { firstName: st.firstName, intro: FEEDBACK_INTRO_TEXT, headline: narrateFeedbackHeadline(st.firstName, hasGrowth), items: items.slice(0, 5) })
     },
 
     /* "סקירה": שורה לכל מקצוע בכיתה. מחנך הכיתה בלבד — מחוץ להיקף: 404; מורה מקצועי / שיוך בלי מקצוע בכיתה שלו: 403. */
@@ -421,7 +440,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         const trend = studentTrend(sa)
         return {
           id: sa.studentId, displayName: nameOf(sa.studentId), level: sa.currentLevel,
-          positionVsNorm: sa.positionVsNorm, positionText: positionText(sa.positionVsNorm), trend, trendText: trendText(trend),
+          positionVsNorm: personalPosition(sa), positionText: positionText(personalPosition(sa)), trend, trendText: trendText(trend),
         }
       }).sort(compareHebrewNames) /* א-ב, ובשוויון — לפי מזהה */
       const series = classMonthlySeries(stats.sas)
@@ -448,7 +467,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         otherSubjects, caveats: CAVEATS,
       }
       opts?.audit?.expose(studentIds)
-      return state(stats.sas.some((sa) => sa.currentLevel !== null), view)
+      /* טענת רמה כיתתית (או אישית) רק מ-N מספיק: בלעדיה — insufficient, והכותרת אומרת מה יקרה */
+      return state(stats.level !== null, view)
     },
 
     /* תמונת המנהל: אגרגטים בלבד, דרך כללי adminPrivacy. אין כאן שם/מזהה תלמיד, מזהה כיתה או מידע על מורים. */
@@ -471,16 +491,16 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         const inGrade = w.students.filter((s) => s.grade === g.grade)
         const subjects = [...new Set(inGrade.flatMap((s) => s.subjects))]
         for (const sub of subjects) {
-          /* תורמים = מי שיש לו רמה במקצוע (לא "רשומים") */
+          /* תורמים = מי שיש לו רמה במקצוע (לא "רשומים") **ועומד בסף האישי** (PERSONAL_LEVEL_MIN_SESSIONS משחקים): משחק בודד אינו טענת רמה, גם לא בתוך ממוצע */
           const contributors = inGrade.filter((s) => s.subjects.includes(sub)).map((s) => ({ s, sa: saOf(a, s.id, sub) }))
-            .filter((x): x is { s: WorldStudent; sa: SubjectAnalysis } => !!x.sa && x.sa.currentLevel !== null)
+            .filter((x): x is { s: WorldStudent; sa: SubjectAnalysis } => !!x.sa && x.sa.currentLevel !== null && hasEnoughSessions(x.sa))
           /* אין אף תורם: אין מה להסתיר ואין מה להציג (תא "מוסתר" היה אומר שיש נתונים) */
           if (contributors.length === 0) continue
           const verdict = cellVerdict(contributors.map((x) => x.s.classId))
           if (!verdict.show) {
             cells.push({
               status: 'hidden', grade: g.grade, gradeLabel: g.gradeLabel, subject: sref(sub), reason: verdict.reason,
-              text: verdict.reason === 'single_class' ? ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT : ADMIN_HIDDEN_CELL_TEXT,
+              text: verdict.reason === 'single_class' ? ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT : verdict.reason === 'dominant_class' ? ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT : ADMIN_HIDDEN_CELL_TEXT,
             })
             hidden++
             continue
@@ -489,8 +509,9 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           const norm = a.ageNormOf(g.grade)
           const avg = round1(mean(sas.map((x) => x.currentLevel as number)))
           const position = positionOf(avg, norm) as Position
-          /* מגמה ושינוי: רק מ-≥ MIN_CELL_SIZE הפרשים. מתחת לזה לא מתפרסם גם המספר (שינוי של 1–4 תלמידים הוא כמעט אישי) */
-          const tr = publishableTrend(sas.map((x) => trendDelta(x)).filter((d): d is number => d !== null))
+          /* מגמה ושינוי: רק מ-≥ MIN_CELL_SIZE הפרשים, ובלי הכיתה הגדולה ביותר נשארים מספיק (אחרת המגמה היא בפועל מגמת כיתה אחת).
+             מתחת לזה לא מתפרסם גם המספר (שינוי של 1–4 תלמידים הוא כמעט אישי) */
+          const tr = publishableTrend(contributors.map((x) => ({ classId: x.s.classId, delta: trendDelta(x.sa) })))
           const trend = tr ? trendOfDelta(tr.delta) : 'insufficient'
           cells.push({
             status: 'shown', grade: g.grade, gradeLabel: g.gradeLabel, subject: sref(sub), studentCount: verdict.contributors,
@@ -547,11 +568,19 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const schoolLine = grades.length === 0 ? [] : [totalsPublishable(allGrades.map((g) => g.studentCount))
         ? narrateAdminSchool(grades.length, w.classes.length, w.students.length)
         : narrateAdminSchoolPartial(grades.length)]
-      const highlights = [
+      const base = [
         ...schoolLine,
         ...(focus ? [narrateAdminPosition(focus.gradeLabel, subjectName(focus.subject.code), focus.position)] : []),
         ...(miss[0] ? [miss[0].text] : []),
       ].slice(0, 3)
+      /* הערת כיסוי אחת (כיתות בלי שכבה / שלא נטענו, משחקים בלי רמה) אחרי שלושת המשפטים — בלי שמות וללא פירוט כיתה.
+         כשאין מה להדגיש, קודם המשפט הכללי "עוד אין תוצאות" (הוא נשאר הפותח), ואז ההערה */
+      const cov = source.coverage(v, a)
+      const gaps = narrateCoverageGaps({
+        ungradedClasses: cov.ungradedClasses ?? 0, notLoadedClasses: cov.classesNotLoaded ?? 0, loadingClasses: cov.classesLoading ?? 0, dataErrorClasses: cov.classesDataError ?? 0,
+        playsWithoutLevel: cov.playsWithoutLevel ?? 0,
+      })
+      const highlights = gaps.length > 0 ? [...(base.length > 0 ? base : [V2_CLIENT_TEXT.adminNoResults]), gaps.join(' ')] : base
 
       const out: AdminOverview = {
         school: w.school, highlights, grades, gradeRows, subjectRows, cells, progress,
@@ -566,8 +595,14 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const a = await source.analysis(v)
       const w = a.world
       const generatedAt = w.now.toISOString()
-      const startIso = w.days[Math.min(w.days.length - 1, 179)] ?? generatedAt
-      const endIso = w.days[0] ?? generatedAt
+      /* חלון הראיות המוצהר = הטווח בפועל של המשחקים שנספרו (sessionsCount נספר מכל האופק — לא רק מ-180 ימי הלימוד האחרונים — ולכן חלון קבוע היה סותר את המספר):
+         מחודש המשחק הראשון עד חודש האחרון, לפי הסדרה החודשית. בלי משחקים — אין מה לתאר, ונשאר החלון הרגיל. */
+      const declaredStartIso = w.days[Math.min(w.days.length - 1, 179)] ?? generatedAt
+      const declaredEndIso = w.days[0] ?? generatedAt
+      const spanOf = (series: readonly (readonly { date: string }[])[]): { startIso: string; endIso: string } => {
+        const dates = series.flatMap((s) => s.map((p) => p.date)).sort()
+        return dates.length > 0 ? { startIso: dates[0], endIso: dates[dates.length - 1] } : { startIso: declaredStartIso, endIso: declaredEndIso }
+      }
       type Item = Briefing['sections'][number]['items'][number]
 
       /* סעיף "איך חישבנו?" — המקום היחיד בתדריך שבו מופיעים מונחים/מספרים טכניים */
@@ -597,8 +632,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           const sa = saOf(a, id, sub)
           if (!sa) continue
           const nm = subjectName(sub)
-          if (sa.currentLevel !== null && sa.positionVsNorm === 'above') strengths.push({ text: narrateStrengthAbove(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
-          if (sa.currentLevel !== null && sa.positionVsNorm === 'below') difficulties.push({ text: narrateDifficultyBelow(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
+          if (sa.currentLevel !== null && personalPosition(sa) === 'above') strengths.push({ text: narrateStrengthAbove(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
+          if (sa.currentLevel !== null && personalPosition(sa) === 'below') difficulties.push({ text: narrateDifficultyBelow(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
           /* תחומים: החזק והמאתגר ביותר במקצוע, מול רמת הייחוס של התחומים; בתדריך כולו מוצגים הבולטים ביותר בלבד */
           const ref = areaReference(sa)
           const reportedVec = sa.contentVectors.filter((c) => c.status === 'reported' && c.level !== null)
@@ -620,7 +655,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
               recs.push({ text: narrateRecommendationFromFinding(f.evidence, { studentName: st.firstName, subjectName: nm }), subjectCode: sub, evidence: [] })
             } else unknowns.push({ text: f.text, subjectCode: sub, evidence: [needMoreLine(f.kind, f.n, f.minN)] })
           }
-          basis.push({ text: narrateEvidenceWindow(startIso, endIso, sa.sessionsCount, nm), subjectCode: sub, evidence: [] })
+          const span = spanOf([sa.levelSeries])
+          basis.push({ text: narrateEvidenceWindow(span.startIso, span.endIso, sa.sessionsCount, nm), subjectCode: sub, evidence: [] })
         }
         const mostNotable = (xs: { gap: number; item: Item }[]): Item[] => [...xs].sort((x, y) => compareLevels(y.gap, x.gap)).slice(0, BRIEFING_MAX_AREAS).map((x) => x.item)
         strengths.push(...mostNotable(areaStrengths))
@@ -651,10 +687,11 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         return ok(b)
       }
 
-      /* כיתה: מחוץ להיקף 404; בהיקף אך בלי אף מקצוע פתוח (שיוך בלי מקצוע) — 403 */
+      /* כיתה: מחוץ להיקף 404; בהיקף אך בלי אף מקצוע פתוח (שיוך בלי מקצוע) — 403.
+         מחנך/ת של כיתה שעוד אין בה מקצועות: זה לא מצב של "אין הרשאה" — מסמך ריק (insufficient) שהלקוח מסביר במילים */
       const cls = classInScope(v, a, id)
       const subjects = classSubjectAccess(v, id, subjectsOfClass(a, id)).open
-      if (!subjects.length) denied()
+      if (!subjects.length && !isHomeroomOf(v, id)) denied()
       const strengths: Item[] = []
       const difficulties: Item[] = []
       const trend: Item[] = []
@@ -685,8 +722,10 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
             subjectCode: sub, evidence: [studentsCountText(s.studentsShowing, s.studentsExposed), exposuresLine(MISCONCEPTION_RULE.minExposuresPerStudent)],
           })
         }
-        const sessions = studentsOf(a, cls).filter((st) => st.subjects.includes(sub)).reduce((sum, st) => sum + (saOf(a, st.id, sub)?.sessionsCount ?? 0), 0)
-        basis.push({ text: narrateEvidenceWindow(startIso, endIso, sessions, nm), subjectCode: sub, evidence: [] })
+        const classSas = studentsOf(a, cls).filter((st) => st.subjects.includes(sub)).map((st) => saOf(a, st.id, sub)).filter(defined)
+        const sessions = classSas.reduce((sum, sa) => sum + sa.sessionsCount, 0)
+        const span = spanOf(classSas.map((sa) => sa.levelSeries))
+        basis.push({ text: narrateEvidenceWindow(span.startIso, span.endIso, sessions, nm), subjectCode: sub, evidence: [] })
       }
       unknowns.push({ text: EVIDENCE_LIMITS_NOTE, subjectCode: null, evidence: [] })
       const b: Briefing = {
@@ -703,7 +742,7 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         ],
         caveats: CAVEATS,
       }
-      return ok(b)
+      return state(subjects.length > 0, b)
     },
   }
 }

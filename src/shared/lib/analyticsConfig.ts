@@ -28,7 +28,7 @@ export type FindingKind = (typeof FINDING_KINDS)[number]
    (היחידה נקבעת בסוג: d של Cohen / עודף חלק / פער שיעורים / יחס). */
 export interface KindThreshold { minN: number; minEffect: number; effectUnit: string }
 export const KIND_THRESHOLDS: Record<FindingKind, KindThreshold> = {
-  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בסשנים: חלון אחרון מול קודם)' },
+  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בהדמיות: חלון אחרון מול קודם; בחשבון אמיתי — ההצלחה ביחס לשאר הכיתה באותה הדמיה, ראו LIVE_TREND_RULE)' },
   class_concept_improvement: { minN: 15, minEffect: 0.8, effectUnit: 'dz (שינוי זוגי פר-תלמיד)' },
   memory_random_pattern: { minN: 6, minEffect: 0.25, effectUnit: 'פער בשיעור איתור זוג מוכר מול הצפוי בקשב (N = משחקים)' },
   position_bias: { minN: 25, minEffect: 0.15, effectUnit: 'עודף חלק האפשרות הראשונה מעל הצפוי (פריטים)' },
@@ -165,10 +165,29 @@ export const CURRENT_LEVEL_SESSIONS = 4
 
 /* ── מנוע הדפוסים על נתוני אמת (W1) ── */
 
-/* מגמת רמה בנתוני אמת נבדקת על הרמה עצמה: הכיול 60/80 מזיז את הרמה כדי שההצלחה תישאר ~60–80%, ולכן מבחן על ההצלחה כמעט אינו מזהה שינוי.
-   אפקט = הפרש ממוצע הרמה בין החלון האחרון לזה שלפניו (ברמות); מדווח רק מרמה אחת ומעלה — צעד הכיול. (בהדגמה הבדיקה נשארת על ההצלחה.) */
+/* מגמת רמה בנתוני אמת (FX1a). הרמה היא תוצר של כיול 60/80: כל רמה תלויה בקודמתה (הליכה אקראית), והיא זזה גם כשקושי ההדמיה זז ולא רק כשהתלמיד/ה השתנו —
+   ולכן מבחן ישיר על הרמה מסמן "שינוי" אצל 4% עד 35% מהתלמידים גם כשלא השתנה דבר (נמדד בסימולציית אפס).
+   הבדיקה בנתוני אמת היא על ההצלחה של התלמיד/ה ביחס לשאר הכיתה באותה הדמיה: הצלחה פחות הצלחת הכיתה (בלי התלמיד/ה) באותה הדמיה.
+   זה מנטרל קושי הדמיה ושינוי קושי כיתתי. הרמה משמשת רק לאישור — מדווחים רק אם גם ההצלחה הגולמית וגם הרמה זזו באותו כיוון.
+   · minPeers: כמה תלמידים אחרים צריכים לסיים את אותה הדמיה כדי שיהיה לה ציון יחסי (בלי מספיק עמיתים אין ציון, והמשחק לא נספר במגמה).
+   · minRelativeShift: הפרש מינימלי בממוצע ההצלחה היחסית בין החלון האחרון לקודם (שבר הצלחה).
+   · minRawShift: הפרש מינימלי באותו כיוון בהצלחה הגולמית.
+   · outlierK / outlierMinScale: השינוי היחסי של התלמיד/ה חייב להיות חריג גם מול שינוי היתר בכיתה (חציון ו-MAD של השינוי היחסי של התלמידים שנבדקו; הסקאלה לא קטנה מ-outlierMinScale).
+     כך תגובה לא אחידה לשינוי קושי כיתתי (תלמידי תקרה זזים פחות) ושונות בין תלמידים אינן נקראות כשינוי של תלמיד/ה.
+   · LEVEL_TREND_BASIS.minDeltaLevels: הפרש ממוצע הרמה באותו כיוון — צעד הכיול. (בהדגמה הבדיקה נשארת על ההצלחה, כמו תמיד.) */
 export const LEVEL_TREND_BASIS = { minDeltaLevels: 1 } as const
+export const LIVE_TREND_RULE = { minPeers: MIN_CELL_SIZE, minRelativeShift: 0.2, minRawShift: 0.05, outlierK: 2, outlierMinScale: 0.03 } as const
 
 /* שיעור איתור זוג מוכר "בקשב" במשחק הזיכרון — הבסיס שממנו נמדד דפוס אקראי. נגזר מחציון התלמידים רק כשיש לפחות MIN_CELL_SIZE תורמים,
    אחרת ערך קבוע; ותמיד בתוך [min, max] — חציון של 1.0 (כולם מושלמים) הופך כל החמצה ל-p=0 וממצא כוזב על ילד. */
 export const MEMORY_ATTENTIVE_RATE = { fallback: 0.7, min: 0.5, max: 0.95 } as const
+
+/* ── FX1b: סף N לטענות רמה (מיקום מול הטווח המיועד, "הרמה בכיתה מתחת לטווח") ──
+   רמה "נוכחית" היא ממוצע ארבעת המשחקים האחרונים; מתלמיד/ה עם משחק אחד היא עדיין לא טענה על רמה.
+   · אישי: מיקום מול הטווח המיועד רק מ-PERSONAL_LEVEL_MIN_SESSIONS משחקים במקצוע.
+   · כיתתי: רמה ומיקום של הכיתה רק כש-CLASS_LEVEL_MIN_STUDENTS תלמידים לפחות עומדים בסף האישי (והממוצע מחושב מהם בלבד).
+   · מנהל: תורם לתא שכבה × מקצוע רק מי שעומד בסף האישי; ותא מוצג רק אם אחרי הסרת הכיתה הגדולה ביותר נשארים ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS תורמים לפחות
+     (אחרת הממוצע שמתפרסם הוא בפועל ממוצע כיתה אחת, ומורה מזוהה — חוק 9). */
+export const PERSONAL_LEVEL_MIN_SESSIONS = CURRENT_LEVEL_SESSIONS
+export const CLASS_LEVEL_MIN_STUDENTS = 3
+export const ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS = MIN_CELL_SIZE

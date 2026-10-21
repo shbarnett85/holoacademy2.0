@@ -2,12 +2,15 @@
    service — סיכום מילולי: get / generate / edit. **שירות אחד שאינו תלוי בספק ובהרשאות**:
    · ההרשאה כבר הוכרעה בחוץ (routes/aiSummary.ts דרך deps.authorize) ונכנסת כאן כ-audienceKey + demo; הנתונים נטענים בהזרקה (req.load) רק כשצריך.
    · תלויות מוזרקות: llm (מזויף בבדיקות), store, now, log. אין כאן DB ישיר, אין ייבוא של ספקי v2/תוצאות.
-   · זרימת יצירה: cache אישי לצופה → טעינה → הקרנה לעובדות → זכאות (N מינימלי) → תקרה יומית → LLM → שומר → ניסיון חוזר אחד → תבנית → שמירה.
+   · זרימת יצירה: cache אישי לצופה → (כתיבה מחדש על סיכום ערוך דורשת אישור מפורש) → טעינה → הקרנה לעובדות → זכאות (N מינימלי) → תקרה יומית → LLM → שומר →
+     ניסיון חוזר אחד → תבנית → שמירה.
+   · GET זול: קריאת מטמון (סבב DB אחד); זכאות והתיישנות מחושבות רק כשהטעינה זולה (req.cheapLoad — חוזה v2 כבר בזיכרון). סיכום הגשה (טעינה כבדה) — הזכאות נדחית ל-POST.
+   · שגיאות אחסון: רק "סכמה חסרה" הופכת ל-persisted:false. כל כשל אחר מ-store מתפשט כ-503 (לא נבלע): אחרת find שנכשל נראה "אין סיכום", נקראת שוב ל-LLM והעריכה נדרסת.
    · חוק 12: ל-LLM נשלחות עובדות אנונימיות בלבד. הלוג מכיל קודי הפרה בלבד, אף פעם לא טקסט או שמות.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY, ERR_SUMMARY_NOT_FOUND,
-  aiSummaryBasis, aiSummaryHowWritten, aiSummaryPrivacyNote,
+  AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY, ERR_SUMMARY_NOT_FOUND,
+  ERR_SUMMARY_SAVE, aiSummaryBasis, aiSummaryHowWritten, aiSummaryPrivacyNote,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { summaryEligibility } from '../../../../src/shared/lib/aiSummaryRule.js'
 import { isSubjectCode } from '../../../../src/shared/lib/subjects.js'
@@ -27,8 +30,10 @@ export interface SummaryRequest {
   target: SummaryTarget
   /* 'full' | 'subj:<קודים>' — נקבע בהרשאה; חלק ממפתח השמירה */
   audienceKey: string
-  /* טוען את מקור הנתונים (חוזה v2/תוצאות). נקרא רק אחרי ההרשאה ורק כשצריך */
-  load: () => Promise<SummarySource>
+  /* טוען את מקור הנתונים (חוזה v2/תוצאות). נקרא רק אחרי ההרשאה ורק כשצריך. lite: בלי קריאות DB נוספות (למשל מגדר) — לחישוב חותמת הנתונים בלבד */
+  load: (opts?: { lite?: boolean }) => Promise<SummarySource>
+  /* true כשהטעינה כבר בזיכרון הבקשה (תלמיד/כיתה/מקצוע ב-v2, אחרי ההרשאה) או בלי DB (הדגמה): מותר לחשב ב-GET זכאות והתיישנות. הגשה אמיתית: false */
+  cheapLoad?: boolean
 }
 
 export type SummaryResponse = AiEnvelopeOf<SummaryState>
@@ -48,10 +53,12 @@ export interface SummaryServiceDeps {
 
 export interface SummaryService {
   get(req: SummaryRequest): Promise<SummaryResponse>
-  generate(req: SummaryRequest, opts?: { regenerate?: boolean }): Promise<SummaryResponse>
+  /* regenerate: כתיבה מחדש. על סיכום שהמורה ערך — discardEdit=true חובה (אישור מפורש), אחרת 409 */
+  generate(req: SummaryRequest, opts?: { regenerate?: boolean; discardEdit?: boolean }): Promise<SummaryResponse>
   /* מי הסיכום ועל איזו ישות — רק אם הוא של הצופה (לאכיפת הרשאה לפני עריכה) */
   describe(summaryId: string, viewerId: string): Promise<{ target: SummaryTarget; audienceKey: string } | null>
-  edit(args: { viewer: SummaryViewer; summaryId: string; audienceKey: string; editedText: string | null }): Promise<SummaryResponse>
+  /* req (אופציונלי): הבקשה המלאה, לחישוב "ייתכן שהנתונים השתנו" בתגובה — בלעדיו ההתיישנות נקבעת לפי הגיל בלבד */
+  edit(args: { viewer: SummaryViewer; summaryId: string; audienceKey: string; editedText: string | null; req?: SummaryRequest }): Promise<SummaryResponse>
 }
 
 /* מפתחות הקהל (audienceKey) — חלק ממפתח השמירה האישי. 'full' = מחנך/מנהל-על (כל המקצועות); מורה מקצועי = המקצועות שלו, ממוינים */
@@ -60,6 +67,10 @@ export const subjectAudience = (codes: readonly string[]): string => `subj:${[..
 
 export const DEFAULT_DAILY_CAP = 30
 export const DEFAULT_REGENERATE_COOLDOWN_MS = 20_000
+/* סיכום ישן מזה מסומן "ייתכן שהנתונים השתנו", גם אם חותמת הנתונים לא חושבה (חוק 7: נתונים ישנים דועכים) */
+export const SUMMARY_STALE_AFTER_DAYS = 14
+/* יצירה שנכשלה בשמירה (503) נשמרת בזיכרון לזמן קצר, כדי שניסיון חוזר ישמור אותה ולא יקרא שוב ל-LLM */
+const UNSAVED_TTL_MS = 5 * 60_000
 const MAX_DISPLAY_PARAGRAPHS = 12
 const notFound = (): never => { throw new AppError(404, ERR_SUMMARY_NOT_FOUND) }
 
@@ -81,6 +92,7 @@ const storeKeyOf = (req: SummaryRequest): StoreKey => ({
 const keyString = (k: StoreKey): string => [k.viewerId, k.scope, k.entityId, k.subjectCode, k.audienceKey].join('|')
 const targetOf = (s: Pick<StoredSummary, 'scope' | 'entityId' | 'subjectCode'>): SummaryTarget =>
   isSubjectCode(s.subjectCode) ? { scope: s.scope, id: s.entityId, subject: s.subjectCode } : { scope: s.scope, id: s.entityId }
+const hasEdit = (s: StoredSummary | null): s is StoredSummary => !!s && s.editedText !== null && s.editedText.trim().length > 0
 
 interface SummaryFields {
   id: string | null
@@ -95,6 +107,7 @@ interface SummaryFields {
   sampleUnit: 'sessions' | 'students'
   generatedAt: string
   updatedAt: string
+  stale: boolean
 }
 
 function buildSummary(f: SummaryFields): AiSummary {
@@ -110,14 +123,15 @@ function buildSummary(f: SummaryFields): AiSummary {
     edited,
     basisText: aiSummaryBasis(scope, f.sampleUnit, f.sampleSize),
     generatedAt: f.generatedAt, updatedAt: f.updatedAt,
+    stale: f.stale,
     caveat: CAVEAT_TREND,
     howWritten: aiSummaryHowWritten({ scope, writtenBy: f.writtenBy, demo: f.demo, model: f.model, promptVersion: f.promptVersion }),
   }
 }
 
-const fieldsOfStored = (s: StoredSummary): SummaryFields => ({
+const fieldsOfStored = (s: StoredSummary, stale: boolean): SummaryFields => ({
   id: s.id, target: targetOf(s), writtenBy: s.writtenBy, demo: false, model: s.model, promptVersion: s.promptVersion,
-  generated: s.paragraphs, edited: s.editedText, sampleSize: s.sampleSize, sampleUnit: s.sampleUnit, generatedAt: s.createdAt, updatedAt: s.updatedAt,
+  generated: s.paragraphs, edited: s.editedText, sampleSize: s.sampleSize, sampleUnit: s.sampleUnit, generatedAt: s.createdAt, updatedAt: s.updatedAt, stale,
 })
 
 function stateOf(scope: SummaryScope, p: Partial<SummaryState> & Pick<SummaryState, 'eligibility' | 'summary' | 'demo'>): SummaryResponse {
@@ -133,30 +147,37 @@ export function createSummaryService(deps: SummaryServiceDeps): SummaryService {
   const cooldownMs = deps.regenerateCooldownMs ?? DEFAULT_REGENERATE_COOLDOWN_MS
   const demoLlm = deps.demoLlm ?? process.env.AI_SUMMARY_DEMO_LLM === '1'
 
-  /* מוני גיבוי בזיכרון: כשאין טבלה (לפני המיגרציה) או כשכתיבות חוזרות דורסות שורה אחת */
+  /* מוני גיבוי בזיכרון: כשאין טבלת שימוש (לפני המיגרציה) — התקרה היומית והקירור נספרים כאן */
   const usage = new Map<string, number>()
   const lastGenerated = new Map<string, number>()
   const inflight = new Map<string, Promise<SummaryResponse>>()
+  const unsaved = new Map<string, { row: NewStoredSummary; resetEdit: boolean; at: number }>()
 
   const dayStartIso = (): string => { const d = now(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).toISOString() }
   const usageKey = (viewerId: string): string => `${viewerId}|${dayStartIso().slice(0, 10)}`
 
-  async function safe<T>(label: string, fn: () => Promise<T | null>): Promise<T | null> {
-    try { return await fn() } catch (e) { log(`[ai-summary] store ${label} failed: ${e instanceof Error ? e.message : 'error'}`); return null }
-  }
-
+  /* תקרה יומית: הגבוה מבין הספירה מיומן השימוש (כשהטבלה קיימת; כולל כתיבות מחדש) לבין המונה בזיכרון. כשל DB שאינו "סכמה חסרה" → 503 (נכשל סגור: בלי ספירה אין LLM) */
   async function enforceDailyCap(viewerId: string): Promise<void> {
-    const persisted = (await safe('count', () => store.countGeneratedSince(viewerId, dayStartIso()))) ?? 0
+    const persisted = (await store.countGeneratedSince(viewerId, dayStartIso())) ?? 0
     if (Math.max(persisted, usage.get(usageKey(viewerId)) ?? 0) >= dailyCap) throw new AppError(429, ERR_SUMMARY_LIMIT_DAILY)
   }
-  function bumpUsage(viewerId: string): void {
+  /* נקרא אחרי כל כתיבה (גם אם נפלה לתבנית): העלות כבר נגרמה. רישום ביומן הוא best-effort — הכשל נרשם ללוג בלבד */
+  async function recordUsage(viewerId: string): Promise<void> {
     if (usage.size > 5000) usage.clear()
     const k = usageKey(viewerId)
     usage.set(k, (usage.get(k) ?? 0) + 1)
+    try { await store.recordGeneration(viewerId, now().toISOString()) } catch (e) { log(`[ai-summary] usage record failed: ${e instanceof Error ? e.name : 'error'}`) }
   }
   function markGenerated(fkey: string): void {
     if (lastGenerated.size > 5000) lastGenerated.clear()
     lastGenerated.set(fkey, now().getTime())
+  }
+
+  /* התיישנות: ישן מ-SUMMARY_STALE_AFTER_DAYS, או (כשהטעינה זולה) חותמת הנתונים הנוכחית שונה מזו ששמורה. כשל בטעינה → לפי הגיל בלבד */
+  async function staleOf(req: SummaryRequest, stored: StoredSummary): Promise<boolean> {
+    if (now().getTime() - (Date.parse(stored.createdAt) || 0) > SUMMARY_STALE_AFTER_DAYS * 86_400_000) return true
+    if (!req.cheapLoad) return false
+    try { return inputHash(projectSource(await req.load({ lite: true }))) !== stored.inputHash } catch { return false }
   }
 
   /* כתיבה: LLM → שומר → ניסיון חוזר אחד → תבנית. כשל טכני של המודל (timeout, שגיאת רשת) → תבנית ישר, בלי ניסיון נוסף */
@@ -189,54 +210,73 @@ export function createSummaryService(deps: SummaryServiceDeps): SummaryService {
     if (demoLlm) {
       await enforceDailyCap(req.viewer.userId)
       out = await write(input, collectKnownNames(source))
-      bumpUsage(req.viewer.userId)
+      await recordUsage(req.viewer.userId)
     }
     const iso = now().toISOString()
     const summary = buildSummary({
       id: null, target: req.target, writtenBy: out.writtenBy, demo: true, model: out.model, promptVersion: out.writtenBy === 'ai' ? SUMMARY_PROMPT_VERSION : null,
-      generated: out.paragraphs, edited: null, sampleSize: input.sampleSize, sampleUnit: input.sampleUnit, generatedAt: iso, updatedAt: iso,
+      generated: out.paragraphs, edited: null, sampleSize: input.sampleSize, sampleUnit: input.sampleUnit, generatedAt: iso, updatedAt: iso, stale: false,
     })
     return stateOf(scope, { eligibility, summary, demo: true })
   }
 
-  async function generateReal(req: SummaryRequest, existing: StoredSummary | null): Promise<SummaryResponse> {
+  /* שמירה + בניית התגובה. הטבלה חסרה → מוצג בלי שמירה, עם הסבר במילים. כשל אחר → 503 (והיצירה נשמרת בזיכרון לניסיון חוזר) */
+  async function persist(req: SummaryRequest, fkey: string, row: NewStoredSummary, resetEdit: boolean): Promise<SummaryResponse> {
+    const scope = req.target.scope
+    let saved: StoredSummary | null
+    try {
+      saved = await store.upsert(row, { resetEdit })
+    } catch (e) {
+      unsaved.set(fkey, { row, resetEdit, at: now().getTime() })
+      throw e
+    }
+    unsaved.delete(fkey)
+    if (saved) return stateOf(scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(saved, false)), demo: false })
+    const summary = buildSummary({
+      id: null, target: req.target, writtenBy: row.writtenBy, demo: false, model: row.model, promptVersion: row.promptVersion,
+      generated: row.paragraphs, edited: null, sampleSize: row.sampleSize, sampleUnit: row.sampleUnit, generatedAt: row.createdAt, updatedAt: row.updatedAt, stale: false,
+    })
+    return stateOf(scope, { eligibility: { ok: true }, summary, demo: false, persisted: false, persistenceNote: AI_SUMMARY_TEXT.persistenceNote })
+  }
+
+  async function generateReal(req: SummaryRequest, existing: StoredSummary | null, resetEdit: boolean): Promise<SummaryResponse> {
     const scope = req.target.scope
     const viewerId = req.viewer.userId
+    const key = storeKeyOf(req)
+    const fkey = keyString(key)
+
+    /* יצירה קודמת שנכשלה בשמירה: שומרים אותה (בלי LLM נוסף) */
+    const pending = unsaved.get(fkey)
+    if (pending && now().getTime() - pending.at < UNSAVED_TTL_MS) return persist(req, fkey, pending.row, pending.resetEdit || resetEdit)
+
     const source = await req.load()
     const input = projectSource(source)
     const eligibility = summaryEligibility(scope, input.counts)
-    if (!eligibility.ok) return stateOf(scope, { eligibility, summary: existing ? buildSummary(fieldsOfStored(existing)) : null, demo: false })
+    if (!eligibility.ok) return stateOf(scope, { eligibility, summary: existing ? buildSummary(fieldsOfStored(existing, false)) : null, demo: false })
 
     await enforceDailyCap(viewerId)
     const out = await write(input, collectKnownNames(source))
-    bumpUsage(viewerId)
+    await recordUsage(viewerId)
 
     const iso = now().toISOString()
-    const key = storeKeyOf(req)
-    markGenerated(keyString(key))
+    markGenerated(fkey)
     const row: NewStoredSummary = {
       ...key, writtenBy: out.writtenBy, paragraphs: out.paragraphs, model: out.model, promptVersion: SUMMARY_PROMPT_VERSION,
-      inputHash: inputHash(input, SUMMARY_PROMPT_VERSION), inputFacts: input.facts, sampleSize: input.sampleSize, sampleUnit: input.sampleUnit, createdAt: iso, updatedAt: iso,
+      inputHash: inputHash(input), inputFacts: input.facts, sampleSize: input.sampleSize, sampleUnit: input.sampleUnit, createdAt: iso, updatedAt: iso,
     }
-    const saved = await safe('upsert', () => store.upsert(row))
-    if (saved) return stateOf(scope, { eligibility, summary: buildSummary(fieldsOfStored(saved)), demo: false })
-    /* לא נשמר (אין טבלה / כשל כתיבה): מוצג בכל זאת, עם הסבר במילים */
-    const summary = buildSummary({
-      id: null, target: req.target, writtenBy: out.writtenBy, demo: false, model: out.model, promptVersion: SUMMARY_PROMPT_VERSION,
-      generated: out.paragraphs, edited: null, sampleSize: input.sampleSize, sampleUnit: input.sampleUnit, generatedAt: iso, updatedAt: iso,
-    })
-    return stateOf(scope, { eligibility, summary, demo: false, persisted: false, persistenceNote: AI_SUMMARY_TEXT.persistenceNote })
+    return persist(req, fkey, row, resetEdit)
   }
 
   return {
     async get(req) {
       const scope = req.target.scope
       if (!req.viewer.demo) {
-        const stored = await safe('find', () => store.find(storeKeyOf(req)))
-        if (stored) return stateOf(scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(stored)), demo: false })
+        const stored = await store.find(storeKeyOf(req))
+        if (stored) return stateOf(scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(stored, await staleOf(req, stored))), demo: false })
       }
-      /* אין סיכום עדיין: הפאנל צריך לדעת אם אפשר לכתוב (או להסביר מה חסר) */
-      const input = projectSource(await req.load())
+      /* אין סיכום עדיין: הפאנל צריך לדעת אם אפשר לכתוב (או להסביר מה חסר). טעינה כבדה (הגשה אמיתית) נדחית ל-POST, שמחזיר "אין מספיק נתונים" אם צריך */
+      if (!req.cheapLoad) return stateOf(scope, { eligibility: { ok: true }, summary: null, demo: req.viewer.demo })
+      const input = projectSource(await req.load({ lite: true }))
       return stateOf(scope, { eligibility: summaryEligibility(scope, input.counts), summary: null, demo: req.viewer.demo })
     },
 
@@ -244,33 +284,43 @@ export function createSummaryService(deps: SummaryServiceDeps): SummaryService {
       if (req.viewer.demo) return generateDemo(req)
       const key = storeKeyOf(req)
       const fkey = keyString(key)
-      const existing = await safe('find', () => store.find(key))
-      if (existing && !opts.regenerate) return stateOf(req.target.scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(existing)), demo: false })
+      const existing = await store.find(key)
+      if (existing && !opts.regenerate) return stateOf(req.target.scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(existing, await staleOf(req, existing))), demo: false })
       if (opts.regenerate) {
+        /* כתיבה מחדש מוחקת את עריכת המורה: דורשת אישור מפורש (הלקוח שולח discardEdit אחרי חלון אישור; עריכה מלשונית אחרת נתפסת כאן) */
+        if (hasEdit(existing) && !opts.discardEdit) throw new AppError(409, ERR_SUMMARY_EDIT_EXISTS)
         const last = Math.max(existing ? Date.parse(existing.createdAt) || 0 : 0, lastGenerated.get(fkey) ?? 0)
         if (last > 0 && now().getTime() - last < cooldownMs) throw new AppError(429, ERR_SUMMARY_COOLDOWN)
       }
       const running = inflight.get(fkey)
       if (running) return running
-      const p = generateReal(req, existing)
+      const p = generateReal(req, existing, opts.regenerate === true && opts.discardEdit === true)
       inflight.set(fkey, p)
       try { return await p } finally { inflight.delete(fkey) }
     },
 
     async describe(summaryId, viewerId) {
-      const s = await safe('findById', () => store.findById(summaryId, viewerId))
+      const s = await store.findById(summaryId, viewerId)
       return s ? { target: targetOf(s), audienceKey: s.audienceKey } : null
     },
 
-    async edit({ viewer, summaryId, audienceKey, editedText }) {
+    async edit({ viewer, summaryId, audienceKey, editedText, req }) {
       if (viewer.demo) throw new AppError(403, ERR_SUMMARY_DEMO_EDIT)
-      const stored = await safe('findById', () => store.findById(summaryId, viewer.userId))
+      const stored = await store.findById(summaryId, viewer.userId)
       if (!stored || stored.audienceKey !== audienceKey) return notFound()
       const text = editedText === null ? null : normalizeEdit(editedText)
       if (text !== null && text.length === 0) throw new AppError(400, ERR_SUMMARY_EMPTY_EDIT)
-      const updated = await safe('setEdited', () => store.setEdited(stored.id, viewer.userId, text, now().toISOString()))
+      let updated: StoredSummary | null
+      try {
+        updated = await store.setEdited(stored.id, viewer.userId, text, now().toISOString())
+      } catch (e) {
+        /* כשל טכני בשמירה אינו "לא נמצא": ההודעה אומרת שהעריכה לא נשמרה ואפשר לנסות שוב */
+        if (e instanceof AppError && e.status === 503) throw new AppError(503, ERR_SUMMARY_SAVE)
+        throw e
+      }
       if (!updated) return notFound()
-      return stateOf(updated.scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(updated)), demo: false })
+      const stale = req ? await staleOf(req, updated) : now().getTime() - (Date.parse(updated.createdAt) || 0) > SUMMARY_STALE_AFTER_DAYS * 86_400_000
+      return stateOf(updated.scope, { eligibility: { ok: true }, summary: buildSummary(fieldsOfStored(updated, stale)), demo: false })
     },
   }
 }

@@ -25,7 +25,8 @@ export const toSummaryError = (e: unknown): SummaryError => (e instanceof Summar
 /** הפונקציות שהפאנל קורא להן. בבדיקות מחליפים אותן בתשובות קבועות (בלי רשת) */
 export interface SummaryApi {
   get(target: SummaryTarget, params: SummaryParams): Promise<SummaryEnvelope>
-  create(target: SummaryTarget, params: SummaryParams, regenerate: boolean): Promise<SummaryEnvelope>
+  /** discardEdit: כתיבה מחדש על סיכום ערוך אושרה במפורש (אחרת השרת מחזיר 409) */
+  create(target: SummaryTarget, params: SummaryParams, regenerate: boolean, discardEdit?: boolean): Promise<SummaryEnvelope>
   edit(summaryId: string, editedText: string | null, params: SummaryParams): Promise<SummaryEnvelope>
 }
 
@@ -56,7 +57,7 @@ const targetQuery = (t: SummaryTarget, params: SummaryParams): Record<string, st
 
 export const summaryApi: SummaryApi = {
   get: (target, params) => request('GET', `/api/ai-summary${qs(targetQuery(target, params))}`),
-  create: (target, params, regenerate) =>
-    request('POST', `/api/ai-summary${qs(params)}`, { scope: target.scope, id: target.id, ...(target.subject ? { subject: target.subject } : {}), ...(regenerate ? { regenerate: true } : {}) }),
+  create: (target, params, regenerate, discardEdit = false) =>
+    request('POST', `/api/ai-summary${qs(params)}`, { scope: target.scope, id: target.id, ...(target.subject ? { subject: target.subject } : {}), ...(regenerate ? { regenerate: true } : {}), ...(regenerate && discardEdit ? { discardEdit: true } : {}) }),
   edit: (summaryId, editedText, params) => request('PATCH', `/api/ai-summary/${encodeURIComponent(summaryId)}${qs(params)}`, { editedText }),
 }

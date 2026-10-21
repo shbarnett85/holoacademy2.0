@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE, ERR_V2_FORBIDDEN, ERR_V2_NOT_FOUND, ERR_V2_RATE_LIMIT, ERR_V2_UNAVAILABLE,
+  ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE, ERR_V2_FORBIDDEN, ERR_V2_NOT_FOUND, ERR_V2_RATE_LIMIT, ERR_V2_UNAVAILABLE,
 } from '../../shared/lib/findingsNarrative'
 import { SummaryStateSchema } from '../../shared/types/aiSummaryV1'
 import type { SummaryTarget } from '../../shared/types/aiSummaryV1'
@@ -26,7 +26,7 @@ function fakeApi(over: Partial<SummaryApi> = {}): SummaryApi & { calls: string[]
   return {
     calls,
     get: async () => { calls.push('get'); return { dataState: 'ok', data: summaryState() } },
-    create: async (_t, _p, regenerate) => { calls.push(regenerate ? 'regenerate' : 'create'); return { dataState: 'ok', data: summaryState() } },
+    create: async (_t, _p, regenerate, discardEdit) => { calls.push(regenerate ? (discardEdit ? 'regenerate+discard' : 'regenerate') : 'create'); return { dataState: 'ok', data: summaryState() } },
     edit: async (id, text) => { calls.push(`edit:${id}:${text === null ? 'null' : 'text'}`); return { dataState: 'ok', data: summaryState({ summary: aiSummary({ edited: text !== null, paragraphs: text === null ? PARAS : splitParagraphs(text) }) }) } },
     ...over,
   }
@@ -167,6 +167,73 @@ describe('הודעות שגיאה בעברית פשוטה', () => {
   it('"נסו שוב" רק כשיש טעם: עומס/תקלה כן, הרשאה/לא נמצא/בקשה לא תקינה לא', () => {
     expect([0, 429, 500, 503].every(isRetryable)).toBe(true)
     expect([400, 401, 403, 404].some(isRetryable)).toBe(false)
+  })
+})
+
+describe('כתיבה מחדש על סיכום ערוך (R4#4)', () => {
+  const edited = (): SummaryUiState => loaded(summaryState({ summary: aiSummary({ edited: true }) }))
+
+  it('regenAsked מציג אישור רק כשהסיכום ערוך; regenCancelled סוגר; כתיבה (writeStarted) סוגרת גם היא', () => {
+    const asked = summaryReducer(edited(), { type: 'regenAsked', key: KEY })
+    expect(view(asked).confirmRegen).toBe(true)
+    expect(view(summaryReducer(asked, { type: 'regenCancelled', key: KEY })).confirmRegen).toBe(false)
+    expect(view(summaryReducer(asked, { type: 'writeStarted', key: KEY })).confirmRegen).toBe(false)
+    /* סיכום לא ערוך: אין אישור גם אם התבקש */
+    expect(view(summaryReducer(loaded(), { type: 'regenAsked', key: KEY })).confirmRegen).toBe(false)
+    /* הדגמה: אין */
+    const demo = loaded(summaryState({ demo: true, persisted: false, summary: aiSummary({ writtenBy: 'template', id: null, edited: true }) }))
+    expect(view(summaryReducer(demo, { type: 'regenAsked', key: KEY })).confirmRegen).toBe(false)
+  })
+
+  it('עריכה מקומית (לפני המיגרציה) נחשבת עריכה: גם עליה מבקשים אישור', () => {
+    const local = run({ type: 'loaded', key: KEY, data: summaryState({ persisted: false, summary: aiSummary({ id: null }) }) }, { type: 'savedLocal', key: KEY, text: 'ערוך' }, { type: 'regenAsked', key: KEY })
+    expect(view(local).confirmRegen).toBe(true)
+  })
+
+  it('runWrite: discardEdit מועבר לשרת רק עם אישור (regenerate+discard)', async () => {
+    const api = fakeApi()
+    await runWrite(ctx(api), true, true)
+    await runWrite(ctx(api), true)
+    expect(api.calls).toEqual(['regenerate+discard', 'regenerate'])
+  })
+
+  it('409 מהשרת (נערך בלשונית אחרת): הסיכום נטען מחדש כדי שהעריכה תוצג, ואז ההודעה — והמצב מוכן לאישור', async () => {
+    const api = fakeApi({
+      create: async () => { throw new SummaryError(409, 'בסיכום הזה יש עריכה שלכם, וכתיבה מחדש תמחק אותה. כדי להמשיך צריך לאשר את המחיקה.') },
+      get: async () => ({ dataState: 'ok', data: summaryState({ summary: aiSummary({ edited: true, paragraphs: ['העריכה מהלשונית האחרת.'] }) }) }),
+    })
+    const c = ctx(api)
+    await runWrite(c, true)
+    expect(c.actions.map((a) => a.type)).toEqual(['writeStarted', 'loaded', 'writeFailed'])
+    const s = c.actions.reduce<SummaryUiState>((st, a) => summaryReducer(st, a), loaded())
+    const m = view(s)
+    expect(m.summary?.paragraphs).toEqual(['העריכה מהלשונית האחרת.'])
+    expect(m.summary?.edited).toBe(true)
+    expect(m.error?.message).toContain('צריך לאשר את המחיקה')
+    expect(summaryErrorMessage('write', 409, '')).toBe(ERR_SUMMARY_EDIT_EXISTS)
+  })
+})
+
+describe('זכאות שנדחתה ל-POST (R5#2): GET של הגשה אמיתית לא בודק זכאות', () => {
+  it('GET החזיר "אפשר לכתוב"; הלחיצה על "כתבו לי סיכום" מחזירה "אין מספיק נתונים" — והמצב עובר ל-ineligible עם ההסבר (בלי קריאה נוספת)', () => {
+    const s = run(
+      { type: 'loaded', key: KEY, data: summaryState({ summary: null }) },
+      { type: 'writeStarted', key: KEY },
+      { type: 'written', key: KEY, data: summaryState({ eligibility: NOT_ENOUGH, summary: null, persisted: false }) },
+    )
+    const m = view(s)
+    expect(view(loaded(summaryState({ summary: null }))).phase).toBe('none')
+    expect(m.phase).toBe('ineligible')
+    expect(m.eligibility).toEqual(NOT_ENOUGH)
+    expect(m.writing).toBe(false)
+  })
+})
+
+describe('stale בתצוגה', () => {
+  it('summary.stale מועבר למודל; בהדגמה — תמיד false', () => {
+    expect(view(loaded(summaryState({ summary: aiSummary({ stale: true }) }))).summary?.stale).toBe(true)
+    expect(view(loaded()).summary?.stale).toBe(false)
+    expect(view(loaded(summaryState({ demo: true, persisted: false, summary: aiSummary({ writtenBy: 'template', id: null, stale: true }) }))).summary?.stale).toBe(false)
   })
 })
 

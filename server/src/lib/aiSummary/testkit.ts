@@ -7,7 +7,7 @@ import { DEMO_HOMEROOM_TEACHER, DEMO_SUBJECT_TEACHERS } from '../results/demoCat
 import { getDemoResults } from '../results/demoResults.js'
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type { SummaryLlm, SummaryLlmRequest, SummaryLlmResult } from './llm.js'
-import type { SummaryInput, SummarySource } from './inputs.js'
+import { classDataCountsOf, type SummaryInput, type SummarySource } from './inputs.js'
 
 export const NOW = new Date('2026-10-19T09:00:00Z')
 export const homeroomOf = (cid: string): V2Viewer => ({ lens: 'homeroom', guest: true, homeroomClassId: cid, teachingClassIds: [], subjectCodes: [] })
@@ -15,15 +15,36 @@ export const subjectTeacher = (s: SubjectCode): V2Viewer => ({ lens: 'subject_te
 
 export interface LabeledSource { label: string; lens: 'homeroom' | 'subject'; subject: SubjectCode | null; source: SummarySource }
 
+/* מקור "כיתה" מעולם ההדגמה, כולל ספירת התלמידים עם נתונים (נגזרת ממסכי המקצוע, כמו ב-deps.ts) */
+export async function demoClassSource(classId: string): Promise<Extract<SummarySource, { scope: 'class' }>> {
+  const a = getAnalysis(NOW)
+  const c = a.classById.get(classId)!
+  const hr = homeroomOf(classId)
+  const overview = (await demoProvider.classOverview(hr, classId)).data
+  const subjects = overview.rows.filter((r) => r.level !== null).map((r) => r.subject.code)
+  const views = []
+  for (const sub of subjects) views.push((await demoProvider.classSubject(hr, c.id, sub)).data)
+  return { scope: 'class', overview, withData: classDataCountsOf(views) }
+}
+
 /* כל המקורות האפשריים בעולם ההדגמה: תלמידים (מחנך + כל מורה מקצועי), סקירות כיתה, מקצוע-בכיתה, וכל ההגשות */
-export async function demoSources(): Promise<LabeledSource[]> {
+let demoSourcesCache: Promise<LabeledSource[]> | null = null
+/* נבנה פעם אחת לקובץ בדיקות (הבנייה כבדה: מאות מקורות) */
+export const demoSources = (): Promise<LabeledSource[]> => (demoSourcesCache ??= buildDemoSources())
+
+async function buildDemoSources(): Promise<LabeledSource[]> {
   const a = getAnalysis(NOW)
   const out: LabeledSource[] = []
   for (const c of a.world.classes) {
     const hr = homeroomOf(c.id)
-    out.push({ label: `class ${c.id}`, lens: 'homeroom', subject: null, source: { scope: 'class', overview: (await demoProvider.classOverview(hr, c.id)).data } })
+    const overview = (await demoProvider.classOverview(hr, c.id)).data
     const subjects = [...new Set(c.studentIds.flatMap((sid) => a.studentById.get(sid)!.subjects))]
-    for (const sub of subjects) out.push({ label: `class-subject ${c.id} ${sub}`, lens: 'homeroom', subject: null, source: { scope: 'class_subject', view: (await demoProvider.classSubject(hr, c.id, sub)).data } })
+    const views = new Map<SubjectCode, Awaited<ReturnType<typeof demoProvider.classSubject>>['data']>()
+    for (const sub of subjects) views.set(sub, (await demoProvider.classSubject(hr, c.id, sub)).data)
+    /* אותה גזירה כמו demoClassSource: רק מקצועות שיש להם רמה בסקירה */
+    const withData = classDataCountsOf(overview.rows.filter((r) => r.level !== null).flatMap((r) => views.get(r.subject.code) ?? []))
+    out.push({ label: `class ${c.id}`, lens: 'homeroom', subject: null, source: { scope: 'class', overview, withData } })
+    for (const sub of subjects) out.push({ label: `class-subject ${c.id} ${sub}`, lens: 'homeroom', subject: null, source: { scope: 'class_subject', view: views.get(sub)! } })
     for (const sid of c.studentIds) {
       const gender = a.studentById.get(sid)!.displayName.length % 2 === 0 ? 'male' : 'female'
       out.push({ label: `student ${sid}`, lens: 'homeroom', subject: null, source: { scope: 'student', overview: (await demoProvider.student(hr, sid)).data, gender } })

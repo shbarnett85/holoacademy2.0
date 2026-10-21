@@ -8,13 +8,14 @@
 import { useId } from 'react'
 import { DONUT_TEXT, donutLegendCount } from '../../shared/lib/findingsNarrative'
 import { arcPath, computeArcs, polar, roundPercents } from './donutMath'
+import { DONUT_PATTERN } from './donutPattern'
+import type { DonutTone, PatternKind } from './donutPattern'
 import EmptyState from './EmptyState'
 import { Icon } from './icons'
 import type { IconName } from './icons'
 import { FONT, T, TONE_META } from './tokens'
-import type { Tone } from './tokens'
 
-export type DonutTone = Tone | 'accent'
+export type { DonutTone, PatternKind }
 
 export interface DonutSlice {
   /** מזהה יציב (לבדיקות ולמפתחות) */
@@ -43,16 +44,6 @@ export interface DonutChartProps {
   size?: number
   /** מצב ריק מפורש (למשל "עוד אין מספיק תלמידים שסיימו"); בלעדיו, total 0 מציג מצב ריק כללי */
   empty?: DonutEmpty | null
-}
-
-/* דוגמת המילוי לפי הטון — חמישה טונים, חמש דוגמאות שונות */
-export type PatternKind = 'solid' | 'horizontal' | 'diagonal' | 'dots' | 'cross'
-export const DONUT_PATTERN: Record<DonutTone, PatternKind> = {
-  positive: 'solid',
-  accent: 'horizontal',
-  attention: 'diagonal',
-  neutral: 'dots',
-  error: 'cross',
 }
 
 const toneColor = (tone: DonutTone): string => (tone === 'accent' ? T.accent : TONE_META[tone].color)

@@ -4,8 +4,9 @@ import { DEMO_CATALOG, EMPTY_CATALOG } from '../catalog.js'
 import { buildWorld, skey } from '../demoWorld.js'
 import { buildSchoolDays } from '../schoolCalendar.js'
 import {
-  assembleWorld, assembleWorldDetailed, conceptLevelsOfSession, firstCompletionIds, gradeLabelOf, gradeOfClass, readingOfSession, replayMemory, retriesOfAnswers,
+  assembleWorld, assembleWorldDetailed, conceptLevelsOfSession, firstCompletionIds, gradeFromText, gradeLabelOf, gradeOfClass, readingOfSession, replayMemory, retriesOfAnswers,
 } from './assemble.js'
+import { emptyCoverage, sumCoverage } from './coverage.js'
 import type { RawAnswer, RawClassData, RawMemoryFlip } from './rawTypes.js'
 import { emptyClassRaw, rawFromDemoClass } from './testkit.js'
 
@@ -14,7 +15,8 @@ const FRIDAY = new Date('2026-03-06T10:00:00Z')
 
 const sorted = <T extends { day: number; level: number; success: number }>(xs: T[]): T[] =>
   [...xs].sort((a, b) => a.day - b.day || a.level - b.level || a.success - b.success)
-const noConcepts = <T extends { concepts: unknown }>(xs: T[]): Omit<T, 'concepts'>[] => xs.map(({ concepts: _c, ...rest }) => rest)
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars -- הפירוק מוציא את concepts מהאובייקט; המשתנה עצמו אינו בשימוש */
+const noConcepts = <T extends { concepts: unknown }>(xs: T[]): Omit<T, 'concepts' | 'questId'>[] => xs.map(({ concepts: _c, questId: _q, ...rest }: T & { questId?: string }) => rest)
 
 describe('assembleWorld — שקילות מול עולם ההדגמה (מה שאינו תלוי תגיות)', () => {
   const demo = buildWorld(FRIDAY)
@@ -72,7 +74,7 @@ describe('assembleWorld — שקילות מול עולם ההדגמה (מה שא
     const s = raw.sessions[0]
     raw.sessions.push({ ...s, id: 'extra', questId: 'q-extra', completedAt: s.completedAt })
     raw.quests.push({ id: 'q-extra', subject: 'math' })
-    raw.snapshots.push({ sessionId: 'extra', studentId: s.studentId, classId: 'c-v2', subject: null, level: 7, success: 0.5 })
+    raw.snapshots.push({ sessionId: 'extra', studentId: s.studentId, classId: 'c-v2', subject: 'math', level: 7, success: 0.5 })
     const after = analyze(assembleWorld(raw, FRIDAY), EMPTY_CATALOG)
     const key = skey(s.studentId, 'math')
     expect(after.ss.get(key)!.sessionsCount).toBe(before.ss.get(key)!.sessionsCount + 1)
@@ -104,6 +106,23 @@ describe('assembleWorld — כיתה ושכבה', () => {
     expect(gradeLabelOf(7)).toBe('ז׳')
   })
 
+  it('הסקת שכבה מטקסט חופשי: רק ביטוי קפדני של תווית שכבה; כל שם אחר ← null, והכיתה נספרת ב-coverage עם שמה (FX1a)', () => {
+    const ok: [string, number][] = [['ז׳3', 7], ["ו'2", 6], ['י״א1', 11], ['יב', 12], ['כיתה ח׳1', 8], ['ט׳ 2', 9], ['ד', 4], ['י1', 10], ['ה׳', 5], ['  ז׳2 ', 7]]
+    for (const [text, grade] of ok) expect(gradeFromText(text), text).toBe(grade)
+    /* ההסקה הישנה לקחה את האות הראשונה: "בדיקה" ← ב׳, "אלפא" ← א׳, "גיטרה" ← ג׳ ... */
+    for (const text of ['בדיקה', 'אלפא', 'גיטרה', 'דקל', 'הרצל', 'כיתת ניסוי', 'מקהלה', 'עברית', 'תגבור מתמטיקה', 'יג', 'גן', '', 'ז׳א', 'ז׳123', 'כיתה']) expect(gradeFromText(text), text).toBeNull()
+    expect(gradeFromText(null)).toBeNull()
+    expect(gradeFromText(undefined)).toBeNull()
+    /* התווית קודמת לשם; תווית שאינה שכבה תקפה (י"ג) לא מסיקים מהשם */
+    expect(gradeOfClass({ gradeLevel: null, gradeLabel: 'יג', name: 'ז׳1' })).toBeNull()
+    expect(gradeOfClass({ gradeLevel: null, gradeLabel: '', name: 'ז׳1' })).toBe(7)
+    expect(gradeOfClass({ gradeLevel: 5, gradeLabel: 'ז׳1', name: 'ז׳1' })).toBe(5)
+    expect(gradeOfClass({ gradeLevel: null, gradeLabel: null, name: 'בדיקה' })).toBeNull()
+    const r = assembleWorldDetailed(emptyClassRaw('c', { gradeLevel: null, gradeLabel: null, name: 'בדיקה' }), FRIDAY)
+    expect(r.world.classes).toEqual([])
+    expect(r.coverage).toMatchObject({ classesWithoutGrade: 1, classesWithoutGradeNames: ['בדיקה'] })
+  })
+
   it('כיתה שלא נמצאה (cls=null) → עולם ריק תקין', () => {
     const r = assembleWorldDetailed({ ...emptyClassRaw(), cls: null }, FRIDAY)
     expect(r.world.classes).toEqual([])
@@ -127,7 +146,7 @@ describe('assembleWorld — כיתה ושכבה', () => {
     raw.members.push({ id: 's1', name: 'דנה כהן', classIds: ['c1'] })
     raw.quests.push({ id: 'q1', subject: 'science' })
     raw.sessions.push({ id: 'x1', studentId: 's1', questId: 'q1', completedAt: '2026-03-04T08:00:00Z' })
-    raw.snapshots.push({ sessionId: 'x1', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
+    raw.snapshots.push({ sessionId: 'x1', studentId: 's1', classId: 'c1', subject: 'science', level: 8, success: 0.7 })
     const w = assembleWorld(raw, FRIDAY)
     const st = w.students[0]
     expect(st.subjects).toEqual(['history', 'math', 'science'])
@@ -148,7 +167,7 @@ describe('assembleWorld — סשנים ויום לימוד', () => {
     raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
     raw.quests.push({ id: 'q1', subject: 'math' })
     raw.sessions.push({ id: 'x1', studentId: 's1', questId: 'q1', completedAt })
-    raw.snapshots.push({ sessionId: 'x1', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
+    raw.snapshots.push({ sessionId: 'x1', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 })
     const w = assembleWorld(raw, now)
     const rec = w.data.get(skey('s1', 'math'))?.sessions[0]
     return rec ? { date: rec.date, day: rec.day } : null
@@ -176,32 +195,62 @@ describe('assembleWorld — סשנים ויום לימוד', () => {
     expect(base('2024-01-01T10:00:00Z')).toBeNull()
   })
 
-  it('הדמיה בלי מקצוע לא נכנסת ונספרת; מקצוע מ-snapshot כשאין בהדמיה; חסר snapshot / רמה / הצלחה לא תקינה — נספרים בנפרד', () => {
+  it('הדמיה בלי מקצוע לא נכנסת ונספרת (גם אם ל-snapshot יש מקצוע); חסר snapshot / רמה / הצלחה לא תקינה — נספרים בנפרד', () => {
     const raw = emptyClassRaw('c1')
     raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] }, { id: 's2', name: 'רון', classIds: ['c1'] })
-    raw.quests.push({ id: 'qm', subject: 'math' }, { id: 'qn', subject: null }, { id: 'qs', subject: null })
+    raw.quests.push({ id: 'qm', subject: 'math' }, { id: 'qm2', subject: 'math' }, { id: 'qm3', subject: 'math' }, { id: 'qn', subject: null }, { id: 'qs', subject: null })
     const at = '2026-03-04T08:00:00Z'
     raw.sessions.push(
       { id: 'a', studentId: 's1', questId: 'qm', completedAt: at }, /* תקין */
       { id: 'b', studentId: 's1', questId: 'qn', completedAt: at }, /* אין מקצוע */
-      { id: 'c', studentId: 's2', questId: 'qs', completedAt: at }, /* אין מקצוע בהדמיה, יש ב-snapshot */
-      { id: 'd', studentId: 's2', questId: 'qm', completedAt: at }, /* אין snapshot */
-      { id: 'e', studentId: 's1', questId: 'qm', completedAt: '2026-03-03T08:00:00Z' }, /* הצלחה לא תקינה */
-      { id: 'f', studentId: 's1', questId: 'qm', completedAt: '2026-03-02T08:00:00Z' }, /* רמה מחוץ לטווח */
+      { id: 'c', studentId: 's2', questId: 'qs', completedAt: at }, /* אין מקצוע בהדמיה (גם אם ל-snapshot יש): לא מנחשים */
+      { id: 'd', studentId: 's2', questId: 'qm', completedAt: at }, /* אין snapshot: הרמה לא חושבה לפי מקצוע */
+      { id: 'e', studentId: 's1', questId: 'qm2', completedAt: '2026-03-03T08:00:00Z' }, /* הצלחה לא תקינה */
+      { id: 'f', studentId: 's1', questId: 'qm3', completedAt: '2026-03-02T08:00:00Z' }, /* רמה מחוץ לטווח */
       { id: 'g', studentId: 'not-a-member', questId: 'qm', completedAt: at },
     )
     raw.snapshots.push(
-      { sessionId: 'a', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'b', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 },
+      { sessionId: 'a', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'b', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 },
       { sessionId: 'c', studentId: 's2', classId: 'c1', subject: 'history', level: 6, success: 0.6 },
-      { sessionId: 'e', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 3 },
-      { sessionId: 'f', studentId: 's1', classId: 'c1', subject: null, level: 99, success: 0.5 },
+      { sessionId: 'e', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 3 },
+      { sessionId: 'f', studentId: 's1', classId: 'c1', subject: 'math', level: 99, success: 0.5 },
     )
     const r = assembleWorldDetailed(raw, FRIDAY)
-    expect(r.coverage).toMatchObject({ sessionsTotal: 6, unclassifiedSessions: 1, sessionsUsed: 2, sessionsWithoutLevel: 3 })
+    expect(r.coverage).toMatchObject({ sessionsTotal: 6, unclassifiedSessions: 2, sessionsWithoutSubjectLevel: 1, sessionsUsed: 1, sessionsWithoutLevel: 2, repeatSessions: 0 })
+    /* כל משחק בקטגוריה אחת בדיוק */
+    const c = r.coverage
+    expect(c.sessionsUsed + c.unclassifiedSessions + c.sessionsWithoutSubjectLevel + c.sessionsWithoutLevel + c.repeatSessions).toBe(c.sessionsTotal)
+    expect(c.unclassifiedSessionIds?.sort()).toEqual(['b', 'c'])
+    expect(c.sessionsWithoutSubjectLevelIds).toEqual(['d'])
     expect(r.world.data.get(skey('s1', 'math'))!.sessions).toHaveLength(1)
-    expect(r.world.data.get(skey('s2', 'history'))!.sessions).toHaveLength(1)
+    expect(r.world.data.get(skey('s2', 'history'))).toBeUndefined()
     expect(r.world.students.find((s) => s.id === 's1')!.subjects).toEqual(['math'])
+  })
+
+  it('רמה מפרופיל שאינו של המקצוע לא נכנסת לסדרת המקצוע: snapshot בלי subject_id או עם מקצוע אחר נספר, ולא יוצר סדרה', () => {
+    const raw = emptyClassRaw('c1')
+    raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
+    raw.quests.push({ id: 'q1', subject: 'math' }, { id: 'q2', subject: 'math' }, { id: 'q3', subject: 'math' })
+    const at = (d: number): string => `2026-03-0${d}T08:00:00Z`
+    raw.sessions.push(
+      { id: 'old', studentId: 's1', questId: 'q1', completedAt: at(2) }, /* הכיול הגלובלי (לפני שהדמיה שויכה למקצוע): בלי subject_id */
+      { id: 'wrong', studentId: 's1', questId: 'q2', completedAt: at(3) }, /* subject_id של מקצוע אחר */
+      { id: 'good', studentId: 's1', questId: 'q3', completedAt: at(4) },
+    )
+    raw.snapshots.push(
+      { sessionId: 'old', studentId: 's1', classId: 'c1', subject: null, level: 14, success: 0.7 },
+      { sessionId: 'wrong', studentId: 's1', classId: 'c1', subject: 'history', level: 14, success: 0.7 },
+      { sessionId: 'good', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 },
+    )
+    const r = assembleWorldDetailed(raw, FRIDAY)
+    expect(r.coverage).toMatchObject({ sessionsTotal: 3, sessionsUsed: 1, sessionsWithoutSubjectLevel: 2 })
+    expect(r.coverage.sessionsWithoutSubjectLevelIds?.sort()).toEqual(['old', 'wrong'])
+    const d = r.world.data.get(skey('s1', 'math'))!
+    expect(d.sessions.map((x) => x.level)).toEqual([8]) /* הקפיצה 14 → 8 לא קיימת בסדרה */
+    expect(r.world.data.get(skey('s1', 'history'))).toBeUndefined()
+    /* אחרי ששיוך מקצוע בדיעבד מוסיף subject_id לסשנים החדשים בלבד, ההיסטוריים נשארים מחוץ לסדרה */
+    expect(analyze(r.world, EMPTY_CATALOG).ss.get(skey('s1', 'math'))!.sessionsCount).toBe(1)
   })
 
   it('סשנים כפולים באותו מזהה נספרים פעם אחת', () => {
@@ -210,13 +259,15 @@ describe('assembleWorld — סשנים ויום לימוד', () => {
     raw.quests.push({ id: 'q', subject: 'math' })
     const s = { id: 'a', studentId: 's1', questId: 'q', completedAt: '2026-03-04T08:00:00Z' }
     raw.sessions.push(s, { ...s })
-    raw.snapshots.push({ sessionId: 'a', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
-    expect(assembleWorld(raw, FRIDAY).data.get(skey('s1', 'math'))!.sessions).toHaveLength(1)
+    raw.snapshots.push({ sessionId: 'a', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 })
+    const r = assembleWorldDetailed(raw, FRIDAY)
+    expect(r.world.data.get(skey('s1', 'math'))!.sessions).toHaveLength(1)
+    expect(r.coverage.repeatSessions).toBe(0)
   })
 })
 
-describe('assembleWorld — ריפליי: ראיות רק מההשלמה הראשונה', () => {
-  it('שתי השלמות של אותה הדמיה נכנסות לסדרת הרמה; התשובות / הקריאה / ההתמדה רק מהראשונה', () => {
+describe('assembleWorld — ריפליי: רק ההשלמה הראשונה נכנסת', () => {
+  it('השלמה חוזרת של אותה הדמיה לא נכנסת לסדרת הרמה וההצלחה, ולא לתשובות / הקריאה / ההתמדה; היא נספרת ב-coverage', () => {
     const raw = emptyClassRaw('c1')
     raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
     raw.quests.push({ id: 'q', subject: 'math' })
@@ -225,20 +276,36 @@ describe('assembleWorld — ריפליי: ראיות רק מההשלמה הרא�
       { id: 'early', studentId: 's1', questId: 'q', completedAt: '2026-03-02T08:00:00Z' },
     )
     raw.snapshots.push(
-      { sessionId: 'early', studentId: 's1', classId: 'c1', subject: null, level: 7, success: 0.5 },
-      { sessionId: 'late', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.9 },
+      { sessionId: 'early', studentId: 's1', classId: 'c1', subject: 'math', level: 7, success: 0.5 },
+      { sessionId: 'late', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.9 },
     )
     const mc = (sessionId: string): RawAnswer => ({ sessionId, sceneId: 'x', itemIndex: 0, puzzleType: 'multipleChoice', selectedPosition: 0, correctPosition: 1, displayedCount: 4, outcome: 'wrong' })
     raw.answers.push(mc('early'), mc('late'), { ...mc('late'), puzzleType: 'tileSwap', sceneId: 'y', outcome: 'gave_up' }, { ...mc('early'), puzzleType: 'tileSwap', sceneId: 'z', outcome: 'gave_up' })
     raw.sceneEnters.push({ sessionId: 'early', sceneId: 's1', wordCount: 40, closedMs: 8000 }, { sessionId: 'late', sceneId: 's1', wordCount: 40, closedMs: 800 })
-    const d = assembleWorld(raw, FRIDAY).data.get(skey('s1', 'math'))!
-    expect(d.sessions).toHaveLength(2)
+    const r = assembleWorldDetailed(raw, FRIDAY)
+    const d = r.world.data.get(skey('s1', 'math'))!
+    expect(d.sessions).toHaveLength(1)
     expect(d.mc).toHaveLength(1)
-    const early = d.sessions.find((s) => s.level === 7)!
-    const late = d.sessions.find((s) => s.level === 8)!
-    expect(early).toMatchObject({ words: 40, closedMs: 8000, scenes: 1, retries: { afterFail: 0, giveUps: 1 } })
-    expect(late).toMatchObject({ words: 0, closedMs: 0, scenes: 0, retries: { afterFail: 0, giveUps: 0 } })
+    expect(d.sessions[0]).toMatchObject({ level: 7, success: 0.5, words: 40, closedMs: 8000, scenes: 1, retries: { afterFail: 0, giveUps: 1 } })
+    expect(r.coverage).toMatchObject({ sessionsTotal: 2, sessionsUsed: 1, repeatSessions: 1 })
     expect(firstCompletionIds(raw.sessions)).toEqual(new Set(['early']))
+  })
+
+  it('ההשלמה הראשונה בלי מקצוע ברמה — החוזרת לא "יורשת" את מקומה בסדרה', () => {
+    const raw = emptyClassRaw('c1')
+    raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
+    raw.quests.push({ id: 'q', subject: 'math' })
+    raw.sessions.push(
+      { id: 'first', studentId: 's1', questId: 'q', completedAt: '2026-03-02T08:00:00Z' },
+      { id: 'again', studentId: 's1', questId: 'q', completedAt: '2026-03-04T08:00:00Z' },
+    )
+    raw.snapshots.push(
+      { sessionId: 'first', studentId: 's1', classId: 'c1', subject: null, level: 7, success: 0.5 },
+      { sessionId: 'again', studentId: 's1', classId: 'c1', subject: 'math', level: 9, success: 0.9 },
+    )
+    const r = assembleWorldDetailed(raw, FRIDAY)
+    expect(r.world.data.get(skey('s1', 'math'))).toBeUndefined()
+    expect(r.coverage).toMatchObject({ sessionsUsed: 0, sessionsWithoutSubjectLevel: 1, repeatSessions: 1 })
   })
 
   it('firstCompletionIds: לפי תלמיד×הדמיה; שוויון ברגע ההשלמה — מזהה קטן', () => {
@@ -258,7 +325,7 @@ describe('assembleWorld — תשובות (בחירה מרובה) והטיית מ
     raw.members.push({ id: 's1', name: 'דנה', classIds: ['c1'] })
     raw.quests.push({ id: 'q', subject: 'math' })
     raw.sessions.push({ id: 'x', studentId: 's1', questId: 'q', completedAt: '2026-03-04T08:00:00Z' })
-    raw.snapshots.push({ sessionId: 'x', studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
+    raw.snapshots.push({ sessionId: 'x', studentId: 's1', classId: 'c1', subject: 'math', level: 8, success: 0.7 })
     raw.answers = answers
     return raw
   }
@@ -407,7 +474,7 @@ describe('replayMemory — שחזור תורות מהיפוכים', () => {
       { id: 'first', studentId: 's1', questId: 'q', completedAt: '2026-03-02T08:00:00Z' },
       { id: 'replay', studentId: 's1', questId: 'q', completedAt: '2026-03-04T08:00:00Z' },
     )
-    for (const id of ['first', 'replay']) raw.snapshots.push({ sessionId: id, studentId: 's1', classId: 'c1', subject: null, level: 8, success: 0.7 })
+    for (const id of ['first', 'replay']) raw.snapshots.push({ sessionId: id, studentId: 's1', classId: 'c1', subject: 'science', level: 8, success: 0.7 })
     const sim = simulate(4, 0.7, mulberry(5))
     raw.memory.push(
       { sessionId: 'first', sceneId: 'm', itemIndex: 0, flips: sim.flips, totalCards: 8 },
@@ -434,11 +501,11 @@ describe('assembleWorld — תלמיד בכמה כיתות', () => {
     ses('a1', 's1', 'q1', '2'); ses('a2', 's1', 'q2', '3'); ses('a3', 's1', 'q3', '4')
     ses('b1', 's2', 'q1', '2'); ses('b2', 's2', 'q2', '3')
     raw.snapshots.push(
-      { sessionId: 'a1', studentId: 's1', classId: 'c-b', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'a2', studentId: 's1', classId: 'c-b', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'a3', studentId: 's1', classId: 'c-a', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'b1', studentId: 's2', classId: 'c-a', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'b2', studentId: 's2', classId: 'c-b', subject: null, level: 8, success: 0.7 },
+      { sessionId: 'a1', studentId: 's1', classId: 'c-b', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'a2', studentId: 's1', classId: 'c-b', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'a3', studentId: 's1', classId: 'c-a', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'b1', studentId: 's2', classId: 'c-a', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'b2', studentId: 's2', classId: 'c-b', subject: 'math', level: 8, success: 0.7 },
     )
     const r = assembleWorldDetailed(raw, FRIDAY)
     expect(r.primaryClassOf.get('s1')).toBe('c-b') /* 2 מול 1 */
@@ -451,6 +518,22 @@ describe('assembleWorld — תלמיד בכמה כיתות', () => {
   })
 })
 
+describe('coverage — השדות של FX1a במיזוג בין כיתות', () => {
+  it('משחקים בלי רמה לפי מקצוע: ייחודיים לפי מזהה (תלמיד בשתי כיתות נספר פעם אחת); חוזרות נסכמות; שמות כיתות בלי כפילות', () => {
+    const a = { ...emptyCoverage(), sessionsWithoutSubjectLevel: 2, sessionsWithoutSubjectLevelIds: ['x', 'y'], repeatSessions: 1, classesWithoutGrade: 1, classesWithoutGradeNames: ['חוג'] }
+    const b = { ...emptyCoverage(), sessionsWithoutSubjectLevel: 2, sessionsWithoutSubjectLevelIds: ['y', 'z'], repeatSessions: 2, classesWithoutGrade: 1, classesWithoutGradeNames: ['חוג'] }
+    const sum = sumCoverage([a, b])
+    expect(sum.sessionsWithoutSubjectLevel).toBe(3)
+    expect(sum.sessionsWithoutSubjectLevelIds?.sort()).toEqual(['x', 'y', 'z'])
+    expect(sum.repeatSessions).toBe(3)
+    expect(sum.classesWithoutGrade).toBe(2)
+    expect(sum.classesWithoutGradeNames).toEqual(['חוג'])
+    /* בלי מזהים באחד החלקים: סכום פשוט */
+    expect(sumCoverage([a, { ...b, sessionsWithoutSubjectLevelIds: undefined }]).sessionsWithoutSubjectLevel).toBe(4)
+    expect(sumCoverage([]).sessionsWithoutSubjectLevel).toBe(0)
+  })
+})
+
 describe('assembleWorld — עולם חי דל: המנוע רץ ואין ממצאים', () => {
   it('מעט סשנים בלי תשובות / קריאה / זיכרון → כל הממצאים insufficient או חסרים, ווקטורי תוכן ריקים', () => {
     const raw = emptyClassRaw('c1')
@@ -459,7 +542,7 @@ describe('assembleWorld — עולם חי דל: המנוע רץ ואין ממצ�
       raw.members.push({ id: `s${i}`, name: `תלמיד ${i}`, classIds: ['c1'] })
       raw.quests.push({ id: `q${i}`, subject: 'math' })
       raw.sessions.push({ id: `x${i}`, studentId: `s${i}`, questId: `q${i}`, completedAt: `2026-03-0${2 + (i % 3)}T08:00:00Z` })
-      raw.snapshots.push({ sessionId: `x${i}`, studentId: `s${i}`, classId: 'c1', subject: null, level: 6 + i, success: 0.6 + i * 0.1 })
+      raw.snapshots.push({ sessionId: `x${i}`, studentId: `s${i}`, classId: 'c1', subject: 'math', level: 6 + i, success: 0.6 + i * 0.1 })
     }
     const w = assembleWorld(raw, FRIDAY)
     const a = analyze(w, EMPTY_CATALOG)

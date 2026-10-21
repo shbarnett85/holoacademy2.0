@@ -3,9 +3,10 @@
    · הצבעים במסמך הם **ערכים הקסדצימליים ליטרליים**. ב-Word (וב-iframe) אין משתני CSS של האתר: var(--tN) לא היה מתורגם והצבעים אבדו.
    · הכותרת (שם התלמיד/ה/הכיתה/ההדמיה) מגיעה מהמסך — לעולם לא מהבינה המלאכותית. כל טקסט עובר escape.
    · המיוצא הוא הטקסט שמוצג: אחרי עריכת המורה. שורת "נוצר בעזרת בינה מלאכותית (ונערך על ידי המורה)" לפי מי כתב ואם נערך.
+   · **התאריך במסמך הוא תאריך הכתיבה של הסיכום (writtenAt), לא יום הייצוא**: מסמך מיוצא מתאר את הנתונים ביום שנכתב, ואם ייתכן שהם השתנו (stale) זה כתוב בו.
    · הטקסטים: findingsNarrative (AI_SUMMARY_TEXT / AI_SUMMARY_PANEL_TEXT).
    ────────────────────────────────────────────────────────────────────────── */
-import { AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT } from '../../shared/lib/findingsNarrative'
 import type { SummaryScope } from '../../shared/types/aiSummaryV1'
 
 export interface SummaryDocInput {
@@ -19,7 +20,11 @@ export interface SummaryDocInput {
   demo: boolean
   basisText: string
   caveat: string
-  /** ברירת מחדל: עכשיו */
+  /** מועד כתיבת הסיכום (ISO, generatedAt של השרת) — התאריך שמודפס במסמך */
+  writtenAt?: string
+  /** ייתכן שהנתונים השתנו מאז הכתיבה — נכתב במסמך */
+  stale?: boolean
+  /** גיבוי כשאין writtenAt (סיכום שלא הגיע מהשרת): ברירת מחדל עכשיו */
   date?: Date
 }
 
@@ -55,9 +60,15 @@ export const docTitleOf = (i: Pick<SummaryDocInput, 'scope' | 'name'>): string =
 export const summaryFileName = (i: Pick<SummaryDocInput, 'name'>): string =>
   `${[AI_SUMMARY_TEXT.heading, i.name.trim()].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim()}.doc`
 
+/** תאריך הכתיבה לתצוגה במסמך: writtenAt אם תקין, אחרת date, אחרת עכשיו */
+export function docWrittenDate(i: Pick<SummaryDocInput, 'writtenAt' | 'date'>): string {
+  const w = i.writtenAt ? new Date(i.writtenAt) : null
+  return formatDocDate(w && !Number.isNaN(w.getTime()) ? w : i.date ?? new Date())
+}
+
 export function buildSummaryDocument(i: SummaryDocInput): string {
   const title = docTitleOf(i)
-  const date = formatDocDate(i.date ?? new Date())
+  const date = docWrittenDate(i)
   const C = DOC_COLORS
   const paras = i.paragraphs.map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`).join('\n')
   return `<!DOCTYPE html>
@@ -78,9 +89,9 @@ p { font-size: 12pt; line-height: 1.7; margin: 0 0 10pt 0; color: ${C.text}; }
 <body>
 <p class="brand">${escapeHtml(AI_SUMMARY_PANEL_TEXT.doc.brand)}</p>
 <h1>${escapeHtml(title)}</h1>
-<p class="meta">${escapeHtml(AI_SUMMARY_PANEL_TEXT.doc.createdOn(date))} · ${escapeHtml(exportLineOf(i))} · ${escapeHtml(i.basisText)}</p>
+<p class="meta">${escapeHtml(AI_SUMMARY_HARDENING_TEXT.writtenOn(date))} · ${escapeHtml(exportLineOf(i))} · ${escapeHtml(i.basisText)}</p>
 ${paras}
-<div class="foot"><p>${escapeHtml(i.caveat)}</p></div>
+<div class="foot"><p>${escapeHtml(i.caveat)}</p>${i.stale ? `<p>${escapeHtml(AI_SUMMARY_HARDENING_TEXT.stale)}</p>` : ''}</div>
 </body>
 </html>`
 }

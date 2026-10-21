@@ -32,7 +32,7 @@ describe('הנחיה: תקרת הציטוטים מוצהרת למודל ועקב
   })
 
   it('הגרסה עודכנה (ההנחיה השתנתה) ונשמרת עם כל סיכום', () => {
-    expect(SUMMARY_PROMPT_VERSION).toBe('ai-sum-v3')
+    expect(SUMMARY_PROMPT_VERSION).toBe('ai-sum-v4')
   })
 })
 

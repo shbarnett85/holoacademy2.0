@@ -35,6 +35,17 @@ export function canSeePreviousView(p: { role: string | null; isGuest: boolean })
   return p.role === 'teacher' && !p.isGuest
 }
 
+/* ── כשל בטעינת התצורה (GET /config) ──
+   התצורה נטענת פעם אחת בכניסה ומחליטה איזה מסך מוצג; כשהיא נכשלת (אין חיבור / עומס / השרת מרכז את התוצאות ולא הספיק) אין "מסך חדש" להציג.
+   · מורה אמיתי: לא נשארים עם הודעת שגיאה בלבד אלא נופלים לתצוגה הקודמת (גרף ההתקדמות הכללי, שאינו תלוי בניתוח החדש), עם הסבר וכפתור "נסו שוב".
+     401 היא החרגה: ההתחברות פגה, ואין מה להציג — הודעת השגיאה (והחזרה להתחברות) נשארת.
+   · אורח, מנהל/ת ומנהל-על: בלוק שגיאה עם "נסו שוב" כשיש טעם (לאורח אין תצוגה קודמת, למנהל/ת אגרגטים בלבד). */
+export type ConfigFailureView = 'legacy' | 'error'
+
+export function configFailureView(p: { role: string | null; isGuest: boolean; status: number }): ConfigFailureView {
+  return canSeePreviousView(p) && p.status !== 401 ? 'legacy' : 'error'
+}
+
 export const PREVIOUS_VIEW_PARAM = 'view'
 export const PREVIOUS_VIEW_VALUE = 'previous'
 export const PREVIOUS_VIEW_HREF = `/analytics?${PREVIOUS_VIEW_PARAM}=${PREVIOUS_VIEW_VALUE}`

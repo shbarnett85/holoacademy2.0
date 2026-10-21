@@ -34,6 +34,29 @@ describe('rateLimitByUser', () => {
     expect(hit(mw, req({ userId: 'guest', guest: true, ip: '6.6.6.6' }))).toBeNull()
   })
 
+  it('אורח עם שני המגבילים על אותו נתיב (כמו analytics-v2/ai-summary): כל בקשה נספרת פעם אחת בכל מונה, לא פעמיים על אותו מפתח', () => {
+    const ipMw = rateLimitByIp('t-pair-a', 4)
+    const userMw = rateLimitByUser('t-pair-a', 4)
+    const guest = req({ userId: 'guest', guest: true, ip: '11.0.0.1' })
+    /* לפני התיקון: מפתח זהה → אחרי 2 בקשות המונה כבר ב-4 ובקשה 3 נחסמה */
+    for (let i = 0; i < 4; i++) {
+      expect(hit(ipMw, guest), `ip #${i}`).toBeNull()
+      expect(hit(userMw, guest), `user #${i}`).toBeNull()
+    }
+    expect(hit(ipMw, guest)).toMatchObject({ status: 429 })
+  })
+
+  it('בקשות אורח לא שוחקות את המונה הכללי של ה-IP (בית ספר שלם מאחורי NAT): מורה אמיתי מאותו IP נשאר פנוי', () => {
+    const ipMw = rateLimitByIp('t-pair-b', 3)
+    const userMw = rateLimitByUser('t-pair-b', 100)
+    const guest = req({ userId: 'guest', guest: true, ip: '11.0.0.2' })
+    const teacher = req({ userId: 'u-t', ip: '11.0.0.2' })
+    for (let i = 0; i < 2; i++) { hit(ipMw, guest); hit(userMw, guest) }
+    /* המונה הכללי ספר 2 בקשות בלבד (אחת לכל בקשת אורח) — נשארה בקשה אחת פנויה, ואין ספירה כפולה מהמגביל לפי משתמש */
+    expect(hit(ipMw, teacher)).toBeNull()
+    expect(hit(ipMw, teacher)).toMatchObject({ status: 429 })
+  })
+
   it('נתיבים שונים אינם חולקים מונה', () => {
     const a = rateLimitByUser('t-user-d1', 1)
     const b = rateLimitByUser('t-user-d2', 1)

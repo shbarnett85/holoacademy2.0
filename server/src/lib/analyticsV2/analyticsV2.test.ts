@@ -8,12 +8,13 @@ import { demoProvider, demoViewerClasses, getAnalysis } from './demoProvider.js'
 import { realProvider } from './provider.js'
 import { buildWorld, skey } from './demoWorld.js'
 import { analyze } from './engine.js'
+import { simulateClass } from './liveTrendSim.js'
 import { benjaminiHochberg, binomialUpperTail, normalCdf, poissonBinomialUpper, tTwoSided, welch, pairedT } from './stats.js'
 import { DEMO_WORLD, LEVEL_TREND_BASIS, MEMORY_ATTENTIVE_RATE } from '../../../../src/shared/lib/analyticsConfig.js'
 import { israelDayKey } from '../../../../src/shared/lib/findingsNarrative.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { DEMO_CATALOG, EMPTY_CATALOG, createCatalog } from './catalog.js'
-import { commonErrorsOf } from './derive.js'
+import { commonErrorsOf, groupTrend, studentTrend, trendDelta } from './derive.js'
 import { rngFor, type MemGame, type SessionRec, type StudentSubjectData, type World } from './demoWorld.js'
 import { TERM_MIN_SCHOOL_DAYS, buildSchoolDays, dayIndexOf, israelMonthKey, liveTerm } from './schoolCalendar.js'
 import { perfectSeparationP, tUpperTail } from './stats.js'
@@ -566,41 +567,154 @@ describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
     }
   })
 
-  const stepStudent = (levelRecent: number, levelPrior: number): SpStudent => {
-    const r = rngFor('w1:step')
-    return { id: 'st', sessions: spread(70, (day) => ({ success: 0.7 + (r() - 0.5) * 0.1, level: day < 60 ? levelRecent : levelPrior })) }
-  }
-  it('רמה יציבה שקפצה ברמה שלמה (שתי קבוצות קבועות): בחי מדווח עלייה; בהדגמה (בדיקה על ההצלחה) לא', () => {
-    const live = analyze(spWorld([stepStudent(6, 5)], { live: true }))
-    const f = findingOf(live, 'st', 'level_trend')!
-    expect(f.status).toBe('reported')
-    if (f.status !== 'reported' || f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
-    expect(f.evidence.direction).toBe('up')
-    expect([f.evidence.fromLevel, f.evidence.toLevel, f.evidence.deltaLevels]).toEqual([5, 6, 1])
-    expect(f.effectSize).toBe(1)
-    expect(f.pAdjusted).toBeLessThan(1e-9)
-    expect(f.effectSize).toBeGreaterThanOrEqual(KIND_THRESHOLDS.level_trend.minEffect) /* הסף ברמות לא מתחת לסף ה-d של הסוג */
-    const demo = analyze(spWorld([stepStudent(6, 5)]))
-    expect(findingOf(demo, 'st', 'level_trend')?.status).not.toBe('reported')
-  })
-  it('ירידה אמיתית ברמות עם שונות: מדווחת "ירידה"; הפרש מתחת לרמה אחת או רמה שלא זזה — לא מדווחים', () => {
-    const noisy = (recent: number[], prior: number[]): SpStudent => ({
-      id: 'st', sessions: spread(70, (day, i) => ({ success: 0.7, level: day < 60 ? recent[i % recent.length] : prior[i % prior.length] })),
+  /* ── מגמה אישית בעולם חי (FX1a): ההצלחה ביחס לשאר הכיתה באותה הדמיה. 8 תלמידים משלימים את אותן 24 הדמיות (q0..q23, השלמה ראשונה);
+     החלון האחרון = 8 הדמיות, הקודם = 14. תלמיד/ה s0 הוא היחיד שיכול להשתנות. ── */
+  interface Change { recent: number; prior: number; levelRecent: number; levelPrior: number }
+  const liveClass = (change?: Change, o: { classShift?: number; students?: number; withQuestIds?: boolean; changeFor?: (s: number) => Change | undefined; skip?: (student: number, quest: number) => boolean } = {}): SpStudent[] =>
+    Array.from({ length: o.students ?? 8 }, (_, s) => {
+      const r = rngFor(`fx1a:cls:${s}`)
+      const mine = o.changeFor ? o.changeFor(s) : s === 0 ? change : undefined
+      const sessions = spread(24, (day) => {
+        const recent = day < 60
+        const base = mine ? (recent ? mine.recent : mine.prior) : 0.7 + (recent ? (o.classShift ?? 0) : 0) /* המשתנה/ת אינו נושא/ת את ההסטה הכיתתית */
+        return { success: Math.min(1, Math.max(0, base + (r() - 0.5) * 0.1)), level: mine ? (recent ? mine.levelRecent : mine.levelPrior) : 8 }
+      }).map((x, i) => (o.withQuestIds === false ? x : Object.assign(x, { questId: `q${i}` })))
+        .filter((_, i) => !o.skip?.(s, i)) /* מי שמדלג על חלק מההדמיות */
+      return { id: `s${s}`, sessions }
     })
-    const down = findingOf(analyze(spWorld([noisy([5, 6], [7, 8])], { live: true })), 'st', 'level_trend')!
-    expect(down.status === 'reported' && down.evidence.kind === 'level_trend' && down.evidence.direction).toBe('down')
-    expect(findingOf(analyze(spWorld([noisy([6, 6, 7, 6, 7], [6])], { live: true })), 'st', 'level_trend')?.status).not.toBe('reported')
-    expect(findingOf(analyze(spWorld([noisy([6], [6])], { live: true })), 'st', 'level_trend')?.status).not.toBe('reported')
-  })
-  it('נקודת שינוי פנימית בכיוון הפוך לבדיקה: הטקסט חוזר לשני החלונות ונשאר עקבי עם הכיוון', () => {
-    /* עולה לפי החלונות (ממוצע 6 → 7.5), אבל בתוך החלון הקודם ירידה חדה 9 → 3 — נקודת השינוי הדומיננטית */
-    const s: SpStudent = { id: 'st', sessions: spread(70, (day, i) => ({ success: 0.7, level: day < 60 ? (i % 2 ? 8 : 7) : day < 120 ? 3 : 9 })) }
-    const f = findingOf(analyze(spWorld([s], { live: true })), 'st', 'level_trend')!
-    expect(f.status).toBe('reported')
-    if (f.status !== 'reported' || f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
+  const reportedTrend = (a: ReturnType<typeof analyze>, id: string): Extract<Finding, { status: 'reported' }> | undefined => {
+    const f = findingOf(a, id, 'level_trend')
+    return f && f.status === 'reported' ? f : undefined
+  }
+
+  it('תלמיד/ה שהצליח/ה הרבה יותר מהכיתה בחלון האחרון: עלייה מדווחת, והמספרים מהחלונות שנבדקו; "משתפר/ת" נגזר מאותה בדיקה', () => {
+    const a = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }), { live: true }))
+    const f = reportedTrend(a, 's0')!
+    expect(f).toBeDefined()
+    if (f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
     expect(f.evidence.direction).toBe('up')
-    expect([f.evidence.fromLevel, f.evidence.toLevel, f.evidence.deltaLevels]).toEqual([6, 7.5, 1.5])
     expect(f.tone).toBe('positive')
+    expect([f.evidence.fromLevel, f.evidence.toLevel, f.evidence.deltaLevels, f.evidence.sessionsBefore, f.evidence.sessionsAfter]).toEqual([5, 8, 3, 14, 8])
+    expect(f.evidence.successAfter).toBeGreaterThan(f.evidence.successBefore + 0.2)
+    expect(f.effectSize).toBeGreaterThanOrEqual(KIND_THRESHOLDS.level_trend.minEffect)
+    expect(f.pAdjusted).toBeLessThan(0.05)
+    const sa = a.ss.get(skey('s0', 'math'))!
+    expect(sa.liveTrend).toEqual({ tested: true, delta: 3 })
+    expect(studentTrend(sa)).toBe('improving')
+    expect(trendDelta(sa)).toBe(3)
+    /* כל השאר נבדקו ולא נמצא שינוי: "יציב/ה", בלי הפרש */
+    for (let i = 1; i < 8; i++) {
+      const other = a.ss.get(skey(`s${i}`, 'math'))!
+      expect(other.liveTrend).toEqual({ tested: true, delta: null })
+      expect(studentTrend(other)).toBe('steady')
+      expect(trendDelta(other)).toBeNull()
+    }
+    /* אין מגמה לכיתה שלמה בעולם חי */
+    expect(groupTrend([...a.ss.values()])).toBe('insufficient')
+  })
+
+  it('ירידה ביחס לכיתה: מדווחת "ירידה" בטון תשומת לב, ומתויגת "בירידה"', () => {
+    const a = analyze(spWorld(liveClass({ recent: 0.45, prior: 0.85, levelRecent: 6, levelPrior: 9 }), { live: true }))
+    const f = reportedTrend(a, 's0')!
+    expect(f).toBeDefined()
+    if (f.evidence.kind !== 'level_trend') throw new Error('expected level_trend evidence')
+    expect(f.evidence.direction).toBe('down')
+    expect(f.tone).toBe('attention')
+    expect(f.evidence.deltaLevels).toBe(-3)
+    expect(f.evidence.successAfter).toBeLessThan(f.evidence.successBefore)
+    expect(studentTrend(a.ss.get(skey('s0', 'math'))!)).toBe('declining')
+  })
+
+  it('רמה שקפצה בלי שההצלחה ביחס לכיתה השתנתה (למשל הדמיות קלות יותר): אין ממצא ואין תווית — "יציב/ה"', () => {
+    const a = analyze(spWorld(liveClass({ recent: 0.7, prior: 0.7, levelRecent: 9, levelPrior: 5 }), { live: true }))
+    expect(reportedTrend(a, 's0')).toBeUndefined()
+    expect(studentTrend(a.ss.get(skey('s0', 'math'))!)).toBe('steady')
+    /* ביקורת-שליטה: אותה רמה עם קפיצה בהצלחה כן מדווחת */
+    expect(reportedTrend(analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 9, levelPrior: 5 }), { live: true })), 's0')).toBeDefined()
+  })
+
+  it('הצלחה ביחס לכיתה השתנתה אך הרמה לא זזה (אין אישור מהרמה): לא מדווח', () => {
+    const a = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 7, levelPrior: 7 }), { live: true }))
+    expect(reportedTrend(a, 's0')).toBeUndefined()
+  })
+
+  it('שינוי קושי כיתתי (כל הכיתה מצליחה יותר בחלון האחרון): אין אף ממצא ואף תווית "משתפר/ת"', () => {
+    for (const shift of [0.2, -0.2]) {
+      const a = analyze(spWorld(liveClass(undefined, { classShift: shift }), { live: true }))
+      for (const sa of a.ss.values()) {
+        expect(reportedTrend(a, sa.studentId), `shift ${shift} ${sa.studentId}`).toBeUndefined()
+        expect(studentTrend(sa)).toBe('steady')
+      }
+    }
+  })
+
+  it('הצלחה אחרי ירידה כיתתית: התלמיד/ה "השתפר/ה" ביחס לכיתה אך ההצלחה שלו/ה עצמו/ה לא עלתה — לא מדווח (אחרת הטקסט היה סותר את עצמו: 70% לעומת 70%)', () => {
+    const a = analyze(spWorld(liveClass({ recent: 0.7, prior: 0.7, levelRecent: 8, levelPrior: 5 }, { classShift: -0.25 }), { live: true }))
+    expect(reportedTrend(a, 's0')).toBeUndefined()
+    /* ... ואותה הצלחה יחסית כשההצלחה עצמה כן עלתה כן מדווחת (ביקורת-שליטה) */
+    const rose = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.7, levelRecent: 8, levelPrior: 5 }, { classShift: -0.25 }), { live: true }))
+    expect(reportedTrend(rose, 's0')).toBeDefined()
+  })
+
+  it('כמה תלמידים משתנים בכיוונים מנוגדים (תגובה לא אחידה לשינוי קושי): אף אחד לא חריג מול שאר הכיתה ← אין ממצא אישי', () => {
+    const w = spWorld(liveClass(undefined, {
+      changeFor: (s) => (s < 4 ? { recent: 0.9, prior: 0.7, levelRecent: 8, levelPrior: 5 } : { recent: 0.5, prior: 0.7, levelRecent: 5, levelPrior: 8 }),
+    }), { live: true })
+    const a = analyze(w)
+    for (const sa of a.ss.values()) expect(reportedTrend(a, sa.studentId), sa.studentId).toBeUndefined()
+    /* לעומת זאת תלמיד/ה בודד/ת שמשתנה מול כיתה יציבה — כן (ראו הבדיקה הראשונה) */
+  })
+
+  it('פחות מ-5 תלמידים עם מספיק הדמיות בכל חלון: אי אפשר להעריך מהו שינוי חריג בכיתה ← אין ממצא ו"אין עדיין מספיק נתונים" גם למי שנבדק', () => {
+    /* s0..s3 משלימים/ות את כל 24 ההדמיות; s4..s7 מדלגים/ות על כל הדמיה רביעית בחלון האחרון (6 מתוך 8) ← הן עמיתים (לכל הדמיה 6 עמיתים) אבל לא נבדקים. נבדקים: 4 < 5 */
+    const a = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { skip: (s, i) => s >= 4 && i < 8 && (i + s) % 4 === 3 }), { live: true }))
+    for (const sa of a.ss.values()) {
+      expect(sa.liveTrend, sa.studentId).toEqual({ tested: false, delta: null })
+      expect(studentTrend(sa)).toBe('insufficient')
+    }
+    expect(reportedTrend(a, 's0')).toBeUndefined()
+    /* ביקורת-שליטה: אם גם s4 משלים/ה הכול — חמישה נבדקים, והשינוי מדווח */
+    const five = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { skip: (s, i) => s >= 5 && i < 8 && (i + s) % 4 === 3 }), { live: true }))
+    expect(five.ss.get(skey('s4', 'math'))!.liveTrend?.tested).toBe(true)
+    expect(reportedTrend(five, 's0')).toBeDefined()
+  })
+
+  it('מגמת כיתה בעולם חי אינה מוצגת גם כשכמה תלמידים מסומנים באותו כיוון', () => {
+    const w = simulateClass({ mode: 'fixed', seed: 11, students: 25, changers: [0, 1, 2, 3, 4, 5].map((index) => ({ index, delta: -0.4 })) })
+    const a = analyze(w)
+    const flagged = [...a.ss.values()].filter((sa) => sa.liveTrend?.delta != null && sa.liveTrend.delta < 0)
+    expect(flagged.length).toBeGreaterThanOrEqual(3) /* בלי זה הבדיקה לא בודקת כלום */
+    expect(groupTrend([...a.ss.values()])).toBe('insufficient')
+  })
+
+  it('פחות מ-MIN_CELL_SIZE תלמידים שנבדקו, או הדמיות בלי מזהה / בלי עמיתים: אין ממצא ו"אין עדיין מספיק נתונים"', () => {
+    for (const w of [
+      spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { students: 4 }), { live: true }), /* 3 עמיתים בלבד */
+      spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { withQuestIds: false }), { live: true }), /* אין מזהה הדמיה */
+    ]) {
+      const a = analyze(w)
+      for (const sa of a.ss.values()) {
+        expect(sa.liveTrend).toEqual({ tested: false, delta: null })
+        expect(studentTrend(sa)).toBe('insufficient')
+        expect(trendDelta(sa)).toBeNull()
+      }
+      expect(a.reportedKeys.size).toBe(0)
+    }
+  })
+
+  it('כפילות של אותה הדמיה אצל אותו תלמיד/ה בעולם חי נספרת פעם אחת (הגנה גם אם ה-assemble לא סינן)', () => {
+    const base = liveClass({ recent: 0.7, prior: 0.7, levelRecent: 8, levelPrior: 8 })
+    /* s0 "משנן" כל הדמיה בחלון האחרון עוד 5 פעמים, בהצלחה גבוהה ורמה עולה — לא אמור ליצור מגמה */
+    const cheat = base[0].sessions!.flatMap((x) => (x.day < 60 ? [x, ...Array.from({ length: 5 }, (_, k) => ({ ...x, day: x.day, success: 1, level: 12 + k }))] : [x]))
+    const a = analyze(spWorld([{ ...base[0], sessions: cheat }, ...base.slice(1)], { live: true }))
+    expect(reportedTrend(a, 's0')).toBeUndefined()
+  })
+
+  it('בהדגמה (לא live) הבדיקה נשארת על ההצלחה הגולמית — לא נגעו בה', () => {
+    const w = spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }))
+    const a = analyze(w)
+    expect(a.ss.get(skey('s0', 'math'))!.liveTrend).toBeUndefined()
+    expect(findingOf(a, 's0', 'level_trend')?.status).toBe('reported')
   })
   it('סף הרמות ב-config לא נמוך מרמה אחת (צעד הכיול)', () => { expect(LEVEL_TREND_BASIS.minDeltaLevels).toBeGreaterThanOrEqual(1) })
 })

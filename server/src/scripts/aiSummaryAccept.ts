@@ -5,7 +5,7 @@
      · הפרות שנצפו לפי סוג (בניסיון הראשון ובסך הכול) — כדי לדעת אם הפרומפט חלש או שהשומר מחמיר מדי
      · גודל הפרומפט לכל קלט
    המפתחות נקראים מ-env בלבד (server/.env) ולעולם לא מודפסים. עלות: 8 קריאות קטנות (+ ניסיונות חוזרים).
-   הרצה:  npm run ai-summary:accept            (מוסיפים --show להדפסת הפסקאות שנכתבו — נתוני הדגמה בלבד)
+   הרצה:  npm run ai-summary:accept            (מוסיפים --show להדפסת הפסקאות שנכתבו, ו---rejected להדפסת הפסקאות שנפסלו ואת ההפרות שלהן — נתוני הדגמה בלבד)
    קוד יציאה: 0 = רץ; 2 = אין מודל זמין (אין מפתח) — לא ממציאים תוצאות.                                    */
 import '../env.js'
 import { demoProvider, getAnalysis } from '../lib/analyticsV2/demoProvider.js'
@@ -16,13 +16,14 @@ import { LLM_TIMEOUT_MS, createRealLlm, type SummaryLlm, type SummaryLlmResult }
 import { buildSummaryPrompt, SUMMARY_PROMPT_VERSION } from '../lib/aiSummary/prompt.js'
 import { FULL_AUDIENCE, createSummaryService } from '../lib/aiSummary/service.js'
 import { createMemoryStore } from '../lib/aiSummary/store.js'
-import { NOW, homeroomOf } from '../lib/aiSummary/testkit.js'
+import { NOW, demoClassSource, homeroomOf } from '../lib/aiSummary/testkit.js'
 import { engineFor } from '../lib/modelRouter.js'
 import { buildClassView } from '../lib/results/core.js'
 import { getDemoResults } from '../lib/results/demoResults.js'
 import type { SummaryTarget } from '../../../src/shared/types/aiSummaryV1.js'
 
 const SHOW = process.argv.includes('--show')
+const SHOW_REJECTED = process.argv.includes('--rejected')
 const FALLBACK_THRESHOLD = 0.4
 const CLASS_ID = 'c-v2'
 
@@ -64,7 +65,7 @@ async function buildCases(): Promise<Case[]> {
     const overview = (await demoProvider.student(hr, st.id)).data
     cases.push({ label, target: { scope: 'student', id: st.id }, source: { scope: 'student', overview, gender: st.gender } })
   }
-  cases.push({ label: 'class: overview of the homeroom class', target: { scope: 'class', id: CLASS_ID }, source: { scope: 'class', overview: (await demoProvider.classOverview(hr, CLASS_ID)).data } })
+  cases.push({ label: 'class: overview of the homeroom class', target: { scope: 'class', id: CLASS_ID }, source: await demoClassSource(CLASS_ID) })
   cases.push({ label: 'class_subject: math in the homeroom class', target: { scope: 'class_subject', id: CLASS_ID, subject: 'math' }, source: { scope: 'class_subject', view: (await demoProvider.classSubject(hr, CLASS_ID, 'math')).data } })
   /* שתי הגשות של הכיתה, ממקצועות שונים, עם הכי הרבה תלמידים שסיימו */
   const subs = getDemoResults(NOW).submissions.filter((s) => s.def.classId === CLASS_ID)
@@ -111,6 +112,14 @@ async function main(): Promise<void> {
     const cited = a1?.text ? parseAndGuard(a1.text, input, { knownNames: names }).cited.map((ids) => ids.length) : []
     const first = violationsOf(a1)
     const second = violationsOf(a2)
+    if (SHOW_REJECTED) {
+      /* כל פסקה שנפסלה, עם קודי ההפרה (ועם הערך כשהוא מספר או מילה, לא טקסט חופשי) — כדי לכוון את השומר/ההנחיה לפי המציאות ולא לפי ניחוש */
+      for (const [n, a] of attempts.entries()) {
+        if (!a.text) continue
+        const g = parseAndGuard(a.text, input, { knownNames: names })
+        for (const v of g.violations) console.log(`  rejected(try ${n + 1}) p${v.paragraph ?? '-'} ${codeOf(v)}: ${v.paragraph !== null ? (g.paragraphs[v.paragraph] ?? '').slice(0, 260) : ''}`)
+      }
+    }
     firstViolations.push(...first)
     allViolations.push(...first, ...second)
     const outcome = !summary ? `no_summary(${res.data.eligibility.ok ? 'unexpected' : 'not_eligible'})`

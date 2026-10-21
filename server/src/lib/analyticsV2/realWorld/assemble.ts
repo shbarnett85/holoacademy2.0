@@ -3,15 +3,21 @@
    · אותם טיפוסים כמו עולם ההדגמה (demoWorld), עם live:true — כך המנוע, הנגזרות והספק זהים לשניהם.
    · רק מה שנגזר באמת מהנתונים. אין תגיות (concepts / option_tags ריקות) ← concepts ו-exposure/tag ריקים; בלי word_count ← בלי קריאה.
    · הדמיה בלי מקצוע (quests.subject_id) לא נכנסת: נספרת ב-coverage.unclassifiedSessions (חוק 2: לא מנחשים).
-   · ריפליי של אותה הדמיה: כל ההשלמות נכנסות לסדרת הרמה/ההצלחה, אך הראיות ברמת פריט (תשובות, זיכרון, קריאה, ויתורים)
-     נלקחות רק מההשלמה הראשונה לכל (תלמיד, הדמיה) — אחרת שינון מנפח N ויוצר אפקט כוזב.
+   · ריפליי של אותה הדמיה: רק ההשלמה הראשונה לכל (תלמיד, הדמיה) נכנסת לעולם — לסדרת הרמה וההצלחה ולראיות ברמת פריט (תשובות, זיכרון,
+     קריאה, ויתורים). שינון מנפח N ומזיז את הרמה בלי שינוי ביכולת (FX1a); החוזרות נספרות ב-coverage.repeatSessions.
+   · טוהר סדרת הרמה: השלמה נכנסת לסדרת מקצוע רק אם ל-progress_snapshot יש subject_id השווה למקצוע ההדמיה — ההוכחה שהרמה נגזרה מפרופיל המקצוע
+     (הכיול כותב subject_id רק לצד עדכון student_subject_levels). בלי זה הרמה היא של הפרופיל הגלובלי, ושיוך מקצוע בדיעבד להדמיה היה יוצר קפיצה
+     מלאכותית בסדרה. כאלה נספרות ב-coverage.sessionsWithoutSubjectLevel.
+     מגבלה ידועה: עקיפת מורה על הרמה (student_subject_levels.teacher_locked / level_history trigger='teacher') אינה חלק מהשורות הגולמיות;
+     מגמת הרמה האישית נמדדת על ההצלחה ביחס לכיתה (ראו engine.peerRelativePoints) ולכן אינה מושפעת ממדרגה כזו, והרמה משמשת רק לאישור.
    · תלמיד בכמה כיתות: מופיע בכל כיתה שהוא חבר בה (לא נעלם ממורה), והכיתה העיקרית שלו (primaryClassOf) נקבעת בכלל דטרמיניסטי:
      הכיתה שבה נספרו הכי הרבה סשנים (progress_snapshots.class_id); שוויון / אין סשנים ← מזהה הכיתה הקטן. המיזוג (analysisMerge) משתמש בו.
    ────────────────────────────────────────────────────────────────────────── */
-import { GRADE_LEVELS, gradeNumberFromLabel } from '../../../../../src/shared/lib/difficultyCalibration.js'
+import { GRADE_LEVELS } from '../../../../../src/shared/lib/difficultyCalibration.js'
 import { SUBJECTS, type SubjectCode } from '../../../../../src/shared/lib/subjects.js'
-import type { McItem, MemGame, MemTurn, SessionRec, StudentSubjectData, World, WorldClass, WorldStudent } from '../demoWorld.js'
+import type { McItem, MemGame, MemTurn, StudentSubjectData, World, WorldClass, WorldStudent } from '../demoWorld.js'
 import { skey } from '../demoWorld.js'
+import type { LiveSessionRec } from '../engine.js'
 import { buildSchoolDays, dayIndexOf, liveTerm } from '../schoolCalendar.js'
 import { emptyCoverage, type LiveCoverage } from './coverage.js'
 import {
@@ -31,11 +37,22 @@ const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number
 const clamp = (v: number, a: number, b: number): number => Math.min(b, Math.max(a, v))
 
 /* ── שכבת הכיתה: grade_level (1–12) ?? שכבה מהתווית. אין / מחוץ ל-1–12 (גן, י"ג) ← null ── */
+/* הסקת שכבה מטקסט חופשי (תווית / שם כיתה): רק ביטוי קפדני של תווית שכבה — אות שכבה (א–יב) ואולי מספר כיתה: "ז׳3", "ו'2", "י״א1", "יב", "כיתה ח׳".
+   שם אחר ("בדיקה", "אלפא", "מקהלה", "תגבור מתמטיקה") אינו תווית שכבה: ההסקה הישנה לקחה את האות הראשונה ("בדיקה" ← ב׳) וקבעה לכיתה שכבה אקראית ונורמת גיל שגויה. */
+const GRADE_TEXT_LETTERS: Record<string, number> = { א: 1, ב: 2, ג: 3, ד: 4, ה: 5, ו: 6, ז: 7, ח: 8, ט: 9, י: 10, יא: 11, יב: 12 }
+const GRADE_TEXT = /^(?:כיתה|כיתת)?\s*(י״[אב]|י"[אב]|י''[אב]|י[אב]|[א-י])[׳'״"]?[\s\-_/.]*\d{0,2}$/
+export function gradeFromText(text: string | null | undefined): number | null {
+  if (typeof text !== 'string') return null
+  const m = GRADE_TEXT.exec(text.trim())
+  if (!m) return null
+  const letters = m[1].replace(/[׳'״"]/g, '')
+  return GRADE_TEXT_LETTERS[letters] ?? null
+}
 export function gradeOfClass(cls: { gradeLevel: number | null; gradeLabel: string | null; name: string | null }): number | null {
   const ok = (g: number | null): g is number => g !== null && Number.isInteger(g) && g >= 1 && g <= 12
   if (ok(cls.gradeLevel)) return cls.gradeLevel
-  const fromLabel = gradeNumberFromLabel(cls.gradeLabel ?? cls.name)
-  return ok(fromLabel) ? fromLabel : null
+  /* התווית (grade_label) קודמת לשם — ואם יש תווית שאינה שכבה תקפה (למשל י"ג) לא מסיקים שכבה מהשם; ורק ביטוי קפדני של שכבה נחשב */
+  return gradeFromText(cls.gradeLabel && cls.gradeLabel.trim() ? cls.gradeLabel : cls.name)
 }
 
 /* תווית שכבה בלבד ("ז׳") — לפי סולם השכבות (רמה = שכבה + 4) */
@@ -169,7 +186,7 @@ export function assembleWorldDetailed(raw: RawClassData, now: Date): AssembledWo
   const cls = raw.cls
   if (!cls) return { world, coverage, primaryClassOf }
   const grade = gradeOfClass(cls)
-  if (grade === null) { coverage.classesWithoutGrade = 1; return { world, coverage, primaryClassOf } }
+  if (grade === null) { coverage.classesWithoutGrade = 1; coverage.classesWithoutGradeNames = [cls.gradeLabel || cls.name || '']; return { world, coverage, primaryClassOf } }
 
   /* ── תלמידים ── */
   const members = [...new Map(raw.members.map((m) => [m.id, m])).values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -213,30 +230,38 @@ export function assembleWorldDetailed(raw: RawClassData, now: Date): AssembledWo
   }
   const where = new Map<string, { studentId: string; subject: SubjectCode; day: number }>() /* sessionId → היכן הסשן נספר */
 
+  const unclassifiedIds: string[] = []
+  const withoutSubjectLevelIds: string[] = []
   for (const s of sessions) {
     const day = dayIndexOf(days, s.completedAt)
     if (day === null) continue
     coverage.sessionsTotal++
     const snap = snapBySession.get(s.id)
-    const subject = questSubject.get(s.questId) ?? snap?.subject ?? null
-    if (subject === null) { coverage.unclassifiedSessions++; continue }
+    const subject = questSubject.get(s.questId) ?? null
+    if (subject === null) { coverage.unclassifiedSessions++; unclassifiedIds.push(s.id); continue }
+    /* חוזרת על אותה הדמיה: שינון, לא שינוי ביכולת — לא נכנסת לסדרות ולא לראיות */
+    if (!firstIds.has(s.id)) { coverage.repeatSessions++; continue }
+    /* הרמה נגזרה מפרופיל המקצוע רק אם ה-snapshot נושא את מקצוע ההדמיה (subject_id); אחרת היא של הפרופיל הגלובלי ואסור לערבב אותה בסדרת המקצוע */
+    if (!snap || snap.subject !== subject) { coverage.sessionsWithoutSubjectLevel++; withoutSubjectLevelIds.push(s.id); continue }
     const d = slot(s.studentId, subject)
     where.set(s.id, { studentId: s.studentId, subject, day })
-    const level = snap?.level, success = snap?.success
-    if (!snap || !isFiniteNum(level) || level < 0 || level > 20 || !isFiniteNum(success) || success < 0 || success > 1) { coverage.sessionsWithoutLevel++; continue }
+    const level = snap.level, success = snap.success
+    if (!isFiniteNum(level) || level < 0 || level > 20 || !isFiniteNum(success) || success < 0 || success > 1) { coverage.sessionsWithoutLevel++; continue }
 
-    const evidence = firstIds.has(s.id)
-    const myAnswers = evidence ? (answersBySession.get(s.id) ?? []) : []
-    const reading = evidence ? readingOfSession(enters.get(s.id) ?? [], puzzleScenes.get(s.id) ?? new Set()) : { scenes: 0, words: 0, closedMs: 0 }
-    const rec: SessionRec = {
+    const myAnswers = answersBySession.get(s.id) ?? []
+    const reading = readingOfSession(enters.get(s.id) ?? [], puzzleScenes.get(s.id) ?? new Set())
+    const rec: LiveSessionRec = {
       day, date: days[day], success, level,
       concepts: conceptLevelsOfSession(myAnswers.map((a) => ({ conceptKey: a.conceptKey, correct: a.outcome === 'correct', difficulty: a.difficulty }))),
       scenes: reading.scenes, words: reading.words, closedMs: reading.closedMs,
       retries: retriesOfAnswers(myAnswers),
+      questId: s.questId,
     }
     d.sessions.push(rec)
     coverage.sessionsUsed++
   }
+  coverage.unclassifiedSessionIds = unclassifiedIds
+  coverage.sessionsWithoutSubjectLevelIds = withoutSubjectLevelIds
 
   /* ── ראיות ברמת פריט: רק מההשלמה הראשונה (firstIds) ── */
   for (const a of raw.answers) {

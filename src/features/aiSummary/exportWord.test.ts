@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { AI_SUMMARY_TEXT, CAVEAT_TREND } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_TEXT, CAVEAT_TREND } from '../../shared/lib/findingsNarrative'
 import { DOC_COLORS, buildSummaryDocument, escapeHtml, exportLineOf, formatSummaryDate, summaryFileName } from './exportWord'
 import type { SummaryDocInput } from './exportWord'
 import { PARAS } from './testkit'
 
 const BASE: SummaryDocInput = {
   scope: 'student', name: 'נועה כהן', paragraphs: PARAS, writtenBy: 'ai', edited: false, demo: false, basisText: 'מבוסס על 14 הדמיות', caveat: CAVEAT_TREND,
-  date: new Date('2026-10-21T09:00:00Z'),
+  writtenAt: '2026-10-05T08:00:00.000Z', date: new Date('2026-10-21T09:00:00Z'),
 }
 
 describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
@@ -32,11 +32,25 @@ describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
 
   it('כותרת עם השם מהמסך, תאריך, הפסקאות כפי שהן, שורת "נוצר בעזרת בינה מלאכותית", בסיס והסתייגות', () => {
     expect(html).toContain('<h1>סיכום מילולי על התלמיד/ה: נועה כהן</h1>')
-    expect(html).toContain(formatSummaryDate('2026-10-21T09:00:00Z'))
+    /* התאריך הוא תאריך הכתיבה (5 באוקטובר), לא יום הייצוא (21 באוקטובר) */
+    expect(html).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn(formatSummaryDate('2026-10-05T08:00:00.000Z')))
+    expect(html).not.toContain(formatSummaryDate('2026-10-21T09:00:00Z'))
+    expect(html).not.toContain('הופק בתאריך')
     for (const p of PARAS) expect(html).toContain(`<p>${p}</p>`)
     expect(html).toContain(AI_SUMMARY_TEXT.exportLine.ai)
     expect(html).toContain('מבוסס על 14 הדמיות')
     expect(html).toContain(CAVEAT_TREND)
+  })
+
+  it('סיכום שייתכן שהנתונים שלו השתנו: המסמך המיוצא אומר זאת; סיכום טרי — לא', () => {
+    expect(buildSummaryDocument({ ...BASE, stale: true })).toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+    expect(buildSummaryDocument(BASE)).not.toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+  })
+
+  it('בלי writtenAt (סיכום שלא הגיע מהשרת) או עם תאריך לא תקין: נופל ל-date הנתון', () => {
+    const noWritten = buildSummaryDocument({ ...BASE, writtenAt: undefined })
+    expect(noWritten).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn(formatSummaryDate('2026-10-21T09:00:00Z')))
+    expect(buildSummaryDocument({ ...BASE, writtenAt: 'לא תאריך' })).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn(formatSummaryDate('2026-10-21T09:00:00Z')))
   })
 
   it('המיוצא הוא הטקסט אחרי העריכה, עם שורה שאומרת שנערך על ידי המורה', () => {

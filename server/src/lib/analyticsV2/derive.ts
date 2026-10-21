@@ -36,14 +36,25 @@ export function trendOfDelta(delta: number | null): Trend {
   if (delta === null || !Number.isFinite(delta)) return 'insufficient'
   return levelAtLeast(delta, TREND_LABEL_MIN_DELTA) ? 'improving' : levelAtMost(delta, -TREND_LABEL_MIN_DELTA) ? 'declining' : 'steady'
 }
-/* ספירות החלונות אופציונליות בקלט (בדיקות טהורות); כשהן ידועות — כל חלון חייב לעמוד בסף: שני משחקים בחלון אחד אינם מגמה */
-type TrendInput = Pick<SubjectAnalysis, 'level60' | 'level90to150'> & Partial<Pick<SubjectAnalysis, 'level60N' | 'level90to150N'>>
+/* ספירות החלונות אופציונליות בקלט (בדיקות טהורות); כשהן ידועות — כל חלון חייב לעמוד בסף: שני משחקים בחלון אחד אינם מגמה.
+   liveTrend (עולם חי בלבד, ראו engine.SubjectAnalysis): התווית האישית נגזרת מאותה בדיקה של הממצא — לא מהפרש ממוצעי הרמה, שהוא ברובו רעש
+   (נמדד: ~43% מהתלמידים "משתפרים" או "יורדים" כשלא השתנה דבר). חסר = הדגמה: כמו תמיד. */
+type TrendInput = Pick<SubjectAnalysis, 'level60' | 'level90to150'> & Partial<Pick<SubjectAnalysis, 'level60N' | 'level90to150N' | 'liveTrend'>>
 const enoughSessions = (n: number | undefined): boolean => n === undefined || n >= TREND_LABEL_MIN_SESSIONS
-export const trendDelta = (sa: TrendInput): number | null =>
-  sa.level60 !== null && sa.level90to150 !== null && enoughSessions(sa.level60N) && enoughSessions(sa.level90to150N) ? sa.level60 - sa.level90to150 : null
-export const studentTrend = (sa: TrendInput): Trend => trendOfDelta(trendDelta(sa))
-/* מגמת קבוצה = ממוצע ההפרשים של מי שיש לו מגמה; פחות מ-GROUP_TREND_MIN_STUDENTS → אין עדיין מספיק נתונים */
+/* בעולם חי: שינוי הרמה (חתום) רק כשהממצא מדווח; אחרת null — כך גם צרכן שמצרף הפרשים (מנהל, משוב לתלמיד/ה) אינו מקבל "שינוי" שלא נבדק */
+export const trendDelta = (sa: TrendInput): number | null => {
+  if (sa.liveTrend) return sa.liveTrend.delta
+  return sa.level60 !== null && sa.level90to150 !== null && enoughSessions(sa.level60N) && enoughSessions(sa.level90to150N) ? sa.level60 - sa.level90to150 : null
+}
+/* בעולם חי: לא נבדק (אין מספיק הדמיות עם ציון יחסי) → אין עדיין מספיק נתונים; נבדק ולא נמצא שינוי → יציב; נמצא → עלייה / ירידה */
+export const studentTrend = (sa: TrendInput): Trend => {
+  if (sa.liveTrend) return !sa.liveTrend.tested ? 'insufficient' : sa.liveTrend.delta === null ? 'steady' : trendOfDelta(sa.liveTrend.delta)
+  return trendOfDelta(trendDelta(sa))
+}
+/* מגמת קבוצה = ממוצע ההפרשים של מי שיש לו מגמה; פחות מ-GROUP_TREND_MIN_STUDENTS → אין עדיין מספיק נתונים.
+   בעולם חי אין מגמה לקבוצה: ההשוואה היא בתוך הכיתה, ולכן שינוי של הכיתה כולה אינו ניתן להפרדה משינוי בקושי ההדמיות. */
 export function groupTrend(sas: TrendInput[]): Trend {
+  if (sas.some((s) => s.liveTrend)) return 'insufficient'
   const diffs = sas.map(trendDelta).filter((d): d is number => d !== null)
   return diffs.length < GROUP_TREND_MIN_STUDENTS ? 'insufficient' : trendOfDelta(mean(diffs))
 }

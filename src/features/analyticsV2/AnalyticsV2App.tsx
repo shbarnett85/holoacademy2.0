@@ -14,24 +14,37 @@
    כל עדשה שנטענה נכתבת בחזרה, כך שהיא שורדת מעבר בין הטאבים הראשיים (תוצאות ↔ אנליטיקה).
    ────────────────────────────────────────────────────────────────────────── */
 import { useCallback, useEffect, useMemo } from 'react'
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { Navigate, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
-import { GUEST_LENSES, GuestLensSwitcher, ScreenShell, lensToParams, readGuestLens, useGuestLens, writeGuestLens } from '../teacherUi'
+import { V2_CONFIG_FALLBACK_TEXT } from '../../shared/lib/findingsNarrative'
+import { GUEST_LENSES, GuestLensSwitcher, Icon, RADIUS, ScreenShell, T, TONE_META, lensToParams, readGuestLens, useGuestLens, writeGuestLens } from '../teacherUi'
 import type { AnalyticsConfig, Lens, Roster } from '../../shared/types/analyticsV2'
 import AdminScreen from './AdminScreen'
 import ClassScreen from './ClassScreen'
 import { V2Context, type V2Env } from './context'
 import EntryScreen from './EntryScreen'
 import { L, titles } from './labels'
-import { BRIEF_SCOPES, PREVIOUS_VIEW_PARAM, PREVIOUS_VIEW_VALUE, SUMMARY_SCOPES, canSeePreviousView, parseScopeId, summaryContextOf } from './logic'
+import { BRIEF_SCOPES, PREVIOUS_VIEW_PARAM, PREVIOUS_VIEW_VALUE, SUMMARY_SCOPES, canSeePreviousView, configFailureView, parseScopeId, summaryContextOf } from './logic'
 import { BriefingOverlay, FeedbackOverlay, SummaryOverlay } from './Overlays'
 import StudentScreen from './StudentScreen'
-import { ErrorBlock, LoadingBlock } from './ui'
+import { ActionButton, ErrorBlock, LoadingBlock } from './ui'
 import { useV2, type V2Params, type V2State } from './v2api'
 
-/* המסך הקודם (גרף ההתקדמות הכללי) מוגש מ-index.tsx; backTo = נתיב החזרה לתצוגה החדשה כשנפתח מכפתור "התצוגה הקודמת" */
-export type LegacyView = ComponentType<{ backTo?: string }>
+/* המסך הקודם (גרף ההתקדמות הכללי) מוגש מ-index.tsx; backTo = נתיב החזרה לתצוגה החדשה כשנפתח מכפתור "התצוגה הקודמת";
+   notice = הסבר (עם "נסו שוב") שמוצג מעל התוכן כשהמסכים החדשים לא נטענו והמורה נופל לתצוגה הקודמת */
+export type LegacyView = ComponentType<{ backTo?: string; notice?: ReactNode }>
+
+/* התצורה החדשה לא נטענה אצל מורה אמיתי: אומרים במילים מה קרה ומה מוצג במקום, וכפתור אחד לניסיון חוזר (ניסיון אחד לכל לחיצה, בלי לולאה) */
+function ConfigFallbackNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section role="status" data-v2-fallback style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '12px 16px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${TONE_META.attention.color}` }}>
+      <span style={{ color: TONE_META.attention.color, display: 'inline-flex' }}><Icon name="alert" size={24} /></span>
+      <p style={{ margin: 0, fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: T.text, flex: '1 1 280px' }}>{V2_CONFIG_FALLBACK_TEXT.notice}</p>
+      <ActionButton onClick={onRetry}>{L.retry}</ActionButton>
+    </section>
+  )
+}
 
 export default function AnalyticsV2App({ Legacy }: { Legacy: LegacyView }) {
   const [sp, setSp] = useSearchParams()
@@ -99,6 +112,11 @@ export default function AnalyticsV2App({ Legacy }: { Legacy: LegacyView }) {
   /* בזמן טעינת תצורה חדשה (החלפת עדשה/מקצוע) לא מציגים מסך של העדשה הקודמת. אורח ממשיך לראות את הבורר (עם העדשה
      שביקש), כדי שהוא לא יקפוץ ויחזור; ובמסך פנימי נתיב החזרה גלוי גם בזמן הטעינה. */
   if (!cfg || loading) {
+    /* התצורה לא נטענה (אין חיבור / עומס / השרת עוד מרכז את התוצאות): מורה אמיתי נופל לתצוגה הקודמת עם הסבר ו"נסו שוב";
+       כל השאר מקבלים בלוק שגיאה. אין ניסיון חוזר אוטומטי — בקשה חדשה רק בלחיצה על "נסו שוב" */
+    if (error && configFailureView({ role, isGuest, status: error.status }) === 'legacy') {
+      return <Legacy notice={<ConfigFallbackNotice onRetry={reload} />} />
+    }
     const pending = classMatch ? titles.classGeneric : studentMatch ? titles.studentGeneric : titles.entry
     const requested: Lens = (GUEST_LENSES as readonly string[]).includes(lensParam ?? '') ? (lensParam as Lens) : lens
     const staleGuest = !!cfg && cfg.availableLenses.length > 1

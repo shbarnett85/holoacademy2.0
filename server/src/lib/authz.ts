@@ -1,7 +1,8 @@
 import type { Request } from 'express'
 import { supabaseAdmin } from './supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { hasClassTeachers, hasDataAccessLog } from './activeColumn.js'
+import { hasDataAccessLog } from './activeColumn.js'
+import { ProbeUnavailableError, isSchemaMissingError } from './schemaErrors.js'
 
 /* ══════════════════════════════════════════════════════════════════════════════
    authz — מודול ההרשאות המרכזי לאנליטיקה (חוק 12 ב-CLAUDE.md).
@@ -140,29 +141,36 @@ export async function loadViewer(req: Request): Promise<Viewer> {
   const role = s.role as ViewerRole
   const grants = new Map<string, TeachGrant>()
 
+  /* כשל בטעינת ההרשאות **אינו** "אין הרשאות": צופה שנבנה בתקלה חולפת (ניתוק, timeout, 5xx) היה נשמר במטמון הצופה (ViewerMemo) ומוצג כ"אין כיתות" / כיתה חסרה.
+     "הטבלה / העמודה חסרה" (קוד סכמה, לפני מיגרציה) ← מסלול ההתנהגות הקיים; כל שגיאה אחרת ← 503 (ProbeUnavailableError), והבקשה נכשלת בלי להיכנס למטמון. */
   if (role === 'teacher') {
-    if (await hasClassTeachers()) {
-      const { data } = await supabaseAdmin.from('class_teachers').select('*').eq('teacher_id', s.userId)
-      for (const r of (data ?? []) as { class_id: string; subject_id?: string | null; is_homeroom?: boolean }[]) {
+    const ct = await supabaseAdmin.from('class_teachers').select('*').eq('teacher_id', s.userId)
+    if (!ct.error) {
+      for (const r of (ct.data ?? []) as { class_id: string; subject_id?: string | null; is_homeroom?: boolean }[]) {
         const g = grants.get(r.class_id) ?? { classId: r.class_id, homeroom: false, subjectIds: new Set<string>(), unspecified: false }
         if (r.is_homeroom) g.homeroom = true
         else if (r.subject_id) g.subjectIds.add(r.subject_id)
         else g.unspecified = true
         grants.set(r.class_id, g)
       }
-    } else {
+    } else if (isSchemaMissingError(ct.error)) {
       /* לפני מיגרציית class_teachers: מורה הכיתה היחיד = מחנך (התנהגות קיימת) */
-      const { data } = await supabaseAdmin.from('classes').select('id').eq('teacher_id', s.userId)
-      for (const c of (data ?? []) as { id: string }[]) {
+      const legacy = await supabaseAdmin.from('classes').select('id').eq('teacher_id', s.userId)
+      if (legacy.error) throw new ProbeUnavailableError('classes.teacher_id', String(legacy.error.code || legacy.error.message || 'unknown'))
+      for (const c of (legacy.data ?? []) as { id: string }[]) {
         grants.set(c.id, { classId: c.id, homeroom: true, subjectIds: new Set(), unspecified: false })
       }
+    } else {
+      throw new ProbeUnavailableError('class_teachers', String(ct.error.code || ct.error.message || 'unknown'))
     }
   }
 
   let seesSynthetic = false
   if (s.schoolId && role !== 'super_admin') {
-    const { data } = await supabaseAdmin.from('schools').select('demo_data_enabled').eq('id', s.schoolId).maybeSingle()
-    seesSynthetic = (data as { demo_data_enabled?: boolean } | null)?.demo_data_enabled === true
+    const sc = await supabaseAdmin.from('schools').select('demo_data_enabled').eq('id', s.schoolId).maybeSingle()
+    /* עמודה חסרה (לפני המיגרציה) = לא ארגון הדגמה; תקלה אחרת ← 503 (אחרת ארגון הדגמה היה נשמר כארגון רגיל) */
+    if (sc.error && !isSchemaMissingError(sc.error)) throw new ProbeUnavailableError('schools.demo_data_enabled', String(sc.error.code || sc.error.message || 'unknown'))
+    seesSynthetic = (sc.data as { demo_data_enabled?: boolean } | null)?.demo_data_enabled === true
   }
 
   const v: Viewer = { userId: s.userId, role, schoolId: s.schoolId ?? null, grants, seesSynthetic }

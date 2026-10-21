@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ERR_AGGREGATE_ONLY, ERR_NOT_FOUND, ERR_NO_ACCESS, narrateAdminSchool, narrateAdminSchoolPartial,
+  ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT, ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ERR_AGGREGATE_ONLY, ERR_NOT_FOUND, ERR_NO_ACCESS, narrateAdminSchool, narrateAdminSchoolPartial,
   narrateFeedbackNextStep, narrateUnclassifiedNote,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
@@ -291,15 +291,28 @@ describe('תמונת המנהל על נתונים דלילים: כללי adminPr
     expect(out.hiddenCells).toBe(1)
   })
 
-  it('4 מכיתה אחת + 1 מכיתה שנייה: מוצג; הממוצע מתורמים בלבד; מגמה/שינוי רק מ-5 הפרשים', async () => {
+  it('regression (חוק 9): 4 מכיתה אחת + 1 מכיתה שנייה — מוסתר (dominant_class): הממוצע היה בפועל ממוצע כיתה אחת, וחיסור התורם הבודד חושף אותו', async () => {
     const w = world([CA, CB], [
       ...ids('stu-A', 4).map((id) => ({ id, classId: CA.id, subjects: ['math'] as SubjectCode[] })),
       { id: 'stu-B-0', classId: CB.id, subjects: ['math'] as SubjectCode[] },
       ...ids('stu-B-extra', 6).map((id) => ({ id, classId: CB.id, subjects: ['math'] as SubjectCode[], noData: true })),
     ])
     const out = await adminOf(w)
+    expect(out.cells).toEqual([expect.objectContaining({ status: 'hidden', reason: 'dominant_class', text: ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT })])
+    expect(JSON.stringify(out)).not.toContain('avgLevel')
+    expect(out.hiddenCells).toBe(1)
+    expect(out.progress).toEqual([])
+  })
+
+  it('5 מכיתה אחת + 5 מכיתה שנייה (ועוד 6 בלי נתונים): מוצג; הממוצע מתורמים בלבד', async () => {
+    const w = world([CA, CB], [
+      ...ids('stu-A', 5).map((id) => ({ id, classId: CA.id, subjects: ['math'] as SubjectCode[] })),
+      ...ids('stu-B', 5).map((id) => ({ id, classId: CB.id, subjects: ['math'] as SubjectCode[] })),
+      ...ids('stu-B-extra', 6).map((id) => ({ id, classId: CB.id, subjects: ['math'] as SubjectCode[], noData: true })),
+    ])
+    const out = await adminOf(w)
     const cell = out.cells[0]
-    expect(cell).toMatchObject({ status: 'shown', studentCount: 5 })
+    expect(cell).toMatchObject({ status: 'shown', studentCount: 10 })
     if (cell.status === 'shown') {
       expect(cell.avgLevel).toBe(9)
       expect(cell.studentCount).toBeLessThan(w.students.filter((s) => s.subjects.includes('math')).length) /* נספרים תורמים, לא רשומים */

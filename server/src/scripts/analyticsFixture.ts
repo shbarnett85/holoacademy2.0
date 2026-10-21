@@ -15,23 +15,26 @@
    מה שה-seed מחזיר: { schoolId, classes, ids, teachers[תפקיד].{userId,name,email,password,token}, students, subjectIds, expected } — ראו AnalyticsFixture.
 
    מה נוצר (הכול דטרמיניסטי — seed קבוע; הזמן מחושב מימי הלימוד של היום):
-   · כיתה עשירה (rich, שכבה ו׳, 14 תלמידים): מתמטיקה ועברית (~14–18 משחקים לתלמיד-מקצוע; המנוע משווה חלון של 60 ימי לימוד אחרונים מול 120 שלפניו, ולכן המשחקים פרושים על פני ~150 ימי לימוד), מדעים (5 תלמידים),
+   · כיתה עשירה (rich, שכבה ו׳, 14 תלמידים): מתמטיקה ועברית (18 משחקים לתלמיד-מקצוע, 9 בכל חלון; המנוע משווה חלון של 60 ימי לימוד אחרונים מול 120 שלפניו, ולכן המשחקים פרושים על פני ~150 ימי לימוד. כולם משלימים את אותן הדמיות לפי הסדר — מגמה אישית נמדדת מול שאר הכיתה באותה הדמיה), מדעים (5 תלמידים),
      תנ"ך (2 תלמידים), היסטוריה כמקצוע-כיתה בלי נתונים, ו-6 משחקים בהדמיות בלי מקצוע. כל סיפור = תלמיד אחד (ראו STORIES):
        trendUp / trendDown / crossDip → מגמת רמה מדווחת (עלייה / ירידה / ירידה בשני מקצועות = התרעה חוצת-מקצועות למחנך)
        positionBias → הטיית מיקום · memoryRandom → דפוס זיכרון אקראי · readingSkipper → דילוג קריאה
        controlMc / memoryAttentive / steady* → בקרות (אין ממצא) · almost → שינוי גדול אך N קטן ("אין עדיין מספיק נתונים")
-       newcomer → 3 משחקים בלבד במתמטיקה (שניים אחרונים ברמה 9.8, אחד ישן ברמה 7.6) — אין ממצא, אך תווית המגמה בלוח מחושבת גם מכך.
+       newcomer → 3 משחקים בלבד במתמטיקה (שניים אחרונים ברמה 9.8, אחד ישן ברמה 7.6) — אין ממצא, ותווית המגמה בלוח "אין עדיין מספיק נתונים" (3 משחקים אינם מספיקים למגמה: נדרשים 8 בכל חלון).
    · כיתה דלה (sparse, שכבה ו׳, 3 תלמידים, 2 משחקים לכל אחד: מתמטיקה + עברית).
    · כיתה בלי נתונים (empty, שכבה ה׳, 6 תלמידים, אפס משחקים).
    · מורים: homeroom (מחנך rich) · subject (מתמטיקה ב-rich) · mixed (מחנך sparse + עברית ב-rich) · cross (מתמטיקה ב-sparse + היסטוריה ב-rich —
      מלכודת המכפלה הקרטזית) · unspecified (שיוך ב-rich בלי מקצוע ובלי מחנכות) · emptyHomeroom (מחנך empty) · noClasses (בלי כיתות)
      · admin (מנהל בית הספר) · municipal (מנהל עירוני). unlinked = כינוי של noClasses.
    · כיתות dualA + dualB: תלמיד/ה משותף/ת (4 משחקי מתמטיקה + 4 תנ"ך, הכיתה העיקרית dualB) ומורה dual (מחנך dualA + תנ"ך ב-dualB).
+   · כיתה wide (ו׳6, 6 תלמידים בלי מורה): מתמטיקה + עברית, PERSONAL_LEVEL_MIN_SESSIONS משחקים לכל מקצוע. היא הכיתה השנייה בשכבה ו׳ שמאפשרת לתא של המנהל להיות מוצג:
+     תא מוצג רק אם גם בלי הכיתה הגדולה ביותר נשארים ≥ ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS תורמים (expected.adminContributors = כמה תורמים בכל תא).
    · בית ספר שני (בידוד בין בתי ספר): כיתה other (ו׳9, 2 תלמידים) + outsider (מחנך שלה) + outsiderAdmin (המנהל שלו). בית ספר שלישי בלי כיתות: emptySchoolAdmin.
-   סיסמאות אקראיות בזיכרון בלבד; לא מודפסות. סך השורות ~1,250 (37 משתמשים, ~420 משחקים + snapshots, ~170 אירועי קריאה, ~75 תשובות, 44 הדמיות); יצירה ~13 שניות. לא מפעיל שום LLM.                                           */
+   סיסמאות אקראיות בזיכרון בלבד; לא מודפסות. סך השורות ~1,700 (43 משתמשים, ~560 משחקים + snapshots, ~230 אירועי קריאה, ~100 תשובות, 46 הדמיות); יצירה ~13 שניות. לא מפעיל שום LLM.                                           */
 import '../env.js'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { PERSONAL_LEVEL_MIN_SESSIONS } from '../../../src/shared/lib/analyticsConfig.js'
 import { hasIsActive } from '../lib/activeColumn.js'
 import { buildSchoolDays } from '../lib/analyticsV2/schoolCalendar.js'
 import { schemaHas } from '../lib/analyticsV2/realWorld/queryUtil.js'
@@ -52,7 +55,7 @@ export interface AnalyticsFixture {
   otherSchoolId: string
   /* בית ספר שלישי בלי אף כיתה: מנהל בית ספר חדש (ההיקף ריק — אסור שייכשל) */
   emptySchoolId: string
-  classes: { rich: FxClass; sparse: FxClass; empty: FxClass; other: FxClass; dualA: FxClass; dualB: FxClass }
+  classes: { rich: FxClass; sparse: FxClass; empty: FxClass; other: FxClass; dualA: FxClass; dualB: FxClass; wide: FxClass }
   subjectIds: Record<FxSubject, string>
   /* מזהים נוחים לתרחישי e2e (כיתה עשירה, תלמידה לדוגמה …) */
   ids: {
@@ -97,6 +100,8 @@ export interface AnalyticsFixture {
     other: Record<string, FxStudent>
     /* shared = חבר/ה בשתי הכיתות dualA ו-dualB, עם משחקי מתמטיקה ותנ"ך; a1 / b1 = תלמיד/ה בכיתה אחת בלבד */
     dual: Record<string, FxStudent>
+    /* כיתה רחבה בשכבה ו׳ (ללא מורה): 6 תלמידים עם מתמטיקה + עברית — היא הכיתה השנייה שמאפשרת לתאי המנהל להיות מוצגים (בלי הכיתה הגדולה ביותר נשארים ≥ 5 תורמים) */
+    wide: Record<string, FxStudent>
   }
   /* מה שהמנוע החי אמור לדווח על הנתונים האלה — נבדק ב-v2Acceptance */
   expected: {
@@ -105,6 +110,8 @@ export interface AnalyticsFixture {
     emptyStudentCount: number
     /* משחקים בהדמיות בלי מקצוע (בכיתה rich) */
     unclassifiedSessions: number
+    /* תורמים לכל תא שכבה ו׳ × מקצוע בתמונת המנהל: מי שיש לו לפחות PERSONAL_LEVEL_MIN_SESSIONS משחקים במקצוע (מחושב מהתצורה, לא קבוע) */
+    adminContributors: { math: number; hebrew: number; science: number; bible: number }
     /* סיפורים (מפתחות students.rich) שאמורים לקבל ממצא מדווח בטון "תשומת לב" */
     attentionStories: string[]
     positiveStories: string[]
@@ -181,6 +188,10 @@ interface Track {
   /* רמה בחלון האחרון / הקודם (steady: אותה רמה) */
   recentLevel: number
   priorLevel: number
+  /* ממוצע ההצלחה בחלון האחרון / הקודם (ברירת מחדל 0.72). מגמה אישית בעולם חי נמדדת על ההצלחה ביחס לשאר הכיתה באותה הדמיה (FX1a),
+     ולכן "שינוי ברמה" בלי שינוי בהצלחה אינו מגמה — תלמיד/ה שהרמה שלו/ה זזה מקבל/ת גם הצלחה שזזה, כמו בכיול האמיתי (עלייה ← הצלחה גבוהה מ-80%) */
+  recentSuccess?: number
+  priorSuccess?: number
 }
 interface Story {
   key: string
@@ -194,24 +205,33 @@ interface Story {
   /* אירועי קריאה במתמטיקה: 'normal' | 'skip' */
   reading?: 'normal' | 'skip'
 }
-const steady = (subject: FxSubject, level: number, n = 14): Track => ({ subject, recent: Math.ceil(n / 2), prior: Math.floor(n / 2), recentLevel: level, priorLevel: level })
-const shift = (subject: FxSubject, priorLevel: number, recentLevel: number, nEach: number): Track => ({ subject, recent: nEach, prior: nEach, recentLevel, priorLevel })
+/* משחקים לתלמיד-מקצוע שעומד בסף "רמה אישית" של האנליטיקה (תורם לרמת הכיתה ולתאי המנהל) — נגזר מהתצורה */
+const CONTRIB = PERSONAL_LEVEL_MIN_SESSIONS
+const WIDE_NAMES = [['אורית', 'בן-דוד'], ['בועז', 'מלכה'], ['גילה', 'שרון'], ['דוד', 'אלמוג'], ['הדר', 'פלד'], ['ורד', 'יוגב']]
+
+/* 18 משחקים = 9 בכל חלון: מספיק לבדיקת מגמה (לפחות 8 בכל חלון). כל התלמידים משלימים את אותן הדמיות לפי הסדר (ההדמיה ה-k של כל אחד/ת היא q_k) — כך לכל הדמיה יש עמיתים */
+const steady = (subject: FxSubject, level: number, n = 18): Track => ({ subject, recent: Math.ceil(n / 2), prior: Math.floor(n / 2), recentLevel: level, priorLevel: level })
+/* שינוי ברמה בליווי שינוי בהצלחה: 0.15 הצלחה לכל רמה (חסום ±0.3), סביב 0.72 */
+const shift = (subject: FxSubject, priorLevel: number, recentLevel: number, nEach: number): Track => {
+  const half = Math.max(-0.15, Math.min(0.15, (recentLevel - priorLevel) * 0.075))
+  return { subject, recent: nEach, prior: nEach, recentLevel, priorLevel, recentSuccess: 0.72 + half, priorSuccess: 0.72 - half }
+}
 
 /* שכבה ו׳ ← מרכז הנורמה 10, רצועה 8.5–11.5 */
 const STORIES: Story[] = [
   { key: 'trendUp', first: 'אורי', last: 'שדה', tracks: [shift('math', 8.2, 10.4, 9), steady('hebrew', 9.6)] },
   { key: 'trendDown', first: 'דנה', last: 'ברק', tracks: [steady('math', 10.2), shift('hebrew', 11.0, 8.8, 9)] },
   { key: 'crossDip', first: 'תמר', last: 'לוי', tracks: [shift('math', 11.4, 8.9, 9), shift('hebrew', 10.8, 8.6, 9)] },
-  { key: 'positionBias', first: 'יובל', last: 'כהן', tracks: [steady('math', 9.4, 15), steady('hebrew', 9.1)], mc: 'biased' },
-  { key: 'controlMc', first: 'נועה', last: 'רז', tracks: [steady('math', 10.1, 15), steady('hebrew', 10.4)], mc: 'uniform' },
+  { key: 'positionBias', first: 'יובל', last: 'כהן', tracks: [steady('math', 9.4), steady('hebrew', 9.1)], mc: 'biased' },
+  { key: 'controlMc', first: 'נועה', last: 'רז', tracks: [steady('math', 10.1), steady('hebrew', 10.4)], mc: 'uniform' },
   { key: 'memoryRandom', first: 'איתי', last: 'גל', tracks: [steady('math', 9.0), steady('hebrew', 9.2)], memory: 'random' },
   { key: 'memoryAttentive', first: 'מאיה', last: 'חן', tracks: [steady('math', 9.8), steady('hebrew', 9.9)], memory: 'attentive' },
-  { key: 'readingSkipper', first: 'רועי', last: 'אדמון', tracks: [steady('math', 10.3), steady('hebrew', 9.7), steady('science', 9.5, 3)], reading: 'skip' },
-  { key: 'steadyA', first: 'שירה', last: 'מור', tracks: [steady('math', 8.7), steady('hebrew', 10.9), steady('science', 10.0, 3)], reading: 'normal' },
-  { key: 'almost', first: 'ליאור', last: 'נחום', tracks: [steady('math', 9.9), shift('hebrew', 7.0, 10.0, 6), steady('science', 9.0, 3)], reading: 'normal' },
+  { key: 'readingSkipper', first: 'רועי', last: 'אדמון', tracks: [steady('math', 10.3), steady('hebrew', 9.7), steady('science', 9.5, CONTRIB)], reading: 'skip' },
+  { key: 'steadyA', first: 'שירה', last: 'מור', tracks: [steady('math', 8.7), steady('hebrew', 10.9), steady('science', 10.0, CONTRIB)], reading: 'normal' },
+  { key: 'almost', first: 'ליאור', last: 'נחום', tracks: [steady('math', 9.9), shift('hebrew', 7.0, 10.0, 6), steady('science', 9.0, CONTRIB)], reading: 'normal' },
   { key: 'steadyB', first: 'אלון', last: 'פרידמן', tracks: [steady('math', 9.5), steady('hebrew', 9.3)], reading: 'normal' },
-  { key: 'lowLevel', first: 'הדס', last: 'שמש', tracks: [steady('math', 6.8), steady('hebrew', 7.4), steady('science', 7.0, 3)], reading: 'normal' },
-  { key: 'highLevel', first: 'גיל', last: 'ארז', tracks: [steady('math', 13.2), steady('hebrew', 12.6), steady('science', 12.0, 3), steady('bible', 12.4, 2)], reading: 'normal' },
+  { key: 'lowLevel', first: 'הדס', last: 'שמש', tracks: [steady('math', 6.8), steady('hebrew', 7.4), steady('science', 7.0, CONTRIB)], reading: 'normal' },
+  { key: 'highLevel', first: 'גיל', last: 'ארז', tracks: [steady('math', 13.2), steady('hebrew', 12.6), steady('science', 12.0, CONTRIB), steady('bible', 12.4, CONTRIB)], reading: 'normal' },
   { key: 'newcomer', first: 'עומר', last: 'טל', tracks: [{ subject: 'math', recent: 2, prior: 1, recentLevel: 9.8, priorLevel: 7.6 }, steady('hebrew', 9.0, 2), steady('bible', 9.0, 2)] },
 ]
 const SPARSE_NAMES = [['רוני', 'אביב'], ['מיכל', 'זהר'], ['נדב', 'שגב']]
@@ -324,6 +344,7 @@ async function build(): Promise<AnalyticsFixture> {
   const other = await mkClass('ו׳9', 'other', 6, otherSchoolId)
   const dualA = await mkClass('ו׳4', 'dual-a', 6)
   const dualB = await mkClass('ו׳5', 'dual-b', 6)
+  const wide = await mkClass('ו׳6', 'wide', 6)
 
   const link = (class_id: string, teacher_id: string, o: { subject?: string; subject_id?: string | null; is_homeroom?: boolean } = {}): Row =>
     ({ class_id, teacher_id, subject: o.subject ?? '', subject_id: o.subject_id ?? null, is_homeroom: o.is_homeroom ?? false })
@@ -342,7 +363,7 @@ async function build(): Promise<AnalyticsFixture> {
   ])
 
   /* ── תלמידים ── */
-  const students: AnalyticsFixture['students'] = { rich: {}, sparse: {}, empty: {}, other: {}, dual: {} }
+  const students: AnalyticsFixture['students'] = { rich: {}, sparse: {}, empty: {}, other: {}, dual: {}, wide: {} }
   const userRows: Row[] = []
   const memberRows: Row[] = []
   const addStudent = (bucket: Record<string, FxStudent>, key: string, cls: FxClass, first: string, last: string, story: string, inSchool = schoolId): FxStudent => {
@@ -361,13 +382,14 @@ async function build(): Promise<AnalyticsFixture> {
   memberRows.push({ class_id: dualB.id, user_id: shared.id })
   addStudent(students.dual, 'a1', dualA, DUAL_NAMES[1][0], DUAL_NAMES[1][1], 'dualA')
   addStudent(students.dual, 'b1', dualB, DUAL_NAMES[2][0], DUAL_NAMES[2][1], 'dualB')
+  WIDE_NAMES.forEach(([fn, ln], i) => addStudent(students.wide, `w${i + 1}`, wide, fn, ln, 'wide'))
   await insMany('users', userRows)
   await insMany('class_members', memberRows)
 
   /* ── הדמיות: מאגר לכל מקצוע מרכזי + מדעים + תנ"ך + בלי מקצוע ── */
   const questRows: Row[] = []
   const pools: Record<FxSubject, string[]> = { math: [], hebrew: [], history: [], science: [], bible: [] }
-  const poolSize: Record<FxSubject, number> = { math: POOL, hebrew: POOL, history: 0, science: 3, bible: 2 }
+  const poolSize: Record<FxSubject, number> = { math: POOL, hebrew: POOL, history: 0, science: CONTRIB, bible: CONTRIB }
   const unclassifiedQuests: string[] = []
   const mkQuest = (title: string, subjectId: string | null): string => {
     const id = randomUUID()
@@ -418,7 +440,7 @@ async function build(): Promise<AnalyticsFixture> {
         const isRecent = dayIdx < 60
         const base = isRecent ? track.recentLevel : track.priorLevel
         const level = round1(clamp(base + (rand() - 0.5) * 0.6, 1, 20))
-        const success = round1(clamp(0.72 + (rand() - 0.5) * 0.2, 0.05, 1) * 100) / 100
+        const success = round1(clamp(((isRecent ? track.recentSuccess : track.priorSuccess) ?? 0.72) + (rand() - 0.5) * 0.2, 0.05, 1) * 100) / 100
         const questId = quests[k % quests.length]
         const sessionId = addSession(st.id, rich, questId, SUBJECT_IDS[track.subject], dayIdx, ti * 7 + 3, level, success)
 
@@ -477,8 +499,19 @@ async function build(): Promise<AnalyticsFixture> {
 
   /* התלמיד/ה המשותף/ת: כל ה-snapshots נרשמו בכיתה dualB ← היא הכיתה העיקרית. מתמטיקה ותנ"ך, 4 משחקים כל אחד */
   ;(['math', 'bible'] as const).forEach((code, ci) => {
-    for (let k = 0; k < 4; k++) addSession(shared.id, dualB, pools[code][k % pools[code].length], SUBJECT_IDS[code], 8 + k * 11 + ci * 3, 11 + ci, round1(9.6 + ci * 0.8 + (k % 2) * 0.2), 0.7)
+    for (let k = 0; k < CONTRIB; k++) addSession(shared.id, dualB, pools[code][k % pools[code].length], SUBJECT_IDS[code], 8 + k * 11 + ci * 3, 11 + ci, round1(9.6 + ci * 0.8 + (k % 2) * 0.2), 0.7)
   })
+
+  /* הכיתה הרחבה: מתמטיקה + עברית, CONTRIB משחקים לכל מקצוע (ללא מגמה, ללא ממצאים): תורמת לתאי המנהל */
+  Object.values(students.wide).forEach((st, i) => {
+    for (const [ci, code] of (['math', 'hebrew'] as const).entries()) {
+      for (let k = 0; k < CONTRIB; k++) addSession(st.id, wide, pools[code][k % pools[code].length], SUBJECT_IDS[code], 5 + i + k * 12 + ci * 2, 15 + ci, round1(9.2 + (i % 3) * 0.5 + (k % 2) * 0.2), 0.7)
+    }
+  })
+  /* תורמים לתאי המנהל בשכבה ו׳ (חישוב מתוך ההגדרות עצמן) */
+  const adminContributors = { math: 0, hebrew: 0, science: 0, bible: 0 }
+  for (const story of STORIES) for (const t of story.tracks) if (t.subject in adminContributors && t.recent + t.prior >= PERSONAL_LEVEL_MIN_SESSIONS) adminContributors[t.subject as keyof typeof adminContributors]++
+  if (CONTRIB >= PERSONAL_LEVEL_MIN_SESSIONS) { adminContributors.math += 1 + WIDE_NAMES.length; adminContributors.hebrew += WIDE_NAMES.length; adminContributors.bible += 1 }
   await insMany('sessions', sessionRows)
   await insMany('progress_snapshots', snapRows)
   await insMany('events', eventRows)
@@ -486,7 +519,7 @@ async function build(): Promise<AnalyticsFixture> {
 
   return {
     prefix: FX_PREFIX, schoolId, otherSchoolId, emptySchoolId,
-    classes: { rich, sparse, empty, other, dualA, dualB },
+    classes: { rich, sparse, empty, other, dualA, dualB, wide },
     subjectIds: SUBJECT_IDS,
     ids: {
       classId: rich.id, homeroomClassId: rich.id, sparseClassId: sparse.id, emptyClassId: empty.id,
@@ -498,6 +531,7 @@ async function build(): Promise<AnalyticsFixture> {
     expected: {
       richStudentCount: STORIES.length, sparseStudentCount: SPARSE_NAMES.length, emptyStudentCount: EMPTY_NAMES.length,
       unclassifiedSessions: unclassified,
+      adminContributors,
       attentionStories: ['trendDown', 'crossDip', 'positionBias', 'memoryRandom', 'readingSkipper'],
       positiveStories: ['trendUp'],
     },

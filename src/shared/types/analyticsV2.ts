@@ -386,8 +386,9 @@ export const AdminCellSchema = z.discriminatedUnion('status', [
   /* פחות מ-5 תלמידים: לא מציגים אפילו את הכמות */
   z.object({
     status: z.literal('hidden'), grade: z.number().int(), gradeLabel: z.string(), subject: SubjectRefSchema,
-    /* small_cell = מעט מדי תלמידים שתרמו נתון; single_class = כל התורמים מכיתה אחת (המספר היה מזהה כיתה) */
-    reason: z.enum(['small_cell', 'single_class']), text: z.string().min(1),
+    /* small_cell = מעט מדי תלמידים שתרמו נתון; single_class = כל התורמים מכיתה אחת (המספר היה מזהה כיתה);
+       dominant_class = כיתה אחת דומיננטית (בלעדיה נשארו פחות מ-5 תורמים — המספר הוא בפועל ממוצע הכיתה הזאת) */
+    reason: z.enum(['small_cell', 'single_class', 'dominant_class']), text: z.string().min(1),
   }),
 ])
 export type AdminCell = z.infer<typeof AdminCellSchema>
@@ -418,8 +419,8 @@ export const AdminSubjectRowSchema = z.object({
 
 export const AdminOverviewSchema = z.object({
   school: z.object({ id: z.string(), name: z.string() }),
-  /* עד 3 משפטים פשוטים לטאב "סקירה" */
-  highlights: z.array(z.string().min(1)).max(3),
+  /* עד 3 משפטים פשוטים לטאב "סקירה", ואחריהם (אם יש) הערת כיסוי אחת: כיתות בלי שכבה / שלא נטענו / משחקים בלי רמה (בלי שמות ובלי פירוט כיתה) */
+  highlights: z.array(z.string().min(1)).max(4),
   grades: z.array(z.object({ grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int() })),
   gradeRows: z.array(AdminGradeRowSchema),
   subjectRows: z.array(AdminSubjectRowSchema),

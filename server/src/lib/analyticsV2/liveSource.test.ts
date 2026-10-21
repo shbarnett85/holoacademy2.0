@@ -23,7 +23,7 @@ function richClass(id: string, over: Partial<RawClassData> = {}): RawClassData {
     raw.members.push({ id: sid, name: `תלמיד ${i}`, classIds: [id] })
     raw.quests.push({ id: `${id}-q${i}`, subject: 'math' })
     raw.sessions.push({ id: `${id}-x${i}`, studentId: sid, questId: `${id}-q${i}`, completedAt: '2026-03-03T08:00:00Z' })
-    raw.snapshots.push({ sessionId: `${id}-x${i}`, studentId: sid, classId: id, subject: null, level: 7 + i, success: 0.7 })
+    raw.snapshots.push({ sessionId: `${id}-x${i}`, studentId: sid, classId: id, subject: 'math', level: 7 + i, success: 0.7 })
   }
   raw.quests.push({ id: `${id}-unclassified`, subject: null })
   raw.sessions.push({ id: `${id}-u`, studentId: `${id}-s0`, questId: `${id}-unclassified`, completedAt: '2026-03-03T09:00:00Z' })

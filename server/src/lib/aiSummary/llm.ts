@@ -3,7 +3,7 @@
    · השירות (service.ts) מקבל SummaryLlm בהזרקה: בבדיקות — מזויף. המימוש האמיתי **זורק תחת VITEST** (אלא אם AI_SUMMARY_ALLOW_LIVE_IN_TEST=1),
      ו-gemini.js/claude.js נטענים דינמית רק בקריאה בפועל — כך שאף בדיקה לא יכולה לקרוא למודל חי בטעות.
    · ה-thinking של Gemini 2.5 נצרך מ-maxOutputTokens, ולכן תקציב Gemini גדול מ-maxTokens של הבקשה.
-   · timeout 45 שניות.
+   · timeout 45 שניות — ה-AbortSignal מועבר ל-fetch של Gemini (ולקריאת Claude), כך שאחרי ה-timeout אין קריאה יתומה שממשיכה לצרוך טוקנים.
    ────────────────────────────────────────────────────────────────────────── */
 import { engineFor } from '../modelRouter.js'
 
@@ -22,7 +22,7 @@ export class LiveLlmBlockedError extends Error {
   }
 }
 
-/* דוחה כשה-signal מופעל; הקריאה הבסיסית ממשיכה ברקע אבל התוצאה נזרקת */
+/* דוחה כשה-signal מופעל (ה-signal עצמו מועבר גם לקריאה, כך שהיא מתבטלת באמת ולא ממשיכה ברקע) */
 function raceAbort<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(new Error('timeout'))
   return new Promise<T>((resolve, reject) => {
@@ -42,7 +42,7 @@ export function createRealLlm(): SummaryLlm {
       const signal = req.signal ?? AbortSignal.timeout(LLM_TIMEOUT_MS)
       if (engineFor('summary') === 'gemini') {
         const { callGeminiJSON } = await import('../gemini.js')
-        const text = (await raceAbort(callGeminiJSON(req.system, req.user, Math.max(req.maxTokens, GEMINI_SUMMARY_MAX_TOKENS)), signal)).trim()
+        const text = (await raceAbort(callGeminiJSON(req.system, req.user, Math.max(req.maxTokens, GEMINI_SUMMARY_MAX_TOKENS), signal), signal)).trim()
         if (!text) throw new Error('empty response from Gemini')
         return { text, model: process.env.GEMINI_CONTENT_MODEL?.trim() || 'gemini-2.5-pro' }
       }

@@ -1,19 +1,22 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
-  AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY, ERR_SUMMARY_NOT_FOUND,
+  AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY, ERR_SUMMARY_NOT_FOUND, ERR_SUMMARY_SAVE,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { SummaryStateSchema, type SummaryTarget } from '../../../../src/shared/types/aiSummaryV1.js'
 import { demoProvider, getAnalysis } from '../analyticsV2/demoProvider.js'
 import { AppError } from '../../middleware/errors.js'
 import { projectSource, type SummarySource } from './inputs.js'
 import { createMemoryStore } from './store.js'
-import { FULL_AUDIENCE, createSummaryService, subjectAudience, type SummaryRequest, type SummaryServiceDeps } from './service.js'
+import { FULL_AUDIENCE, SUMMARY_STALE_AFTER_DAYS, createSummaryService, subjectAudience, type SummaryRequest, type SummaryServiceDeps } from './service.js'
 import { NOW, demoIdentifiers, fakeLlm, goodResponse, homeroomOf } from './testkit.js'
 
 let source: SummarySource
 let sid: string
 let studentName: string
 let GOOD: string
+/* תשובה תקינה שנייה (טקסט שונה): ציטוט נאמן של העובדה הרביעית */
+let SECOND: string
+let SECOND_TEXT: string
 
 beforeAll(async () => {
   const A = getAnalysis(NOW)
@@ -21,7 +24,11 @@ beforeAll(async () => {
   const overview = (await demoProvider.student(homeroomOf('c-v2'), sid)).data
   studentName = overview.student.displayName
   source = { scope: 'student', overview, gender: 'male' }
-  GOOD = goodResponse(projectSource(source))
+  const input = projectSource(source)
+  GOOD = goodResponse(input)
+  const fact = input.facts[3] ?? input.facts[input.facts.length - 1]
+  SECOND_TEXT = `לפי הנתונים, ${fact.text}`
+  SECOND = JSON.stringify({ paragraphs: [{ text: SECOND_TEXT, facts: [fact.id] }] })
 })
 
 const BAD_TECH = JSON.stringify({ paragraphs: [{ text: 'לפי הנתונים, השינוי מובהק מבחינה סטטיסטית.', facts: ['f1'] }] })
@@ -199,22 +206,57 @@ describe('מפתחות קהל', () => {
 })
 
 describe('כתיבה מחדש', () => {
-  it('מאפסת את עריכת המורה ומחליפה את הטקסט; קירור של 20 שניות בין כתיבות', async () => {
-    const second = JSON.stringify({ paragraphs: [{ text: 'נראה שהרמה בעברית יציבה לאורך זמן.', facts: ['f1'] }] })
-    const { service, store, clock: c } = make(fakeLlm([GOOD, second]))
+  it('על סיכום שהמורה ערכה: בלי אישור — 409 ועריכה נשמרת; עם discardEdit — מאפסת את העריכה ומחליפה את הטקסט; קירור של 20 שניות בין כתיבות', async () => {
+    const { service, store, clock: c } = make(fakeLlm([GOOD, SECOND]))
     const created = await service.generate(request())
     const id = created.data.summary!.id!
     await service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: id, audienceKey: 'full', editedText: 'הגרסה שלי' })
     expect([...store.rows.values()][0].editedText).toBe('הגרסה שלי')
 
-    await failsWith(service.generate(request(), { regenerate: true }), 429, ERR_SUMMARY_COOLDOWN)
+    /* בלי אישור מפורש: נדחה, בלי LLM, והעריכה שלמה (גם אחרי שעבר הקירור) */
     c.advance(21_000)
-    const again = await service.generate(request(), { regenerate: true })
+    await failsWith(service.generate(request(), { regenerate: true }), 409, ERR_SUMMARY_EDIT_EXISTS)
+    await failsWith(service.generate(request(), { regenerate: true, discardEdit: false }), 409, ERR_SUMMARY_EDIT_EXISTS)
+    expect([...store.rows.values()][0].editedText).toBe('הגרסה שלי')
+
+    const again = await service.generate(request(), { regenerate: true, discardEdit: true })
     expect(again.data.summary!.edited).toBe(false)
-    expect(again.data.summary!.paragraphs).toEqual(['נראה שהרמה בעברית יציבה לאורך זמן.'])
+    expect(again.data.summary!.paragraphs).toEqual([SECOND_TEXT])
     expect(again.data.summary!.id).toBe(id)
     expect([...store.rows.values()][0].editedText).toBeNull()
     expect(store.rows.size).toBe(1)
+    await failsWith(service.generate(request(), { regenerate: true, discardEdit: true }), 429, ERR_SUMMARY_COOLDOWN)
+  })
+
+  it('מרוץ בין לשוניות: find לא ראה את הסיכום (נוצר ונערך באותו רגע בלשונית אחרת) — השמירה לא דורסת את העריכה (R4#10)', async () => {
+    const { service, store } = make(fakeLlm([GOOD]))
+    /* סיכום קיים עם עריכה של המורה, אבל ה-find של הבקשה הזו "פספס" אותו */
+    const first = await service.generate(request())
+    await service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: first.data.summary!.id!, audienceKey: 'full', editedText: 'העריכה שלי' })
+    const find = store.find
+    store.find = async () => null
+    const raced = await service.generate(request())
+    store.find = find
+    expect(raced.data.summary!.edited).toBe(true)
+    expect([...store.rows.values()][0].editedText).toBe('העריכה שלי')
+    expect(store.rows.size).toBe(1)
+  })
+
+  it('סיכום שלא נערך: כתיבה מחדש ללא discardEdit מותרת (אין מה לאבד)', async () => {
+    const { service, clock: c } = make(fakeLlm([GOOD]))
+    await service.generate(request())
+    c.advance(21_000)
+    const again = await service.generate(request(), { regenerate: true })
+    expect(again.data.summary!.edited).toBe(false)
+  })
+
+  it('עריכה בלשונית אחרת בזמן שהלקוח מציג סיכום לא ערוך: השרת תופס זאת (409) ולא דורס', async () => {
+    const { service, store, clock: c } = make(fakeLlm([GOOD]))
+    const created = await service.generate(request())
+    c.advance(21_000)
+    await service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: created.data.summary!.id!, audienceKey: 'full', editedText: 'נערך בלשונית אחרת' })
+    await failsWith(service.generate(request(), { regenerate: true }), 409)
+    expect([...store.rows.values()][0].editedText).toBe('נערך בלשונית אחרת')
   })
 
   it('שתי בקשות במקביל לאותה ישות → קריאה אחת ל-LLM', async () => {
@@ -273,7 +315,7 @@ describe('זכאות, תקרה יומית ואחסון חסר', () => {
     }
     expect(llm.calls).toHaveLength(0)
     expect(store.rows.size).toBe(0)
-    const got = await service.get(request({ load: async () => empty }))
+    const got = await service.get(request({ load: async () => empty, cheapLoad: true }))
     expect(got.data.eligibility.ok).toBe(false)
     expect(SummaryStateSchema.safeParse(res.data).success).toBe(true)
   })
@@ -309,12 +351,157 @@ describe('זכאות, תקרה יומית ואחסון חסר', () => {
     await failsWith(service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: 'x', audienceKey: 'full', editedText: 'y' }), 404)
   })
 
-  it('כשל בכתיבה ל-store לא מפיל: הסיכום מוצג בלי שמירה', async () => {
-    const store = createMemoryStore()
-    store.upsert = async () => { throw new Error('db down') }
-    const service = createSummaryService({ llm: fakeLlm([GOOD]), store, now: clock().now })
+  it('כשל DB חולף בקריאה (find): 503, בלי LLM, והעריכה נשארת — לא נראה כ"אין סיכום" (R4#10)', async () => {
+    const llm = fakeLlm([GOOD])
+    const { service, store } = make(llm)
+    const created = await service.generate(request())
+    await service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: created.data.summary!.id!, audienceKey: 'full', editedText: 'שלי' })
+    const find = store.find
+    store.find = async () => { throw new AppError(503, 'db') }
+    await failsWith(service.generate(request()), 503)
+    await failsWith(service.get(request()), 503)
+    expect(llm.calls).toHaveLength(1)
+    store.find = find
+    expect((await service.get(request())).data.summary!.paragraphs).toEqual(['שלי'])
+  })
+
+  it('כשל DB בשמירה: 503; ניסיון חוזר שומר את אותה יצירה בלי קריאה שנייה ל-LLM', async () => {
+    const llm = fakeLlm([GOOD])
+    const { service, store } = make(llm)
+    const upsert = store.upsert
+    store.upsert = async () => { throw new AppError(503, 'db down') }
+    await failsWith(service.generate(request()), 503)
+    expect(llm.calls).toHaveLength(1)
+    expect(store.rows.size).toBe(0)
+    store.upsert = upsert
+    const retry = await service.generate(request())
+    expect(llm.calls).toHaveLength(1)
+    expect(retry.data.persisted).toBe(true)
+    expect(retry.data.summary!.writtenBy).toBe('ai')
+    expect(store.rows.size).toBe(1)
+  })
+
+  it('כשל DB בשמירת עריכה: 503 עם "לא הצלחנו לשמור" (ולא 404 "לא נמצא")', async () => {
+    const { service, store } = make(fakeLlm([GOOD]))
+    const created = await service.generate(request())
+    store.setEdited = async () => { throw new AppError(503, 'db down') }
+    await failsWith(service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: created.data.summary!.id!, audienceKey: 'full', editedText: 'x' }), 503, ERR_SUMMARY_SAVE)
+  })
+
+  it('כשל ברישום השימוש לא מפיל את היצירה (best-effort), אבל נכתב ללוג', async () => {
+    const { service, store, logs } = make(fakeLlm([GOOD]))
+    store.recordGeneration = async () => { throw new AppError(503, 'db') }
     const res = await service.generate(request())
-    expect(res.data.summary!.id).toBeNull()
-    expect(res.data.persisted).toBe(false)
+    expect(res.data.summary!.writtenBy).toBe('ai')
+    expect(logs.some((l) => l.includes('usage record failed'))).toBe(true)
+  })
+})
+
+describe('תקרה יומית: נספרת מיומן השימוש, כולל כתיבות מחדש, ושורדת ריסטרט (R1#7, R4#12)', () => {
+  it('כתיבה מחדש של אותה ישות נספרת בכל פעם; שירות חדש על אותה חנות (ריסטרט) ממשיך מאותה ספירה', async () => {
+    const store = createMemoryStore()
+    const c = clock()
+    const llm = fakeLlm([GOOD])
+    const mk = () => createSummaryService({ llm, store, now: c.now, dailyCap: 3 })
+    const s1 = mk()
+    await s1.generate(request())
+    c.advance(21_000)
+    await s1.generate(request(), { regenerate: true })
+    c.advance(21_000)
+    await s1.generate(request(), { regenerate: true })
+    expect(store.usage).toHaveLength(3)
+    /* ריסטרט: זיכרון התהליך אבד, היומן נשאר */
+    const s2 = mk()
+    c.advance(21_000)
+    await failsWith(s2.generate(request(), { regenerate: true }), 429, ERR_SUMMARY_LIMIT_DAILY)
+    expect(llm.calls).toHaveLength(3)
+    /* יום אחר: מתאפס */
+    c.advance(26 * 3_600_000)
+    await s2.generate(request(), { regenerate: true })
+  })
+
+  it('גם יצירה שנפלה לתבנית (ניסיון LLM שנפסל) נספרת — העלות כבר נגרמה', async () => {
+    const { service, store } = make(fakeLlm([BAD_TECH]))
+    await service.generate(request())
+    expect(store.usage).toHaveLength(1)
+  })
+
+  it('כשל DB בספירה (לא "סכמה חסרה") → 503 ולא קריאת LLM בלי תקרה', async () => {
+    const llm = fakeLlm([GOOD])
+    const { service, store } = make(llm)
+    store.countGeneratedSince = async () => { throw new AppError(503, 'db') }
+    await failsWith(service.generate(request()), 503)
+    expect(llm.calls).toHaveLength(0)
+  })
+})
+
+describe('התיישנות: "ייתכן שהנתונים השתנו" (R4#5)', () => {
+  const sourceWith = (mutate: (s: Extract<SummarySource, { scope: 'student' }>) => Extract<SummarySource, { scope: 'student' }>): SummarySource => mutate(source as Extract<SummarySource, { scope: 'student' }>)
+
+  it('סיכום טרי עם אותם נתונים: לא ישן; נתונים שהשתנו: ישן; גיל מעל 14 יום: ישן גם בלי להשוות', async () => {
+    const { service, clock: c } = make(fakeLlm([GOOD]))
+    const cheap = (load?: SummaryRequest['load']): SummaryRequest => request({ cheapLoad: true, ...(load ? { load } : {}) })
+    const created = await service.generate(cheap())
+    expect(created.data.summary!.stale).toBe(false)
+    expect((await service.get(cheap())).data.summary!.stale).toBe(false)
+
+    /* נתונים אחרים (פאנל אחד פחות) → חותמת שונה */
+    const changed = sourceWith((s) => ({ ...s, overview: { ...s.overview, panels: s.overview.panels.slice(0, Math.max(1, s.overview.panels.length - 1)), crossSubject: [] } }))
+    expect((await service.get(cheap(async () => changed))).data.summary!.stale).toBe(true)
+
+    /* אותם נתונים אבל גיל: ישן */
+    c.advance((SUMMARY_STALE_AFTER_DAYS + 1) * 86_400_000)
+    expect((await service.get(cheap())).data.summary!.stale).toBe(true)
+  })
+
+  it('חותמת הנתונים לא תלויה במגדר: אותם נתונים עם מגדר אחר אינם "השתנו"', async () => {
+    const { service } = make(fakeLlm([GOOD]))
+    await service.generate(request({ cheapLoad: true }))
+    const other = sourceWith((s) => ({ ...s, gender: 'female' }))
+    expect((await service.get(request({ cheapLoad: true, load: async () => other }))).data.summary!.stale).toBe(false)
+  })
+
+  it('טעינה יקרה (הגשה): GET לא טוען נתונים — ההתיישנות לפי גיל בלבד', async () => {
+    const { service, clock: c } = make(fakeLlm([GOOD]))
+    await service.generate(request())
+    let loads = 0
+    const heavy = request({ cheapLoad: false, load: async () => { loads++; return source } })
+    expect((await service.get(heavy)).data.summary!.stale).toBe(false)
+    expect(loads).toBe(0)
+    c.advance((SUMMARY_STALE_AFTER_DAYS + 1) * 86_400_000)
+    expect((await service.get(heavy)).data.summary!.stale).toBe(true)
+    expect(loads).toBe(0)
+  })
+
+  it('כשל בטעינה בזמן חישוב ההתיישנות לא מפיל את ה-GET (לפי הגיל בלבד)', async () => {
+    const { service } = make(fakeLlm([GOOD]))
+    await service.generate(request())
+    const res = await service.get(request({ cheapLoad: true, load: async () => { throw new Error('boom') } }))
+    expect(res.data.summary!.stale).toBe(false)
+  })
+
+  it('עריכה מחזירה את אותו מצב התיישנות', async () => {
+    const { service, clock: c } = make(fakeLlm([GOOD]))
+    const created = await service.generate(request())
+    c.advance((SUMMARY_STALE_AFTER_DAYS + 1) * 86_400_000)
+    const edited = await service.edit({ viewer: { userId: 'u-A', demo: false }, summaryId: created.data.summary!.id!, audienceKey: 'full', editedText: 'x' })
+    expect(edited.data.summary!.stale).toBe(true)
+  })
+})
+
+describe('GET זול (R5#2)', () => {
+  it('אין סיכום שמור והטעינה יקרה (הגשה אמיתית): לא נטענים נתונים; הזכאות נדחית ל-POST', async () => {
+    const { service } = make(fakeLlm([GOOD]))
+    let loads = 0
+    const heavy = request({ cheapLoad: false, load: async () => { loads++; return source } })
+    const res = await service.get(heavy)
+    expect(loads).toBe(0)
+    expect(res.data.summary).toBeNull()
+    expect(res.data.eligibility).toEqual({ ok: true })
+  })
+  it('אין סיכום שמור והטעינה זולה: הזכאות נבדקת', async () => {
+    const { service } = make(fakeLlm([GOOD]))
+    const res = await service.get(request({ cheapLoad: true }))
+    expect(res.data.eligibility).toEqual({ ok: true })
   })
 })

@@ -4,7 +4,8 @@
    · טרי (ttl) ← מוחזר מיד. ישן אך בתוך staleMs ← מוחזר מיד ומתרענן ברקע (stale-while-revalidate). אחרת ← בנייה חוסמת.
    · LRU (maxEntries). מקביליות בנייה מוגבלת (concurrency) — כל בנייה היא עשרות קריאות DB.
    · תקרת זמן בנייה: הקורא מקבל 503 מובחן ("מרכזים את התוצאות") אך הבנייה ממשיכה ברקע וממלאת את המטמון — הניסיון הבא פוגע.
-   · כשל בנייה: מוחזר הערך הישן אם יש; אחרת 503 מובחן (שגיאת 503 קיימת, למשל בדיקת סכמה, עוברת כמות שהיא).
+   · כשל בנייה: מוחזר הערך הישן אם יש **וגילו עד maxErrorStaleMs** (ברירת מחדל 6 שעות) — אחרת היה מוצג ניתוח בן ימים (תלמיד שהוסר מהכיתה, חברות שהשתנתה);
+     אין ערך שמיש → 503 מובחן (שגיאת 503 קיימת, למשל בדיקת סכמה, עוברת כמות שהיא). שגיאת נתונים (AnalysisDataError) מובחנת משגיאת תשתית.
    · מפתח הכיתה כולל includeSynthetic (נתוני הדגמה לעולם לא נמזגים לנתוני אמת).
    · אין invalidation חוצה-תהליכים (כמו שאר המטמונים בשרת); ה-TTL הקצר הוא הרענון.
    ────────────────────────────────────────────────────────────────────────── */
@@ -15,6 +16,7 @@ import type { CatalogSnapshot } from './catalog.js'
 import type { LiveAnalysis } from './realWorld/coverage.js'
 import { buildCatalog } from './realWorld/catalog.js'
 import { fetchCatalogRows } from './realWorld/fetchRaw.js'
+import { AnalysisDataError } from './realWorld/buildErrors.js'
 import { buildClassAnalysis } from './realWorld/loadWorld.js'
 
 export interface AnalysisCacheOptions {
@@ -23,6 +25,8 @@ export interface AnalysisCacheOptions {
   /* עד גיל זה אפשר להחזיר ערך ישן ולרענן ברקע (≥ ttlMs) */
   staleMs: number
   maxEntries: number
+  /* עד גיל זה מותר להחזיר ערך ישן כשבנייה חוסמת נכשלת / חורגת מהזמן (≥ staleMs). מעבר לו — שגיאה, לא נתונים בני ימים */
+  maxErrorStaleMs: number
   /* כמה בניות רצות במקביל */
   concurrency: number
   /* כמה זמן קורא ממתין לבנייה חוסמת לפני 503 */
@@ -31,13 +35,13 @@ export interface AnalysisCacheOptions {
 }
 
 export const DEFAULT_CACHE_OPTIONS: AnalysisCacheOptions = {
-  ttlMs: 5 * 60_000, staleMs: 60 * 60_000, maxEntries: 200, concurrency: 2, buildTimeoutMs: 25_000, now: () => Date.now(),
+  ttlMs: 5 * 60_000, staleMs: 60 * 60_000, maxEntries: 200, maxErrorStaleMs: 6 * 60 * 60_000, concurrency: 2, buildTimeoutMs: 25_000, now: () => Date.now(),
 }
 
-/* 503 מובחן: warming = הבנייה ממשיכה ברקע ("נסו שוב בעוד דקה"); unavailable = הבנייה נכשלה */
+/* 503 מובחן: warming = הבנייה ממשיכה ברקע ("נסו שוב בעוד דקה"); unavailable = הבנייה נכשלה בתשתית (חולף); data = ההרכבה / המנוע נכשלו על הנתונים של הכיתה */
 export class AnalysisBuildError extends AppError {
-  constructor(public kind: 'warming' | 'unavailable') {
-    super(503, kind === 'warming' ? ERR_ANALYSIS_WARMING : ERR_ANALYSIS_UNAVAILABLE, kind === 'warming' ? 'ANALYSIS_WARMING' : 'ANALYSIS_UNAVAILABLE')
+  constructor(public kind: 'warming' | 'unavailable' | 'data') {
+    super(503, kind === 'warming' ? ERR_ANALYSIS_WARMING : ERR_ANALYSIS_UNAVAILABLE, kind === 'warming' ? 'ANALYSIS_WARMING' : kind === 'data' ? 'ANALYSIS_DATA' : 'ANALYSIS_UNAVAILABLE')
     this.name = 'AnalysisBuildError'
   }
 }
@@ -55,6 +59,7 @@ export class AnalysisCache<T> {
   constructor(opts: Partial<AnalysisCacheOptions> = {}) {
     this.opts = { ...DEFAULT_CACHE_OPTIONS, ...opts }
     if (this.opts.staleMs < this.opts.ttlMs) this.opts.staleMs = this.opts.ttlMs
+    if (this.opts.maxErrorStaleMs < this.opts.staleMs) this.opts.maxErrorStaleMs = this.opts.staleMs
     this.opts.concurrency = Math.max(1, Math.floor(this.opts.concurrency))
     this.opts.maxEntries = Math.max(1, Math.floor(this.opts.maxEntries))
   }
@@ -81,11 +86,18 @@ export class AnalysisCache<T> {
       return (await this.withTimeout(this.start(key, build))).value
     } catch (err) {
       if (e) {
-        warn('[analysisCache] build failed, serving stale entry:', key, err instanceof Error ? err.message : err)
-        return e.value
+        if (this.opts.now() - e.builtAt < this.opts.maxErrorStaleMs) {
+          warn('[analysisCache] build failed, serving stale entry:', key, err instanceof Error ? err.message : err)
+          return e.value
+        }
+        warn('[analysisCache] build failed and the cached entry is too old to serve:', key, err instanceof Error ? err.message : err)
       }
       if (err instanceof BuildTimeout) throw new AnalysisBuildError('warming')
       if (err instanceof AppError && err.status === 503) throw err
+      if (err instanceof AnalysisDataError) {
+        warn('[analysisCache] data error while building the analysis:', key, err.message)
+        throw new AnalysisBuildError('data')
+      }
       warn('[analysisCache] build failed:', key, err instanceof Error ? err.message : err)
       throw new AnalysisBuildError('unavailable')
     }
@@ -147,6 +159,7 @@ const classOptions = (): Partial<AnalysisCacheOptions> => ({
   ttlMs: intEnv('ANALYTICS_V2_CACHE_TTL_MS', DEFAULT_CACHE_OPTIONS.ttlMs),
   staleMs: intEnv('ANALYTICS_V2_CACHE_STALE_MS', DEFAULT_CACHE_OPTIONS.staleMs),
   maxEntries: intEnv('ANALYTICS_V2_CACHE_MAX', DEFAULT_CACHE_OPTIONS.maxEntries),
+  maxErrorStaleMs: intEnv('ANALYTICS_V2_CACHE_MAX_ERROR_STALE_MS', DEFAULT_CACHE_OPTIONS.maxErrorStaleMs),
   concurrency: intEnv('ANALYTICS_V2_BUILD_CONCURRENCY', DEFAULT_CACHE_OPTIONS.concurrency),
   buildTimeoutMs: intEnv('ANALYTICS_V2_BUILD_TIMEOUT_MS', DEFAULT_CACHE_OPTIONS.buildTimeoutMs),
 })

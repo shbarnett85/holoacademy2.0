@@ -9,6 +9,7 @@ import ConfirmModal from '../superadmin/ConfirmModal'
 import { withGuestLens } from '../teacherUi/guestLens'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 import type { ClassRow, ClassTeacher } from './index'
+import { classSummaryNote } from './v2Link'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { GRADE_LAYER_NAMES, nextGradeLevel, labelWithLevel } from '../../shared/lib/gradeLevels'
 
@@ -97,6 +98,8 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
 
   /* הסיכום הפדגוגי של הכיתה נמצא באנליטיקה, והוא פתוח למחנך/ת הכיתה בלבד (מה שהשרת מחזיר ב-teachers): בלי כפתור לאחרים */
   const isHomeroomTeacher = role === 'teacher' && !!user && teachers.some((t) => t.teacherId === user.userId && t.isHomeroom === true)
+  /* ארגון הדגמה: הכיתה פיקטיבית ואינה בעולם ההדגמה של האנליטיקה — במקום כפתור שמוביל ל"לא נמצא" כתוב למה אין סיכום */
+  const summaryNote = classSummaryNote(cls)
   async function openClassSummary() {
     if (!(await checkNavGuard())) return
     navigate(withGuestLens(`/analytics/class/${encodeURIComponent(cls.id)}?sum=class:${encodeURIComponent(cls.id)}`))
@@ -261,9 +264,9 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
         <div style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <SectionTitle>{V2_CLIENT_TEXT.classSummary.title}</SectionTitle>
-            <div style={{ fontSize: 13, color: 'var(--t12)' }}>{V2_CLIENT_TEXT.classSummary.sentence}</div>
+            <div data-class-summary-note={summaryNote ? '' : undefined} style={{ fontSize: 13, color: 'var(--t12)' }}>{summaryNote ?? V2_CLIENT_TEXT.classSummary.sentence}</div>
           </div>
-          <HoloBtn label={V2_CLIENT_TEXT.classSummary.open} onClick={() => { void openClassSummary() }} />
+          {!summaryNote && <HoloBtn label={V2_CLIENT_TEXT.classSummary.open} onClick={() => { void openClassSummary() }} />}
         </div>
       )}
 

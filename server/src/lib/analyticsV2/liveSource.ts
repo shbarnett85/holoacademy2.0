@@ -4,18 +4,21 @@
      (analysisCache), ומיזוג (analysisMerge) כשיש יותר מאחת. ההרשאה לפי כיתה/מקצוע נאכפת בספק (access.ts), לא כאן.
    · includeSynthetic: רק לצופה בארגון הדגמה (V2Viewer.seesSynthetic, אם הוגדר); אחרת false — נתוני הדגמה לעולם לא נמזגים לנתוני אמת.
    · אסור שיזרוק על נתונים ריקים: בלי כיתות בהיקף ← ניתוח ריק תקין.
+   · כיתה שנכשלה לא מפילה את כל הבקשה: הטעינה פר כיתה (allSettled), הניתוח חלקי, וההערה "לא הצלחנו לטעון כיתה" מגיעה במילים דרך coverage
+     (classesNotLoaded = נכשלה בתשתית — חולף, classesDataError = נכשלה על הנתונים של הכיתה — לא יעבור בניסיון חוזר, classesLoading = עדיין נבנית ברקע). 503 רק כשאף כיתה לא נטענה — 'warming' (נבנית) גובר על כשל אחר, כדי שהמורה יידע שמספיק לרענן.
    · אין כאן רישום ביומן הגישה (logNamed) — הנתיב רושם (W4).
    ────────────────────────────────────────────────────────────────────────── */
 import { SUBJECTS, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { grantsOf, scopeClassIds, type V2Viewer } from './access.js'
-import { AnalysisCache, getCatalog, getClassAnalysis } from './analysisCache.js'
+import { AnalysisBuildError, AnalysisCache, getCatalog, getClassAnalysis } from './analysisCache.js'
 import { mergeAnalyses } from './analysisMerge.js'
 import type { Analysis } from './engine.js'
 import { orderSubjects } from './realWorld/assemble.js'
 import type { LiveAnalysis, LiveCoverage } from './realWorld/coverage.js'
 import { fetchSchoolClassIds } from './realWorld/fetchRaw.js'
 import { emptyAnalysis } from './realWorld/analyzeRaw.js'
-import type { AnalyticsSource } from './source.js'
+import type { AnalyticsSource, SourceCoverage } from './source.js'
+import { AppError } from '../../middleware/errors.js'
 
 /* צופה בארגון הדגמה (V2Viewer.seesSynthetic); חסר ← false */
 export const includeSyntheticOf = (v: V2Viewer): boolean => v.seesSynthetic === true
@@ -46,6 +49,14 @@ function mergedOf(key: string, parts: LiveAnalysis[]): LiveAnalysis {
 }
 export function resetLiveSourceCaches(): void { schoolClasses.clear(); mergeMemo.clear() }
 
+/* אם אף כיתה לא נטענה: איזו שגיאה מוחזרת. 'בנייה בעיצומה' (warming) גוברת על כל כשל אחר; אחרת שגיאת 503 קיימת (למשל בדיקת סכמה); אחרת הראשונה */
+function worstOf(reasons: unknown[]): AppError {
+  const warming = reasons.find((r): r is AnalysisBuildError => r instanceof AnalysisBuildError && r.kind === 'warming')
+  if (warming) return warming
+  const known = reasons.find((r): r is AppError => r instanceof AppError)
+  return known ?? new AnalysisBuildError('unavailable')
+}
+
 /* המקצועות שהצופה רשאי לראות לפי ה-grants (איחוד); מחנך טהור — ריק (רואה הכול, והרשימה נגזרת מהכיתה) */
 function viewerSubjects(v: V2Viewer): SubjectCode[] {
   const known = new Set<string>(SUBJECTS.map((s) => s.code))
@@ -59,8 +70,26 @@ export const liveSource: AnalyticsSource = {
     const include = includeSyntheticOf(v)
     const ids = v.lens === 'admin' ? (v.schoolId ? await schoolClassIds(v.schoolId, include) : []) : grantClassIds(v)
     if (ids.length === 0) return emptyAnalysis(now ?? new Date(), await getCatalog(), include)
-    const parts = await Promise.all(ids.map((id) => getClassAnalysis(id, include, now)))
-    return parts.length === 1 ? parts[0] : mergedOf(`${include ? 'syn' : 'real'}|${ids.join(',')}`, parts)
+    const settled = await Promise.allSettled(ids.map((id) => getClassAnalysis(id, include, now)))
+    const parts: LiveAnalysis[] = []
+    const loadedIds: string[] = []
+    const reasons: unknown[] = []
+    let loading = 0, dataErrors = 0
+    settled.forEach((r, i) => {
+      if (r.status === 'fulfilled') { parts.push(r.value); loadedIds.push(ids[i]); return }
+      reasons.push(r.reason)
+      if (r.reason instanceof AnalysisBuildError && r.reason.kind === 'warming') loading++
+      else if (r.reason instanceof AnalysisBuildError && r.reason.kind === 'data') dataErrors++
+    })
+    if (parts.length === 0) throw worstOf(reasons)
+    const merged = parts.length === 1 ? parts[0] : mergedOf(`${include ? 'syn' : 'real'}|${loadedIds.join(',')}`, parts)
+    if (reasons.length === 0) return merged
+    /* ניתוח חלקי: עותק רדוד עם ההערה (הניתוח במטמון לא משתנה) */
+    const notLoaded = reasons.length - loading - dataErrors
+    const partial: LiveAnalysis = {
+      ...merged, coverage: { ...merged.coverage, classesNotLoaded: notLoaded || undefined, classesLoading: loading || undefined, classesDataError: dataErrors || undefined },
+    }
+    return partial
   },
 
   classIds(v: V2Viewer, a: Analysis): string[] {
@@ -76,8 +105,19 @@ export const liveSource: AnalyticsSource = {
     return { availableLenses: [v.lens], subjects: viewerSubjects(v), dataNotice: null, curriculumNotice: null }
   },
 
-  coverage(_v: V2Viewer, a: Analysis) {
+  coverage(_v: V2Viewer, a: Analysis): SourceCoverage {
     const c = a.coverage as LiveCoverage | undefined
-    return { unclassifiedSessions: c?.unclassifiedSessions ?? 0, detailAvailableFrom: c?.detailAvailableFrom ?? null }
+    /* משחקים שהרמה שלהם לא נכנסת לסדרות: אין רמה בכלל, או שחושבה לא לפי מקצוע ההדמיה (FX1a) */
+    const playsWithoutLevel = (c?.sessionsWithoutLevel ?? 0) + (c?.sessionsWithoutSubjectLevel ?? 0)
+    /* שדות הפער מופיעים רק כשהם גדולים מאפס — כך תגובת "הכול תקין" זהה למה שהייתה */
+    return {
+      unclassifiedSessions: c?.unclassifiedSessions ?? 0, detailAvailableFrom: c?.detailAvailableFrom ?? null,
+      ...(c?.classesWithoutGrade ? { ungradedClasses: c.classesWithoutGrade } : {}),
+      ...(c?.classesWithoutGradeNames?.length ? { ungradedClassNames: [...c.classesWithoutGradeNames] } : {}),
+      ...(c?.classesNotLoaded ? { classesNotLoaded: c.classesNotLoaded } : {}),
+      ...(c?.classesLoading ? { classesLoading: c.classesLoading } : {}),
+      ...(c?.classesDataError ? { classesDataError: c.classesDataError } : {}),
+      ...(playsWithoutLevel ? { playsWithoutLevel } : {}),
+    }
   },
 }

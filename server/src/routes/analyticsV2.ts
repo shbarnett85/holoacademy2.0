@@ -24,8 +24,11 @@ import { AppError } from '../middleware/errors.js'
 import { rateLimitByIp, rateLimitByUser } from '../middleware/rateLimit.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 
-/* תקרות לדקה. מסך כיתה רגיל = כמה בקשות; מעבר בין תלמידים בכיתה של 35 = כ-35 בקשות. /admin/overview מחשב את כל בית הספר. */
-export const ANALYTICS_V2_RATE = { perIp: 600, perUser: 120, adminPerUser: 20 } as const
+/* תקרות לדקה. מסך כיתה רגיל = כמה בקשות; מעבר בין תלמידים בכיתה של 35 = כ-35 בקשות. /admin/overview מחשב את כל בית הספר.
+   perUser: תקרת המשתמש האחד (מורה פעיל מגיע לעשרות בדקה, בעיקר במעבר בין תלמידים). perIp: רצפת הגנה לפני אימות, ולכן משותפת לכל מי שמאחורי אותה כתובת —
+   בית ספר שלם מאחורי NAT (עד כ-60 מורים, ~30 בקשות לדקה למורה פעיל בשעת שיא) = ~1,800. מעל זה: הצפה, לא שימוש.
+   (אורח מוגבל בנפרד לפי IP בלי לשחוק את המונה הזה — ראו rateLimitByUser.) */
+export const ANALYTICS_V2_RATE = { perIp: 1800, perUser: 120, adminPerUser: 20 } as const
 /* צפייה באותו תלמיד באותה נקודה נרשמת פעם אחת בחלון הזה (מסכי כיתה נפתחים שוב ושוב) */
 export const AUDIT_DEDUP_MS = 10 * 60_000
 

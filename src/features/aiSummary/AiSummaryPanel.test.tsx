@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import {
-  AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE, ERR_V2_FORBIDDEN, ERR_V2_UNAVAILABLE, aiSummaryGenerateHint,
+  AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_LOAD, ERR_SUMMARY_SAVE, ERR_SUMMARY_WRITE, ERR_V2_FORBIDDEN, ERR_V2_UNAVAILABLE, aiSummaryGenerateHint,
 } from '../../shared/lib/findingsNarrative'
 import { FORBIDDEN_UI_TERMS, forbiddenHits } from '../../shared/lib/forbiddenTerms'
 import type { SummaryScope } from '../../shared/types/aiSummaryV1'
@@ -14,7 +14,9 @@ import { NOT_ENOUGH, PARAS, aiSummary, summaryState } from './testkit'
 import type { AiSummaryActions } from './useAiSummary'
 
 /* מרנדרים את התצוגה (AiSummaryView) מול מצב קבוע, בלי רשת — בודקים מה כתוב על המסך ואיך (מילים, אייקון, גדלים), לא איך הוא נראה. */
-const NOOP: AiSummaryActions = { write: () => {}, editStart: () => {}, draftChange: () => {}, save: () => {}, cancel: () => {}, revert: () => {}, reload: () => {} }
+const NOOP: AiSummaryActions = {
+  write: () => {}, regenerate: () => {}, confirmRegenerate: () => {}, cancelRegenerate: () => {}, editStart: () => {}, draftChange: () => {}, save: () => {}, cancel: () => {}, revert: () => {}, reload: () => {},
+}
 const KEY = targetKey({ scope: 'student', id: 'st-1' }, {})
 const SCOPE: SummaryScope = 'student'
 
@@ -128,7 +130,7 @@ describe('מוכן', () => {
     expect(html.indexOf('data-ai-label')).toBeGreaterThan(html.lastIndexOf(PARAS[PARAS.length - 1]))
     expect(html.indexOf('data-ai-label')).toBeLessThan(html.indexOf('data-ai-caveat'))
     expect(text(html)).toContain('מבוסס על 14 הדמיות')
-    expect(text(html)).toContain(AI_SUMMARY_PANEL_TEXT.writtenOn('20 באוקטובר 2026'))
+    expect(text(html)).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn('20 באוקטובר 2026'))
     expect(text(html)).toContain(CAVEAT_TREND)
     expect(text(html)).not.toContain(AI_SUMMARY_TEXT.notice.template)
   })
@@ -191,6 +193,61 @@ describe('מוכן', () => {
       const html = render(loaded(), {}, scope)
       expect(html).toContain(`aria-label="${AI_SUMMARY_TEXT.headingByScope[scope]}"`)
     }
+  })
+})
+
+describe('תאריך כתיבה בולט והתיישנות (R4#5)', () => {
+  it('תאריך הכתיבה מופיע בולט מעל הטקסט (גופן מודגש, 16px לפחות), לפני הפסקאות', () => {
+    const html = render(loaded())
+    const m = /<p data-ai-written="true" style="([^"]*)">([^<]*)<\/p>/.exec(html)
+    expect(m, 'שורת תאריך הכתיבה').not.toBeNull()
+    expect(m![2]).toBe(AI_SUMMARY_HARDENING_TEXT.writtenOn('20 באוקטובר 2026'))
+    expect(m![1]).toMatch(/font-weight:800/)
+    expect(html.indexOf('data-ai-written')).toBeLessThan(html.indexOf(PARAS[0]))
+  })
+
+  it('סיכום ישן (stale): הודעה במילים עם אייקון, ב-role=status; סיכום טרי — אין הודעה', () => {
+    const stale = render(loaded({ summary: aiSummary({ stale: true }) }))
+    expect(text(stale)).toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+    expect(stale).toMatch(/<p role="status"[^>]*><span[^>]*><svg aria-hidden="true"[\s\S]*?<\/svg><\/span><span[^>]*>ייתכן שהנתונים השתנו/)
+    expect(text(render(loaded({ summary: aiSummary({ stale: false }) })))).not.toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+    expect(text(render(loaded()))).not.toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+    expectClean(stale)
+  })
+
+  it('בהדגמה ההתיישנות לא מוצגת (הסיכום קבוע ולא נשמר)', () => {
+    const html = render(loaded({ demo: true, persisted: false, summary: aiSummary({ writtenBy: 'template', id: null, stale: true }) }))
+    expect(text(html)).not.toContain(AI_SUMMARY_HARDENING_TEXT.stale)
+  })
+})
+
+describe('כתיבה מחדש על סיכום ערוך: אישור במילים (R4#4)', () => {
+  const asked = (over: Parameters<typeof summaryState>[0] = {}): string =>
+    render(loaded({ summary: aiSummary({ edited: true }), ...over }, { type: 'regenAsked', key: KEY }))
+
+  it('חלון האישור: כותרת, הסבר, ושני כפתורים במילים — "להשאיר" ראשי, "מחיקה" משני; במקום שורת הפעולות הרגילה', () => {
+    const html = asked()
+    const T_C = AI_SUMMARY_HARDENING_TEXT.confirmRegenerate
+    expect(html).toContain('data-ai-confirm')
+    expect(text(html)).toContain(T_C.title)
+    expect(text(html)).toContain(T_C.body)
+    expect(buttons(html).map(buttonLabel)).toEqual([T_C.cancel, T_C.confirm])
+    expect(html).not.toContain('data-ai-actions')
+    expectClean(html)
+  })
+
+  it('לא מוצג אם הסיכום לא נערך, או בהדגמה; מוצג גם בסיכום תבניתי ערוך ("נסו שוב עם ד״ר הולו")', () => {
+    expect(render(loaded({}, { type: 'regenAsked', key: KEY }))).not.toContain('data-ai-confirm')
+    expect(asked({ demo: true, persisted: false, summary: aiSummary({ writtenBy: 'template', id: null, edited: true }) })).not.toContain('data-ai-confirm')
+    expect(asked({ summary: aiSummary({ writtenBy: 'template', edited: true }) })).toContain('data-ai-confirm')
+  })
+
+  it('הכפתורים בשורת הפעולות מפעילים regenerate (שמבקש אישור כשיש עריכה), לא כתיבה ישירה', () => {
+    const calls: string[] = []
+    const actions: AiSummaryActions = { ...NOOP, write: () => calls.push('write'), regenerate: () => calls.push('regenerate') }
+    renderToStaticMarkup(<MemoryRouter><AiSummaryView model={derive(loaded(), KEY, SCOPE)} actions={actions} exportName="x" /></MemoryRouter>)
+    /* רינדור סטטי לא לוחץ; הבדיקה שהחיווט לא קורא ל-write בעת הרינדור */
+    expect(calls).toEqual([])
   })
 })
 

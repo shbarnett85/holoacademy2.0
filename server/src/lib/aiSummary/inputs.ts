@@ -3,6 +3,8 @@
    · לא קוראות DB ולא מכירות ספק: מקבלות אובייקט חוזה (StudentOverview / ClassOverview / ClassSubjectView / ClassSubmissionView) ומחזירות SummaryInput.
    · allowlist: רק מה שמופיע כאן נכנס. **לעולם לא**: שם תלמיד/displayName/studentName, מזהים (ids), EntryAlert.text, alertTexts, OptionCount.students,
      gaveUpStudents, weakStudents, studentFindings, שמות מורים (senderName), תאריכים מדויקים, מספר הכיתה (רק שם השכבה). חוק 12.
+   · טקסט חופשי (כותרות אתגרים, יעדים, כותרות טעויות, תחומים) עובר ניקוי לפני שהוא נכנס לעובדה (`Scrubber`): נרמול, הסרת אימייל/קישור/טלפון/מספר זהות/סימוני עיצוב,
+     החלפת שמות תלמידים מוכרים ב-"(שם)" וקיצור ל-120 תווים. כך ההצהרה "שמות התלמידים לא נשלחים" נכונה גם כשמורה כתב שם בכותרת.
    · כל עובדה בנויה ב-findingsNarrative (aiFact* / narrateFinding עם studentName:null) — אין כאן משפטים בעברית.
    ────────────────────────────────────────────────────────────────────────── */
 import { createHash } from 'node:crypto'
@@ -15,6 +17,7 @@ import {
 import type { SummaryScope } from '../../../../src/shared/types/aiSummaryV1.js'
 import type { ClassOverview, ClassSubjectView, Finding, StudentOverview } from '../../../../src/shared/types/analyticsV2.js'
 import type { ClassSubmissionView } from '../../../../src/shared/types/resultsV1.js'
+import { makeFreeTextScrubber, type Scrubber } from './guardText.js'
 
 export type Gender = 'male' | 'female' | null
 export type FactKind = 'level' | 'trend' | 'area' | 'finding' | 'error' | 'count' | 'challenge' | 'objective' | 'distribution'
@@ -37,10 +40,13 @@ export interface SummaryInput {
   facts: Fact[]
 }
 
+/* כמה תלמידים יש עליהם נתוני רמה בסקירת הכיתה: סך הכול (ייחודיים) ולפי מקצוע. נגזר ממסכי המקצוע (ClassSubjectView.students) — ב-ClassOverview אין שדה כזה */
+export interface ClassDataCounts { total: number; bySubject: Record<string, number> }
+
 /* מקור הנתונים שהספק טוען: אובייקט חוזה אחד לפי ההיקף */
 export type SummarySource =
   | { scope: 'student'; overview: StudentOverview; gender: Gender }
-  | { scope: 'class'; overview: ClassOverview }
+  | { scope: 'class'; overview: ClassOverview; withData: ClassDataCounts }
   | { scope: 'class_subject'; view: ClassSubjectView }
   | { scope: 'submission'; view: ClassSubmissionView }
 
@@ -83,8 +89,15 @@ const reported = (fs: Finding[]): ReportedFinding[] => fs.filter((f): f is Repor
 const positionTone = (p: Position | null): FactTone => (p === 'above' ? 'positive' : p === 'below' ? 'attention' : 'neutral')
 const trendTone = (t: 'improving' | 'steady' | 'declining' | 'insufficient'): FactTone => (t === 'improving' ? 'positive' : t === 'declining' ? 'attention' : 'neutral')
 
+/* ניקוי ברירת מחדל: כל הניקוי חוץ מהחלפת שמות (אין רשימת שמות מוכרים). projectSource בונה מנקה עם השמות של ההיקף */
+const defaultScrub: Scrubber = makeFreeTextScrubber([])
+interface ProjectOpts { scrub?: Scrubber }
+/* מנקה רשימת תוויות: מסנן תוויות שהתרוקנו */
+const scrubAll = (scrub: Scrubber, xs: readonly string[]): string[] => xs.map(scrub).filter((x) => x.length > 0)
+
 /* ── תלמיד/ה: רק פאנלים גלויים (מקצוע אפור לא נכנס), ממצאים מדווחים בלבד, התרעות חוצות-מקצועות למחנך בלבד ── */
-export function projectStudent(o: StudentOverview, opts: { gender: Gender }): SummaryInput {
+export function projectStudent(o: StudentOverview, opts: { gender: Gender } & ProjectOpts): SummaryInput {
+  const scrub = opts.scrub ?? defaultScrub
   const drafts: Draft[] = []
   let sessions = 0
   for (const p of o.panels) {
@@ -93,9 +106,14 @@ export function projectStudent(o: StudentOverview, opts: { gender: Gender }): Su
     sessions += p.sessionsCount
     if (p.currentLevel !== null) drafts.push({ kind: 'level', tone: positionTone(p.positionVsNorm), text: aiFactLevel(subject, p.currentLevel, p.positionVsNorm, p.sessionsCount) })
     if (p.trend !== 'insufficient') drafts.push({ kind: 'trend', tone: trendTone(p.trend), text: aiFactTrend(subject, p.trend) })
-    if (p.areas.strong.length) drafts.push({ kind: 'area', tone: 'positive', text: aiFactAreas(subject, p.areas.strong, []) })
-    if (p.areas.challenging.length) drafts.push({ kind: 'area', tone: 'attention', text: aiFactAreas(subject, [], p.areas.challenging) })
-    for (const e of p.commonErrors.slice(0, 2)) drafts.push({ kind: 'error', tone: 'attention', text: aiFactError(subject, e.title, e.hits, e.exposures) })
+    const strong = scrubAll(scrub, p.areas.strong)
+    const challenging = scrubAll(scrub, p.areas.challenging)
+    if (strong.length) drafts.push({ kind: 'area', tone: 'positive', text: aiFactAreas(subject, strong, []) })
+    if (challenging.length) drafts.push({ kind: 'area', tone: 'attention', text: aiFactAreas(subject, [], challenging) })
+    for (const e of p.commonErrors.slice(0, 2)) {
+      const title = scrub(e.title)
+      if (title) drafts.push({ kind: 'error', tone: 'attention', text: aiFactError(subject, title, e.hits, e.exposures) })
+    }
     for (const f of reported(p.findings).slice(0, 2)) drafts.push({ kind: 'finding', tone: f.tone, text: narrateFinding(f.evidence, { studentName: null, subjectName: subject }) })
   }
   if (o.access === 'full') {
@@ -107,32 +125,43 @@ export function projectStudent(o: StudentOverview, opts: { gender: Gender }): Su
   }
 }
 
-/* ── כיתה (סקירת מחנך): שורת מקצוע → רמה ממוצעת, מגמה, תחומים, מספר תלמידים לתשומת לב. בלי alertTexts (שמות) ── */
-export function projectClass(o: ClassOverview): SummaryInput {
+/* מכיל את מספר התלמידים עם נתוני רמה, מתוך מסכי המקצוע של הכיתה (לפי מקצוע, וייחודיים בסך הכול) */
+export function classDataCountsOf(views: readonly ClassSubjectView[]): ClassDataCounts {
+  const bySubject: Record<string, number> = {}
+  const distinct = new Set<string>()
+  for (const v of views) {
+    const withLevel = v.students.filter((s) => s.level !== null)
+    bySubject[v.subject.code] = withLevel.length
+    for (const s of withLevel) distinct.add(s.id)
+  }
+  return { total: distinct.size, bySubject }
+}
+
+/* ── כיתה (סקירת מחנך): שורת מקצוע → רמה ממוצעת, מגמה, תחומים, מספר תלמידים לתשומת לב. בלי alertTexts (שמות).
+   **גודל המדגם = תלמידים שיש עליהם נתוני רמה** (לא כל תלמידי הכיתה): "על סמך נתוני 3 תלמידים" לא נכתב כאילו זו כל הכיתה (חוק 6) ── */
+export function projectClass(o: ClassOverview, withData: ClassDataCounts, opts: ProjectOpts = {}): SummaryInput {
+  const scrub = opts.scrub ?? defaultScrub
   const drafts: Draft[] = []
-  const students = o.class.studentCount
-  let hasData = false
   for (const r of o.rows) {
     const subject = r.subject.nameHe
-    if (r.level !== null) {
-      hasData = true
-      drafts.push({ kind: 'level', tone: positionTone(r.positionVsNorm), text: aiFactClassLevel(subject, r.level, r.positionVsNorm, students) })
-    }
+    const students = withData.bySubject[r.subject.code] ?? 0
+    if (r.level !== null && students > 0) drafts.push({ kind: 'level', tone: positionTone(r.positionVsNorm), text: aiFactClassLevel(subject, r.level, r.positionVsNorm, students) })
     if (r.trend !== 'insufficient') drafts.push({ kind: 'trend', tone: trendTone(r.trend), text: aiFactTrend(subject, r.trend, true) })
-    if (r.strongAreas.length) drafts.push({ kind: 'area', tone: 'positive', text: aiFactAreas(subject, r.strongAreas, []) })
-    if (r.challengingAreas.length) drafts.push({ kind: 'area', tone: 'attention', text: aiFactAreas(subject, [], r.challengingAreas) })
-    if (r.alerts > 0) drafts.push({ kind: 'count', tone: 'attention', text: aiFactClassAttention(subject, r.alerts, students) })
+    const strong = scrubAll(scrub, r.strongAreas)
+    const challenging = scrubAll(scrub, r.challengingAreas)
+    if (strong.length) drafts.push({ kind: 'area', tone: 'positive', text: aiFactAreas(subject, strong, []) })
+    if (challenging.length) drafts.push({ kind: 'area', tone: 'attention', text: aiFactAreas(subject, [], challenging) })
+    if (r.alerts > 0 && students > 0) drafts.push({ kind: 'count', tone: 'attention', text: aiFactClassAttention(subject, r.alerts, students) })
   }
-  /* אין שדה "תלמידים עם נתונים" בחוזה הסקירה: אם יש רמה לפחות במקצוע אחד, נחשב את כל תלמידי הכיתה */
-  const withData = hasData ? students : 0
   return {
     scope: 'class', audience: 'full', gender: null, gradeLabel: layerOf(o.class.gradeLabel),
-    sampleSize: withData, sampleUnit: 'students', counts: { students: withData }, facts: finalize(drafts),
+    sampleSize: withData.total, sampleUnit: 'students', counts: { students: withData.total }, facts: finalize(drafts),
   }
 }
 
 /* ── מקצוע בכיתה: התפלגות מיקום/מגמה (ספירות בלבד), טעויות נפוצות, ממצאי כיתה. בלי studentFindings ובלי summary.recent (שמות) ── */
-export function projectClassSubject(v: ClassSubjectView): SummaryInput {
+export function projectClassSubject(v: ClassSubjectView, opts: ProjectOpts = {}): SummaryInput {
+  const scrub = opts.scrub ?? defaultScrub
   const drafts: Draft[] = []
   const subject = v.subject.nameHe
   const withLevel = v.students.filter((s) => s.level !== null)
@@ -153,7 +182,8 @@ export function projectClassSubject(v: ClassSubjectView): SummaryInput {
   if (trended > 0) drafts.push({ kind: 'distribution', tone: 'neutral', text: aiFactTrendSplit(subject, tr.improving, tr.steady, tr.declining, trended) })
 
   for (const m of v.misconceptions.filter((x) => x.status === 'reported').slice(0, 3)) {
-    drafts.push({ kind: 'error', tone: 'attention', text: aiFactMisconception(subject, m.titleHe, m.countText) })
+    const title = scrub(m.titleHe)
+    if (title) drafts.push({ kind: 'error', tone: 'attention', text: aiFactMisconception(subject, title, m.countText) })
   }
   for (const f of reported(v.classFindings).slice(0, 3)) drafts.push({ kind: 'finding', tone: f.tone, text: narrateFinding(f.evidence, { studentName: null, subjectName: subject }) })
 
@@ -168,7 +198,8 @@ interface SuccessBandsLike { basis: number; low: number; mid: number; high: numb
 const successBandsOf = (v: ClassSubmissionView): SuccessBandsLike | null => (v as { successBands?: SuccessBandsLike }).successBands ?? null
 
 /* ── הגשה: ספירות סטטוס, התפלגות הצלחה, אתגרים (X מתוך Y), טעויות נפוצות, יעדי למידה. בלי roster/שמות ובלי gaveUpStudents/weakStudents ── */
-export function projectSubmission(v: ClassSubmissionView): SummaryInput {
+export function projectSubmission(v: ClassSubmissionView, opts: ProjectOpts = {}): SummaryInput {
+  const scrub = opts.scrub ?? defaultScrub
   const drafts: Draft[] = []
   const c = v.head.counts
   if (c.total > 0) drafts.push({ kind: 'count', tone: 'neutral', text: aiFactCompletion(c.total, c.completed, c.inProgress, c.notStarted) })
@@ -180,11 +211,15 @@ export function projectSubmission(v: ClassSubmissionView): SummaryInput {
 
   for (const ch of v.challenges.filter((x) => x.attempted > 0).slice(0, 12)) {
     const share = ch.solved / ch.attempted
-    drafts.push({ kind: 'challenge', tone: share < 0.5 ? 'attention' : share >= 0.75 ? 'positive' : 'neutral', text: aiFactChallenge(ch.order, ch.typeLabel, ch.title, ch.attempted, ch.solved, ch.gaveUp) })
+    drafts.push({ kind: 'challenge', tone: share < 0.5 ? 'attention' : share >= 0.75 ? 'positive' : 'neutral', text: aiFactChallenge(ch.order, ch.typeLabel, scrub(ch.title), ch.attempted, ch.solved, ch.gaveUp) })
   }
-  for (const e of v.commonErrors.slice(0, 3)) drafts.push({ kind: 'error', tone: 'attention', text: aiFactCommonError(e.title, e.studentsCount, e.studentsExposed) })
+  for (const e of v.commonErrors.slice(0, 3)) {
+    const title = scrub(e.title)
+    if (title) drafts.push({ kind: 'error', tone: 'attention', text: aiFactCommonError(title, e.studentsCount, e.studentsExposed) })
+  }
   for (const o of v.objectives.filter((x) => x.level !== null).slice(0, 6)) {
-    drafts.push({ kind: 'objective', tone: o.level === 'strong' ? 'positive' : o.level === 'weak' ? 'attention' : 'neutral', text: aiFactObjective(o.text, o.levelText, o.solved, o.attempted) })
+    const text = scrub(o.text)
+    if (text) drafts.push({ kind: 'objective', tone: o.level === 'strong' ? 'positive' : o.level === 'weak' ? 'attention' : 'neutral', text: aiFactObjective(text, o.levelText, o.solved, o.attempted) })
   }
   return {
     scope: 'submission', audience: 'full', gender: null, gradeLabel: null,
@@ -193,15 +228,16 @@ export function projectSubmission(v: ClassSubmissionView): SummaryInput {
 }
 
 export function projectSource(s: SummarySource): SummaryInput {
+  const scrub = makeFreeTextScrubber(collectKnownNames(s))
   switch (s.scope) {
-    case 'student': return projectStudent(s.overview, { gender: s.gender })
-    case 'class': return projectClass(s.overview)
-    case 'class_subject': return projectClassSubject(s.view)
-    case 'submission': return projectSubmission(s.view)
+    case 'student': return projectStudent(s.overview, { gender: s.gender, scrub })
+    case 'class': return projectClass(s.overview, s.withData, { scrub })
+    case 'class_subject': return projectClassSubject(s.view, { scrub })
+    case 'submission': return projectSubmission(s.view, { scrub })
   }
 }
 
-/* שמות שהשומר מחפש בפלט כרשת ביטחון (ה-AI לא קיבל אותם, ולכן הופעתם = המצאה/הד של טקסט שבא מבחוץ). לא נשלחים לשום מקום. */
+/* שמות שהשומר מחפש בפלט כרשת ביטחון, ומחליף בטקסט חופשי בעובדות (ה-AI לא מקבל אותם). לא נשלחים לשום מקום. */
 export function collectKnownNames(s: SummarySource): string[] {
   const names = new Set<string>()
   const add = (n: string | null | undefined): void => { const t = (n ?? '').trim(); if (t.length >= 2) names.add(t) }
@@ -226,8 +262,9 @@ export function collectKnownNames(s: SummarySource): string[] {
   return [...names]
 }
 
-/* חותמת קלט: משתנה כשהעובדות או גרסת ההנחיה משתנות */
-export function inputHash(input: SummaryInput, promptVersion: string): string {
-  const payload = JSON.stringify({ v: promptVersion, s: input.scope, a: input.audience, g: input.gender, l: input.gradeLabel, f: input.facts.map((f) => f.text) })
+/* חותמת קלט: משתנה כשהעובדות (או ההיקף/הקהל/השכבה) משתנות — זה מה שמסמן "הנתונים התעדכנו מאז שהסיכום נכתב".
+   לא כוללת את גרסת ההנחיה ואת מגדר התלמיד/ה (שינוי ניסוח אינו שינוי נתונים) */
+export function inputHash(input: SummaryInput): string {
+  const payload = JSON.stringify({ s: input.scope, a: input.audience, l: input.gradeLabel, f: input.facts.map((f) => f.text) })
   return createHash('sha256').update(payload).digest('hex')
 }

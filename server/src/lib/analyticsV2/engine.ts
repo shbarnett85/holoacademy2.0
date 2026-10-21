@@ -10,7 +10,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import {
   BEHAVIOR_VECTOR_KINDS, CLASS_IMPROVEMENT_MIN_MEAN_DELTA, CLASS_IMPROVEMENT_WINDOW_DAYS, CONTENT_VECTOR_KINDS, CURRENT_LEVEL_SESSIONS, FDR_ALPHA, AGE_NORM, KIND_THRESHOLDS,
-  LEVEL_TREND_BASIS, MEMORY_ATTENTIVE_RATE, MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_WINDOWS, VECTOR_MIN_N, type FindingKind,
+  LEVEL_TREND_BASIS, LIVE_TREND_RULE, MEMORY_ATTENTIVE_RATE, MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_WINDOWS, VECTOR_MIN_N, type FindingKind,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import { narrateFinding, narrateInsufficient } from '../../../../src/shared/lib/findingsNarrative.js'
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
@@ -21,7 +21,7 @@ import type { McItem, SessionRec, StudentSubjectData, World, WorldClass, WorldSt
 import { skey } from './demoWorld.js'
 import { israelMonthKey } from './schoolCalendar.js'
 import {
-  benjaminiHochberg, binomialLowerTail, mean, median, pairedT, perfectSeparationP, poissonBinomialUpper, posteriorBinomial, sd, tUpperTail, welch,
+  benjaminiHochberg, binomialLowerTail, mean, median, pairedT, poissonBinomialUpper, posteriorBinomial, sd, tUpperTail, welch,
 } from './stats.js'
 
 type ContentVec = { key: string; level: number | null; deltaLevels: number | null; n: number; status: 'reported' | 'insufficient' }
@@ -45,7 +45,14 @@ export interface SubjectAnalysis {
   /* כמה משחקים עומדים מאחורי כל אחד משני הממוצעים (סף תווית המגמה: TREND_LABEL_MIN_SESSIONS) */
   level60N: number
   level90to150N: number
+  /* עולם חי בלבד: מגמה אישית לפי אותה בדיקה של הממצא (ההצלחה ביחס לכיתה, ראו LIVE_TREND_RULE) — ולא לפי הפרש ממוצעי הרמה, שהוא ברובו רעש.
+     tested = היו מספיק הדמיות עם ציון יחסי בכל אחד משני החלונות; delta = שינוי הרמה (חתום) רק כשהממצא מדווח, אחרת null.
+     חסר (הדגמה) = התוויות נגזרות מ-level60 / level90to150 כמו תמיד (ראו derive.trendDelta / studentTrend / groupTrend). */
+  liveTrend?: { tested: boolean; delta: number | null }
 }
+
+/* משחק בעולם חי: SessionRec + מזהה ההדמיה. נדרש לציון ההצלחה היחסי (כל תלמידי הכיתה שסיימו את אותה הדמיה) */
+export type LiveSessionRec = SessionRec & { questId?: string }
 
 export interface MisStat {
   misconceptionId: string
@@ -156,7 +163,7 @@ function classify(cands: Candidate[]): { cand: Candidate; finding: Finding }[] {
 const inWindow = (s: { day: number }, from: number, to: number): boolean => s.day >= from && s.day < to
 
 /* נקודת שינוי תיאורית בתוך 120 הימים האחרונים: הפיצול שממקסם |t| (min 4 בכל צד). */
-function changePoint(sessions: SessionRec[], maxDay: number, valueOf: (s: SessionRec) => number = (s) => s.success): { splitDay: number; before: SessionRec[]; after: SessionRec[] } | null {
+function changePoint<T extends { day: number }>(sessions: T[], maxDay: number, valueOf: (s: T) => number): { splitDay: number; before: T[]; after: T[] } | null {
   const pool = sessions.filter((s) => s.day < maxDay).sort((a, b) => b.day - a.day) /* מהישן לחדש */
   const scored: { t: number; idx: number }[] = []
   for (let i = 4; i <= pool.length - 4; i++) {
@@ -173,12 +180,60 @@ function changePoint(sessions: SessionRec[], maxDay: number, valueOf: (s: Sessio
 /* תלמיד×מקצוע בלי רשומת נתונים (למשל מקצוע מהרשאות הכיתה, בלי סשנים) = רשומה ריקה, לא חריגה */
 const EMPTY_DATA: StudentSubjectData = Object.freeze({ sessions: [], mc: [], memory: [] }) as unknown as StudentSubjectData
 
-/* בדיקת שינוי רמה בין חלון אחרון לקודם. Welch כשיש שונות; כששתי הקבוצות קבועות (רמה יציבה שקפצה בצעד אחד) Welch אינו מוגדר —
-   אז הפרדה מושלמת נבדקת בבדיקת תמורות מדויקת, וקבוצות קבועות שוות הן "אין שינוי". delta = ממוצע האחרון פחות ממוצע הקודם. */
-function levelShiftTest(recent: number[], prior: number[]): { p: number; delta: number } {
-  const delta = mean(recent) - mean(prior)
-  if (sd(recent) === 0 && sd(prior) === 0) return { p: delta === 0 ? 1 : perfectSeparationP(recent.length, prior.length), delta }
-  return { p: welch(recent, prior).pTwoSided, delta }
+/* ── עולם חי: הצלחה ביחס לשאר הכיתה באותה הדמיה ──────────────────────────────────────────────────────────────
+   הרמה (כיול 60/80) תלויה בקודמתה ומגיבה גם לקושי ההדמיה שהמורה בחר, ולכן אי אפשר לזהות בה "שינוי של תלמיד/ה" בלי ממצאי שווא
+   (נמדד: 4% עד 35% מהתלמידים מסומנים כשלא השתנה דבר). ציון יחסי = הצלחת התלמיד/ה פחות ממוצע ההצלחה של שאר התלמידים באותה הדמיה:
+   קושי ההדמיה ושינוי קושי כיתתי (המורה העביר הדמיות קלות או קשות יותר) נעלמים מהחישוב.
+   · רק ההשלמה הראשונה לכל (תלמיד/ה, הדמיה) — גם אם הקורא (assemble) כבר סינן; הגנה לעולמות שנבנו בדרך אחרת.
+   · הדמיה שפחות מ-minPeers תלמידים אחרים סיימו אותה: אין לה ציון יחסי, והמשחק לא נספר במגמה.
+   · מי שאין לו מזהה הדמיה (questId) לא נבדק. */
+interface RelPoint { day: number; date: string; rel: number; success: number; level: number }
+function peerRelativePoints(w: World, subject: SubjectCode, dataOf: (studentId: string, subject: SubjectCode) => StudentSubjectData): Map<string, RelPoint[]> {
+  const firstByStudent = new Map<string, Map<string, SessionRec>>()
+  const agg = new Map<string, { sum: number; n: number }>()
+  for (const st of w.students) {
+    if (!st.subjects.includes(subject)) continue
+    const first = new Map<string, SessionRec>()
+    for (const s of dataOf(st.id, subject).sessions) {
+      const q = (s as LiveSessionRec).questId
+      if (!q) continue
+      const cur = first.get(q)
+      if (!cur || s.day > cur.day) first.set(q, s) /* אינדקס יום גדול יותר = מוקדם יותר = ההשלמה הראשונה */
+    }
+    firstByStudent.set(st.id, first)
+    for (const [q, s] of first) { const a = agg.get(q) ?? { sum: 0, n: 0 }; a.sum += s.success; a.n++; agg.set(q, a) }
+  }
+  const out = new Map<string, RelPoint[]>()
+  for (const [studentId, first] of firstByStudent) {
+    const pts: RelPoint[] = []
+    for (const [q, s] of first) {
+      const a = agg.get(q)!
+      const peers = a.n - 1
+      if (peers < LIVE_TREND_RULE.minPeers) continue
+      pts.push({ day: s.day, date: s.date, rel: s.success - (a.sum - s.success) / peers, success: s.success, level: s.level })
+    }
+    out.set(studentId, pts.sort((x, y) => x.day - y.day || x.rel - y.rel))
+  }
+  return out
+}
+
+/* ההקשר הכיתתי של מגמה אישית בעולם חי: הנקודות היחסיות של כל התלמידים במקצוע, ופיזור השינוי היחסי ביניהם.
+   פיזור = חציון ו-MAD של השינוי היחסי (חלון אחרון פחות קודם) בין התלמידים שנבדקו; ללא לפחות MIN_CELL_SIZE כאלה אין פיזור אמין ← spread=null,
+   ולא מדווחים (ולא מסמנים "יציב"): בכיתה שבה כמעט אין מי שנבדק אי אפשר להבדיל שינוי של תלמיד/ה משונות רגילה בין תלמידים. */
+interface LiveTrendContext { byStudent: Map<string, RelPoint[]>; spread: { center: number; scale: number } | null }
+function liveTrendContext(w: World, subject: SubjectCode, dataOf: (studentId: string, subject: SubjectCode) => StudentSubjectData): LiveTrendContext {
+  const { recentDays: R, priorDays: P } = TREND_WINDOWS
+  const minN = KIND_THRESHOLDS.level_trend.minN
+  const byStudent = peerRelativePoints(w, subject, dataOf)
+  const deltas: number[] = []
+  for (const pts of byStudent.values()) {
+    const recent = pts.filter((p) => inWindow(p, 0, R)), prior = pts.filter((p) => inWindow(p, R, R + P))
+    if (recent.length >= minN && prior.length >= minN) deltas.push(mean(recent.map((p) => p.rel)) - mean(prior.map((p) => p.rel)))
+  }
+  if (deltas.length < MIN_CELL_SIZE) return { byStudent, spread: null }
+  const center = median(deltas)
+  const mad = median(deltas.map((x) => Math.abs(x - center)))
+  return { byStudent, spread: { center, scale: Math.max(LIVE_TREND_RULE.outlierMinScale, 1.4826 * mad) } }
 }
 
 export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, baselines?: Baselines): Analysis {
@@ -193,8 +248,10 @@ export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, basel
   const dataOf = (studentId: string, subject: SubjectCode): StudentSubjectData => w.data.get(skey(studentId, subject)) ?? EMPTY_DATA
   /* שכבות העולם (ולא [4,6] קשיח), בסדר עולה */
   const grades = [...new Set([...w.classes.map((c) => c.grade), ...w.students.map((s) => s.grade)])].sort((a, b) => a - b)
-  /* עולם חי: מגמת הרמה נבדקת על הרמה עצמה (ראו LEVEL_TREND_BASIS); בהדגמה על ההצלחה, כמו תמיד */
+  /* עולם חי: מגמה אישית נבדקת על ההצלחה ביחס לכיתה באותה הדמיה (ראו peerRelativePoints / LIVE_TREND_RULE); בהדגמה על ההצלחה הגולמית, כמו תמיד */
   const levelBasis = w.live === true
+  const liveCtx = new Map<SubjectCode, LiveTrendContext>()
+  const liveTested = new Set<string>() /* תלמיד×מקצוע שיש בו מספיק הדמיות עם ציון יחסי בכל אחד משני החלונות */
 
   /* ── בסיסי כיתה/שכבה לקריאה וזיכרון ── */
   const msPerWordMedianOf = new Map<string, number>() /* `${grade}|${subject}` → חציון של חציוני התלמידים */
@@ -232,38 +289,74 @@ export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, basel
     const ctx = { studentName: st.displayName, subjectName: subjectName(sub) }
     const entity = st.id
 
-    /* מגמת רמה: חלון אחרון מול החלון שקדם לו. בהדגמה Welch על ההצלחה; בנתוני אמת בדיקה על הרמה (levelShiftTest) */
-    const recent = d.sessions.filter((s) => inWindow(s, 0, R))
-    const prior = d.sessions.filter((s) => inWindow(s, R, R + P))
-    if (recent.length >= 3 && prior.length >= 3) {
-      const valueOf = levelBasis ? (s: SessionRec): number => s.level : (s: SessionRec): number => s.success
-      const test = levelBasis
-        ? (() => { const r = levelShiftTest(recent.map(valueOf), prior.map(valueOf)); return { p: r.p, effect: Math.abs(r.delta), up: r.delta >= 0, minEffect: LEVEL_TREND_BASIS.minDeltaLevels } })()
-        : (() => { const r = welch(recent.map(valueOf), prior.map(valueOf)); return { p: r.pTwoSided, effect: Math.abs(r.d), up: r.d >= 0, minEffect: undefined } })()
-      const cp = changePoint(d.sessions, R + P, valueOf)
-      const direction: 'up' | 'down' = test.up ? 'up' : 'down'
-      cands.push({
-        kind: 'level_trend', scope: 'student', entityId: entity, subject: sub,
-        n: Math.min(recent.length, prior.length), p: test.p, effect: test.effect, minEffect: test.minEffect,
-        window: { start: dayIso(w, R + P - 1), end: dayIso(w, 0) },
-        ctx, tone: direction === 'up' ? 'positive' : 'attention',
-        build: () => {
-          let afterGroup = cp && cp.after.length >= 4 ? cp.after : recent
-          let beforeGroup = cp && cp.before.length >= 4 ? cp.before : prior
-          let changeDate = cp ? w.days[cp.splitDay] : w.days[R]
-          let fromLevel = mean(beforeGroup.map((s) => s.level)), toLevel = mean(afterGroup.map((s) => s.level))
-          /* נתוני אמת: נקודת שינוי פנימית יכולה להצביע לכיוון הפוך מהמבחן. הטקסט חייב להיות עקבי עם הכיוון שנבדק — אז חוזרים לשני החלונות */
-          if (levelBasis && (direction === 'up' ? toLevel < fromLevel : toLevel > fromLevel)) {
-            afterGroup = recent; beforeGroup = prior; changeDate = w.days[R]
-            fromLevel = mean(beforeGroup.map((s) => s.level)); toLevel = mean(afterGroup.map((s) => s.level))
-          }
-          return {
-            kind: 'level_trend', direction, fromLevel: round1(fromLevel), toLevel: round1(toLevel), deltaLevels: round1(toLevel - fromLevel),
-            changeDate, sessionsBefore: beforeGroup.length, sessionsAfter: afterGroup.length,
-            successBefore: round3(mean(beforeGroup.map((s) => s.success))), successAfter: round3(mean(afterGroup.map((s) => s.success))),
-          }
-        },
-      })
+    if (!levelBasis) {
+      /* הדגמה — מגמת רמה: חלון אחרון מול החלון שקדם לו, Welch על ההצלחה (ללא שינוי) */
+      const recent = d.sessions.filter((s) => inWindow(s, 0, R))
+      const prior = d.sessions.filter((s) => inWindow(s, R, R + P))
+      if (recent.length >= 3 && prior.length >= 3) {
+        const valueOf = (s: SessionRec): number => s.success
+        const r = welch(recent.map(valueOf), prior.map(valueOf))
+        const cp = changePoint(d.sessions, R + P, valueOf)
+        const direction: 'up' | 'down' = r.d >= 0 ? 'up' : 'down'
+        cands.push({
+          kind: 'level_trend', scope: 'student', entityId: entity, subject: sub,
+          n: Math.min(recent.length, prior.length), p: r.pTwoSided, effect: Math.abs(r.d),
+          window: { start: dayIso(w, R + P - 1), end: dayIso(w, 0) },
+          ctx, tone: direction === 'up' ? 'positive' : 'attention',
+          build: () => {
+            const afterGroup = cp && cp.after.length >= 4 ? cp.after : recent
+            const beforeGroup = cp && cp.before.length >= 4 ? cp.before : prior
+            const changeDate = cp ? w.days[cp.splitDay] : w.days[R]
+            const fromLevel = mean(beforeGroup.map((s) => s.level)), toLevel = mean(afterGroup.map((s) => s.level))
+            return {
+              kind: 'level_trend', direction, fromLevel: round1(fromLevel), toLevel: round1(toLevel), deltaLevels: round1(toLevel - fromLevel),
+              changeDate, sessionsBefore: beforeGroup.length, sessionsAfter: afterGroup.length,
+              successBefore: round3(mean(beforeGroup.map((s) => s.success))), successAfter: round3(mean(afterGroup.map((s) => s.success))),
+            }
+          },
+        })
+      }
+    } else {
+      /* עולם חי — מגמה אישית: ההצלחה ביחס לשאר הכיתה באותה הדמיה, חלון אחרון מול החלון שקדם לו (ראו peerRelativePoints).
+         מדווחים רק אם גם ההצלחה הגולמית וגם הרמה זזו באותו כיוון, וההפרש היחסי לפחות LIVE_TREND_RULE.minRelativeShift. */
+      let ctxOfSubject = liveCtx.get(sub)
+      if (!ctxOfSubject) { ctxOfSubject = liveTrendContext(w, sub, dataOf); liveCtx.set(sub, ctxOfSubject) }
+      const { spread } = ctxOfSubject
+      const pts = ctxOfSubject.byStudent.get(st.id) ?? []
+      const recentP = pts.filter((p) => inWindow(p, 0, R))
+      const priorP = pts.filter((p) => inWindow(p, R, R + P))
+      const minN = KIND_THRESHOLDS.level_trend.minN
+      if (spread && recentP.length >= minN && priorP.length >= minN) liveTested.add(skey(st.id, sub))
+      if (recentP.length >= 3 && priorP.length >= 3) {
+        const relOf = (p: RelPoint): number => p.rel
+        const r = welch(recentP.map(relOf), priorP.map(relOf))
+        const dRel = mean(recentP.map(relOf)) - mean(priorP.map(relOf))
+        const dRaw = mean(recentP.map((p) => p.success)) - mean(priorP.map((p) => p.success))
+        const dLevel = mean(recentP.map((p) => p.level)) - mean(priorP.map((p) => p.level))
+        const sign = dRel >= 0 ? 1 : -1
+        const direction: 'up' | 'down' = sign > 0 ? 'up' : 'down'
+        const outlier = spread !== null && Math.abs(dRel - spread.center) >= LIVE_TREND_RULE.outlierK * spread.scale
+        const confirmed = outlier && levelAtLeast(sign * dRel, LIVE_TREND_RULE.minRelativeShift) && levelAtLeast(sign * dRaw, LIVE_TREND_RULE.minRawShift)
+          && levelAtLeast(sign * dLevel, LEVEL_TREND_BASIS.minDeltaLevels)
+        const cp = changePoint(pts, R + P, relOf)
+        cands.push({
+          kind: 'level_trend', scope: 'student', entityId: entity, subject: sub,
+          n: Math.min(recentP.length, priorP.length), p: r.pTwoSided, effect: Math.abs(r.d), practical: confirmed,
+          window: { start: dayIso(w, R + P - 1), end: dayIso(w, 0) },
+          ctx, tone: direction === 'up' ? 'positive' : 'attention',
+          build: () => {
+            /* המספרים מהחלונות שנבדקו (לא מנקודת שינוי); נקודת השינוי נותנת רק את התאריך, ורק אם היא מצביעה לאותו כיוון */
+            const cpAgrees = cp && cp.after.length >= 4 && cp.before.length >= 4 && sign * (mean(cp.after.map(relOf)) - mean(cp.before.map(relOf))) > 0
+            const changeDate = cpAgrees && cp ? w.days[cp.splitDay] : w.days[R]
+            const fromLevel = mean(priorP.map((p) => p.level)), toLevel = mean(recentP.map((p) => p.level))
+            return {
+              kind: 'level_trend', direction, fromLevel: round1(fromLevel), toLevel: round1(toLevel), deltaLevels: round1(toLevel - fromLevel),
+              changeDate, sessionsBefore: priorP.length, sessionsAfter: recentP.length,
+              successBefore: round3(mean(priorP.map((p) => p.success))), successAfter: round3(mean(recentP.map((p) => p.success))),
+            }
+          },
+        })
+      }
     }
 
     /* הטיית מיקום */
@@ -426,6 +519,14 @@ export function analyze(w: World, catalog: CatalogSnapshot = DEMO_CATALOG, basel
       ss.get(skey(cand.entityId, cand.subject))!.findings.push(finding)
     } else if (cand.scope === 'class' && cand.subject) {
       classFindings.set(cand.entityId, [...(classFindings.get(cand.entityId) ?? []), { subject: cand.subject, finding }])
+    }
+  }
+  /* עולם חי: תווית המגמה האישית נגזרת מאותה בדיקה של הממצא (ורק כשהממצא מדווח) — לא מהפרש ממוצעי הרמה */
+  if (levelBasis) {
+    for (const [key, sa] of ss) {
+      const reported = sa.findings.find((f) => f.kind === 'level_trend' && f.status === 'reported')
+      const delta = reported && reported.status === 'reported' && reported.evidence.kind === 'level_trend' ? reported.evidence.deltaLevels : null
+      sa.liveTrend = { tested: liveTested.has(key), delta }
     }
   }
 

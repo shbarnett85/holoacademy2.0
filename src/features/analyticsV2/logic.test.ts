@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import type { Briefing, Roster } from '../../shared/types/analyticsV2'
 import {
-  BRIEF_SCOPES, SUMMARY_SCOPES, PREVIOUS_VIEW_HREF, briefingHasContent, canSeePreviousView, entryClassState, feedbackHasContent, parseScopeId, questHref,
+  BRIEF_SCOPES, SUMMARY_SCOPES, PREVIOUS_VIEW_HREF, briefingHasContent, canSeePreviousView, configFailureView, entryClassState, feedbackHasContent, parseScopeId, questHref,
   rosterStudentCount, rosterStudentKey, studentHeadline, summaryContextOf, uniqueRosterStudents,
 } from './logic'
 
@@ -36,6 +36,29 @@ describe('canSeePreviousView — "התצוגה הקודמת" רק למורה א�
     for (const role of ['admin', 'municipal_admin', 'super_admin', null]) expect(canSeePreviousView({ role, isGuest: false }), String(role)).toBe(false)
   })
   it('הכתובת של התצוגה הקודמת', () => expect(PREVIOUS_VIEW_HREF).toBe('/analytics?view=previous'))
+})
+
+describe('configFailureView — כשל בטעינת התצורה (GET /config)', () => {
+  it('מורה אמיתי: נופל לתצוגה הקודמת על אין חיבור (0), עומס (429), 5xx והמתנה ממושכת (503)', () => {
+    for (const status of [0, 429, 500, 502, 503, 504]) expect(configFailureView({ role: 'teacher', isGuest: false, status }), String(status)).toBe('legacy')
+  })
+  it('מורה אמיתי: גם 400/403/404 לא משאירים אותו עם מסך ריק — הוא יכול להמשיך בתצוגה הקודמת', () => {
+    for (const status of [400, 403, 404]) expect(configFailureView({ role: 'teacher', isGuest: false, status }), String(status)).toBe('legacy')
+  })
+  it('401: ההתחברות פגה — בלוק שגיאה (התצוגה הקודמת הייתה נכשלת באותה סיבה)', () => {
+    expect(configFailureView({ role: 'teacher', isGuest: false, status: 401 })).toBe('error')
+  })
+  it('אורח, מנהל/ת, מנהל/ת עירוני, מנהל-על: תמיד בלוק שגיאה, בכל סטטוס', () => {
+    const who: { role: string | null; isGuest: boolean }[] = [{ role: 'teacher', isGuest: true }, { role: 'admin', isGuest: false }, { role: 'municipal_admin', isGuest: false }, { role: 'super_admin', isGuest: false }, { role: null, isGuest: false }]
+    for (const p of who) for (const status of [0, 429, 503]) expect(configFailureView({ ...p, status }), `${p.role}/${p.isGuest}/${status}`).toBe('error')
+  })
+  it('ההחלטה זהה להרשאה לתצוגה הקודמת (אותו קהל), פרט ל-401', () => {
+    for (const role of ['teacher', 'admin', 'municipal_admin', 'super_admin', null]) {
+      for (const isGuest of [false, true]) {
+        expect(configFailureView({ role, isGuest, status: 503 }) === 'legacy').toBe(canSeePreviousView({ role, isGuest }))
+      }
+    }
+  })
 })
 
 const sec = (id: Briefing['sections'][number]['id'], n: number): Briefing['sections'][number] => ({

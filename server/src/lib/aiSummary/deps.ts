@@ -6,8 +6,9 @@
    · **מנהל / מנהל עירוני / מנהל-על: אין סיכום בשום היקף** (חוק 8) — 403 לפני כל טעינת נתונים, יומן או LLM.
    · אורח וארגון הדגמה: demo=true → תבנית דטרמיניסטית בלבד, בלי LLM, בלי שמירה, ובלי קריאת מגדר מה-DB. (ארגון הדגמה ב-submission: העובדות מגיעות מספק התוצאות
      האמיתי — כמו שהמסך מציג לו — אך הסיכום עצמו תבניתי.)
-   · קהל הסיכום (audienceKey, חלק ממפתח השמירה האישי): מחנך = 'full'; מורה מקצועי = המקצועות שהוא מלמד בכיתת התלמיד, ממוינים ('subj:…'). הוא נגזר מההרשאה
-     (grant) ולא מהנתונים, כך שהוא יציב כשנתוני התלמיד משתנים וכך ששינוי הרשאה (הוסר מחנכות) מחליף מפתח ולא חושף סיכום ישן.
+   · קהל הסיכום (audienceKey, חלק ממפתח השמירה האישי): מחנך = 'full'; מורה מקצועי = **המקצועות שהוא רואה בפועל אצל התלמיד** (איחוד ההרשאות על כל כיתות התלמיד —
+     בדיוק מה שהתוכן נבנה ממנו), ממוינים ('subj:…'). המפתח נגזר מהרשאה ולא מהנתונים, כך שהוא יציב כשנתוני התלמיד משתנים, ושינוי הרשאה בכל אחת מכיתות התלמיד
+     (הוסר מחנכות, או הוסר מקצוע בכיתה שנייה) מחליף מפתח ולא חושף סיכום ישן עם תוכן שהצופה כבר לא רשאי לראות.
    · ה-ctx / התוצאה של הספק נשמרים לבקשה (WeakMap על ה-req): authorize ו-load* באותה בקשה לא טוענים פעמיים.
    · כל התלויות (ספק, הקשר, צופה, תוצאות, מגדר) מוזרקות — בבדיקות אין DB ואין LLM. כל טקסט למשתמש מגיע מ-findingsNarrative.
    ────────────────────────────────────────────────────────────────────────── */
@@ -19,15 +20,15 @@ import type { SummaryTarget } from '../../../../src/shared/types/aiSummaryV1.js'
 import { AppError } from '../../middleware/errors.js'
 import { isDemoGuest } from '../../middleware/staffAuth.js'
 import { hasUserGender } from '../activeColumn.js'
-import { grantOf, isHomeroomOf, requireCap, type V2Viewer } from '../analyticsV2/access.js'
+import { isHomeroomOf, requireCap, type V2Viewer } from '../analyticsV2/access.js'
 import type { AnalyticsV2Provider } from '../analyticsV2/provider.js'
 import { resolveV2Context, type V2Context } from '../analyticsV2/viewer.js'
 import { isAggregateOnly, isSuper, loadViewer, type Viewer } from '../authz.js'
 import { demoResultsProvider } from '../results/demoResults.js'
 import { openSubmissionForSummary, type SubmissionSummaryAccess } from '../results/realResults.js'
 import { supabaseAdmin } from '../supabase.js'
-import type { AiSummaryRouteDeps, SummaryAuthorization, SummaryCtx, SummaryLoadCtx } from '../../routes/aiSummary.js'
-import type { Gender } from './inputs.js'
+import type { AiSummaryRouteDeps, ClassFacts, SummaryAuthorization, SummaryCtx, SummaryLoadCtx } from '../../routes/aiSummary.js'
+import { classDataCountsOf, type Gender } from './inputs.js'
 import { FULL_AUDIENCE, subjectAudience } from './service.js'
 
 /* כל מה שהחיבור צריך מבחוץ. providerFor חובה (הבחירה היחידה בין ספק הדגמה / חי / ריק נמצאת ב-routes/analyticsV2.ts); השאר — ברירות מחדל אמיתיות */
@@ -57,10 +58,12 @@ export async function readStudentGender(studentId: string): Promise<Gender> {
   }
 }
 
-/* קהל הסיכום של תלמיד: מחנך (access='full') → full; מורה מקצועי → המקצועות שיש לו ב-grant של כיתת התלמיד */
-export function audienceOfStudent(viewer: V2Viewer, overview: Pick<StudentOverview, 'access' | 'student'>): string {
+/* קהל הסיכום של תלמיד: מחנך (access='full') → full; מורה מקצועי → קבוצת המקצועות הגלויים לו בפועל אצל התלמיד (פאנלים גלויים).
+   הפאנלים נגזרים מאיחוד ההרשאות על כל כיתות התלמיד, כמו העובדות — לכן המפתח תואם לתוכן גם לתלמיד שרשום בכמה כיתות.
+   (viewer נשאר בחתימה לתאימות; ההכרעה היא מהתגובה שכבר עברה את בדיקות ההרשאה) */
+export function audienceOfStudent(_viewer: V2Viewer, overview: Pick<StudentOverview, 'access' | 'panels'>): string {
   if (overview.access === 'full') return FULL_AUDIENCE
-  return subjectAudience(grantOf(viewer, overview.student.classId)?.subjects ?? [])
+  return subjectAudience(overview.panels.filter((p) => p.access === 'visible').map((p) => p.subject.code))
 }
 
 const memos = new WeakMap<object, Map<string, Promise<unknown>>>()
@@ -119,41 +122,51 @@ export function createAiSummaryDeps(given: Pick<SummaryCollaborators, 'providerF
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'student')
           const env = await studentOf(req, ctx, target.id)
-          return { demo: ctx.provider === 'demo', audienceKey: audienceOfStudent(ctx.viewer, env.data) }
+          return { demo: ctx.provider === 'demo', audienceKey: audienceOfStudent(ctx.viewer, env.data), cheap: true }
         }
         case 'class': {
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'classOverview')
           await classOf(req, ctx, target.id)
           /* רק מחנך הכיתה עובר את classOverview, ולכן הקהל תמיד מלא */
-          return { demo: ctx.provider === 'demo', audienceKey: FULL_AUDIENCE }
+          return { demo: ctx.provider === 'demo', audienceKey: FULL_AUDIENCE, cheap: true }
         }
         case 'class_subject': {
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'classSubject')
           const subject = target.subject as NonNullable<SummaryTarget['subject']>
           await classSubjectOf(req, ctx, target.id, subject)
-          return { demo: ctx.provider === 'demo', audienceKey: isHomeroomOf(ctx.viewer, target.id) ? FULL_AUDIENCE : subjectAudience([subject]) }
+          return { demo: ctx.provider === 'demo', audienceKey: isHomeroomOf(ctx.viewer, target.id) ? FULL_AUDIENCE : subjectAudience([subject]), cheap: true }
         }
         case 'submission': {
           const s = await submissionOf(req, target)
-          /* תוכן ההגשה זהה לכל מי שרואה אותה (המסך המלא של השליחה) — הקהל קבוע */
-          return { demo: s.demo, audienceKey: FULL_AUDIENCE }
+          /* תוכן ההגשה זהה לכל מי שרואה אותה (המסך המלא של השליחה) — הקהל קבוע. הטעינה כבדה (classView) חוץ ממסך ההדגמה של האורח בזיכרון, ולכן GET לא טוען אותה */
+          return { demo: s.demo, audienceKey: FULL_AUDIENCE, cheap: c.isDemoGuest(req) }
         }
       }
     },
 
-    async loadStudentFacts({ req, target, authz }: SummaryLoadCtx) {
+    async loadStudentFacts({ req, target, authz, lite }: SummaryLoadCtx) {
       const ctx = await v2(req)
       const env = await studentOf(req, ctx, target.id)
-      /* הדגמה: אין DB — המגדר לא נקרא. אמיתי: רק אחרי שההרשאה אושרה */
-      const gender = authz.demo ? null : await c.studentGender(target.id)
+      /* הדגמה: אין DB — המגדר לא נקרא. טעינה קלה (חותמת נתונים ב-GET): המגדר אינו חלק מהחותמת ולכן לא נקרא. אמיתי: רק אחרי שההרשאה אושרה */
+      const gender = authz.demo || lite ? null : await c.studentGender(target.id)
       return { overview: env.data, gender }
     },
 
-    async loadClassFacts({ req, target }: SummaryLoadCtx) {
+    async loadClassFacts({ req, target }: SummaryLoadCtx): Promise<ClassFacts> {
       const ctx = await v2(req)
-      return (await classOf(req, ctx, target.id)).data
+      const overview = (await classOf(req, ctx, target.id)).data
+      /* גודל המדגם: תלמידים שיש עליהם נתוני רמה (לא כל תלמידי הכיתה). ב-ClassOverview אין שדה כזה, ולכן סופרים ממסכי המקצוע של אותה כיתה
+         (אותו ניתוח במטמון, אותה הרשאה — מחנך הכיתה רואה את כל המקצועות). מקצוע ללא רמה אינו נספר; מקצוע שנסגר/נעלם בדרך נספר כ-0 */
+      const views = []
+      for (const row of overview.rows) {
+        if (row.level === null) continue
+        try { views.push((await classSubjectOf(req, ctx, target.id, row.subject.code as NonNullable<SummaryTarget['subject']>)).data) } catch (e) {
+          if (!(e instanceof AppError) || (e.status !== 403 && e.status !== 404)) throw e
+        }
+      }
+      return { overview, withData: classDataCountsOf(views) }
     },
 
     async loadClassSubjectFacts({ req, target }: SummaryLoadCtx) {

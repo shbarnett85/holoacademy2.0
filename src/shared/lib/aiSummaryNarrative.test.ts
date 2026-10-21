@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { SUMMARY_SCOPES } from '../types/aiSummaryV1'
 import {
-  AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_SUMMARY_BAD_REQUEST, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY,
+  AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_TEXT, CAVEAT_TREND, ERR_LEGACY_SUMMARY_MOVED, ERR_SUMMARY_BAD_REQUEST, ERR_SUMMARY_EDIT_EXISTS, ERR_SUMMARY_COOLDOWN, ERR_SUMMARY_DEMO_EDIT, ERR_SUMMARY_EMPTY_EDIT, ERR_SUMMARY_LIMIT_DAILY,
   ERR_SUMMARY_NOT_CONNECTED, ERR_SUMMARY_NOT_FOUND, aiFactAreas, aiFactAttentionCount, aiFactChallenge, aiFactClassAttention, aiFactClassLevel, aiFactCommonError,
   aiFactCompletion, aiFactError, aiFactLevel, aiFactMisconception, aiFactObjective, aiFactPositionSplit, aiFactSuccessBands, aiFactTrend, aiFactTrendSplit,
-  aiSummaryBasis, aiSummaryGenerateHint, aiSummaryHowWritten, aiSummaryNotEnough, aiSummaryPrivacyNote, aiTemplateOpening,
+  aiSummaryBasis, aiSummaryGenerateHint, aiSummaryHowWritten, aiSummaryNotEnough, aiSummaryPrivacyNote, aiSummaryWhatIsSent, aiTemplateOpening,
 } from './findingsNarrative'
 import { FORBIDDEN_UI_TERMS, forbiddenHits } from './forbiddenTerms'
 
@@ -100,5 +100,46 @@ describe('aiFact*: עובדות אנונימיות, כל אחת משפט שמס�
 
   it('אין בעובדות אף שם פרטי/משפחה מעולם ההדגמה (הן בנויות מתבניות ללא קלט שמי)', () => {
     for (const f of facts) expect(f).not.toMatch(/\b(?:אלון|תמר|נועה)\b/)
+  })
+})
+
+describe('הקשחת הסיכום המילולי: גילוי נאות, התיישנות ואישור כתיבה מחדש', () => {
+  it('"איך נכתב" לתבנית אחרי כשל AI: אומר שנעשה ניסיון (לא "בלי בינה מלאכותית" ולא "שום מידע לא נשלח"), ומפרט מה נשלח', () => {
+    const t = aiSummaryHowWritten({ scope: 'student', writtenBy: 'template', demo: false, model: null }).join(' ')
+    expect(t).toContain('נעשה ניסיון לכתוב אותו בעזרת בינה מלאכותית')
+    expect(t).toContain('מה נשלח לבינה המלאכותית')
+    expect(t).toContain('מה לא נשלח')
+    expect(t).not.toContain('בלי בינה מלאכותית')
+    expect(t).not.toContain('שום מידע')
+    /* הדגמה: נבנה מראש בלי AI ולכן באמת לא נשלח כלום */
+    const demo = aiSummaryHowWritten({ scope: 'student', writtenBy: 'template', demo: true }).join(' ')
+    expect(demo).toContain('בלי בינה מלאכותית')
+    expect(demo).toContain('שום מידע על תלמידים לא נשלח')
+    expect(demo).not.toContain('נעשה ניסיון')
+  })
+
+  it('הצהרת הפרטיות מפרטת מה כן נשלח ומה לא (כולל הסרת שם/אימייל/טלפון מכותרות), ולפי היקף: מגדר רק בתלמיד', () => {
+    for (const scope of ['student', 'class', 'class_subject', 'submission'] as const) {
+      const lines = aiSummaryWhatIsSent(scope)
+      const all = lines.join(' ')
+      expect(all).toContain(aiSummaryPrivacyNote(scope))
+      expect(all).toContain('כותרות של אתגרים ויעדי למידה')
+      expect(all).toContain('שמות תלמידים')
+      expect(all).toContain('שם, כתובת אימייל או מספר טלפון')
+      expect(all.includes('מגדר'), scope).toBe(scope === 'student')
+      for (const s of lines) clean(s)
+    }
+  })
+
+  it('AI_SUMMARY_HARDENING_TEXT והודעות החדשות: עברית פשוטה, בלי אימוג׳י ובלי מונחים טכניים', () => {
+    let n = 0
+    for (const s of strings({ ...AI_SUMMARY_HARDENING_TEXT, writtenOn: AI_SUMMARY_HARDENING_TEXT.writtenOn('5 באוקטובר 2026') })) { clean(s); expect(s.trim().length).toBeGreaterThan(0); n++ }
+    expect(n).toBeGreaterThan(6)
+    clean(ERR_SUMMARY_EDIT_EXISTS)
+    clean(ERR_LEGACY_SUMMARY_MOVED)
+    expect(ERR_LEGACY_SUMMARY_MOVED).toBe('הסיכום עבר למסך התלמיד/ה והכיתה באנליטיקה')
+    /* שני כפתורי האישור נבדלים במילים (לא בצבע בלבד) */
+    expect(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.cancel).not.toBe(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.confirm)
+    expect(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.body).toContain('תמחק את העריכה')
   })
 })

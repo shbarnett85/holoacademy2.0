@@ -3,19 +3,15 @@ import type { Request } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
-import { rateLimitByUser } from '../middleware/rateLimit.js'
-import { summaryEligibility } from '../../../src/shared/lib/aiSummaryRule.js'
+import { ERR_LEGACY_SUMMARY_MOVED } from '../../../src/shared/lib/findingsNarrative.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasPedagogicalSummaries, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag } from '../lib/activeColumn.js'
+import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag } from '../lib/activeColumn.js'
 import {
   loadViewer, studentScope, requireStudentScope, canPatchLevels, assignmentVisible, questVisible, classAccess,
-  isAggregateOnly, belowMinCell, MIN_CELL_SIZE, logAccess, classIdsOfStudent,
+  isAggregateOnly, belowMinCell, MIN_CELL_SIZE, logAccess,
 } from '../lib/authz.js'
 import { subjectByCode, subjectById, allSubjects, questSubjectOut } from '../lib/subjects.js'
 import { applyTeacherLevels } from '../lib/profileCalibration.js'
-import { claude } from '../lib/claude.js'
-import { callGeminiText } from '../lib/gemini.js'
-import { engineFor } from '../lib/modelRouter.js'
 import { computeWeakConcepts } from '../lib/weakConcepts.js'
 import { buildTrendBuckets, bucketIndexOf } from '../lib/trendBuckets.js'
 
@@ -999,332 +995,34 @@ analyticsRouter.get('/challenge-types', async (req, res, next) => {
 })
 
 /* ════════════════════════════════════════════════════════════════════════
-   סיכום פדגוגי — "ד"ר הולו כשכבת פרשנות"
-   כפתור אחד שמכליל לפי הקשר (תלמיד / כיתה / הקצאה). Sonnet כותב קריאה אנושית
-   *מהוסה* (תצפיות, לא אבחנות), על נתוני רמה 1+2 בלבד. נשמר עם timestamp + "צור מחדש".
+   סיכום פדגוגי (נתיב ישן) — הופרש.
+   הסיכום של ד"ר הולו עבר למסך התלמיד/ה והכיתה באנליטיקה (/api/ai-summary: שומר פלט דטרמיניסטי, תקרה יומית, cache ועריכה אישיים לצופה, יומן גישה).
+   הנתיב הישן עקף את כל אלה (פלט ה-LLM הוחזר כמות שהוא), ולכן POST ו-PATCH מחזירים 410 עם הודעה בעברית פשוטה, ו-GET מחזיר "אין סיכום".
+   אורח: POST מחזיר את סיכום ההדגמה הקבוע כמו קודם (בלי LLM ובלי שמירה). אין עוד צרכן ב-client (PedagogicalSummary הוסר).
    ════════════════════════════════════════════════════════════════════════ */
 
-type SummaryScope = 'student' | 'class' | 'assignment'
-/* סף N מינימלי לסיכום (אותו כלל כמו הסיכום החדש — shared/lib/aiSummaryRule): מונע סיכום ילד/כיתה על בסיס הדמיה בודדת */
-function requireSummaryMin(scope: 'student' | 'class' | 'submission', n: { sessions?: number; students?: number; completed?: number }): void {
-  const e = summaryEligibility(scope, n)
-  if (!e.ok) throw new AppError(400, `${e.text} ${e.whatNext}`)
-}
-const pctStr = (r: number | null) => (r === null ? '—' : Math.round(r * 100) + '%')
+/* GET — אין סיכום שמור בנתיב הזה יותר */
+analyticsRouter.get('/summary', (_req, res) => {
+  res.json({ summary: null })
+})
 
-/* שם הכיתה (gradeLabel) */
-async function classLabel(classId: string): Promise<string> {
-  const withGrade = await hasGradeLabel()
-  const { data } = await supabaseAdmin.from('classes').select('*').eq('id', classId).single()
-  const c = (data ?? {}) as { name?: string; grade_label?: string }
-  return (withGrade ? c.grade_label : null) ?? c.name ?? ''
-}
-
-/* גוזר את נתוני הקלט לסיכום + אוכף הרשאות (authz) לפני כל קריאת AI. מחזיר label אנושי (ללא שם
-   תלמיד — רק כינוי), JSON מצרפי, ו-N (גודל מדגם). השם האמיתי חוזר רק בשרת אחרי תשובת ה-LLM. */
-const STUDENT_ALIAS = 'תלמיד/ה 1'
-/* enforceMin: סף N מינימלי גם למורה (ליצירה בלבד — שליפה/עריכה של סיכום קיים לא נחסמות). cacheable: האם מותר לשמור/לשתף את הסיכום ב-cache —
-   סיכום תלמיד של מורה מקצועי (מקצועו בלבד) אינו נשמר, כדי שלא יוצג למחנך כסיכום מלא (חוק 10). */
-async function gatherSummary(req: Request, scope: SummaryScope, entityId: string, opts: { enforceMin?: boolean } = {}): Promise<{ label: string; data: Record<string, unknown>; sampleSize: number; studentName?: string; cacheable: boolean }> {
-  const viewer = await loadViewer(req)
-  const aggOnly = isAggregateOnly(viewer)
-  const exSyn = await excludeSynthetic(req)
-
-  if (scope === 'assignment') {
-    const { data: asg } = await supabaseAdmin.from('assignments').select('id, quest_id, class_id').eq('id', entityId).single()
-    if (!asg) throw new AppError(404, 'מטלה לא נמצאה')
-    await assertClassAccess(req, asg.class_id)
-    const qm = (await questMeta([asg.quest_id])).get(asg.quest_id)
-    if (!assignmentVisible(viewer, asg.class_id, { subject_id: qm?.subject_id ?? null, created_by: qm?.created_by ?? null })) {
-      throw new AppError(403, 'אין לך גישה לסכם הקצאה זו')
-    }
-    const [{ data: questRow }, students] = await Promise.all([
-      supabaseAdmin.from('quests').select('title, game_data').eq('id', asg.quest_id).single(),
-      activeStudents(asg.class_id),
-    ])
-    const challenges = questChallenges(questRow?.game_data)
-    const studentIds = students.map((s) => s.id)
-    const sessions = await latestSessionsByStudent(asg.quest_id, studentIds, exSyn)
-    const sessionIds = [...sessions.values()].map((s) => s.id)
-    const [summaries, chStats] = await Promise.all([completedSummaries(sessionIds), challengeStats(sessionIds)])
-    let completed = 0, inProgress = 0
-    const rates: number[] = []
-    for (const stu of students) {
-      const sess = sessions.get(stu.id)
-      if (!sess) continue
-      if (sess.completed_at) {
-        completed++
-        const sum = summaries.get(sess.id)
-        const r = sum?.successRate ?? (sess.max_score ? (sess.total_score ?? 0) / sess.max_score : null)
-        if (r !== null && r !== undefined) rates.push(r)
-      } else inProgress++
-    }
-    if (aggOnly && belowMinCell(completed)) {
-      throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים שהשלימו`)
-    }
-    if (opts.enforceMin) requireSummaryMin('submission', { completed })
-    const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
-    const perChallenge = challenges.map((c) => {
-      const st = chStats.get(c.sceneId) ?? { solved: 0, failed: 0 }
-      const att = st.solved + st.failed
-      return { title: c.title, type: c.type, successRate: att ? st.solved / att : null, attempts: att }
-    }).filter((c) => c.attempts > 0).sort((a, b) => (a.successRate ?? 1) - (b.successRate ?? 1))
-    return {
-      label: `הקצאה: "${questRow?.title ?? ''}" · כיתה ${await classLabel(asg.class_id)}`,
-      sampleSize: completed,
-      cacheable: true,
-      data: {
-        סוג: 'סיכום ביצועי כיתה בהדמיה',
-        הדמיה: questRow?.title ?? '',
-        מספר_תלמידים: students.length,
-        השלימו: completed, בתהליך: inProgress, לא_התחילו: students.length - completed - inProgress,
-        אחוז_הצלחה_ממוצע: pctStr(avg),
-        התפלגות: { 'נמוך(<60%)': rates.filter((r) => r < STRUGGLE_RATE).length, 'בינוני(60-85%)': rates.filter((r) => r >= STRUGGLE_RATE && r < EXCEL_RATE).length, 'גבוה(85%+)': rates.filter((r) => r >= EXCEL_RATE).length },
-        אתגרים_קשים: perChallenge.slice(0, 3).map((c) => ({ אתגר: c.title, הצלחה: pctStr(c.successRate) })),
-      },
-    }
-  }
-
-  if (scope === 'class') {
-    await assertClassAccess(req, entityId)
-    /* סיכום כיתה — למחנך הכיתה ולמנהל בלבד */
-    const grant = viewer.grants.get(entityId)
-    if (viewer.role === 'teacher' && !grant?.homeroom) throw new AppError(403, 'סיכום כיתה זמין למחנך הכיתה ולמנהל בלבד')
-    const students = await activeStudents(entityId)
-    const studentIds = students.map((s) => s.id)
-    const perStudentRate = new Map<string, number>()
-    let completedSessions = 0
-    if (studentIds.length) {
-      let q = supabaseAdmin
-        .from('sessions')
-        .select('user_id, quest_id, completed_at, total_score, max_score')
-        .in('user_id', studentIds)
-        .not('completed_at', 'is', null)
-      if (exSyn) q = q.eq('is_synthetic', false)
-      const { data } = await q
-      const byStudent = new Map<string, number[]>()
-      for (const s of (data ?? []) as { user_id: string; total_score: number | null; max_score: number | null }[]) {
-        const r = s.max_score ? (s.total_score ?? 0) / s.max_score : null
-        if (r === null) continue
-        completedSessions++
-        const arr = byStudent.get(s.user_id) ?? []; arr.push(r); byStudent.set(s.user_id, arr)
-      }
-      for (const [uid, arr] of byStudent) perStudentRate.set(uid, arr.reduce((a, b) => a + b, 0) / arr.length)
-    }
-    const rates = [...perStudentRate.values()]
-    const played = perStudentRate.size
-    if (aggOnly && belowMinCell(played)) {
-      throw new AppError(400, `אין עדיין מספיק נתונים לסיכום — נדרשים לפחות ${MIN_CELL_SIZE} תלמידים ששיחקו`)
-    }
-    if (opts.enforceMin) requireSummaryMin('class', { students: played })
-    const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
-    return {
-      label: `כיתה ${await classLabel(entityId)}`,
-      sampleSize: completedSessions,
-      cacheable: true,
-      data: {
-        סוג: 'סיכום כיתה (חוצה-מקצוע)',
-        מספר_תלמידים: students.length,
-        תלמידים_ששיחקו: played,
-        תלמידים_שטרם_שיחקו: students.length - played,
-        אחוז_הצלחה_ממוצע_כיתתי: pctStr(avg),
-        התפלגות_תלמידים: { 'מתקשים(<60%)': rates.filter((r) => r < STRUGGLE_RATE).length, 'בינוני(60-85%)': rates.filter((r) => r >= STRUGGLE_RATE && r < EXCEL_RATE).length, 'מצטיינים(85%+)': rates.filter((r) => r >= EXCEL_RATE).length },
-      },
-    }
-  }
-
-  /* scope === 'student' — דרך authz: מנהלים נחסמים; מורה מקצועי רק במקצועותיו */
-  const { scope: sScope, classIds } = await requireStudentScope(req, entityId)
-  if (sScope.kind !== 'scoped') throw new AppError(403, 'אין לך גישה לתלמיד זה')
-  const accessibleClass = classIds.find((c) => viewer.grants.has(c)) ?? classIds[0] ?? '__'
-
-  const { data: stu } = await supabaseAdmin.from('users').select('name').eq('id', entityId).single()
-  const v2 = await hasDifficultyProfileV2()
-  let profile: unknown = null
-  if (sScope.full) {
-    const { data } = await supabaseAdmin
-      .from('difficulty_profiles')
-      .select(v2 ? 'text_level, per_puzzle_level, last_avg_scene_ms, sessions_count' : 'writing_level, puzzle_difficulty, avg_success_rate')
-      .eq('user_id', entityId)
-      .maybeSingle()
-    profile = data
-  }
-  let sq = supabaseAdmin.from('sessions').select('id, quest_id, completed_at, total_score, max_score, started_at').eq('user_id', entityId)
-  if (exSyn) sq = sq.eq('is_synthetic', false)
-  const { data: allSessions } = await sq.order('started_at', { ascending: false }).limit(200)
-  const qmeta = await questMeta((allSessions ?? []).map((x) => x.quest_id as string))
-  const sessions = (allSessions ?? []).filter((x) => {
-    const m = qmeta.get(x.quest_id as string)
-    return questVisible(sScope, { subject_id: m?.subject_id ?? null, created_by: m?.created_by ?? null }, viewer.userId)
-  }).slice(0, 50)
-  const completed = sessions.filter((s) => s.completed_at)
-  const rates = completed.map((s) => (s.max_score ? ((s.total_score as number | null) ?? 0) / (s.max_score as number) : null)).filter((r): r is number => r !== null)
-  const avg = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : null
-  const trend = [...completed].reverse().map((s) => (s.max_score ? Math.round((((s.total_score as number | null) ?? 0) / (s.max_score as number)) * 100) : null)).filter((x) => x !== null)
-  const lastDone = completed[0]
-  let skipping = false
-  if (lastDone) {
-    const { data: lastCompleted } = await supabaseAdmin.from('events').select('payload').eq('session_id', lastDone.id).eq('type', 'session_completed').limit(1).maybeSingle()
-    skipping = Boolean((lastCompleted?.payload as { skipping?: boolean } | null)?.skipping)
-  }
-  const p = (profile ?? {}) as Record<string, unknown>
-  /* סף N: גם למורה (ליצירה בלבד). הרישום ביומן ממתין (await) ונכשל סגור למנהל-על: אם אי אפשר לתעד, הבקשה נחסמת לפני שהנתונים נשלחים ל-AI */
-  if (opts.enforceMin) requireSummaryMin('student', { sessions: completed.length })
-  await logAccess(viewer, { studentId: entityId, scope: 'summary_student', endpoint: 'analytics/summary' }, { studentLevel: true })
-  return {
-    /* חוק 12: אין שם תלמיד ב-LLM חיצוני — רק כינוי. השם האמיתי מוחזר בשרת אחרי התשובה. */
-    label: `${STUDENT_ALIAS} · כיתה ${await classLabel(accessibleClass)}`,
-    studentName: (stu as { name?: string } | null)?.name ?? '',
-    sampleSize: completed.length,
-    cacheable: sScope.full,
-    data: {
-      סוג: sScope.full ? 'סיכום תלמיד (חוצה-מקצוע)' : 'סיכום תלמיד (במקצוע/ות שלך בלבד)',
-      רמת_טקסט: sScope.full ? (v2 ? (p.text_level ?? null) : (p.writing_level ?? null)) : null,
-      רמות_לפי_סוג_אתגר: sScope.full && v2 ? (p.per_puzzle_level ?? null) : null,
-      מספר_הדמיות_שהושלמו: completed.length,
-      אחוז_הצלחה_ממוצע: pctStr(avg),
-      מגמת_הצלחה_אחרונה: trend.slice(0, 6),
-      קריאה_מהירה_מאוד_חשד_דילוג: skipping,
-    },
-  }
-}
-
-/* בניית הפרומפט של ד"ר הולו — מהוסה, רמה 1+2 בלבד, ללא שפה אבחנתית */
-function buildPedagogicalPrompt(label: string, data: Record<string, unknown>, sampleSize: number): string {
-  return `אתה ד"ר הולו — דמות פדגוגית חכמה, חמה ומנוסה. אתה כותב "סיכום פדגוגי" קצר בעברית **עבור המורה**, המבוסס *אך ורק* על הנתונים המצורפים. זהו מסמך על ילד/כיתה אמיתיים — כתוב באחריות.
-
-## כללים מחייבים (אסור לחרוג!)
-1. **תצפיות מהוסות — לא אבחנות.** פתח בהקשר הכמותי (למשל "על סמך ${sampleSize} הדמיות שהושלמו…") והשתמש בלשון זהירה: "נראה ש…", "ייתכן ש…", "הנתונים מצביעים על…". אתה מתאר דפוסים בנתונים, לא קובע עובדות על הילד.
-2. **אסורה לחלוטין שפה קלינית/אבחנתית.** אל תשתמש במילים כמו "לקות", "הפרעה", "ADHD", "דיסלקציה", "דיכאון", או כל אבחנה. אתה לא מאבחן.
-3. **התבסס רק על מדדים כמותיים שמופיעים בנתונים** — רמות קושי, אחוזי הצלחה, מגמות, זמני שהייה. אל תמציא נתונים ואל תייחס רגשות/כוונות שלא נמדדו.
-4. **טון מכבד, בונה וממוקד-פעולה**: ציין מה הולך טוב, היכן נראה קושי, והצע 1-2 צעדים מעשיים להמשך. לעולם לא טון מאשים.
-5. אם המדגם קטן (מעט הדמיות), ציין במפורש שהתמונה חלקית ויש להתייחס אליה בזהירות.
-6. 2-4 פסקאות קצרות. עברית בלבד. **אל תוסיף כותרת** (היא תיווסף ע"י המערכת) ואל תחתום בשם.
-7. כשמדובר בתלמיד בודד, הכינוי בהקשר ("תלמיד/ה 1") הוא כינוי זמני — השתמש בו כפי שהוא (בלי להמציא שם).
-
-## ההקשר
-${label}
-
-## הנתונים
-${JSON.stringify(data, null, 2)}
-
-כתוב כעת את הסיכום הפדגוגי:`
-}
-
-async function callSonnetSummary(prompt: string): Promise<string> {
-  /* הסיכום הפדגוגי — Gemini תחת CONTENT_GEMINI (אנליטיקס פנימי למורה; מודל אחד לכל
-     התוכן), אחרת Sonnet (הנתיב המקורי נשמר לנסיגה דרך CONTENT_CLAUDE_ROLES=summary). */
-  if (engineFor('summary') === 'gemini') {
-    const text = (await callGeminiText(prompt, 6000)).trim()
-    if (!text) throw new AppError(502, 'תשובה ריקה מ-Gemini')
-    return text
-  }
-  const response = await claude.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1200,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const block = response.content.find((b) => b.type === 'text')
-  const text = block && block.type === 'text' ? block.text.trim() : ''
-  if (!text) throw new AppError(502, 'תשובה ריקה מ-Claude')
-  return text
-}
-
-const SUMMARY_MODEL = 'claude-sonnet-4-5'
-/* גרסת הפרומפט — נשמרת לצד הסיכום כדי שאפשר יהיה לשחזר איך נוצר */
-const PEDAGOGICAL_PROMPT_VERSION = 'ped-summary-v2-alias'
-
-/* הסיכום הישן שמור לפי (scope, entity_id) בלבד, אך **אישי לצופה**: כל קריאה/כתיבה מסוננת ב-created_by, וסיכום שמורשה רק לחלק מהמידע
-   (מורה מקצועי על תלמיד) אינו נשמר כלל. כך סיכום שמחנך הפיק לא נחשף למורה מקצועי באותו תלמיד, ועריכה של צופה אחד לא דורסת של אחר. */
-
-/* GET /api/analytics/summary?scope=&id= — שליפת סיכום שמור של הצופה (אם קיים) */
-analyticsRouter.get('/summary', async (req, res, next) => {
+/* POST — אורח: סיכום הדגמה קבוע; כל השאר 410 */
+analyticsRouter.post('/summary', (req, res, next) => {
   try {
-    const scope = req.query.scope as SummaryScope
-    const id = req.query.id as string
-    if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
-    if (isDemoGuest(req)) { res.json({ summary: null }); return } /* בדמו — נוצר טרי ב-POST, לא נשמר */
-    /* אכיפת גישה — גם לשליפה בלבד (אל תחזיר סיכום על ישות שאסור לראות) */
-    const { cacheable } = await gatherSummary(req, scope, id)
-    if (!cacheable || !(await hasPedagogicalSummaries())) { res.json({ summary: null }); return }
-    const { data } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).eq('created_by', req.staff!.userId).maybeSingle()
-    res.json({ summary: data ?? null })
+    const { scope, id } = (req.body ?? {}) as { scope?: string; id?: string }
+    if (isDemoGuest(req) && (scope === 'student' || scope === 'class' || scope === 'assignment') && typeof id === 'string' && id) {
+      res.json(demoSummary(scope, id, new Date()))
+      return
+    }
+    throw new AppError(410, ERR_LEGACY_SUMMARY_MOVED)
   } catch (err) {
     next(err)
   }
 })
 
-/* PATCH /api/analytics/summary — שמירת עריכת המורה (edited_content). המורה הוא השכבה האחרונה
-   לפני ייצוא. body: { scope, id, edited_content }. דורש את הטבלה (אחרת אין רשומה לעדכן). עורכים רק סיכום שהצופה עצמו הפיק. */
-analyticsRouter.patch('/summary', async (req, res, next) => {
-  try {
-    const { scope, id, edited_content } = req.body as { scope: SummaryScope; id: string; edited_content: string }
-    if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
-    if (typeof edited_content !== 'string') throw new AppError(400, 'edited_content חסר')
-    /* אכיפת גישה זהה ליצירה */
-    await gatherSummary(req, scope, id)
-    if (!(await hasPedagogicalSummaries())) throw new AppError(503, 'שמירת עריכה תהיה זמינה לאחר הרצת המיגרציה (טבלת pedagogical_summaries)')
-    const { data: saved, error } = await supabaseAdmin
-      .from('pedagogical_summaries')
-      .update({ edited_content, updated_at: new Date().toISOString() })
-      .eq('scope', scope).eq('entity_id', id).eq('created_by', req.staff!.userId)
-      .select('*')
-      .maybeSingle()
-    if (error) throw new AppError(500, 'שגיאה בשמירת העריכה: ' + error.message)
-    if (!saved) throw new AppError(404, 'אין סיכום שמור שלך לעריכה')
-    res.json({ summary: saved })
-  } catch (err) {
-    next(err)
-  }
-})
-
-/* POST /api/analytics/summary — יצירה/יצירה-מחדש (Sonnet). body: { scope, id, regenerate? }. מוגבל בקצב: 6 בדקה למשתמש. */
-analyticsRouter.post('/summary', rateLimitByUser('summary', 6), async (req, res, next) => {
-  try {
-    const { scope, id, regenerate } = req.body as { scope: SummaryScope; id: string; regenerate?: boolean }
-    if (!['student', 'class', 'assignment'].includes(scope) || !id) throw new AppError(400, 'scope/id חסרים')
-    /* מצב הדגמה — סיכום קבוע (דטרמיניסטי, בלי קריאת AI ובלי שמירה) */
-    if (isDemoGuest(req)) { res.json(demoSummary(scope, id, new Date())); return }
-    const userId = req.staff!.userId
-    /* גוזר נתונים + אוכף RLS לפני כל קריאת AI (כולל סף N מינימלי גם למורה) */
-    const { label, data, sampleSize, studentName, cacheable } = await gatherSummary(req, scope, id, { enforceMin: true })
-    const stored = cacheable && (await hasPedagogicalSummaries())
-
-    /* cache — רק סיכום שהצופה עצמו הפיק, ורק אם לא ביקשו רענון */
-    let existing: { created_by: string | null } | null = null
-    if (stored) {
-      const { data: row } = await supabaseAdmin.from('pedagogical_summaries').select('*').eq('scope', scope).eq('entity_id', id).maybeSingle()
-      existing = (row as { created_by: string | null } | null) ?? null
-      if (existing && existing.created_by === userId && !regenerate) { res.json({ summary: existing, cached: true }); return }
-    }
-
-    const rawContent = await callSonnetSummary(buildPedagogicalPrompt(label, data, sampleSize))
-    /* הכינוי הזמני → השם האמיתי, בשרת בלבד (המיפוי חי רק בבקשה הזו) */
-    const content = studentName ? rawContent.split(STUDENT_ALIAS).join(studentName) : rawContent
-    const now = new Date().toISOString()
-    const modelUsed = engineFor('summary') === 'gemini' ? (process.env.GEMINI_CONTENT_MODEL?.trim() || 'gemini') : SUMMARY_MODEL
-    /* edited_content: null — יצירה (גם "צור מחדש") מאפסת את עריכת המורה הקודמת; אחרת היא נשארת ומוצגת מעל הטקסט החדש */
-    const row = {
-      scope, entity_id: id, content, edited_content: null as string | null, model: modelUsed, prompt_version: PEDAGOGICAL_PROMPT_VERSION, input_data: data,
-      sample_size: sampleSize, created_by: userId, created_at: now, updated_at: now,
-    }
-
-    /* לא דורסים סיכום ששייך לצופה אחר: השורה אחת לכל ישות, ודריסה הייתה מוחקת לו טקסט ועריכה */
-    if (stored && (!existing || existing.created_by === userId)) {
-      const { data: saved, error } = await supabaseAdmin
-        .from('pedagogical_summaries')
-        .upsert(row, { onConflict: 'scope,entity_id' })
-        .select('*')
-        .single()
-      if (error) throw new AppError(500, 'שגיאה בשמירת הסיכום: ' + error.message)
-      res.json({ summary: saved, cached: false })
-    } else {
-      /* לא נשמר (לפני המיגרציה / סיכום חלקי של מורה מקצועי / שורה של צופה אחר) — מחזירים את הסיכום החי */
-      res.json({ summary: { ...row, id: null }, cached: false, notPersisted: true })
-    }
-  } catch (err) {
-    next(err)
-  }
+/* PATCH — עריכה בנתיב הישן אינה נתמכת (העריכה היא ב-/api/ai-summary/:id) */
+analyticsRouter.patch('/summary', (_req, _res, next) => {
+  next(new AppError(410, ERR_LEGACY_SUMMARY_MOVED))
 })
 
 /* ── GET /api/analytics/review-suggestions — "ד"ר הולו מציע" (spaced retrieval, שלב ב׳) ──

@@ -99,9 +99,9 @@ describe('mergeAnalyses — תלמיד בכמה כיתות', () => {
       { id: 'x1', studentId: 's1', questId: 'q1', completedAt: at(2) }, { id: 'x2', studentId: 's1', questId: 'q2', completedAt: at(3) }, { id: 'x3', studentId: 's1', questId: 'q3', completedAt: at(4) },
     )
     raw.snapshots.push(
-      { sessionId: 'x1', studentId: 's1', classId: 'class-b', subject: null, level: 7, success: 0.7 },
-      { sessionId: 'x2', studentId: 's1', classId: 'class-b', subject: null, level: 8, success: 0.7 },
-      { sessionId: 'x3', studentId: 's1', classId: 'class-a', subject: null, level: 9, success: 0.7 },
+      { sessionId: 'x1', studentId: 's1', classId: 'class-b', subject: 'math', level: 7, success: 0.7 },
+      { sessionId: 'x2', studentId: 's1', classId: 'class-b', subject: 'math', level: 8, success: 0.7 },
+      { sessionId: 'x3', studentId: 's1', classId: 'class-a', subject: 'math', level: 9, success: 0.7 },
     )
     return analyzeRaw(raw, NOW, EMPTY_CATALOG)
   }

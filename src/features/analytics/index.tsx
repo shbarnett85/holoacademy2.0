@@ -1,4 +1,5 @@
 import { lazy, Suspense } from 'react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import ProgressLens from './ProgressLens'
 import ChallengeTypesPanel from './ChallengeTypesPanel'
@@ -25,9 +26,9 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
 /* התצוגה הקודמת: ההתקדמות לאורך זמן + "ביצועים לפי סוג אתגר" (גרף ההתקדמות הכללי).
    רשימת השיעורים ומסך ההדמיה עברו לטאב "תוצאות" (src/features/results) — אין כאן כפילות.
    עמודה אחת; הסקופ מהשרת (הרשאה A להתקדמות).
-   מוצגת במקרה אחד מ-שניים: (א) מתג הכיבוי של האנליטיקה החדשה (config.enabled=false), (ב) מורה אמיתי שבחר "התצוגה הקודמת" במסך הכניסה —
-   ואז backTo הוא נתיב חזרה גלוי לתצוגה החדשה. */
-function LegacyAnalyticsPanel({ backTo }: { backTo?: string }) {
+   מוצגת באחד משלושה מקרים: (א) מתג הכיבוי של האנליטיקה החדשה (config.enabled=false), (ב) מורה אמיתי שבחר "התצוגה הקודמת" במסך הכניסה —
+   ואז backTo הוא נתיב חזרה גלוי לתצוגה החדשה, (ג) התצורה של האנליטיקה החדשה לא נטענה אצל מורה אמיתי — ואז notice הוא ההסבר עם "נסו שוב". */
+function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: ReactNode }) {
   const { isGuest } = useStaffAuth()
   const breadcrumb = backTo
     ? [{ label: 'אנליטיקה', to: backTo }, { label: V2_CLIENT_TEXT.previous.crumb }]
@@ -35,6 +36,7 @@ function LegacyAnalyticsPanel({ backTo }: { backTo?: string }) {
   return (
     <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={breadcrumb}>
       <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
+      {notice}
       {backTo && (
         <div style={{ alignSelf: 'flex-start' }}>
           <Link to={backTo} data-tu-press

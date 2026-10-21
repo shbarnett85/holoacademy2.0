@@ -17,7 +17,8 @@ import { deriveLens, type V2ClassGrant, type V2Viewer } from './access.js'
 export async function codesOfSubjectIds(ids: Iterable<string>): Promise<SubjectCode[]> {
   const out: SubjectCode[] = []
   for (const id of ids) {
-    const row = await subjectById(id)
+    /* strict: כשל חולף בטבלת המקצועות ← 503 (ה-ViewerMemo לא שומר), לא "שיוך בלי מקצוע" ל-20 שניות */
+    const row = await subjectById(id, { strict: true })
     if (row && isSubjectCode(row.code) && !out.includes(row.code)) out.push(row.code)
   }
   return out

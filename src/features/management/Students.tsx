@@ -13,6 +13,7 @@ import { moralDilemmaDepth } from '../../shared/lib/difficultyScaling'
 import { useIsMobile } from '../../shared/lib/useIsMobile'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
+import { rosterAnalyticsLinks, type V2LinkInfo } from './v2Link'
 
 interface StudentRow {
   id: string
@@ -115,10 +116,12 @@ function GenderBadge({ gender, onChange }: { gender: 'male' | 'female' | null; o
 function Row({
   st, i, effectiveName, effectiveGender, isPending,
   onNameCommit, onGenderChange,
-  onOpenDifficulty, onOpenProgress, onOpenSummary, isMobile,
+  onOpenDifficulty, onOpenProgress, onOpenSummary, isMobile, showAnalytics,
 }: {
   st: StudentRow; i: number
   effectiveName: string; effectiveGender: 'male' | 'female' | null; isPending: boolean; isMobile: boolean
+  /* יש עמוד התקדמות/סיכום אישי באנליטיקה לתלמיד/ה הזה/זו (rosterAnalyticsLinks) — אחרת אין כפתורים, והמשפט שמסביר למה מוצג פעם אחת מעל הטבלה */
+  showAnalytics: boolean
   onNameCommit: (name: string) => void
   onGenderChange: (g: 'male' | 'female' | null) => void
   onOpenDifficulty: () => void; onOpenProgress: () => void; onOpenSummary: () => void
@@ -183,8 +186,8 @@ function Row({
     <>
       {/* מנהלים: אגרגטים בלבד — אין פריטים ברמת תלמיד בודד (נאכף גם בשרת) */}
       {!aggregateOnlyRole && <ActionBtn label="הגדרות קושי" color="var(--t118)" rgb="255,69,230" onClick={onOpenDifficulty} />}
-      {!aggregateOnlyRole && <ActionBtn label="התקדמות"    color="var(--t265)" rgb="255,154,46"  onClick={onOpenProgress} />}
-      {!aggregateOnlyRole && <ActionBtn label="סיכום פדגוגי" color="var(--t54)" rgb="177,139,255" onClick={onOpenSummary} />}
+      {showAnalytics && <ActionBtn label="התקדמות"    color="var(--t265)" rgb="255,154,46"  onClick={onOpenProgress} />}
+      {showAnalytics && <ActionBtn label="סיכום פדגוגי" color="var(--t54)" rgb="177,139,255" onClick={onOpenSummary} />}
     </>
   )
 
@@ -477,7 +480,7 @@ function SaveBar({ studentName, saving, onSave, onCancel }: { studentName: strin
 /* ════════════════════════════════════════════════════════════════════════ */
 
 export default function Students() {
-  const { isGuest } = useStaffAuth()
+  const { isGuest, role } = useStaffAuth()
   /* שני ספים נפרדים, כי שני הדברים נשברים ברוחב שונה:
      · cardView (900px) — הטבלה עצמה. נמדד: ב-900px כל השמות נחתכים (הגרוע קיבל
        38% מהרוחב הדרוש), ב-1000px רק אחד וב-92%. כלומר כבר ברוחב טאבלט
@@ -487,6 +490,9 @@ export default function Students() {
   const cardView = useIsMobile(900)
   const isMobile = useIsMobile()
   const [students, setStudents] = useState<StudentRow[] | null>(null)
+  /* האם יש עמוד תלמיד/ה באנליטיקה לתלמידים שהשרת החזיר (ארגון הדגמה: לא), ואם לא — המשפט שמסביר למה */
+  const [v2Link, setV2Link] = useState<V2LinkInfo>({})
+  const analyticsLinks = rosterAnalyticsLinks({ role, link: v2Link })
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [layer, setLayer] = useState('')
@@ -513,8 +519,8 @@ export default function Students() {
 
   /* ── Load ── */
   function loadStudents() {
-    apiJson<{ students: StudentRow[] }>('/api/staff/students')
-      .then((b) => setStudents(b.students))
+    apiJson<{ students: StudentRow[] } & V2LinkInfo>('/api/staff/students')
+      .then((b) => { setStudents(b.students); setV2Link({ v2Linked: b.v2Linked, v2UnlinkedReason: b.v2UnlinkedReason }) })
       .catch((e: Error) => setError(e.message))
   }
   useEffect(loadStudents, [])
@@ -700,6 +706,12 @@ export default function Students() {
           <div style={pane}>
             <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', flex: '0 0 auto' }}>👥 תלמידים</div>
             {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
+            {/* אין עמוד התקדמות/סיכום אישי באנליטיקה לתלמידים האלה (למשל ארגון הדגמה) — אומרים למה במקום כפתורים שמובילים ל"לא נמצא" */}
+            {analyticsLinks.note && (
+              <p data-roster-v2-note role="note" style={{ margin: 0, flex: '0 0 auto', fontSize: 14, fontWeight: 600, lineHeight: 1.5, padding: '8px 14px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
+                {analyticsLinks.note}
+              </p>
+            )}
 
             <>
                 {/* סינון */}
@@ -737,6 +749,7 @@ export default function Students() {
                       return (
                         <Row key={st.id + st.class} st={st} i={i}
                           isMobile={cardView}
+                          showAnalytics={analyticsLinks.show}
                           effectiveName={effectiveName}
                           effectiveGender={effectiveGender}
                           isPending={isPending}

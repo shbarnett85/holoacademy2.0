@@ -24,7 +24,7 @@ describe('שירות הסיכום: אין טקסט קשיח', () => {
   it('prompt.ts הוא הקובץ היחיד עם עברית חופשית — והיא הנחיה למודל, לא טקסט ממשק', () => {
     const code = readFileSync(here('./prompt.ts'), 'utf8')
     expect(code).toMatch(/[א-ת]{2,} [א-ת]{2,}/)
-    expect(code).toContain("SUMMARY_PROMPT_VERSION = 'ai-sum-v3'")
+    expect(code).toContain("SUMMARY_PROMPT_VERSION = 'ai-sum-v4'")
   })
 
   it('השירות והנתיב אינם תלויים בספקי v2/תוצאות (ההרשאה והטעינה מוזרקות) ואינם מייבאים מנוע מודל חי', () => {

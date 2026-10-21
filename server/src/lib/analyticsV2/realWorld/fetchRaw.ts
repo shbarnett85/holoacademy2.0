@@ -41,7 +41,7 @@ const num = (v: unknown): number | null => {
 const asSubject = (code: string | null | undefined): SubjectCode | null => (code && isSubjectCode(code) ? code : null)
 async function subjectCodeOfId(id: string | null | undefined): Promise<SubjectCode | null> {
   if (!id) return null
-  const row = await subjectById(id)
+  const row = await subjectById(id, { strict: true }) /* כשל חולף בטבלת המקצועות ← 503, לא "אין מקצוע" שנשמר במטמון הניתוח */
   return asSubject(row?.code)
 }
 
@@ -160,7 +160,7 @@ export async function fetchClassRaw(classId: string, includeSynthetic: boolean, 
   })
   const quests: RawQuest[] = []
   for (const q of questRows) {
-    const s = await questSubjectOut({ subject: withQuestId ? undefined : q.subject, subject_id: withQuestId ? (q.subject_id ?? null) : undefined })
+    const s = await questSubjectOut({ subject: withQuestId ? undefined : q.subject, subject_id: withQuestId ? (q.subject_id ?? null) : undefined }, { strict: true })
     quests.push({ id: q.id, subject: asSubject(s.subjectCode) })
   }
   out.quests = quests

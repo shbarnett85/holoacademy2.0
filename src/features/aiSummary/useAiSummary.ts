@@ -12,8 +12,14 @@ import { derive, initialState, runLoad, runSave, runWrite, summaryReducer, targe
 import type { FlowCtx, PanelModel } from './state'
 
 export interface AiSummaryActions {
-  /** כתבו לי סיכום (או כתיבה מחדש / "נסו שוב עם ד״ר הולו" כש-regenerate=true) */
-  write: (regenerate?: boolean) => void
+  /** כתבו לי סיכום (או כתיבה מחדש / "נסו שוב עם ד״ר הולו" כש-regenerate=true). discardEdit: אושרה מחיקת עריכת המורה */
+  write: (regenerate?: boolean, discardEdit?: boolean) => void
+  /** כתיבה מחדש: אם הסיכום ערוך — מוצג חלון אישור (לא כותבים עד שהמורה מאשרת); אחרת כותבים */
+  regenerate: () => void
+  /** אישור בחלון: כתיבה מחדש ומחיקת העריכה */
+  confirmRegenerate: () => void
+  /** ביטול בחלון: העריכה נשארת */
+  cancelRegenerate: () => void
   editStart: () => void
   draftChange: (text: string) => void
   save: () => void
@@ -52,7 +58,14 @@ export function useAiSummary(target: SummaryTarget, params: SummaryParams, api: 
   }, [])
 
   const actions = useMemo<AiSummaryActions>(() => ({
-    write: (regenerate = false) => { void runWrite(flow(), regenerate) },
+    write: (regenerate = false, discardEdit = false) => { void runWrite(flow(), regenerate, discardEdit) },
+    regenerate: () => {
+      const l = latest.current
+      if (derive(l.state, l.key, l.target.scope).summary?.edited) dispatch({ type: 'regenAsked', key: l.key })
+      else void runWrite(flow(), true, false)
+    },
+    confirmRegenerate: () => { void runWrite(flow(), true, true) },
+    cancelRegenerate: () => dispatch({ type: 'regenCancelled', key: latest.current.key }),
     editStart: () => dispatch({ type: 'editStarted', key: latest.current.key }),
     draftChange: (text) => dispatch({ type: 'draftChanged', key: latest.current.key, text }),
     save: () => { void runSave(flow(), latest.current.state, latest.current.state.draft) },

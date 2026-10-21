@@ -18,7 +18,8 @@ export function emptyClassRaw(classId = 'class-a', over: Partial<NonNullable<Raw
   return { ...emptyRaw(), cls: rawClass(classId, over), school: FAKE_SCHOOL }
 }
 
-/* כיתה אחת מעולם ההדגמה: סשן לכל רשומת SessionRec (הדמיה נפרדת לכל סשן ← כולם "השלמה ראשונה"), עם snapshot, אירועי קריאה והתמדה */
+/* כיתה אחת מעולם ההדגמה: סשן לכל רשומת SessionRec (הדמיה נפרדת לכל סשן ← כולם "השלמה ראשונה"), עם snapshot, אירועי קריאה והתמדה.
+   ה-snapshot נושא את מקצוע ההדמיה (subject_id) — כמו שהכיול כותב אותו: בלעדיו השלמה אינה נכנסת לסדרת המקצוע (FX1a). */
 export function rawFromDemoClass(world: DemoWorld, classId: string): RawClassData {
   const cls = world.classes.find((c) => c.id === classId)!
   const raw: RawClassData = { ...emptyRaw(), cls: rawClass(classId, { name: cls.name, gradeLabel: cls.name, gradeLevel: cls.grade }), school: FAKE_SCHOOL }
@@ -38,7 +39,7 @@ export function rawFromDemoClass(world: DemoWorld, classId: string): RawClassDat
         const questId = `q-${sub}-${sid}-${i}`
         quests.set(questId, { id: questId, subject: sub })
         sessions.push({ id, studentId: sid, questId, completedAt: rec.date })
-        snapshots.push({ sessionId: id, studentId: sid, classId, subject: null, level: rec.level, success: rec.success })
+        snapshots.push({ sessionId: id, studentId: sid, classId, subject: sub, level: rec.level, success: rec.success })
         /* קריאה: rec.scenes אירועים; סכום המילים והזמן זהה בדיוק */
         let wordsLeft = rec.words, msLeft = rec.closedMs
         for (let k = 0; k < rec.scenes; k++) {

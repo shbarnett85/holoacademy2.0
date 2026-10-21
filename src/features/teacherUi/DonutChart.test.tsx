@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { countNb, DONUT_TEXT } from '../../shared/lib/findingsNarrative'
-import DonutChart, { DONUT_PATTERN } from './DonutChart'
+import DonutChart from './DonutChart'
 import type { DonutSlice } from './DonutChart'
+import { DONUT_PATTERN } from './donutPattern'
 
 const SLICES: DonutSlice[] = [
   { key: 'completed', label: 'סיימו', count: 14, tone: 'positive', icon: 'check' },

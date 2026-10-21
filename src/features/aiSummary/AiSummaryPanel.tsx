@@ -11,7 +11,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, aiSummaryGenerateHint } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, aiSummaryGenerateHint } from '../../shared/lib/findingsNarrative'
 import type { SummaryTarget } from '../../shared/types/aiSummaryV1'
 import { EmptyState, HowWeCalc, Icon, T } from '../teacherUi'
 import type { SummaryParams } from './api'
@@ -115,9 +115,11 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
   const s = model.summary as ShownSummary
   const doc: SummaryDocInput = {
     scope: model.scope, name: exportName, paragraphs: s.paragraphs, writtenBy: s.writtenBy, edited: s.edited, demo: model.demo, basisText: s.basisText, caveat: s.caveat,
+    writtenAt: s.generatedAt, stale: s.stale,
   }
   const date = formatSummaryDate(s.generatedAt)
   const busy = model.writing || model.saving
+  const confirmId = useId()
   /* הכפתור שנלחץ ("כתבו לי סיכום" / "שמירה") נעלם כשהמצב מתחלף — הפוקוס עובר לטקסט (קורא מסך מקריא אותו) ולא הולך לאיבוד */
   const textRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (model.wrote) textRef.current?.focus({ preventScroll: true }) }, [model.wrote])
@@ -131,6 +133,9 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
     <>
       {s.notice && <Line icon="info">{s.notice}</Line>}
       {!model.demo && !model.persisted && model.persistenceNote && <Line icon="info">{model.persistenceNote}</Line>}
+      {/* תאריך הכתיבה בולט, מעל הטקסט: סיכום ישן לא נראה כעדכני. ואם ייתכן שהנתונים השתנו — נאמר במילים, עם אייקון */}
+      {date && <p data-ai-written style={{ ...soft, fontWeight: 800, color: T.text }}>{AI_SUMMARY_HARDENING_TEXT.writtenOn(date)}</p>}
+      {s.stale && <Line icon="alert" role="status" accent={T.warn}>{AI_SUMMARY_HARDENING_TEXT.stale}</Line>}
       <div ref={textRef} tabIndex={-1} data-ai-text style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 780, outline: 'none' }}>
         {s.paragraphs.map((p, i) => <p key={i} style={paragraph}>{p}</p>)}
       </div>
@@ -140,17 +145,29 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
           {s.edited && <EditedBadge />}
         </div>
       )}
-      <p data-ai-basis style={soft}>{[s.basisText, date ? T_PANEL.writtenOn(date) : ''].filter(Boolean).join(' · ')}</p>
+      <p data-ai-basis style={soft}>{s.basisText}</p>
       <p data-ai-caveat style={soft}>{s.caveat}</p>
       {model.writing && <p role="status" style={{ ...soft, fontWeight: 700, color: T.text }}>{T_UI.writing}</p>}
       {model.error && model.error.action !== 'save' && <Line icon="alert" role="alert" accent={T.bad}>{model.error.message}</Line>}
-      <div className="v2-noprint" style={row} data-ai-actions>
-        {model.canEdit && <Button onClick={actions.editStart} disabled={busy}>{T_UI.edit}</Button>}
-        <Button onClick={() => exportSummaryToWord(doc)}>{T_UI.exportWord}</Button>
-        <Button onClick={() => printSummary(doc)}>{T_UI.print}</Button>
-        {model.canRegenerate && <Button onClick={() => actions.write(true)} disabled={busy}>{T_UI.regenerate}</Button>}
-        {model.canRetryAi && <Button kind="primary" onClick={() => actions.write(true)} disabled={busy}>{T_UI.retryAi}</Button>}
-      </div>
+      {model.confirmRegen ? (
+        /* כתיבה מחדש מוחקת את עריכת המורה: במקום שורת הפעולות — אישור במילים, שני כפתורים. ברירת המחדל (הראשון) היא להשאיר את העריכה */
+        <div className="v2-noprint" role="group" aria-labelledby={confirmId} data-ai-confirm style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 8, border: `2px solid ${T.controlBorder}`, borderRadius: 12, padding: '10px 14px' }}>
+          <p id={confirmId} style={{ ...soft, fontWeight: 800, color: T.text }}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.title}</p>
+          <Line icon="alert" accent={T.warn}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.body}</Line>
+          <div style={row}>
+            <Button kind="primary" onClick={actions.cancelRegenerate} disabled={busy}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.cancel}</Button>
+            <Button onClick={actions.confirmRegenerate} disabled={busy}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.confirm}</Button>
+          </div>
+        </div>
+      ) : (
+        <div className="v2-noprint" style={row} data-ai-actions>
+          {model.canEdit && <Button onClick={actions.editStart} disabled={busy}>{T_UI.edit}</Button>}
+          <Button onClick={() => exportSummaryToWord(doc)}>{T_UI.exportWord}</Button>
+          <Button onClick={() => printSummary(doc)}>{T_UI.print}</Button>
+          {model.canRegenerate && <Button onClick={actions.regenerate} disabled={busy}>{T_UI.regenerate}</Button>}
+          {model.canRetryAi && <Button kind="primary" onClick={actions.regenerate} disabled={busy}>{T_UI.retryAi}</Button>}
+        </div>
+      )}
       <HowWeCalc label={AI_SUMMARY_TEXT.howWrittenTitle} lines={s.howWritten} />
     </>
   )

@@ -529,7 +529,7 @@ export async function openSubmissionForSummary(req: Request, submissionId: strin
 /* ══════════════════════════════════════════════════════════════════════════
    הספק
    ══════════════════════════════════════════════════════════════════════════ */
-const subjectOrder =(code: string): number => SUBJECTS.findIndex((s) => s.code === code)
+const subjectOrder = (code: string): number => SUBJECTS.findIndex((s) => s.code === code)
 const newestFirst = (a: AsgRow, b: AsgRow): number => (Date.parse(b.created_at) - Date.parse(a.created_at)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
 export const realResultsProvider: ResultsProvider = {
