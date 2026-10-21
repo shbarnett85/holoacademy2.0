@@ -92,7 +92,7 @@ async function main(): Promise<void> {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             title, curriculum: topic.curriculum, subjectCode: topic.subject, questLength: QLEN,
-            puzzlePreferences: { types: { multipleChoice: true, trueFalse: true } },
+            puzzlePreferences: { types: Object.fromEntries((process.env.TYPES ?? 'multipleChoice,trueFalse').split(',').map((k) => [k, true])) },
             difficultySettings: { writingLevel: spec.level, puzzleDifficulty: spec.level },
             includeDrHolo: true, artStyle: 'digital-painting',
           }),

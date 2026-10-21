@@ -38,28 +38,14 @@ import { audienceOfStudent, readStudentGender } from './deps.js'
 
 beforeEach(() => { h.hasGender = true; h.row = null; h.error = null; h.throws = false; h.queries.length = 0 })
 
-describe('readStudentGender: רק male / female, וכל כשל = null (ניסוח ניטרלי)', () => {
-  it('העמודה חסרה (פרודקשן לפני המיגרציה): null, ובלי שאילתה', async () => {
-    h.hasGender = false
+describe('readStudentGender: deprecated — מגדר התלמיד לא נקרא יותר (לשון רבים אחידה), תמיד null (ניסוח ניטרלי)', () => {
+  it('תמיד null, בלי שאילתה — גם כשהעמודה קיימת ויש בה ערך', async () => {
+    h.hasGender = true
+    h.row = { gender: 'male' }
+    expect(await readStudentGender('s1')).toBeNull()
+    h.row = { gender: 'female' }
     expect(await readStudentGender('s1')).toBeNull()
     expect(h.queries).toEqual([])
-  })
-
-  it.each([['male', 'male'], ['female', 'female'], ['other', null], ['', null], [null, null], [undefined, null], [1, null]] as const)('ערך %j → %j', async (value, expected) => {
-    h.row = { gender: value }
-    expect(await readStudentGender('s1')).toBe(expected)
-    expect(h.queries).toEqual(['users'])
-  })
-
-  it('אין שורה / שגיאת DB / חריגה: null (לא זורק — מגדר הוא דקדוק בלבד)', async () => {
-    h.row = null
-    expect(await readStudentGender('s1')).toBeNull()
-    h.row = { gender: 'male' }
-    h.error = { message: 'db down' }
-    expect(await readStudentGender('s1')).toBeNull()
-    h.error = null
-    h.throws = true
-    expect(await readStudentGender('s1')).toBeNull()
   })
 })
 

@@ -85,7 +85,7 @@ describe('buildShortenPrompt', () => {
     const p = buildShortenPrompt([{ id: 'a', narrative: LONG_NARR, drHoloDialog: '', mustKeep: ['הרמת'], words: 40 }], { band: 'g5_6', budget: 25, form: 'preserve' })
     expect(p).toContain('עד 25 מילים')
     expect(p).toContain('"mustKeep":["הרמת"]')
-    expect(p).toContain('שמור בדיוק על צורת הפנייה')
+    expect(p).toContain('בלשון רבים בלבד')
   })
 })
 

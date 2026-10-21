@@ -58,7 +58,7 @@ export default function PinScreen({ student, onBack, onSuccess }: Props) {
         }}
       >
         <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>שלום {student.name}!</div>
-        <div style={{ fontSize: 14, color: 'rgba(160,200,240,.55)', marginBottom: 28, lineHeight: 1.6 }}>מה הקוד הסודי שלך?</div>
+        <div style={{ fontSize: 14, color: 'rgba(160,200,240,.55)', marginBottom: 28, lineHeight: 1.6 }}>מה הקוד הסודי שלכם?</div>
 
         {/* 4 משבצות */}
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 24 }} dir="ltr">

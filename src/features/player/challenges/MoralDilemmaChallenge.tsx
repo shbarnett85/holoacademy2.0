@@ -76,7 +76,7 @@ export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, t
             className="rounded-xl p-4"
             style={{ background: 'rgba(150,60,220,0.12)', border: `1px solid ${DILEMMA}66` }}
           >
-            <div className="text-sm mb-2" style={{ opacity: 0.7 }}>בחרת: <b style={{ color: DILEMMA }}>{choices[chosen]?.text}</b></div>
+            <div className="text-sm mb-2" style={{ opacity: 0.7 }}>בחרתם: <b style={{ color: DILEMMA }}>{choices[chosen]?.text}</b></div>
             <div className="font-bold mb-1" style={{ color: DILEMMA }}>מה שקרה בעקבות הבחירה:</div>
             <p className="leading-relaxed" style={{ color: 'var(--holo-text)' }}>{choices[chosen]?.consequence}</p>
           </div>

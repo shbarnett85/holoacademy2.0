@@ -11,7 +11,7 @@ import {
   GRADE_BAND_LABEL, type GradeBand,
 } from '../../../src/shared/lib/sceneText.js'
 import { paginate, splitUnits } from '../../../src/shared/lib/scenePages.js'
-import { formOfAddressRule, type FormOfAddress } from '../prompts/questPrompt.js'
+import type { FormOfAddress } from '../prompts/questPrompt.js'
 import { extractJson, type GameData } from './questSchemas.js'
 import { callHaiku } from './claudeCalls.js'
 import { callGeminiText } from './gemini.js'
@@ -123,12 +123,12 @@ export function missingAnchors(anchors: string[], text: string): string[] {
 /* ── קיצור ── */
 export interface ShortenItem { id: string; narrative: string; drHoloDialog: string; mustKeep: string[]; words: number }
 export interface ShortenResult { id: string; narrative: string; drHoloDialog: string }
-/* form='preserve' — עריכת מורה בעורך: שומרים על צורת הפנייה שכבר בטקסט (לא ידוע מה נבחר ביצירה) */
+/* form='preserve' נשאר לתאימות; הפנייה לתלמיד היא תמיד לשון רבים (STUDENT_ADDRESS_RULE) */
 export type ShortenForm = FormOfAddress | 'preserve'
 export type ShortenFn = (items: ShortenItem[], opts: { band: GradeBand; budget: number; form: ShortenForm }) => Promise<ShortenResult[]>
 
 export function buildShortenPrompt(items: ShortenItem[], opts: { band: GradeBand; budget: number; form: ShortenForm }): string {
-  const genderLine = opts.form === 'preserve' ? 'שמור בדיוק על צורת הפנייה לתלמיד/ה שכבר מופיעה בטקסט (זכר/נקבה/רבים) — אל תשנה אותה.' : opts.form !== 'plural' ? formOfAddressRule(opts.form) : 'פנייה בלשון רבים ניטרלית (אתם/כם).'
+  const genderLine = 'פנייה לתלמידים בלשון רבים בלבד (אתם/בחרו) — בלי יחיד ובלי צורות עם לוכסן (בחר/י); דמויות מדברות כרגיל.'
   return `אתה מקצר טקסט של סצנות במשחק לימודי בעברית לתלמידים, כך שכל סצנה תיכנס במסך אחד בלי גלילה.
 שכבת היעד: ${GRADE_BAND_LABEL[opts.band]}. **הגבלה: סך הטקסט של סצנה — "narrative" ו-"drHoloDialog" יחד — עד ${opts.budget} מילים.**
 כללים:

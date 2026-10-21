@@ -23,7 +23,7 @@ import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAcc
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasQuestSubjectId, hasUserGender, hasPublicQuests, hasQuestVariants, hasQuestGrade, isSchemaMissingError } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasQuestSubjectId, hasPublicQuests, hasQuestVariants, hasQuestGrade, isSchemaMissingError } from '../lib/activeColumn.js'
 import { loadViewer, canAssignToClass } from '../lib/authz.js'
 import { loadReviewBasis } from '../lib/results/realResults.js'
 import { REVIEW_MIN_COMPLETED } from '../../../src/shared/lib/analyticsConfig.js'
@@ -39,6 +39,7 @@ import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLO
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
 import { enforceSceneFit, analyzeQuest, bandOfGameData, type FitStats } from '../lib/sceneFit.js'
+import { fixStudentAddress } from '../lib/studentAddress.js'
 import { proposeSceneShortening } from '../lib/sceneShorten.js'
 import { rateLimitByUser } from '../middleware/rateLimit.js'
 import { weakConceptsFromReview, reviewContextBlock } from '../lib/weakConcepts.js'
@@ -279,8 +280,8 @@ questsRouter.get('/:id', async (req, res, next) => {
   }
 })
 
-/* POST /api/quests/:id/personalize — וריאציה אישית ממוגדרת (פנייה זכר/נקבה/רבים).
-   מחזיר game_data משוכתב לצורת הפנייה — אינו נשמר (שכבת המשחק/הקצאה תבחר אותו). */
+/* POST /api/quests/:id/personalize — נשאר לתאימות. לשון רבים אחידה: אין עוד התאמה ממוגדרת, והגוף gender/form/studentId
+   מתקבל ומתעלמים ממנו. מחזיר עותק של הבסיס (שכבר בלשון רבים) — אינו נשמר. */
 const personalizeSchema = z.object({
   gender: z.enum(['male', 'female']).optional(),
   form: z.enum(['male', 'female', 'plural']).optional(),
@@ -298,13 +299,7 @@ questsRouter.post('/:id/personalize', requireStaff, requireCanShare, async (req,
     if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
-    /* קביעת צורת הפנייה: form מפורש > gender מפורש > מגדר התלמיד (studentId) > plural */
-    let form: FormOfAddress = parsed.data.form ?? parsed.data.gender ?? 'plural'
-    if (!parsed.data.form && !parsed.data.gender && parsed.data.studentId && (await hasUserGender())) {
-      const { data: stu } = await supabaseAdmin.from('users').select('gender').eq('id', parsed.data.studentId).maybeSingle()
-      const g = (stu as { gender?: string | null } | null)?.gender
-      if (g === 'male' || g === 'female') form = g
-    }
+    const form: FormOfAddress = 'plural'
 
     const variant = await rephraseForAddress(quest.game_data as GameData, form)
     res.json({ quest: { id: quest.id, title: quest.title, game_data: variant }, formOfAddress: form })
@@ -340,15 +335,8 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
     if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
     ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
 
-    /* ── שלוף מגדר + כיתת התלמיד (class_members, לא users.class_id) ── */
-    const hasGender = await hasUserGender()
-    const userCols = hasGender ? 'gender' : 'id'
-    const [{ data: userRow }, { data: memberRow }] = await Promise.all([
-      supabaseAdmin.from('users').select(userCols).eq('id', studentId).maybeSingle(),
-      supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId).maybeSingle(),
-    ])
-
-    const ur = userRow as Record<string, unknown> | null
+    /* ── שלוף כיתת התלמיד (class_members, לא users.class_id). מגדר התלמיד לא נקרא ולא משפיע (לשון רבים אחידה). ── */
+    const { data: memberRow } = await supabaseAdmin.from('class_members').select('class_id').eq('user_id', studentId).maybeSingle()
     const classId = (memberRow as { class_id?: string } | null)?.class_id ?? null
     let gradeLabel: string | null = null
     if (classId) {
@@ -362,8 +350,7 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
     const textLevel = eff.profile.textLevel
     const perPuzzleLevel: Record<string, number> = { ...eff.profile.perPuzzleLevel }
 
-    const gender = (ur?.gender === 'male' || ur?.gender === 'female') ? ur.gender as 'male' | 'female' : null
-    const form: FormOfAddress = gender ?? 'plural'
+    const form: FormOfAddress = 'plural'
 
     /* עומק דילמת מוסר = min(רמת השכבה, רמת הטקסט) על סקאלת 1-20 (לא 60/80) */
     const moralLevel = moralDilemmaDepth(gradeToLevel(gradeLabel) ?? undefined, textLevel)
@@ -373,12 +360,12 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
       studentId, profileSource: eff.source, subjectId: questSubjectId,
       gradeLabel, textLevel, moralLevel,
       perPuzzleLevel_sample: Object.fromEntries(Object.entries(perPuzzleLevel).slice(0, 3)),
-      gender, form,
+      form,
     })
     /* ── /DIAG ── */
 
     const variantData = await buildStudentVariant(quest.game_data as GameData, textLevel, form, perPuzzleLevel, moralLevel)
-    const snapshot = { textLevel, perPuzzleLevel, gender }
+    const snapshot = { textLevel, perPuzzleLevel }
 
     const hasTable = await hasQuestVariants()
     debug('[variant:save]', { hasTable, studentId })
@@ -927,7 +914,7 @@ questsRouter.post('/:id/refine', requireCreator, async (req, res, next) => {
 
 /* מטא יצירה שנשמר בתוך game_data בזמן/בסיום היצירה — הקליינט עושה polling וקורא אותו.
    generating=true בזמן היצירה; genError=הודעה אם נכשלה; genMeta=warnings/hub בסיום. */
-interface GenMeta { warnings?: string[]; hub?: HubInfo | null; fit?: FitStats | null }
+interface GenMeta { warnings?: string[]; hub?: HubInfo | null; fit?: FitStats | null; address?: { found: number; fixed: number; remaining: number; keptCharacterSpeech: number } | null }
 
 /* ניתוב היצירה הראשית: Gemini (CONTENT_GEMINI) או Sonnet (callClaude, ברירת מחדל).
    ל-Gemini מקפלים שיחת-retry רב-הודעתית להודעת-user אחת (systemInstruction נפרד),
@@ -1166,6 +1153,18 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
     if (!gameData) throw new AppError(502, 'יצירת ההדמיה נכשלה')
 
+    /* כלל "פנייה לתלמיד" (CLAUDE.md): בדיקה דטרמיניסטית להפרות (אתה/את, ציווי ביחיד, לוכסן מגדרי…) ובקשת תיקון אחת.
+       **לפני** קיצור האורך ובדיקת הבטיחות — הטקסט הסופי הוא שנבדק; העובדות/הדקדוק הרקעיים רצים עליו אחרי. best-effort. */
+    let addressStats: { found: number; fixed: number; remaining: number; keptCharacterSpeech: number } | null = null
+    try {
+      const a = await fixStudentAddress(gameData)
+      addressStats = { found: a.found, fixed: a.fixed, remaining: a.remaining.length, keptCharacterSpeech: a.kept.length }
+      if (a.found > 0) info(`[gen] פנייה לתלמיד: נמצאו ${a.found} מקטעים, תוקנו ${a.fixed}, נותרו ${a.remaining.length}, דמות-לדמות ${a.kept.length}`)
+      if (a.remaining.length > 0) warnings.push(`${a.remaining.length} מקטעי טקסט עדיין אינם בלשון רבים (${[...new Set(a.remaining.map((r) => r.sceneId))].slice(0, 4).join(', ')}) — כדאי לעבור עליהם בעורך`)
+    } catch (err) {
+      logError('[gen] בדיקת הפנייה לתלמיד נכשלה:', err instanceof Error ? err.message : err)
+    }
+
     /* כלל "אורך טקסט לתלמיד" (CLAUDE.md): סצנה שחורגת מגובה המסך — קיצור (בקשה אחת, עם העובדות שהאתגר נשען עליהן),
        אחרת פיצול (סצנה ליניארית בלבד), אחרת סימון (התצוגה תחלק לעמודים). **לפני** בדיקת הבטיחות — כדי שהטקסט הסופי
        הוא שנבדק; בדיקות העובדות/הדקדוק הרקעיות רצות עליו אחרי. best-effort: כשל לא מפיל את היצירה. */
@@ -1232,7 +1231,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
     /* מטא ליצירה — הקליינט קורא בעת ה-polling. בדיקת עובדות תרוץ ברקע (pending). */
     ;(gameData as unknown as { factCheck?: FactCheckMeta }).factCheck = { status: 'pending', startedAt: new Date().toISOString() }
-    ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null, fit: fitStats }
+    ;(gameData as unknown as { genMeta?: GenMeta }).genMeta = { warnings, hub: hubInfo ?? null, fit: fitStats, address: addressStats }
 
     /* עדכון השורה (שכבר נוצרה כ-stub) עם ה-game_data המוכן */
     const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)

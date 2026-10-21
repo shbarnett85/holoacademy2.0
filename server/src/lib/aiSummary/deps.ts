@@ -19,14 +19,12 @@ import type { ClassSubmissionView } from '../../../../src/shared/types/resultsV1
 import type { SummaryTarget } from '../../../../src/shared/types/aiSummaryV1.js'
 import { AppError } from '../../middleware/errors.js'
 import { isDemoGuest } from '../../middleware/staffAuth.js'
-import { hasUserGender } from '../activeColumn.js'
 import { isHomeroomOf, requireCap, type V2Viewer } from '../analyticsV2/access.js'
 import type { AnalyticsV2Provider } from '../analyticsV2/provider.js'
 import { resolveV2Context, type V2Context } from '../analyticsV2/viewer.js'
 import { isAggregateOnly, isSuper, loadViewer, type Viewer } from '../authz.js'
 import { demoResultsProvider } from '../results/demoResults.js'
 import { openSubmissionForSummary, type SubmissionSummaryAccess } from '../results/realResults.js'
-import { supabaseAdmin } from '../supabase.js'
 import type { AiSummaryRouteDeps, ClassFacts, SummaryAuthorization, SummaryCtx, SummaryLoadCtx } from '../../routes/aiSummary.js'
 import { classDataCountsOf, type Gender } from './inputs.js'
 import { FULL_AUDIENCE, subjectAudience } from './service.js'
@@ -45,17 +43,10 @@ export interface SummaryCollaborators {
   studentGender(studentId: string): Promise<Gender>
 }
 
-/* מגדר: רק male / female, מכל ערך אחר (כולל null וטבלה ללא העמודה) — null = ניסוח ניטרלי */
-export async function readStudentGender(studentId: string): Promise<Gender> {
-  try {
-    if (!(await hasUserGender())) return null
-    const { data, error } = await supabaseAdmin.from('users').select('gender').eq('id', studentId).maybeSingle()
-    if (error || !data) return null
-    const g = (data as { gender?: string | null }).gender
-    return g === 'male' || g === 'female' ? g : null
-  } catch {
-    return null
-  }
+/* מגדר התלמיד לא נקרא יותר (לשון רבים אחידה — CLAUDE.md "פנייה לתלמיד"; העמודה users.gender deprecated).
+   תמיד null = ניסוח ניטרלי בסיכום. החתימה נשארת כדי לא לשבור את החוזה והבדיקות. */
+export async function readStudentGender(_studentId: string): Promise<Gender> { // eslint-disable-line @typescript-eslint/no-unused-vars
+  return null
 }
 
 /* קהל הסיכום של תלמיד: מחנך (access='full') → full; מורה מקצועי → קבוצת המקצועות הגלויים לו בפועל אצל התלמיד (פאנלים גלויים).

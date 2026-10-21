@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from './supabase.js'
 import { AppError } from '../middleware/errors.js'
 import type { StaffContext } from '../middleware/staffAuth.js'
-import { hasClassTeachers, hasFictitious, hasGradeLabel, hasIsActive, hasProgressSnapshots, hasQuestSubjectId, hasSessionCrystals, hasSyntheticFlag, hasUserGender } from './activeColumn.js'
+import { hasClassTeachers, hasFictitious, hasGradeLabel, hasIsActive, hasProgressSnapshots, hasQuestSubjectId, hasSessionCrystals, hasSyntheticFlag } from './activeColumn.js'
 import { recalibrateProfile } from './profileCalibration.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 import { ANSWER_SCHEMA_VERSION } from '../../../src/shared/lib/answerTelemetry.js'
@@ -225,7 +225,6 @@ async function createStudents(scope: DemoScope, classId: string, count: number):
     .map((u) => u.name)
   let n = names.length === 0 ? 0 : Math.max(...names.map((nm) => fictitiousIndexFromName(nm))) + 1
   const withActive = await hasIsActive('users')
-  const withGender = await hasUserGender()
   const out: { id: string; name: string }[] = []
   for (let k = 0; k < count; k++, n++) {
     const name = fakeStudentName(n)
@@ -234,7 +233,6 @@ async function createStudents(scope: DemoScope, classId: string, count: number):
       pin: String(Math.floor(1000 + Math.random() * 9000)),
     }
     if (withActive) payload.is_active = true
-    if (withGender) payload.gender = n % 2 === 0 ? 'female' : 'male'
     const { data: u, error } = await supabaseAdmin.from('users').insert(payload).select('id, name').single()
     if (error || !u) throw new AppError(500, 'יצירת תלמיד הדוגמה נכשלה: ' + (error?.message ?? ''))
     await supabaseAdmin.from('class_members').insert({ class_id: classId, user_id: u.id })

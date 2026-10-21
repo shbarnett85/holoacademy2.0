@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import { supabaseAdmin } from '../lib/supabase.js'
-import { hasIsActive, hasGradeLabel, hasClassTeachers, hasUserGender, hasFictitious } from '../lib/activeColumn.js'
+import { hasIsActive, hasGradeLabel, hasClassTeachers, hasFictitious } from '../lib/activeColumn.js'
 
 /* ── זריעת נתוני דמו לארגון פיילוט (כיתה + 8 תלמידים בדויים + 3 הדמיות + תוצאות) ──
    כדי שדשבורד האנליטיקה של המנהל העירוני לא יהיה ריק. כל שורה שנזרעת נרשמת
@@ -126,14 +126,13 @@ async function main() {
   await register(tag, 'classes', [cls.id])
   if (await hasClassTeachers()) await supabaseAdmin.from('class_teachers').insert({ class_id: cls.id, teacher_id: teacher.id, subject: '', is_homeroom: true })
 
-  const withGender = await hasUserGender()
   /* 3) תלמידים בדויים */
   const studentIds: { id: string; ability: number; name: string }[] = []
   for (const st of FAKE_STUDENTS) {
     const pin = String(Math.floor(1000 + Math.random() * 9000))
     const { data: u, error } = await supabaseAdmin
       .from('users')
-      .insert({ name: st.name, role: 'student', pin, school_id: school.id, ...act, ...fict, ...(withGender ? { gender: st.gender } : {}) })
+      .insert({ name: st.name, role: 'student', pin, school_id: school.id, ...act, ...fict })
       .select('id')
       .single()
     if (error || !u) throw new Error('יצירת תלמיד דמו נכשלה: ' + (error?.message ?? ''))

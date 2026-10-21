@@ -23,7 +23,6 @@ interface StudentRow {
   class: string
   classCode: string
   secret: string | null
-  gender: 'male' | 'female' | null
   isActive: boolean
   isFictitious?: boolean
   lastActive: string | null
@@ -33,9 +32,7 @@ interface StudentRow {
 interface ProfilePending {
   studentId: string
   origName: string
-  origGender: 'male' | 'female' | null
   name: string
-  gender: 'male' | 'female' | null
 }
 
 interface DiffPending {
@@ -90,40 +87,17 @@ function ActionBtn({ label, color, rgb, onClick }: { label: string; color: strin
   )
 }
 
-/* ── Gender badge (clickable, cycles) ── */
-const GENDER_META = {
-  male:   { icon: '♂', color: 'var(--t140)', next: 'female' as const, title: 'זכר — לחץ לשינוי' },
-  female: { icon: '♀', color: 'var(--t120)', next: null,              title: 'נקבה — לחץ לשינוי' },
-  null:   { icon: '⊘', color: 'var(--t258)', next: 'male' as const,   title: 'לא מוגדר (לשון רבים) — לחץ לשינוי' },
-} as const
-
-function GenderBadge({ gender, onChange }: { gender: 'male' | 'female' | null; onChange: (g: 'male' | 'female' | null) => void }) {
-  const key = gender ?? 'null'
-  const m = GENDER_META[key]
-  const [hov, setHov] = useState(false)
-  return (
-    <button
-      title={m.title}
-      onClick={(e) => { e.stopPropagation(); onChange(m.next as 'male' | 'female' | null) }}
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ fontSize: 12, color: hov ? 'var(--t13)' : m.color, background: hov ? `color-mix(in oklab, ${m.color} 13%, transparent)` : 'transparent', border: 'none', borderRadius: 5, padding: '0 3px', cursor: 'pointer', flexShrink: 0, lineHeight: 1.6, transition: 'all .12s' }}>
-      {m.icon}
-    </button>
-  )
-}
-
 /* ── Row with inline name editing ── */
 function Row({
-  st, i, effectiveName, effectiveGender, isPending,
-  onNameCommit, onGenderChange,
+  st, i, effectiveName, isPending,
+  onNameCommit,
   onOpenDifficulty, onOpenProgress, onOpenSummary, isMobile, showAnalytics,
 }: {
   st: StudentRow; i: number
-  effectiveName: string; effectiveGender: 'male' | 'female' | null; isPending: boolean; isMobile: boolean
+  effectiveName: string; isPending: boolean; isMobile: boolean
   /* יש עמוד התקדמות/סיכום אישי באנליטיקה לתלמיד/ה הזה/זו (rosterAnalyticsLinks) — אחרת אין כפתורים, והמשפט שמסביר למה מוצג פעם אחת מעל הטבלה */
   showAnalytics: boolean
   onNameCommit: (name: string) => void
-  onGenderChange: (g: 'male' | 'female' | null) => void
   onOpenDifficulty: () => void; onOpenProgress: () => void; onOpenSummary: () => void
 }) {
   const [hov, setHov] = useState(false)
@@ -175,7 +149,6 @@ function Row({
           </span>
         )}
       <DemoStudentBadge show={st.isFictitious} />
-      <GenderBadge gender={effectiveGender} onChange={onGenderChange} />
       {isPending && !editing && <span style={{ fontSize: 9, color: 'var(--t264)', lineHeight: 1 }}>●</span>}
     </div>
   )
@@ -256,13 +229,11 @@ interface ProfileApiResponse {
 
 
 function DifficultyModal({
-  student, diffPending, effectiveGender, onDiffChange, onGenderChange, onClose,
+  student, diffPending, onDiffChange, onClose,
 }: {
   student: StudentRow
   diffPending: DiffPending | null
-  effectiveGender: 'male' | 'female' | null
   onDiffChange: (d: Omit<DiffPending, 'studentId' | 'origTextLevel' | 'origPerPuzzleLevel'> & { origTextLevel?: number; origPerPuzzleLevel?: Record<string, number> }) => void
-  onGenderChange: (g: 'male' | 'female' | null) => void
   onClose: () => void
 }) {
   const [profile, setProfile] = useState<StudentProfile | null>(null)
@@ -340,22 +311,6 @@ function DifficultyModal({
         <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>{student.name}<DemoStudentBadge show={student.isFictitious} /></div>
         <div style={{ fontSize: 12, color: 'var(--t274)', marginBottom: 4 }}>
           כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} הדמיות שכוילו` : ''}
-        </div>
-
-        {/* ── מגדר ── */}
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ ...micro, fontSize: 9, color: 'var(--t135)', marginBottom: 8 }}>פנייה לתלמיד/ה בהדמיות</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {([['male', '♂ זכר', 'var(--t140)'], ['female', '♀ נקבה', 'var(--t120)'], [null, '◇ לא מוגדר', 'var(--t274)']] as const).map(([val, label, color]) => {
-              const active = effectiveGender === val
-              return (
-                <button key={String(val)} onClick={() => onGenderChange(val)}
-                  style={{ flex: 1, padding: '7px 0', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? color : 'var(--t275)', background: active ? `${window.HoloTint(val === 'male' ? '122,184,255' : val === 'female' ? '255,155,214' : '90,122,170', .13)}` : 'var(--t70)', border: `1px solid ${active ? color : 'var(--t276)'}`, transition: 'all .15s' }}>
-                  {label}
-                </button>
-              )
-            })}
-          </div>
         </div>
 
         {/* ── בורר מקצוע: מורה מקצועי — רק מקצועותיו; מחנך — כל מקצוע או גלובלי ── */}
@@ -498,7 +453,7 @@ export default function Students() {
   const [layer, setLayer] = useState('')
   const [klass, setKlass] = useState('')
 
-  /* Pending profile (name + gender) */
+  /* Pending profile (name) */
   const [profilePending, setProfilePending] = useState<ProfilePending | null>(null)
   /* Pending difficulty (same student) */
   const [diffPending, setDiffPending] = useState<DiffPending | null>(null)
@@ -570,7 +525,7 @@ export default function Students() {
       if (!(await holoConfirm(`יש שינויים לא שמורים עבור תלמיד אחר. לבטל אותם ולהמשיך?`, 'בטל והמשך', 'הישאר'))) return null
       cancelAll()
     }
-    const next: ProfilePending = { studentId: student.id, origName: student.name, origGender: student.gender, name: profilePending?.studentId === student.id ? profilePending.name : student.name, gender: profilePending?.studentId === student.id ? profilePending.gender : student.gender }
+    const next: ProfilePending = { studentId: student.id, origName: student.name, name: profilePending?.studentId === student.id ? profilePending.name : student.name }
     setProfilePending(next)
     return next
   }
@@ -579,12 +534,6 @@ export default function Students() {
     const base = await ensureProfilePending(student)
     if (!base) return
     setProfilePending({ ...base, name })
-  }
-
-  async function handleGenderChange(student: StudentRow, gender: 'male' | 'female' | null) {
-    const base = await ensureProfilePending(student)
-    if (!base) return
-    setProfilePending({ ...base, gender })
   }
 
   /* ── Difficulty modal helpers ── */
@@ -615,11 +564,10 @@ export default function Students() {
     if (!pendingStudentId || saving) return
     setSaving(true)
     try {
-      /* שמירת שם ומגדר */
+      /* שמירת שם */
       if (profilePending) {
         const body: Record<string, unknown> = {}
         if (profilePending.name !== profilePending.origName) body.name = profilePending.name
-        if (profilePending.gender !== profilePending.origGender) body.gender = profilePending.gender
         if (Object.keys(body).length > 0) {
           await apiJson(`/api/staff/students/${pendingStudentId}`, { method: 'PATCH', body: JSON.stringify(body) })
         }
@@ -634,7 +582,7 @@ export default function Students() {
       /* עדכון רשימה מקומית */
       if (profilePending) {
         setStudents((prev) => prev?.map((s) =>
-          s.id === pendingStudentId ? { ...s, name: profilePending.name, gender: profilePending.gender } : s
+          s.id === pendingStudentId ? { ...s, name: profilePending.name } : s
         ) ?? prev)
       }
       cancelAll()
@@ -744,17 +692,14 @@ export default function Students() {
                     {students && filtered.length === 0 && <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--t248)', fontSize: 14 }}>{all.length === 0 ? 'אין עדיין תלמידים בכיתות שלך.' : 'לא נמצאו תלמידים תואמים'}</div>}
                     {filtered.map((st, i) => {
                       const effectiveName = profilePending?.studentId === st.id ? profilePending.name : st.name
-                      const effectiveGender = profilePending?.studentId === st.id ? profilePending.gender : st.gender
                       const isPending = pendingStudentId === st.id
                       return (
                         <Row key={st.id + st.class} st={st} i={i}
                           isMobile={cardView}
                           showAnalytics={analyticsLinks.show}
                           effectiveName={effectiveName}
-                          effectiveGender={effectiveGender}
                           isPending={isPending}
                           onNameCommit={(name) => handleNameCommit(st, name)}
-                          onGenderChange={(g) => handleGenderChange(st, g)}
                           onOpenDifficulty={() => openDifficulty(st)}
                           onOpenProgress={() => { void openInAnalytics(st, false) }}
                           onOpenSummary={() => { void openInAnalytics(st, true) }}
@@ -773,9 +718,7 @@ export default function Students() {
         <DifficultyModal
           student={diffModalStudent}
           diffPending={diffPending?.studentId === diffModalStudent.id ? diffPending : null}
-          effectiveGender={profilePending?.studentId === diffModalStudent.id ? profilePending.gender : diffModalStudent.gender}
           onDiffChange={(d) => handleDiffChange(diffModalStudent.id, d)}
-          onGenderChange={(g) => handleGenderChange(diffModalStudent, g)}
           onClose={() => setDiffModalStudentId(null)}
         />
       )}

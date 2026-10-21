@@ -297,20 +297,20 @@ export const basedOnChallenges = (n: number): string => (n === 1 ? 'מבוסס �
 
 /* ── משוב לתלמיד/ה — צמיחה בלבד, בלי השוואה לאחרים ובלי תוויות ── */
 export function narrateFeedbackGrowth(subjectName: string, deltaLevels: number, sinceIso: string): string {
-  return `השתפרת ב${subjectName}! מאז ${monthName(sinceIso)} עלית ${levelsWord(deltaLevels)}. כל הכבוד על ההתמדה.`
+  return `שיפור ב${subjectName}! מאז ${monthName(sinceIso)} עלייה של ${levelsWord(deltaLevels)}. כל הכבוד על ההתמדה.`
 }
 export function narrateFeedbackStreak(subjectNames: string, sessions: number): string {
-  return `השלמת ${sessions} הדמיות ב${subjectNames} לאחרונה. הרצף הזה מראה התמדה.`
+  return `${sessions} הדמיות הושלמו ב${subjectNames} לאחרונה. הרצף הזה מראה התמדה.`
 }
 export function narrateFeedbackNextStep(subjectName: string, conceptTitle: string | null): string {
   return conceptTitle
-    ? `הצעד הבא ב${subjectName}: עוד תרגול קצר ב${conceptTitle}. כל תרגול מקרב אותך להצלחה.`
+    ? `הצעד הבא ב${subjectName}: עוד תרגול קצר ב${conceptTitle}. כל תרגול מקרב להצלחה.`
     : `הצעד הבא ב${subjectName}: להמשיך לשחק ולנסות אתגרים חדשים. כל ניסיון מלמד משהו.`
 }
 /* פתיח תצוגת "כך התלמיד/ה רואה" — מופיע למורה בלבד, מעל מה שהתלמיד/ה רואה */
 export const FEEDBACK_INTRO_TEXT = 'כך נראה המסך לתלמיד/ה. אין בו השוואה לתלמידים אחרים.'
 export function narrateFeedbackHeadline(firstName: string, hasGrowth: boolean): string {
-  return hasGrowth ? `שלום ${firstName}, הנה מה שהשתפר אצלך לאחרונה` : `שלום ${firstName}, הנה סיכום הפעילות שלך`
+  return hasGrowth ? `שלום ${firstName}, הנה מה שהשתפר לאחרונה` : `שלום ${firstName}, הנה סיכום הפעילות`
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -768,7 +768,7 @@ export const RESULTS_TEXT = {
 /* שורות "איך חישבנו?" לתוצאות — המקום היחיד שבו מותר פירוט חישובי */
 export function howWeCalcResultsLines(): string[] {
   return [
-    `אתגר נחשב ל"הצליחו" כשהתלמיד/ה פתר/ה אותו. "ויתרו" = לחצו על "אני מוותר/ת" או סגרו את האתגר בלי לענות.`,
+    `אתגר נחשב ל"הצליחו" כשהתלמיד/ה פתר/ה אותו. "ויתרו" = לחצו על "ויתור על האתגר" או סגרו את האתגר בלי לענות.`,
     `תלמיד/ה מופיע/ה ב"תשומת לב" אם: עוד לא התחיל/ה, או ויתר/ה על ${ATTENTION_RULE.gaveUpAtLeast} אתגרים או יותר, או סיים/ה והצליח/ה בפחות מחצי מהאתגרים. זה כלל עובדתי בלבד — הוא לא מסביר למה.`,
     'התוצאות נספרות לפי המשחק האחרון שהושלם של כל תלמיד/ה בהדמיה.',
   ]

@@ -20,7 +20,6 @@ describe('demoRosterV2 — רוסטר האורח מעולם ההדגמה של ה
       expect(st.classId).toBe(DEMO_HOMEROOM_CLASS)
       expect(w!.classId).toBe(DEMO_HOMEROOM_CLASS)
       expect(st.name).toBe(w!.displayName)
-      expect(st.gender).toBe(w!.gender)
       expect(st.class).toBe(cls.gradeLabel)
     }
   })

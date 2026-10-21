@@ -53,7 +53,6 @@ interface StudentRow {
   classId: string
   class: string      // gradeLabel
   classCode: string
-  gender: string | null
   isActive: boolean
 }
 
@@ -235,7 +234,7 @@ function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boole
 /* ── מודאל השיתוף + ייצוא גרסאות אישיות ── */
 type ShareStep = 'pick' | 'students' | 'community' | 'generating' | 'generated'
 type GenStatus = 'pending' | 'working' | 'done' | 'error'
-interface GenSnapshot { textLevel: number; gender: string | null }
+interface GenSnapshot { textLevel: number }
 
 function ShareModal({ quest, onClose, onDone }: {
   quest: QuestSummary

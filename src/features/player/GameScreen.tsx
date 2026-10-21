@@ -442,7 +442,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       engine.challengeResults.length === 0
         ? null
         : failed.length === 0
-          ? 'פתרת את כל האתגרים בניסיון ראשון! מדהים! 🌟'
+          ? 'פתרתם את כל האתגרים בניסיון ראשון! מדהים! 🌟'
           : `האתגר${failed.length > 1 ? 'ים' : ''} על ${failed.map((f) => `"${f.sceneTitle}"`).join(', ')} ${failed.length > 1 ? 'היו קשים' : 'היה קשה'} — שווה לחזור עליו במסע הבא!`
 
     return (
@@ -499,7 +499,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <>
               <div style={{ fontSize: '3rem' }}>🏆</div>
               <h1 className="holo-text-glow text-2xl font-black mt-2">כל הכבוד!</h1>
-              <p className="mt-3" style={{ opacity: 0.7 }}>סיימת את "{questTitle}"</p>
+              <p className="mt-3" style={{ opacity: 0.7 }}>סיימתם את "{questTitle}"</p>
             </>
           )}
 
@@ -520,7 +520,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           <div className="flex justify-center gap-3 mt-6 flex-wrap">
             {!good && ending && (
               <button className="holo-button text-lg" onClick={() => engine.restart()}>
-                צא למסע שוב 🔄
+                צאו למסע שוב 🔄
               </button>
             )}
             {visitorMode ? (

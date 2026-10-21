@@ -13,8 +13,7 @@ import { classSummaryNote } from './v2Link'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { GRADE_LAYER_NAMES, nextGradeLevel, labelWithLevel } from '../../shared/lib/gradeLevels'
 
-type Gender = 'male' | 'female' | null
-interface Student { id: string; name: string; is_active: boolean; gender: Gender; is_fictitious?: boolean }
+interface Student { id: string; name: string; is_active: boolean; is_fictitious?: boolean }
 interface NewStudent { id?: string; name: string; pin: string }
 interface SchoolTeacher { id: string; name: string; is_active: boolean }
 
@@ -80,7 +79,6 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   const [students, setStudents] = useState<Student[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [single, setSingle] = useState('')
-  const [singleGender, setSingleGender] = useState<Gender>(null)
   const [bulk, setBulk] = useState('')
   const [showBulk, setShowBulk] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -155,8 +153,8 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
     if (busy || !single.trim()) return
     setBusy(true); setError(null)
     try {
-      const { student } = await apiJson<{ student: NewStudent }>(`/api/staff/classes/${cls.id}/students`, { method: 'POST', body: JSON.stringify({ name: single.trim(), gender: singleGender }) })
-      setSingle(''); setSingleGender(null); setPinModal({ title: 'תלמיד חדש', students: [student] }); load()
+      const { student } = await apiJson<{ student: NewStudent }>(`/api/staff/classes/${cls.id}/students`, { method: 'POST', body: JSON.stringify({ name: single.trim() }) })
+      setSingle(''); setPinModal({ title: 'תלמיד חדש', students: [student] }); load()
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
   }
   async function addBulk() {
@@ -183,10 +181,6 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
     const name = window.prompt('שם חדש:', s.name)
     if (!name?.trim() || name.trim() === s.name) return
     try { await apiFetch(`/api/staff/students/${s.id}`, { method: 'PATCH', body: JSON.stringify({ name: name.trim() }) }); load() }
-    catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') }
-  }
-  async function setGender(s: Student, gender: Gender) {
-    try { await apiFetch(`/api/staff/students/${s.id}`, { method: 'PATCH', body: JSON.stringify({ gender }) }); load() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') }
   }
 
@@ -275,11 +269,6 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
         <SectionTitle>הוספת תלמידים</SectionTitle>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           <input placeholder="שם תלמיד/ה" value={single} onChange={(e) => setSingle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSingle()} style={{ ...inputStyle, flex: '1 1 130px' }} />
-          <select value={singleGender ?? ''} onChange={(e) => setSingleGender((e.target.value || null) as Gender)} style={{ ...inputStyle, width: 'auto', flex: '0 0 80px' }}>
-            <option value="">מגדר…</option>
-            <option value="male">בן</option>
-            <option value="female">בת</option>
-          </select>
           <HoloBtn label="+ הוסף" onClick={addSingle} disabled={busy || !single.trim()} />
           <HoloBtn label={showBulk ? 'בודד ←' : 'מרובה ↓'} onClick={() => setShowBulk((v) => !v)} color="var(--t34)" rgb="255,138,240" />
         </div>
@@ -306,16 +295,8 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)' }}>{s.name}</span>
                     {s.is_fictitious && <span style={{ marginRight: 6 }}><DemoStudentBadge show /></span>}
-                    {s.gender === 'male' && <span style={{ fontSize: 10, color: 'var(--t140)', marginRight: 6 }}>♂</span>}
-                    {s.gender === 'female' && <span style={{ fontSize: 10, color: 'var(--t120)', marginRight: 6 }}>♀</span>}
                     {!s.is_active && <span style={{ fontSize: 10, color: 'var(--t18)', marginRight: 6 }}>מושבת</span>}
                   </div>
-                  <select value={s.gender ?? ''} onChange={(e) => setGender(s, (e.target.value || null) as Gender)}
-                    style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 11, flex: '0 0 auto' }}>
-                    <option value="">מגדר</option>
-                    <option value="male">בן</option>
-                    <option value="female">בת</option>
-                  </select>
                   <button onClick={() => resetPin(s)} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>PIN חדש</button>
                   <button onClick={() => rename(s)} style={{ background: 'none', border: 'none', color: 'var(--t27)', cursor: 'pointer', fontSize: 13 }}>✏️</button>
                   {s.is_active

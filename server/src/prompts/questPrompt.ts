@@ -25,9 +25,9 @@ export interface PuzzlePreferences {
   counts?: Record<string, number>
 }
 
-/* צורת הפנייה לתלמיד (form of address) — נקבעת מראש ב-pre-generation, לא מנוע נטיות בזמן ריצה.
-   male = זכר יחיד · female = נקבה יחיד · plural = רבים (הצורה הניטרלית + מצב כיתתי/מקרן). */
-export type FormOfAddress = 'male' | 'female' | 'plural'
+/* צורת הפנייה לתלמיד: **לשון רבים אחידה, תמיד** ("אתם"). אין יותר זכר/נקבה/יחיד — המעברים ביניהם יצרו טעויות לשון.
+   הטיפוס נשאר (ערך יחיד) כדי שהחתימות הקיימות לא ישתנו; המגדר של התלמיד לא משפיע על שום טקסט. */
+export type FormOfAddress = 'plural'
 
 export interface LearningObjective {
   id: string
@@ -45,7 +45,7 @@ export interface QuestGenerationParams {
   includeDrHolo?: boolean
   artStyle?: string
   questType?: string
-  /* ברירת מחדל: plural (ניטרלי/כיתתי). male/female ליצירת וריאציה אישית ממוגדרת. */
+  /* תמיד plural — לשון רבים אחידה (הפרמטר נשאר לתאימות בלבד) */
   formOfAddress?: FormOfAddress
   /* יעדי למידה (אופציונלי) — כל אתגר מתויג ביעד שהוא בוחן; מזין את דיווח השליטה */
   objectives?: LearningObjective[]
@@ -60,17 +60,19 @@ export interface QuestGenerationParams {
   factBrief?: string
 }
 
-/* כלל הניסוח הדקדוקי — מוזרק לפרומפט וגם משמש את שכתוב הווריאציה האישית (haiku). */
-export function formOfAddressRule(form: FormOfAddress): string {
-  switch (form) {
-    case 'male':
-      return 'פנה אל התלמיד בכל הטקסט בלשון **זכר יחיד** ("אתה מגיע", "בחרת", "גילית", "המשך"). עקבי לכל אורך ההדמיה.'
-    case 'female':
-      return 'פנה אל התלמידה בכל הטקסט בלשון **נקבה יחידה** ("את מגיעה", "בחרת", "גילית", "המשיכי"). עקבי לכל אורך ההדמיה.'
-    case 'plural':
-    default:
-      return 'פנה אל התלמידים בכל הטקסט בלשון **רבים** ("אתם מגיעים", "בחרתם", "גיליתם", "המשיכו") — זו הצורה הניטרלית והכיתתית. בעברית אין גוף שני יחיד ניטרלי, ולכן רבים. **אסור** ניסוחי "את/ה" עם לוכסנים או כפל-מין.'
-  }
+/* כלל הפנייה לתלמיד — מוזרק לכל פרומפט שמייצר/משכתב טקסט לתלמיד, וגם לבדיקה הלשונית. */
+export const STUDENT_ADDRESS_RULE = `**פנייה לתלמידים — תמיד לשון רבים ("אתם").** כל טקסט שמופנה לתלמיד (נרטיב, דיאלוג ד"ר הולו, שאלות והוראות אתגרים, הסברים, טקסטי בחירה, השלכות, סיומים) פונה בלשון רבים בלבד: "בחרו", "קראו", "מה אתם חושבים?", "גיליתם", "המשיכו".
+- **אסור** פנייה ביחיד (אתה/את, בחר/בחרי, גילית) ואסורות צורות עם לוכסן (בחר/י, מוכן/ה, תלמיד/ה).
+- כשהתלמיד "מדבר" על עצמו (אפשרויות בחירה, דילמות), השתמשו בשם פעולה או בשם עצם — **לא** בגוף ראשון ממוגדר: "ויתור על האתגר" ולא "אני מוותר/ת"; "לספר את האמת" ולא "הייתי מספר/ת".
+- דמויות (היסטוריות או בדיוניות) מדברות בגוף שלישי או בגוף ראשון במין ובמספר הנכונים **להן** — הכלל חל רק על הפנייה אל התלמידים.
+- התאמת מספר ומין בין שם עצם לפועל ולתואר נשארת מדויקת ("האזרחים הצביעו", "הכוכבים הבהירים").
+דוגמאות:
+  ✗ "אתה יוצא מהפורטל. מה היית בוחר?" ← ✓ "אתם יוצאים מהפורטל. מה אתם בוחרים?"
+  ✗ "בחר/י את התשובה הנכונה" ← ✓ "בחרו את התשובה הנכונה"
+  ✗ "אני מוותר/ת על האתגר" ← ✓ "ויתור על האתגר"`
+
+export function formOfAddressRule(_form: FormOfAddress = 'plural'): string { // eslint-disable-line @typescript-eslint/no-unused-vars
+  return STUDENT_ADDRESS_RULE
 }
 
 /* בלוק הפנייה לפרומפט המלא */
@@ -285,14 +287,10 @@ function labStructureInstructions(): string {
    הטקסט. העיקרון החדש: **שמור את התפקיד, בטל את הניסוח הקבוע** — המודל מממש
    כל מהלך בניסוח חופשי שמשתנה בין סצנות ובין הדמיות. כלל האצבע: ניסוח שמכריז
    על המהלך — אסור (עשה את המהלך); פנייה שמזמינה תגובת תלמיד — מותרת, בגיוון.
-   הפניות-לדוגמה מוטות לצורת הפנייה (אסור לשון רבים בהדמיית יחיד). */
+   הפניות-לדוגמה בלשון רבים, כמו כל פנייה לתלמיד. */
 function drHoloVoiceInstructions(form: FormOfAddress): string {
-  const ex =
-    form === 'male'
-      ? { imagine: 'דמיין ש…', act: 'מה היית עושה במקומו?', retell: 'איך היית מסביר את זה לחבר?' }
-      : form === 'female'
-        ? { imagine: 'דמייני ש…', act: 'מה היית עושה במקומה?', retell: 'איך היית מסבירה את זה לחברה?' }
-        : { imagine: 'דמיינו ש…', act: 'מה אתם הייתם עושים?', retell: 'איך תסבירו את זה לכיתה?' }
+  void form
+  const ex = { imagine: 'דמיינו ש…', act: 'מה אתם הייתם עושים?', retell: 'איך תסבירו את זה לכיתה?' }
   return `
 ## קולו של ד"ר הולו — מהלכים פדגוגיים (חשוב לאפקטיביות!)
 בכל הדמיה צריכים להתקיים המהלכים הפדגוגיים הבאים ב-"drHoloDialog", אבל **בלי ניסוח קבוע** — נסח כל מהלך מחדש בכל הדמיה, במילים של הסצנה, משולב בזרימת הסיפור ולא כהכרזה נפרדת:
@@ -389,9 +387,9 @@ function narrativeStructureInstructions(questType?: string): string {
     {
       "id": "scene_agora",
       "title": "האגורה — איסוף קצה חוט",
-      "narrative": "אתה יוצא מהפורטל אל האגורה ההומה. סוחר לוחש על אסימונים חשודים.",
+      "narrative": "אתם יוצאים מהפורטל אל האגורה ההומה. סוחר לוחש על אסימונים חשודים.",
       "imagePrompt": "a bustling ancient Greek agora marketplace, citizens in togas, stalls with pottery, 5th century BC, historically accurate, in its original pristine state",
-      "drHoloDialog": "עצום עיניים: כיכר עמוסה, בלי מכונת הצבעה אחת. הכול נשען על אמון.",
+      "drHoloDialog": "עצמו עיניים: כיכר עמוסה, בלי מכונת הצבעה אחת. הכול נשען על אמון.",
       "puzzle": {
         "type": "multipleChoice",
         "question": "כיצד הצביעו אזרחי אתונה באקלסיה?",
@@ -407,23 +405,23 @@ function narrativeStructureInstructions(questType?: string): string {
     {
       "id": "scene_mint",
       "title": "בית המטבעה — הראיה המכרעת",
-      "narrative": "בבית המטבעה אתה מוצא חרס עם סימן חריטה חריג — הראיה נגד המזייף.",
+      "narrative": "בבית המטבעה אתם מוצאים חרס עם סימן חריטה חריג — הראיה נגד המזייף.",
       "imagePrompt": "an ancient Greek mint workshop with clay ostraca shards, oil lamps, 5th century BC, historically accurate, in its original pristine state",
-      "drHoloDialog": "להציג את החרס עכשיו, או לחכות לעוד ראיות? מה היית בוחר?",
+      "drHoloDialog": "להציג את החרס עכשיו, או לחכות לעוד ראיות? מה הייתם בוחרים?",
       "nextSceneId": "scene_climax"
     },
     {
       "id": "scene_climax",
       "title": "האקלסיה — רגע ההכרעה",
-      "narrative": "אתה מרים את החרס מול אלפי אזרחים. ההמון משתתק, והמזייף נמלט. ההצבעה ניצלה.",
+      "narrative": "אתם מרימים את החרס מול אלפי אזרחים. ההמון משתתק, והמזייף נמלט. ההצבעה ניצלה.",
       "imagePrompt": "the Pnyx hill assembly of ancient Athens, thousands of citizens gathered, a speaker on the bema holding up a clay shard, dramatic, 5th century BC, historically accurate, in its original pristine state",
-      "drHoloDialog": "דמוקרטיה היא גם הבטחה שההצבעה נספרת ביושר. את זה קח איתך."
+      "drHoloDialog": "דמוקרטיה היא גם הבטחה שההצבעה נספרת ביושר. את זה קחו איתכם."
     }
   ],
   "entrySceneId": "scene_lab",
   "isHistorical": true,
-  "endingGood": { "title": "הדמוקרטיה ניצלה", "narrative": "חזרת למעבדה. המזייף נחשף וההצבעה הייתה הוגנת.", "drHoloDialog": "הצלת היום לא רק הצבעה — הראית למה השקיפות היא הלב של הדמוקרטיה.", "imagePrompt": "Victory celebration inside Dr. Holo's glowing holographic laboratory, warm golden light, holographic confetti and triumphant light beams, five crystals shining at full brightness, {DR_HOLO} standing proudly at the center", "drHoloExpression": "a joyful, triumphant smile, beaming with pride" },
-  "endingBad": { "title": "כמעט שם", "narrative": "חזרת למעבדה עם חלק מהראיות, אך לא הספקת לחשוף את המזייף בזמן.", "drHoloDialog": "התקדמת יפה! חסרו עוד כמה רסיסים כדי להרכיב את התמונה — בוא ננסה שוב.", "imagePrompt": "Dim, cold and somber holographic laboratory, faint flickering blue light, faded dull crystals, long shadows, a melancholic gray atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a tired, dejected and disappointed expression, looking weary" }
+  "endingGood": { "title": "הדמוקרטיה ניצלה", "narrative": "חזרתם למעבדה. המזייף נחשף וההצבעה הייתה הוגנת.", "drHoloDialog": "הצלתם היום לא רק הצבעה — הראיתם למה השקיפות היא הלב של הדמוקרטיה.", "imagePrompt": "Victory celebration inside Dr. Holo's glowing holographic laboratory, warm golden light, holographic confetti and triumphant light beams, five crystals shining at full brightness, {DR_HOLO} standing proudly at the center", "drHoloExpression": "a joyful, triumphant smile, beaming with pride" },
+  "endingBad": { "title": "כמעט שם", "narrative": "חזרתם למעבדה עם חלק מהראיות, אך לא הספקתם לחשוף את המזייף בזמן.", "drHoloDialog": "התקדמתם יפה! חסרו עוד כמה רסיסים כדי להרכיב את התמונה — בואו ננסה שוב.", "imagePrompt": "Dim, cold and somber holographic laboratory, faint flickering blue light, faded dull crystals, long shadows, a melancholic gray atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a tired, dejected and disappointed expression, looking weary" }
 }
 
 (בהדמיה עם מפתחות/מנעולים המבנה דומה אך מסועף — ראו HUB STRUCTURE; גם שם הבחירה הנעולה מובילה אל סצנת שיא נפרדת.)`
@@ -555,7 +553,7 @@ export function buildQuestPrompt(params: QuestGenerationParams): { system: strin
    - ${keyCount} בחירות — כל אחת מובילה למסלול מפתח שונה ונפרד
    - בחירה אחת נוספת — מובילה אל **סצנת המכשול** (ראו סעיף 2)
 2. **סצנת המכשול**: השער הנעול **לעולם לא יושב על ה-Hub עצמו!** צרו סצנת מכשול ייעודית, נפרדת מה-Hub:
-   - הנרטיב שלה מתאר את החסימה במפורש ("אתה מגיע אל דלת עץ ענקית. שומר חמוש עומד מולה ומסרב להזיז את ידו מהקת…")
+   - הנרטיב שלה מתאר את החסימה במפורש ("אתם מגיעים אל דלת עץ ענקית. שומר חמוש עומד מולה ומסרב להזיז את ידו מהקת…")
    - בה נמצאת הבחירה **הנעולה** עם "requiredItemIds" של כל ${keyCount} המפתחות + "unlockText" + **"nextSceneId" שמצביע על סצנת השיא** (ראו סעיף 3). אסור שהבחירה הנעולה תקפוץ ישר לסיום — היא נכנסת אל סצנת השיא שבה המשימה נפתרת.
    - וגם בחירה פתוחה לחזרה אל ה-Hub (nextSceneId אל ה-Hub)
 3. **סצנת השיא (CLIMAX)**: הסצנה שאליה מובילה הבחירה הנעולה — בה המשימה נפתרת בפועל, לפי כללי CLIMAX SCENE שב-ADVENTURE NARRATIVE STRUCTURE (לינארית, ללא choices וללא nextSceneId; רק אחריה הסיום).
@@ -568,7 +566,7 @@ export function buildQuestPrompt(params: QuestGenerationParams): { system: strin
 - מסלול א׳: שיחה עם סוקרטס → חידה → מוענקת "מגילת הפילוסוף" (ראיה ראשונה) → חזרה לאגורה
 - מסלול ב׳: ביקור באקלסיה → חידה → מוענק "אסימון ההצבעה" (ראיה שנייה) → חזרה לאגורה
 - סצנת המכשול "שער האקרופוליס": "שומר העיר חוסם את המעבר ומצביע על שני חותמים ריקים בשער…" — בחירה נעולה "להיכנס לאקרופוליס" (requiredItemIds: ["philosopher_scroll", "voting_token"], **nextSceneId: "scene_climax"**) + בחירה פתוחה "לחזור לאגורה" (nextSceneId: "hub_scene_id")
-- סצנת השיא "scene_climax" — "אולם המועצה": מול חברי הבולה אתה מציג את שתי הראיות וחושף את המזייף ברגע האחרון. המשימה הושלמה. **ללא choices וללא nextSceneId** → מעבר לסיום.
+- סצנת השיא "scene_climax" — "אולם המועצה": מול חברי הבולה אתם מציגים את שתי הראיות וחושפים את המזייף ברגע האחרון. המשימה הושלמה. **ללא choices וללא nextSceneId** → מעבר לסיום.
 
 ## קוהרנטיות נרטיבית של מנעול-ומפתח (קריטי!)
 1. כל מנעול = **מכשול מוחשי ומפורש** בנרטיב (דלת נעולה, שומר שדורש הוכחה, דרך חסומה, מנגנון חסר-חלק, טרמינל שדורש סיסמה) — לא "בחירה נעולה" סתם. נרטיב סצנת המכשול מתאר אותו **ורומז מה נדרש כדי לעבור** ("השומר מצביע על חותם ריק על השער…"), כך שמי שמגיע בלי המפתח מבין מה לחפש.

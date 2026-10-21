@@ -343,3 +343,6 @@ CREATE INDEX IF NOT EXISTS idx_content_safety_stage    ON content_safety_log(sta
 -- RLS: יומן אבטחה פנימי, גישה דרך השרת בלבד (service_role עוקף). default-deny.
 -- ראו migrations/rls_enable_exposed.sql.
 ALTER TABLE content_safety_log ENABLE ROW LEVEL SECURITY;
+
+-- 14) המרת הפנייה לתלמיד ללשון רבים — גרסאות קודמות לשחזור + רשימת "לבדיקה" (migrations/quest_address_conversion.sql)
+-- טבלה: quest_address_conversion (target quest|variant, status converted|review|restored, previous_game_data). RLS בלי policies (חסימה מלאה).

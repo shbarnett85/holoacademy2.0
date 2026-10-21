@@ -153,7 +153,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
               transition: 'box-shadow .2s',
             }}
           >
-            {status === 'completed' ? '▶ שחק שוב' : status === 'in_progress' ? '▶ המשך' : '▶ שחק'}
+            {status === 'completed' ? '▶ שחקו שוב' : status === 'in_progress' ? '▶ המשיכו' : '▶ שחקו'}
           </button>
         </div>
       </div>
@@ -216,7 +216,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 const STATUS_CHIPS: { key: StatusFilter; label: string; color: 'cyan' | 'green' | 'yellow' | 'purple' }[] = [
   { key: 'all',         label: 'הכל',       color: 'cyan'   },
   { key: 'new',         label: '✦ חדשות',   color: 'cyan'   },
-  { key: 'not_started', label: 'טרם התחלתי', color: 'purple' },
+  { key: 'not_started', label: 'טרם התחלתם', color: 'purple' },
   { key: 'in_progress', label: '↻ בתהליך',  color: 'yellow' },
   { key: 'completed',   label: '✓ הושלמו',  color: 'green'  },
 ]
@@ -247,7 +247,7 @@ export default function StudentHome() {
   useEffect(() => {
     if (!isLoggedIn) return
     const token = sessionStorage.getItem('holo_token')
-    if (!token) { setLoading(false); setDbgError('אין token בסשן — נסה להתחבר מחדש'); return }
+    if (!token) { setLoading(false); setDbgError('אין token בסשן — נסו להתחבר מחדש'); return }
     /* דגל ביטול — ניווט החוצה באמצע הטעינה לא יפעיל setState על קומפוננטה מנותקת */
     let cancelled = false
     fetch('/api/sessions/assigned', { headers: { Authorization: `Bearer ${token}` } })
@@ -487,7 +487,7 @@ export default function StudentHome() {
             <span style={{
               fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
               color: 'rgba(47,243,255,.5)', textTransform: 'uppercase', fontFamily: 'var(--font-display)',
-            }}>ההדמיות שלך</span>
+            }}>ההדמיות שלכם</span>
             <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left,rgba(47,243,255,.18),transparent)' }} />
             {!loading && (
               <span style={{ fontSize: 11, color: 'rgba(120,160,200,.4)', fontFamily: 'var(--font-display)' }}>
@@ -514,7 +514,7 @@ export default function StudentHome() {
             }}>
               <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem', filter: 'drop-shadow(0 0 12px rgba(47,243,255,.3))' }}>🚀</div>
               <p style={{ color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
-                עדיין לא הוקצו לך הדמיות
+                עדיין לא הוקצו לכם הדמיות
               </p>
               <p style={{ color: 'rgba(120,160,200,.35)', fontSize: 12, marginTop: 4 }}>המורה יעדכן בקרוב ✨</p>
             </div>

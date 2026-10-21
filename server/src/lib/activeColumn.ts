@@ -118,7 +118,7 @@ export async function hasQuestReports(): Promise<boolean> {
   return check('__quest_reports', () => supabaseAdmin.from('quest_reports').select('id').limit(1))
 }
 
-/* האם עמודת users.gender קיימת — מגדר תלמיד להתאמת פנייה */
+/* DEPRECATED: users.gender לא נאסף ולא נקרא יותר (לשון רבים אחידה). העמודה נשארת במסד עד מיגרציית מחיקה נפרדת אחרי השיגור. */
 export async function hasUserGender(): Promise<boolean> {
   return check('__user_gender', () => supabaseAdmin.from('users').select('gender').limit(1))
 }

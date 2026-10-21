@@ -240,8 +240,8 @@ export const generateRequestSchema = z.object({
   subjectCode: z.string({ error: 'יש לבחור מקצוע' }).refine(isSubjectCode, 'יש לבחור מקצוע מהרשימה'),
   /* legacy — מחרוזת חופשית מקליינטים ישנים; מתעלמים (לא מנחשים מקצוע ממנה) */
   subject: z.string().optional(),
-  /* צורת פנייה — ברירת מחדל plural (גרסה כיתתית/ניטרלית) */
-  formOfAddress: z.enum(['male', 'female', 'plural']).optional(),
+  /* פנייה לתלמיד: תמיד לשון רבים. קליינטים ישנים עוד עשויים לשלוח male/female — מתעלמים ומכריחים plural. */
+  formOfAddress: z.enum(['male', 'female', 'plural']).optional().transform(() => 'plural' as const),
   /* יעדי למידה (טקסט חופשי מהמורה / חילוץ AI) — השרת מקצה מזהים ומזריק לפרומפט */
   objectives: z.array(z.string().min(1).max(300)).max(8).optional(),
 })
@@ -374,13 +374,13 @@ export function checkAnswerConsistency(gd: GameData): { blocking: string[]; warn
 
 /* הוראת ברירת-מחדל ל-question בחידות מבוססות-משחק (שבהן question הוא הוראה גנרית, לא תוכן לימודי) */
 const PUZZLE_DEFAULT_QUESTION: Record<string, string> = {
-  tileSwap: 'השלם את התמונה',
-  slidingPuzzle: 'השלם את התמונה',
-  wordSearch: 'מצא את כל המילים המוסתרות',
-  memory: 'התאם בין הזוגות',
-  sequenceOrder: 'סדר את הפריטים בסדר הנכון',
-  wordCompletion: 'השלם את המילים החסרות',
-  hangman: 'נחש את המילה',
+  tileSwap: 'השלימו את התמונה',
+  slidingPuzzle: 'השלימו את התמונה',
+  wordSearch: 'מצאו את כל המילים המוסתרות',
+  memory: 'התאימו בין הזוגות',
+  sequenceOrder: 'סדרו את הפריטים בסדר הנכון',
+  wordCompletion: 'השלימו את המילים החסרות',
+  hangman: 'נחשו את המילה',
   finalQuiz: 'מבחן הסיכום',
 }
 

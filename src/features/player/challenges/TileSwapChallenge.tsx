@@ -196,7 +196,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
             onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
           >
-            אני מוותר/ת 🏳️
+            ויתור על האתגר 🏳️
           </button>
         )}
       </div>

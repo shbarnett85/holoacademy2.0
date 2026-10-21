@@ -141,7 +141,7 @@ describe('buildPresentation — שורת answers לכל סוג אתגר (משח�
     expect(a.outcome).toBe('wrong')
   })
 
-  it('TileSwap — "אני מוותר/ת" → gave_up (וב-events הישן עדיין puzzle_failed)', () => {
+  it('TileSwap — "ויתור על האתגר" → gave_up (וב-events הישן עדיין puzzle_failed)', () => {
     const { tel, step } = session()
     step(2000); tel.act('swap', { from: 0, to: 1, tiles: [1, 0], bad: true })
     step(500); tel.act('gave_up')

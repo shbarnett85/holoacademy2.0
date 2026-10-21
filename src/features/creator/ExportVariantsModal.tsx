@@ -3,9 +3,9 @@ import { apiJson } from '../../shared/lib/api'
 import { glass, micro } from './studioStyles'
 
 interface ClassOption { id: string; gradeLabel: string; name: string }
-interface StudentItem { id: string; name: string; gender?: string | null }
+interface StudentItem { id: string; name: string }
 type Status = 'pending' | 'working' | 'done' | 'error'
-interface Snapshot { textLevel: number; perPuzzleLevel?: Record<string, number>; gender?: string | null }
+interface Snapshot { textLevel: number; perPuzzleLevel?: Record<string, number> }
 
 interface Props {
   questId: string
@@ -18,9 +18,6 @@ const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 
 
 const statusColor = (s: Status) =>
   s === 'done' ? 'var(--t1)' : s === 'error' ? 'var(--t5)' : s === 'working' ? 'var(--t132)' : 'var(--t133)'
-
-const genderLabel = (g: string | null | undefined) =>
-  g === 'male' ? '♂' : g === 'female' ? '♀' : null
 
 export default function ExportVariantsModal({ questId, questTitle, onClose }: Props) {
   const [classes, setClasses] = useState<ClassOption[]>([])
@@ -151,7 +148,6 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 12px', borderRadius: 8, background: 'var(--t138)', border: '1px solid var(--t97)' }}>
                         <span style={{ fontSize: 15, color: 'var(--t139)' }}>○</span>
                         <span style={{ fontSize: 13.5, color: 'var(--t68)' }}>{s.name}</span>
-                        {genderLabel(s.gender) && <span style={{ fontSize: 10.5, color: s.gender === 'male' ? 'var(--t140)' : 'var(--t120)', marginRight: 'auto' }}>{genderLabel(s.gender)}</span>}
                       </div>
                     ))}
                   </div>
@@ -226,10 +222,9 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
                       {s.name}
                     </span>
                     {/* גנדר */}
-                    {genderLabel(s.gender) && <span style={{ fontSize: 10, color: s.gender === 'male' ? 'var(--t140)' : 'var(--t120)' }}>{genderLabel(s.gender)}</span>}
                     {/* פרטי snapshot / שגיאה */}
                     <span style={{ marginRight: 'auto', fontSize: 11, color: st === 'error' ? 'var(--t5)' : 'var(--t36)', whiteSpace: 'nowrap' }}>
-                      {st === 'done' && snap ? `רמה ${snap.textLevel}${snap.gender === 'male' ? ' · זכר' : snap.gender === 'female' ? ' · נקבה' : ''}` : ''}
+                      {st === 'done' && snap ? `רמה ${snap.textLevel}` : ''}
                       {st === 'error' ? 'שגיאה' : ''}
                       {st === 'working' ? WORK_MSGS[workMsgIdx] : ''}
                     </span>

@@ -7,7 +7,7 @@ import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoClassesV2, demoRosterV2 } from '../lib/analyticsV2/demoRoster.js'
 import { v2LinkFor } from '../lib/staffV2Link.js'
-import { hasIsActive, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { hasIsActive, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
 import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
 import { subjectByCode, subjectById } from '../lib/subjects.js'
@@ -509,7 +509,6 @@ staffRouter.get('/students', async (req, res, next) => {
     /* מצב הדגמה — תלמידי עולם ההדגמה של האנליטיקה (אותם מזהים, כדי שהמעבר לעמוד התלמיד/ה לא יחזיר 404) */
     if (isDemoGuest(req)) { res.json({ ...demoRosterV2(new Date()), ...link }); return }
     const withGrade = await hasGradeLabel()
-    const withGender = await hasUserGender()
     const withActive = await hasIsActive('users')
 
     /* כיתות נגישות */
@@ -530,12 +529,11 @@ staffRouter.get('/students', async (req, res, next) => {
     /* תלמידי הכיתות */
     const sCols = ['id', 'name', 'role', 'pin']
     if (withActive) sCols.push('is_active')
-    if (withGender) sCols.push('gender')
     if (await hasFictitious()) sCols.push('is_fictitious')
     const sel: string = `class_id, users(${sCols.join(', ')})`
     const { data: membersRaw, error: mErr } = await supabaseAdmin.from('class_members').select(sel).in('class_id', classIds)
     if (mErr) throw new AppError(500, 'שגיאה בשליפת תלמידים: ' + mErr.message)
-    type SUser = { id: string; name: string; role: string; pin?: string | null; is_active?: boolean; gender?: string | null; is_fictitious?: boolean }
+    type SUser = { id: string; name: string; role: string; pin?: string | null; is_active?: boolean; is_fictitious?: boolean }
     const members = (membersRaw ?? []) as unknown as { class_id: string; users: SUser | SUser[] | null }[]
 
     const students = members
@@ -549,7 +547,6 @@ staffRouter.get('/students', async (req, res, next) => {
           class: (withGrade ? c?.grade_label : null) ?? c?.name ?? '',
           classCode: c?.url_code ?? '',
           secret: u.pin ?? null,
-          gender: u.gender ?? null,
           isActive: u.is_active !== false,
           isFictitious: u.is_fictitious === true,
           lastActive: null as string | null,
@@ -581,10 +578,8 @@ staffRouter.get('/classes/:id/students', async (req, res, next) => {
   try {
     await loadClassForAccess(req, req.params.id)
     const withActive = await hasIsActive('users')
-    const withGender = await hasUserGender()
     const cols = ['id', 'name', 'role']
     if (withActive) cols.push('is_active')
-    if (withGender) cols.push('gender')
     if (await hasFictitious()) cols.push('is_fictitious')
     const sel: string = `users(${cols.join(', ')})`
     const { data: membersRaw, error } = await supabaseAdmin
@@ -592,13 +587,13 @@ staffRouter.get('/classes/:id/students', async (req, res, next) => {
       .select(sel)
       .eq('class_id', req.params.id)
     if (error) throw new AppError(500, 'שגיאה בשליפת תלמידים: ' + error.message)
-    type UserRow = { id: string; name: string; role: string; is_active?: boolean; gender?: string | null; is_fictitious?: boolean }
+    type UserRow = { id: string; name: string; role: string; is_active?: boolean; is_fictitious?: boolean }
     const members = (membersRaw ?? []) as unknown as { users: UserRow | UserRow[] }[]
     const students = members
       .map((m) => (Array.isArray(m.users) ? m.users[0] : m.users))
       .filter(Boolean)
       .filter((u: { role: string }) => u.role === 'student')
-      .map((u: UserRow) => ({ id: u.id, name: u.name, is_active: u.is_active !== false, gender: u.gender ?? null, is_fictitious: u.is_fictitious === true }))
+      .map((u: UserRow) => ({ id: u.id, name: u.name, is_active: u.is_active !== false, is_fictitious: u.is_fictitious === true }))
     res.json({ students })
   } catch (err) {
     next(err)
@@ -606,12 +601,11 @@ staffRouter.get('/classes/:id/students', async (req, res, next) => {
 })
 
 /* יצירת תלמיד בודד ברשומת users + class_members; מחזיר PIN */
-async function createStudent(name: string, schoolId: string | null, classId: string, gender?: 'male' | 'female' | null): Promise<{ id: string; name: string; pin: string }> {
+async function createStudent(name: string, schoolId: string | null, classId: string): Promise<{ id: string; name: string; pin: string }> {
   const pin = rndPin()
   const withActive = await hasIsActive('users')
   const payload: Record<string, unknown> = { name, role: 'student', pin, school_id: schoolId }
   if (withActive) payload.is_active = true
-  if (gender && (await hasUserGender())) payload.gender = gender
   const { data: student, error } = await supabaseAdmin.from('users').insert(payload).select('id, name').single()
   if (error || !student) throw new AppError(500, 'יצירת התלמיד נכשלה: ' + (error?.message ?? ''))
   const { error: mErr } = await supabaseAdmin.from('class_members').insert({ class_id: classId, user_id: student.id })
@@ -622,14 +616,15 @@ async function createStudent(name: string, schoolId: string | null, classId: str
   return { id: student.id, name: student.name, pin }
 }
 
-const addStudentSchema = z.object({ name: z.string().min(1), gender: z.enum(['male', 'female']).nullable().optional() })
+/* מגדר התלמיד לא נאסף יותר (לשון רבים אחידה) — שדה gender מקליינט ישן מתעלמים ממנו */
+const addStudentSchema = z.object({ name: z.string().min(1) })
 
 staffRouter.post('/classes/:id/students', async (req, res, next) => {
   try {
     const cls = await loadClassForAccess(req, req.params.id)
     const parsed = addStudentSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'חסר שם תלמיד')
-    const created = await createStudent(parsed.data.name.trim(), cls.school_id, cls.id, parsed.data.gender ?? null)
+    const created = await createStudent(parsed.data.name.trim(), cls.school_id, cls.id)
     res.status(201).json({ ok: true, student: created })
   } catch (err) {
     next(err)
@@ -693,7 +688,6 @@ staffRouter.post('/students/:id/reactivate', async (req, res, next) => {
 const patchStudentSchema = z.object({
   name: z.string().min(1).optional(),
   moveToClassId: z.string().uuid().optional(),
-  gender: z.enum(['male', 'female']).nullable().optional(),
 })
 
 staffRouter.patch('/students/:id', async (req, res, next) => {
@@ -704,10 +698,6 @@ staffRouter.patch('/students/:id', async (req, res, next) => {
     if (parsed.data.name !== undefined) {
       const { error } = await supabaseAdmin.from('users').update({ name: parsed.data.name }).eq('id', req.params.id)
       if (error) throw new AppError(500, 'שגיאה בעדכון השם: ' + error.message)
-    }
-    if (parsed.data.gender !== undefined && (await hasUserGender())) {
-      const { error } = await supabaseAdmin.from('users').update({ gender: parsed.data.gender }).eq('id', req.params.id)
-      if (error) throw new AppError(500, 'שגיאה בעדכון המגדר: ' + error.message)
     }
     if (parsed.data.moveToClassId) {
       await loadClassForAccess(req, parsed.data.moveToClassId) /* ודא גישה ליעד */

@@ -8,6 +8,7 @@ import type { GameData } from './questSchemas.js'
 import { lintDetachedClitics, lintHighRegister, lintKnownErrors, lintRepetition } from './questSchemas.js'
 import { runOutputSafetyCheck } from './contentSafety.js'
 import { runFactCheck } from './factCheck.js'
+import { lintStudentAddress } from './studentAddress.js'
 import { analyzeScene, anchorsOf, shortenWithLlm, verifyShortened, type ShortenFn } from './sceneFit.js'
 
 type Scene = GameData['scenes'][number]
@@ -65,7 +66,7 @@ export async function proposeSceneShortening(scene: Scene, opts: { level: number
   const safety = await runOutputSafetyCheck(tmp).catch(() => ({ blocked: true, technical: true }) as { blocked: boolean; technical?: boolean })
   if (safety.blocked) return { needed: true, ok: false, reasons: ['לא ניתן להציע קיצור לטקסט הזה'], before }
 
-  const grammar = [...lintDetachedClitics(tmp), ...lintHighRegister(tmp, opts.level), ...lintKnownErrors(tmp), ...lintRepetition(tmp)].map((x) => x.problem)
+  const grammar = [...lintDetachedClitics(tmp), ...lintHighRegister(tmp, opts.level), ...lintKnownErrors(tmp), ...lintRepetition(tmp), ...lintStudentAddress(tmp)].map((x) => x.problem)
   const facts = await runFactCheck(tmp).then((r) => r.errors.map((e) => e.problem)).catch(() => [] as string[])
 
   return {

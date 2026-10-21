@@ -348,7 +348,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
         const missing = required.filter((id) => !inventory.some((i) => i.id === id))
         flashMessage(
           missing.length > 0
-            ? `🔒 השער נעול! חסר לך: ${missing.map(itemNameById).join(', ')}`
+            ? `🔒 השער נעול! חסר לכם: ${missing.map(itemNameById).join(', ')}`
             : '🔒 השער נעול — לחצו על החפץ המתאים בתיק למטה',
         )
         setShakeGate(true)
@@ -386,7 +386,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       if (hasItem) {
         flashMessage(`🔒 השער נעול — לחצו על ${itemNameById(requiredId)} בתיק כדי לפתוח`)
       } else {
-        flashMessage(`🔒 השער נעול! חסר לך: ${itemNameById(requiredId)}`)
+        flashMessage(`🔒 השער נעול! חסר לכם: ${itemNameById(requiredId)}`)
       }
       setShakeGate(true)
       setTimeout(() => setShakeGate(false), 500)

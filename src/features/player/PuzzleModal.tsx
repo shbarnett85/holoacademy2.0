@@ -142,12 +142,12 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     if (type === 'finalQuiz') {
       const n = puzzle.questions?.length ?? 0
       const correctCount = Math.round(res.score * n)
-      header = `ענית נכון על ${correctCount} מתוך ${n}`
+      header = `עניתם נכון על ${correctCount} מתוך ${n}`
       body =
         res.score === 1
           ? 'מבחן מושלם! שליטה מלאה בחומר! 🌟'
           : res.score >= 0.5
-            ? 'כל הכבוד — תפסת את עיקרי החומר!'
+            ? 'כל הכבוד — תפסתם את עיקרי החומר!'
             : 'שווה לחזור על החומר ולנסות שוב במסע הבא.'
     } else if (type === 'multipleChoice' || type === 'trueFalse' || type === 'wordCompletion' || !type) {
       header = good ? '✓ תשובה נכונה! 💎' : '✗ לא בדיוק…'
@@ -160,7 +160,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
           (correctText ? `התשובה הנכונה היא: ${correctText}` : 'נסו לזכור להבא!'))
     } else {
       /* אתגרים אינטראקטיביים (פאזל/חיפוש/זיכרון) */
-      header = good ? '✓ כל הכבוד! פתרת את האתגר 💎' : '✗ האתגר לא הושלם'
+      header = good ? '✓ כל הכבוד! פתרתם את האתגר 💎' : '✗ האתגר לא הושלם'
       body = good ? 'מעולה! ממשיכים הלאה 🌟' : 'לא נורא — אפשר לנסות שוב במסע הבא.'
     }
 

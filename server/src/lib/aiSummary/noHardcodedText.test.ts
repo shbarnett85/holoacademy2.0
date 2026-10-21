@@ -35,14 +35,14 @@ describe('שירות הסיכום: אין טקסט קשיח', () => {
     }
   })
 
-  it('deps.ts הוא החיבור היחיד לספקים; אין בו מנוע מודל, אין בו כללי הרשאה משלו (הכול מ-access / authz / הספק), והוא לא קורא ל-DB חוץ ממגדר', () => {
+  it('deps.ts הוא החיבור היחיד לספקים; אין בו מנוע מודל, אין בו כללי הרשאה משלו (הכול מ-access / authz / הספק), והוא לא קורא ל-DB כלל (מגדר התלמיד deprecated ולא נקרא)', () => {
     const code = strip(readFileSync(here('./deps.ts'), 'utf8'))
     expect(code).not.toMatch(/from\s+['"][^'"]*\/(llm|gemini|claude|modelRouter)\.js['"]/)
     expect(code).not.toMatch(/callGemini|callClaude|claude\.messages|engineFor/)
     /* הרשאה: אין השוואת role / grants ידנית — רק פונקציות ההרשאה המרכזיות */
     expect(code).not.toMatch(/\.role\s*[!=]==|\.grants\b|classGrants|homeroom\s*===/)
-    expect(code.match(/supabaseAdmin\s*\.from\(/g) ?? []).toHaveLength(1)
-    expect(code).toMatch(/supabaseAdmin\s*\.from\('users'\)\s*\.select\('gender'\)/)
+    expect(code.match(/supabaseAdmin\s*\.from\(/g) ?? []).toHaveLength(0)
+    expect(code).not.toMatch(/select\('gender'\)|hasUserGender/)
   })
 
   it('הקבצים טהורים מ-Date.now / Math.random בלוגיקה (השעון מוזרק)', () => {

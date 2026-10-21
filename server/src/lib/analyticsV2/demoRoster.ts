@@ -17,7 +17,6 @@ export interface DemoRosterRow {
   class: string
   classCode: string
   secret: string
-  gender: 'male' | 'female'
   isActive: true
   lastActive: string | null
 }
@@ -38,7 +37,7 @@ export function demoRosterV2(now: Date = new Date()): { students: DemoRosterRow[
     }
     return {
       id: st.id, name: st.displayName, classId: cls.id, class: cls.gradeLabel, classCode: DEMO_CLASS.urlCode,
-      secret: demoPin(i), gender: st.gender, isActive: true, lastActive: last,
+      secret: demoPin(i), isActive: true, lastActive: last,
     }
   })
   return { students }

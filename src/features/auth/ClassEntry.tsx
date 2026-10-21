@@ -91,8 +91,8 @@ export default function ClassEntry() {
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'rgba(47,243,255,.6)', marginBottom: 10 }}>
           ◇ {info.school.name} · כיתה {info.class.name}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>מי את/ה?</div>
-        <div style={{ fontSize: 13, color: 'rgba(160,200,240,.5)', marginBottom: 20 }}>בחר/י את השם שלך</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>מי אתם?</div>
+        <div style={{ fontSize: 13, color: 'rgba(160,200,240,.5)', marginBottom: 20 }}>בחרו את השם שלכם</div>
 
         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {info.students.length === 0 && <p style={{ color: 'rgba(160,200,240,.5)' }}>אין תלמידים בכיתה זו.</p>}

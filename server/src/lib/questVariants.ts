@@ -5,7 +5,7 @@ import { extractJson, puzzleObjectSchema, type GameData, type PuzzleObj } from '
 import { nakdan } from './dicta.js'
 import { clampLevel, scaleHangman, scaleFinalQuiz, narrativeStyleSpec, maxSentenceWords } from '../../../src/shared/lib/difficultyScaling.js'
 import { levelToGradeLabel } from '../../../src/shared/lib/difficultyCalibration.js'
-import { formOfAddressRule, puzzleDataSpec, difficultyHeader, type FormOfAddress } from '../prompts/questPrompt.js'
+import { STUDENT_ADDRESS_RULE, puzzleDataSpec, difficultyHeader, type FormOfAddress } from '../prompts/questPrompt.js'
 import { debug, error as logError } from './log.js'
 
 /* ── וריאציה אישית ממוגדרת: שכתוב כל הטקסט הפונה לתלמיד לצורת פנייה נבחרת ──
@@ -85,27 +85,10 @@ function applyAddressText(gd: GameData, rew: Record<string, string>): void {
   if (eb) { const n = str('end:bad:narrative'); if (n) eb.narrative = n; const d = str('end:bad:dlg'); if (d) eb.drHoloDialog = d }
 }
 
-/* יצירת וריאציה אישית ממוגדרת מתוך game_data בסיסי (פנייה plural). best-effort דרך haiku. */
-export async function rephraseForAddress(base: GameData, form: FormOfAddress): Promise<GameData> {
-  const variant = JSON.parse(JSON.stringify(base)) as GameData
-  if (form === 'plural') return variant /* הבסיס כבר ניטרלי/רבים */
-  const texts = collectAddressText(variant)
-  const keys = Object.keys(texts)
-  if (keys.length === 0) return variant
-  const instruction = `${formOfAddressRule(form)}
-
-לפניך אובייקט JSON של מקטעי טקסט בעברית מתוך הדמיה חינוכית (key→טקסט). שכתב כל ערך כך שהפנייה לתלמיד תהיה בצורה הנדרשת בלבד — **שמור על אותה משמעות, אותו אורך בקירוב, אותן עובדות ואותו סגנון**. שנה אך ורק את הצורה הדקדוקית של הפנייה (גוף שני). אל תשנה שמות, מספרים, מושגים או עובדות.
-החזר JSON תקין בלבד עם **אותם keys בדיוק**, כל ערך הוא הטקסט המשוכתב. ללא טקסט נוסף.
-
-${JSON.stringify(texts, null, 0)}`
-  try {
-    const out = engineFor('rephrase') === 'gemini' ? await callGeminiText(instruction, 8000, true) : await callHaiku([{ role: 'user', content: instruction }], 8000)
-    const rew = extractJson(out) as Record<string, string>
-    if (rew && typeof rew === 'object') applyAddressText(variant, rew)
-  } catch (err) {
-    logError('[personalize] שכתוב הפנייה נכשל:', err instanceof Error ? err.message : err)
-  }
-  return variant
+/* לשון רבים אחידה: אין עוד שכתוב ממוגדר/יחיד. הפונקציה נשארת (נתיב /personalize) ומחזירה עותק של הבסיס,
+   שכבר פונה בלשון רבים. המרת תוכן ישן ללשון רבים נעשית בסקריפט ייעודי (scripts/pluralizeLibrary.ts). */
+export async function rephraseForAddress(base: GameData, _form: FormOfAddress = 'plural'): Promise<GameData> { // eslint-disable-line @typescript-eslint/no-unused-vars
+  return JSON.parse(JSON.stringify(base)) as GameData
 }
 
 /* ── וריאציה מותאמת-תלמיד ── */
@@ -275,7 +258,7 @@ async function regeneratePuzzles(
   })
   if (jobs.length === 0) return
 
-  const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם), ללא לוכסנים.'
+  const genderLine = STUDENT_ADDRESS_RULE
   const avgLevel = Math.round(jobs.reduce((a, j) => a + j.level, 0) / jobs.length)
 
   /* ── system מקושש (cache_control): כללי הזהב הקבועים + האתגרים המקוריים — זהים בין כל
@@ -358,7 +341,7 @@ export async function enforceNarrativePhrasing(gd: GameData, scaleLevel: number,
   }
   const keys = Object.keys(offending)
   if (keys.length === 0) { debug('[phrasing:enforce] level', scaleLevel, 'limit', limit, '— הכל תקין'); return 0 }
-  const genderLine = form !== 'plural' ? formOfAddressRule(form) : 'פנייה בלשון רבים ניטרלית (אתם/כם).'
+  const genderLine = STUDENT_ADDRESS_RULE
   const instruction = `המקטעים הבאים (JSON של key→טקסט) מנוסחים מורכב מדי לרמת הקריאה הנדרשת. פשט **רק את הניסוח** (אורך משפט, תחביר, אוצר מילים):
 ${narrativeStyleSpec(scaleLevel)}
 ${genderLine}
@@ -399,9 +382,7 @@ export async function buildStudentVariant(
   debug('[variant:build]', { textLevel, form, textCount: Object.keys(texts).length, willCallHaiku: Object.keys(texts).length > 0 })
   /* ── /DIAG ── */
   if (Object.keys(texts).length > 0) {
-    const genderLine = form !== 'plural'
-      ? `\n${formOfAddressRule(form)}`
-      : '\nפנייה בלשון רבים ניטרלית (אתם/כם).'
+    const genderLine = `\n${STUDENT_ADDRESS_RULE}`
     const header = `אתה מתאים את הנרטיב של הדמיה חינוכית בעברית לתלמיד ספציפי.
 
 **רמת הקריאה: ${readingLevelDescriptor(textLevel)}**${genderLine}
@@ -412,7 +393,7 @@ export async function buildStudentVariant(
 • התאם את מורכבות השפה **בפועל** לרמת הקריאה שלמעלה — ברמה נמוכה מילים יסודיות ומשפטים קצרים, לא רק "ניסוח קל" של טקסט מורכב.
 • **קריטי**: השפה חייבת להישאר עברית **תקנית, זורמת וטבעית** — פשוטה כמו ספר ילדים איכותי, **לא** קטועה, לא "טלגרפית", בלי דקדוק משובש או ניסוח עילג. עדיף משפט שלם ופשוט על פני כמה מילים מקוטעות.
 • **אסור לעוות מונחים**: מונח מקצועי (פיננסי/מדעי/היסטורי וכו') חייב להישאר מדויק. אל "תפשט" מונח לג'יבריש (למשל "נייר ערך לטווח ארוך" → לעולם לא "נייר לנשום ארוך"). אם מונח מורכב מדי — השאר את המונח הנכון והוסף הסבר קצר ופשוט לידו, או החלף במונח פשוט **ונכון** במשמעותו. בשום אופן לא ביטוי חסר-משמעות.
-• שנה רק רמת הניסוח וצורת הפנייה הדקדוקית — לא תוכן, לא שמות, לא עובדות.`
+• שנה רק רמת הניסוח ושמור על פנייה בלשון רבים בלבד — לא תוכן, לא שמות, לא עובדות.`
 
     /* שכתוב מפה של key→טקסט. מחזיר את המפה המשוכתבת (best-effort). */
     const rewriteBatch = async (batch: Record<string, string>): Promise<Record<string, string>> => {
