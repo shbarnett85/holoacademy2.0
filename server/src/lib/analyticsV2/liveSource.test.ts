@@ -156,7 +156,8 @@ describe('liveSource — שאר חלקי הממשק', () => {
     store['c-a'] = richClass('c-a', { detailAvailableFrom: '2026-02-01T00:00:00Z' })
     const v = viewer({ classGrants: [grant('c-a'), grant('c-b')] })
     const a = await liveSource.analysis(v, NOW)
-    expect(liveSource.coverage(v, a)).toEqual({ unclassifiedSessions: 2, detailAvailableFrom: '2026-02-01T00:00:00Z' })
+    /* קטלוג ריק (אין תיוג בנתוני הבדיקה) מסומן ב-catalogEmpty */
+    expect(liveSource.coverage(v, a)).toEqual({ unclassifiedSessions: 2, detailAvailableFrom: '2026-02-01T00:00:00Z', catalogEmpty: true })
     const c = a.coverage as LiveCoverage
     expect(c.sessionsUsed).toBe(6)
     expect(c.catalogEmpty).toBe(true)

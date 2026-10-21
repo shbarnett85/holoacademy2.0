@@ -444,9 +444,10 @@ describe('חישובי תצוגה טהורים (derive)', () => {
 describe('תבניות עברית פשוטה', () => {
   it('מגמה במילים כפי שהוגדר, וספירות כ"X מתוך Y"', () => {
     expect(TREND_TEXT).toEqual({ improving: 'משתפר/ת', steady: 'יציב/ה', declining: 'בירידה', insufficient: 'אין עדיין מספיק נתונים' })
-    expect(unitCount('level_trend', 1)).toBe('הדמיה אחת')
-    expect(unitCount('level_trend', 10)).toBe('10 הדמיות')
-    expect(basisLine(unitCount('level_trend', 10), '2025-12-01T12:00:00Z', '2026-10-01T12:00:00Z')).toBe('מבוסס על 10 הדמיות, מדצמבר 2025 עד אוקטובר 2026')
+    /* G1 (UX#21): היחידה במסכי האנליטיקה היא משחק (פעם ששיחקו); "הדמיה" שמורה לתוכן */
+    expect(unitCount('level_trend', 1)).toBe('משחק אחד')
+    expect(unitCount('level_trend', 10)).toBe('10 משחקים')
+    expect(basisLine(unitCount('level_trend', 10), '2025-12-01T12:00:00Z', '2026-10-01T12:00:00Z')).toBe('מבוסס על 10 משחקים, מדצמבר 2025 עד אוקטובר 2026')
     const t = narrateInsufficient('memory_random_pattern', 'n_below_min', 3, 6, { studentName: 'דנה', subjectName: 'מדעים' })
     expect(t).toContain('אין עדיין מספיק נתונים')
     expect(t).toContain('3 משחקי זיכרון')

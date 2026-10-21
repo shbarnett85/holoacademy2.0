@@ -3,8 +3,9 @@
    שכבת-על (SummaryOverlay) וכרטיס מוטמע בטאב "במבט אחד" בתוצאות (compact).
    מצבים (proposal סעיף 3): אין סיכום · לא מספיק נתונים · כותב · מוכן (ב-AI / תבניתי / הדגמה) · עריכה · שגיאה.
      · לא מספיק נתונים: הכפתור מושבת והסיבה כתובה לידו — לא מוסתר.
-     · מוכן: פסקאות 17px, מתחתיהן "נכתב על ידי ד״ר הולו (בינה מלאכותית)" / "סיכום אוטומטי מהנתונים" באייקון+מילה, "נערך על ידך", "מבוסס על…", תאריך,
-       וההסתייגות הקבועה (מהשרת, לא מה-AI). כל כפתור עם מילה, 44px לפחות. "איך נכתב הסיכום?" מקופל.
+     · מוכן: מעל הטקסט "נכתב על ידי ד״ר הולו (בינה מלאכותית)" / "סיכום אוטומטי מהנתונים" באייקון+מילה, "נערך על ידך" ותאריך הכתיבה; פסקאות 17px;
+       מתחתיהן "מבוסס על…" וההסתייגות הקבועה (מהשרת, לא מה-AI). כל כפתור עם מילה, 44px לפחות. "איך נכתב הסיכום?" מקופל.
+       סיכום שלא נשמר בשרת: ההודעה אומרת מה עושים, וכפתורי הייצוא וההדפסה מודגשים.
      · הדגמה (אורח / ארגון הדגמה): "זה סיכום הדגמה", בלי שמירה, בלי עריכה.
    הפאנל לא מחליט הרשאות: השרת מחליט, והפאנל מציג את התשובה (או שגיאה בעברית פשוטה). הטקסטים: findingsNarrative.
    הפרדה: useAiSummary (מצב + רשת) ↔ AiSummaryView (תצוגה בלבד, נבדקת עם מצב קבוע).
@@ -119,6 +120,8 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
   }
   const date = formatSummaryDate(s.generatedAt)
   const busy = model.writing || model.saving
+  /* הסיכום מוצג אך לא נשמר במערכת (לפני המיגרציה / כשל שמירה): הוא ייעלם עם סגירת המסך */
+  const keepNote = !model.demo && !model.persisted && !!model.persistenceNote
   const confirmId = useId()
   /* הכפתור שנלחץ ("כתבו לי סיכום" / "שמירה") נעלם כשהמצב מתחלף — הפוקוס עובר לטקסט (קורא מסך מקריא אותו) ולא הולך לאיבוד */
   const textRef = useRef<HTMLDivElement>(null)
@@ -132,23 +135,25 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
   return (
     <>
       {s.notice && <Line icon="info">{s.notice}</Line>}
-      {!model.demo && !model.persisted && model.persistenceNote && <Line icon="info">{model.persistenceNote}</Line>}
+      {/* מי כתב — מעל הטקסט, כדי שהמורה תדע מי כתב לפני שהיא קוראת (אייקון + מילים) */}
+      {showAuthor && (
+        <div style={row} data-ai-author>
+          <AuthorLabel s={s} demo={model.demo} />
+          {s.edited && <EditedBadge />}
+        </div>
+      )}
       {/* תאריך הכתיבה בולט, מעל הטקסט: סיכום ישן לא נראה כעדכני. ואם ייתכן שהנתונים השתנו — נאמר במילים, עם אייקון */}
       {date && <p data-ai-written style={{ ...soft, fontWeight: 800, color: T.text }}>{AI_SUMMARY_HARDENING_TEXT.writtenOn(date)}</p>}
       {s.stale && <Line icon="alert" role="status" accent={T.warn}>{AI_SUMMARY_HARDENING_TEXT.stale}</Line>}
       <div ref={textRef} tabIndex={-1} data-ai-text style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 780, outline: 'none' }}>
         {s.paragraphs.map((p, i) => <p key={i} style={paragraph}>{p}</p>)}
       </div>
-      {showAuthor && (
-        <div style={row}>
-          <AuthorLabel s={s} demo={model.demo} />
-          {s.edited && <EditedBadge />}
-        </div>
-      )}
       <p data-ai-basis style={soft}>{s.basisText}</p>
       <p data-ai-caveat style={soft}>{s.caveat}</p>
       {model.writing && <p role="status" style={{ ...soft, fontWeight: 700, color: T.text }}>{T_UI.writing}</p>}
       {model.error && model.error.action !== 'save' && <Line icon="alert" role="alert" accent={T.bad}>{model.error.message}</Line>}
+      {/* הסיכום לא נשמר בשרת: אומרים מה עושים (מיוצאים או מדפיסים לפני הסגירה), ושני הכפתורים האלה מודגשים */}
+      {keepNote && <Line icon="info" role="status">{model.persistenceNote}</Line>}
       {model.confirmRegen ? (
         /* כתיבה מחדש מוחקת את עריכת המורה: במקום שורת הפעולות — אישור במילים, שני כפתורים. ברירת המחדל (הראשון) היא להשאיר את העריכה */
         <div className="v2-noprint" role="group" aria-labelledby={confirmId} data-ai-confirm style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 8, border: `2px solid ${T.controlBorder}`, borderRadius: 12, padding: '10px 14px' }}>
@@ -162,8 +167,8 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
       ) : (
         <div className="v2-noprint" style={row} data-ai-actions>
           {model.canEdit && <Button onClick={actions.editStart} disabled={busy}>{T_UI.edit}</Button>}
-          <Button onClick={() => exportSummaryToWord(doc)}>{T_UI.exportWord}</Button>
-          <Button onClick={() => printSummary(doc)}>{T_UI.print}</Button>
+          <Button kind={keepNote ? 'primary' : 'secondary'} onClick={() => exportSummaryToWord(doc)}>{T_UI.exportWord}</Button>
+          <Button kind={keepNote ? 'primary' : 'secondary'} onClick={() => printSummary(doc)}>{T_UI.print}</Button>
           {model.canRegenerate && <Button onClick={actions.regenerate} disabled={busy}>{T_UI.regenerate}</Button>}
           {model.canRetryAi && <Button kind="primary" onClick={actions.regenerate} disabled={busy}>{T_UI.retryAi}</Button>}
         </div>

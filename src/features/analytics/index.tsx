@@ -37,6 +37,12 @@ function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: Re
     <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={breadcrumb}>
       <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
       {notice}
+      {/* נפתח בבחירה מפורשת ("התצוגה הקודמת"): הערת הקשר בראש המסך — מה זה ושהוא זמני. המסך עצמו לא שונה */}
+      {backTo && (
+        <p data-previous-view-notice style={{ margin: 0, alignSelf: 'stretch', maxWidth: 1100, padding: '10px 14px', borderRadius: RADIUS.md, background: T.surface, border: `1px solid ${T.border}`, borderInlineStart: `6px solid ${T.accent}`, fontFamily: FONT, fontSize: 16, lineHeight: 1.5, color: T.text }}>
+          {V2_CLIENT_TEXT.previous.notice}
+        </p>
+      )}
       {backTo && (
         <div style={{ alignSelf: 'flex-start' }}>
           <Link to={backTo} data-tu-press

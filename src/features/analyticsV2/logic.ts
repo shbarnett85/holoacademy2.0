@@ -3,6 +3,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { AI_SUMMARY_PANEL_TEXT, V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import type { Briefing, Roster, StudentFeedback } from '../../shared/types/analyticsV2'
+import { bySubjectOrder } from '../teacherUi/subjectOrder'
 
 /* ── שכבות-על בכתובת: ?brief=student:<id> · ?sum=class:<id> ── */
 export const BRIEF_SCOPES = ['student', 'class'] as const
@@ -22,12 +23,38 @@ export function parseScopeId<S extends string>(value: string | null, scopes: rea
 }
 
 /* ── כניסה (בחרו כיתה) ── */
-export type EntryClassState = 'noResults' | 'attention' | 'clear'
+export type EntryClassState = 'noOpenSubject' | 'noResults' | 'attention' | 'thin' | 'clear'
 
-/** מצב כרטיס כיתה: "עוד אין תוצאות" אינו "אין תלמידים לתשומת לב" — הראשון חסר נתונים, השני דיווח חיובי */
-export function entryClassState(c: { hasResults: boolean; attentionCount: number }): EntryClassState {
+/** מצב כרטיס כיתה: "עוד אין תוצאות" אינו "אין תלמידים לתשומת לב" — הראשון חסר נתונים, השני דיווח חיובי.
+    · noOpenSubject: שיוך לכיתה בלי מקצוע פתוח (ובלי חינוך) — הסיבה היא "המקצוע שלכם עוד לא הוגדר", לא "עוד לא שיחקו";
+    · thin: אין תלמידים לתשומת לב אבל אין בסיס לומר זאת (נבדקו מעט תלמידים) — תג ניטרלי עם basisNote מהחוזה, לא וי ירוק. */
+export function entryClassState(c: { hasResults: boolean; attentionCount: number; noOpenSubject?: boolean; basisNote?: string | null }): EntryClassState {
+  if (c.noOpenSubject) return 'noOpenSubject'
   if (c.attentionCount > 0) return 'attention'
-  return c.hasResults ? 'clear' : 'noResults'
+  if (!c.hasResults) return 'noResults'
+  return c.basisNote ? 'thin' : 'clear'
+}
+
+/** תפקיד הצופה בכיתה, לתג בכרטיס הכיתה: "מחנך/ת" · "מורה מקצוע: מתמטיקה, עברית" · null כשאין מקצוע פתוח.
+    ההבדל בין תפקידים (מחנך בכיתה אחת, מורה מקצועי באחרת) נקבע לפי הכיתה, ולכן הוא גלוי כבר בכרטיס — לפני הלחיצה. */
+export function entryRoleText(c: Pick<RosterClass, 'isHomeroom' | 'subjects'> | undefined): string | null {
+  if (!c) return null
+  if (c.isHomeroom) return V2_CLIENT_TEXT.entry.roleHomeroom
+  const names = bySubjectOrder([...c.subjects]).map((s) => s.nameHe)
+  return names.length > 0 ? V2_CLIENT_TEXT.entry.roleSubject(names.join(', ')) : null
+}
+
+/** הכיתה היחידה שיש בה תלמידים לתשומת לב — אליה מובילה "ועוד N תלמידים בכיתה". כשיש כמה כיתות כאלה (או אף אחת) אין יעד אחד, ולכן אין קישור */
+export function alertsMoreClassId(classes: readonly { id: string; attentionCount: number }[]): string | null {
+  const flagged = classes.filter((c) => c.attentionCount > 0)
+  return flagged.length === 1 ? flagged[0].id : null
+}
+
+/** איפה מוצג "התצוגה הקודמת" במסך הכניסה. כשיש כיתות וכולן "עוד אין תוצאות", התצוגה החדשה ריקה והקודמת היא המקום היחיד שיש בו מה לראות — אז היא כפתור גלוי
+    בראש המסך. כשיש תוצאות היא הפעולה המשנית בתחתית. */
+export type PreviousViewPlacement = 'top' | 'bottom'
+export function previousViewPlacement(classes: readonly { hasResults: boolean }[]): PreviousViewPlacement {
+  return classes.length > 0 && classes.every((c) => !c.hasResults) ? 'top' : 'bottom'
 }
 
 /** "התצוגה הקודמת" (גרף ההתקדמות הכללי) מוצעת רק למורה אמיתי: לא לאורח (ההדגמה מציגה רק את החדש) ולא למנהל/ת (אגרגטים בלבד) */

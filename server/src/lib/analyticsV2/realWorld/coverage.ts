@@ -39,6 +39,10 @@ export interface LiveCoverage extends AnalysisCoverage {
   unclassifiedSessionIds?: string[]
   /* כמו unclassifiedSessionIds, עבור sessionsWithoutSubjectLevel: ספירה ייחודית במיזוג בין כיתות */
   sessionsWithoutSubjectLevelIds?: string[]
+  /* משחקים שהוחרגו, לפי תלמיד/ה (G1): בהדמיות בלי מקצוע / בהדמיות עם מקצוע בלי רמה לפי מקצוע. מאפשר פער ממוקד לכיתה (סכום החברים) ולתלמיד/ה.
+     נשארים בזיכרון בלבד (לא בתגובה). משחקי תלמיד נטענים בכל כיתה שהוא חבר בה — לכן במיזוג לוקחים את הגדול, לא סוכמים. חסר = אין משחקים כאלה */
+  unclassifiedByStudent?: Record<string, number>
+  unleveledByStudent?: Record<string, number>
 }
 
 export function emptyCoverage(): LiveCoverage {
@@ -55,6 +59,8 @@ export function sumCoverage(parts: readonly LiveCoverage[]): LiveCoverage {
   out.catalogEmpty = parts.every((p) => p.catalogEmpty)
   if (parts.every((p) => p.unclassifiedSessionIds)) out.unclassifiedSessionIds = [...new Set(parts.flatMap((p) => p.unclassifiedSessionIds!))]
   if (parts.every((p) => p.sessionsWithoutSubjectLevelIds)) out.sessionsWithoutSubjectLevelIds = [...new Set(parts.flatMap((p) => p.sessionsWithoutSubjectLevelIds!))]
+  out.unclassifiedByStudent = maxByKey(parts.map((p) => p.unclassifiedByStudent))
+  out.unleveledByStudent = maxByKey(parts.map((p) => p.unleveledByStudent))
   for (const p of parts) {
     out.unclassifiedSessions += p.unclassifiedSessions
     out.classesNotLoaded = (out.classesNotLoaded ?? 0) + (p.classesNotLoaded ?? 0)
@@ -81,7 +87,16 @@ export function sumCoverage(parts: readonly LiveCoverage[]): LiveCoverage {
   if (!out.classesNotLoaded) delete out.classesNotLoaded
   if (!out.classesLoading) delete out.classesLoading
   if (!out.classesDataError) delete out.classesDataError
+  if (!out.unclassifiedByStudent) delete out.unclassifiedByStudent
+  if (!out.unleveledByStudent) delete out.unleveledByStudent
   return out
+}
+
+/* מיזוג מפות ספירה לפי תלמיד/ה: הערך הגדול (אותו משחק נטען בכל כיתה של התלמיד/ה). undefined כשאין ערכים */
+function maxByKey(maps: readonly (Record<string, number> | undefined)[]): Record<string, number> | undefined {
+  const out: Record<string, number> = {}
+  for (const m of maps) if (m) for (const [k, n] of Object.entries(m)) out[k] = Math.max(out[k] ?? 0, n)
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 /* ניתוח חי = Analysis + הכיסוי המורחב + הכיתה העיקרית של תלמידים בכמה כיתות (למיזוג) */

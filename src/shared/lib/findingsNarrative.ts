@@ -101,7 +101,8 @@ const KIND_NOUN: Record<FindingKind, string> = {
 }
 /* יחידת הספירה של כל סוג ממצא — [יחיד, רבים] */
 const KIND_UNIT: Record<FindingKind, [string, string]> = {
-  level_trend: ['הדמיה אחת', 'הדמיות'],
+  /* יחידת הספירה של מגמת רמה היא משחק (פעם ששיחקו), לא הדמיה (התוכן) — G1: אחידות מונחים */
+  level_trend: ['משחק אחד', 'משחקים'],
   class_concept_improvement: ['תלמיד/ה אחד/ת', 'תלמידים'],
   memory_random_pattern: ['משחק זיכרון אחד', 'משחקי זיכרון'],
   position_bias: ['שאלה אחת', 'שאלות'],
@@ -109,7 +110,10 @@ const KIND_UNIT: Record<FindingKind, [string, string]> = {
   cross_subject_dip: ['מקצוע אחד', 'מקצועות'],
 }
 export const unitCount = (kind: FindingKind, n: number): string => (n === 1 ? KIND_UNIT[kind][0] : `${n} ${KIND_UNIT[kind][1]}`)
-export const sessionsCount = (n: number): string => unitCount('level_trend', n)
+/* משחקים (פעמים ששיחקו) — היחידה במסכי האנליטיקה והתדריך. "הדמיה" שמורה לתוכן עצמו. */
+export const playsCount = (n: number): string => unitCount('level_trend', n)
+/* נוסח "הדמיות" לאותה יחידה — נשאר רק לסיכום ה-AI (aiSummaryBasis / aiFactLevel), שבדיקותיו נעולות; ליישר יחד איתן */
+export const sessionsCount = (n: number): string => (n === 1 ? 'הדמיה אחת' : `${n} הדמיות`)
 
 export function narrateInsufficient(kind: FindingKind, reason: InsufficientReason, n: number, minN: number, c: NarrativeCtx = {}): string {
   const head = `${NO_DATA_YET} כדי לדבר על ${KIND_NOUN[kind]}${inSubject(c)}`
@@ -125,6 +129,8 @@ export function joinSubjectNames(names: string[]): string {
 }
 
 const wordsPerSecond = (msPerWord: number): number => Math.max(1, Math.round(1000 / msPerWord))
+/* כשההצלחה כמעט לא השתנתה בין שתי התקופות, אחוזי ההצלחה לא מוצגים (הם היו נראים כסתירה לשינוי ברמה) */
+export const LEVEL_TREND_STEADY_SUCCESS_NOTE = 'המערכת מתאימה את הקושי להצלחה של התלמיד/ה, ולכן אחוז ההצלחה נשאר דומה גם כשהרמה משתנה.'
 
 /* ── ממצא מדווח ── */
 export function narrateFinding(e: Evidence, c: NarrativeCtx = {}): string {
@@ -132,7 +138,11 @@ export function narrateFinding(e: Evidence, c: NarrativeCtx = {}): string {
   switch (e.kind) {
     case 'level_trend': {
       const m = monthName(e.changeDate)
-      const rates = `ההצלחה הממוצעת ב-${e.sessionsAfter} ההדמיות האחרונות — ${pct0(e.successAfter)}%, לעומת ${pct0(e.successBefore)}% ב-${e.sessionsBefore} ההדמיות שלפניהן.`
+      /* G1 (UX#7): שני אחוזים שווים ("70% לעומת 70%") סותרים "ירידה". המערכת מתאימה את הקושי כך שההצלחה נשארת דומה, ולכן כשההפרש קטן — אומרים זאת במקום להציג את המספרים */
+      const successGap = Math.abs(pct0(e.successAfter) - pct0(e.successBefore))
+      const rates = successGap >= Math.round(LIVE_TREND_RULE.minRawShift * 100)
+        ? `ההצלחה הממוצעת ב-${e.sessionsAfter} המשחקים האחרונים — ${pct0(e.successAfter)}%, לעומת ${pct0(e.successBefore)}% ב-${e.sessionsBefore} המשחקים שלפניהם.`
+        : LEVEL_TREND_STEADY_SUCCESS_NOTE
       if (e.direction === 'down') {
         return `${name}${inSubject(c)}: מחודש ${m} נצפתה ירידה ברמה, מ-${fmt1(e.fromLevel)} ל-${fmt1(e.toLevel)} (${levelsWord(e.deltaLevels)}). ${rates} זו תצפית על שינוי; הנתונים אינם מסבירים את הסיבה.`
       }
@@ -172,9 +182,9 @@ export function narrateShortBody(e: Evidence, c: NarrativeCtx = {}): string {
     case 'class_concept_improvement':
       return `${e.meanDelta < 0 ? 'ירידה' : 'שיפור'} ב${e.conceptTitle} מאז תחילת ${termLabel(e.term)} — ${countOf(e.improvedCount, e.studentsCount)} תלמידים השתפרו`
     case 'memory_random_pattern':
-      return `דפוס הלחיצות במשחק הזיכרון${sub} ראוי לבדיקה`
+      return `${e.randomLikelihood >= 0.9 ? 'נראה' : 'ייתכן'} שחלק גדול מהלחיצות במשחק הזיכרון${sub} אקראיות`
     case 'position_bias':
-      return `נטייה לבחור בתשובה הראשונה${sub}`
+      return `נצפה שהתשובה הראשונה נבחרה ב-${countOf(e.firstChoices, e.items)} שאלות${sub}`
     case 'reading_skip':
       return `מעבר מהיר מאוד בין שקפים${sub} — ייתכן שהטקסט נקרא בחטף`
     case 'cross_subject_dip':
@@ -270,7 +280,7 @@ export const basisLine = (what: string, startIso: string, endIso: string): strin
 /* מה הממצא מבוסס עליו — ביחידות של הסוג שלו */
 export function basisWhat(e: Evidence): string {
   switch (e.kind) {
-    case 'level_trend': return sessionsCount(e.sessionsBefore + e.sessionsAfter)
+    case 'level_trend': return playsCount(e.sessionsBefore + e.sessionsAfter)
     case 'class_concept_improvement': return unitCount('class_concept_improvement', e.studentsCount)
     case 'memory_random_pattern': return unitCount('memory_random_pattern', e.games)
     case 'position_bias': return unitCount('position_bias', e.items)
@@ -279,8 +289,10 @@ export function basisWhat(e: Evidence): string {
   }
 }
 export const narrateEvidenceWindow = (startIso: string, endIso: string, sessions: number, subject?: string): string =>
-  `${subject ? `${subject} — ` : ''}${monthYear(startIso) === monthYear(endIso) ? `מבוסס על ${sessionsCount(sessions)}, ב${monthYear(startIso)}` : basisLine(sessionsCount(sessions), startIso, endIso)}`
+  `${subject ? `${subject} — ` : ''}${monthYear(startIso) === monthYear(endIso) ? `מבוסס על ${playsCount(sessions)}, ב${monthYear(startIso)}` : basisLine(playsCount(sessions), startIso, endIso)}`
 export const basedOnSessions = (sessions: number): string => `מבוסס על ${sessionsCount(sessions)}`
+/* בתדריך ובמסכי האנליטיקה: משחקים */
+export const basedOnPlays = (plays: number): string => `מבוסס על ${playsCount(plays)}`
 export const basedOnChallenges = (n: number): string => (n === 1 ? 'מבוסס על אתגר אחד בתחום' : `מבוסס על ${n} אתגרים בתחום`)
 
 /* ── משוב לתלמיד/ה — צמיחה בלבד, בלי השוואה לאחרים ובלי תוויות ── */
@@ -304,18 +316,26 @@ export function narrateFeedbackHeadline(firstName: string, hasGrowth: boolean): 
 /* ══════════════════════════════════════════════════════════════════════════
    משפטי סיכום למסכים החדשים (כניסה / סקירת כיתה / מקצוע / תלמיד / מנהל)
    ══════════════════════════════════════════════════════════════════════════ */
-const attentionSentence = (n: number): string => (n === 0 ? 'אין כרגע תלמידים לתשומת לב.' : `${attentionBadgeText(n)}.`)
+/* G1 (UX#9): "אין תלמידים לתשומת לב" נשמע כמו "בדקנו והכול בסדר" — אומרים אותו רק כשיש בסיס נתונים מספיק (thin = אין) */
+const attentionSentence = (n: number, thin = false): string =>
+  n === 0 ? (thin ? ATTENTION_THIN_TEXT : 'אין כרגע תלמידים לתשומת לב.') : `${attentionBadgeText(n)}.`
 const POSITION_SHORT: Record<Position, string> = { above: 'מעל הטווח המיועד לשכבה', within: 'בתוכו', below: 'מתחתיו' }
 
-export interface OverviewSummaryInput { className: string; above: number; within: number; below: number; attentionStudents: number }
+export interface OverviewSummaryInput {
+  className: string; above: number; within: number; below: number; attentionStudents: number
+  /* G1: אין מספיק תלמידים שאפשר היה לבדוק עבורם שינוי — "אין תלמידים לתשומת לב" אינו נאמר */
+  attentionThin?: boolean
+  /* G1: משחקים שהתלמידים כבר שיחקו ולא נכללו (בהדמיות בלי מקצוע / בלי רמה לפי מקצוע) — המצב הריק אומר זאת במקום "כשיסיימו" */
+  gap?: CoverageGap | null
+}
 /* משפט הסיכום של "סקירת הכיתה" (מחנך) */
 export function narrateOverviewSummary(i: OverviewSummaryInput): string {
   const measured = i.above + i.within + i.below
-  if (measured === 0) return `בכיתה ${i.className}: ${NO_DATA_YET} על הרמה במקצועות. התמונה תופיע כשתלמידים יסיימו הדמיות.${i.attentionStudents > 0 ? ` ${attentionSentence(i.attentionStudents)}` : ''}`
+  if (measured === 0) return `בכיתה ${i.className}: ${NO_DATA_YET} על הרמה במקצועות. ${gapReason(i.gap) ?? 'התמונה תופיע כשתלמידים יסיימו הדמיות.'}${i.attentionStudents > 0 ? ` ${attentionSentence(i.attentionStudents)}` : ''}`
   /* מקצוע אחד נמדד: "מתוך 1 מקצועות" אינו עברית — המשפט אומר זאת במילים */
   if (measured === 1) {
     const only = i.above ? 'above' : i.within ? 'within' : 'below'
-    return `בכיתה ${i.className} נמדד מקצוע אחד, והרמה בו ${POSITION_TEXT[only]}. ${attentionSentence(i.attentionStudents)}`
+    return `בכיתה ${i.className} נמדד מקצוע אחד, והרמה בו ${POSITION_TEXT[only]}. ${attentionSentence(i.attentionStudents, i.attentionThin)}`
   }
   const parts: string[] = []
   let first = true
@@ -324,7 +344,7 @@ export function narrateOverviewSummary(i: OverviewSummaryInput): string {
     parts.push(`${n} ${first ? POSITION_TEXT[p] : POSITION_SHORT[p]}`)
     first = false
   }
-  return `בכיתה ${i.className}, מתוך ${measured} מקצועות: ${parts.join(', ')}. ${attentionSentence(i.attentionStudents)}`
+  return `בכיתה ${i.className}, מתוך ${measured} מקצועות: ${parts.join(', ')}. ${attentionSentence(i.attentionStudents, i.attentionThin)}`
 }
 
 /* מילת החיבור בין המיקום למגמה: "ו" כששניהם באותו כיוון (או כשהמגמה יציבה), "אך" כשהם מנוגדים.
@@ -337,14 +357,18 @@ export function trendConnective(position: Position, trend: Trend): Connective | 
 }
 const TREND_CLAUSE: Record<Exclude<Trend, 'insufficient'>, string> = { improving: 'המגמה בעלייה', steady: 'המגמה יציבה', declining: 'המגמה בירידה' }
 
-export interface SubjectHeadlineInput { className: string; subject: string; position: Position | null; trend: Trend; attentionStudents: number }
+export interface SubjectHeadlineInput {
+  className: string; subject: string; position: Position | null; trend: Trend; attentionStudents: number
+  attentionThin?: boolean
+  gap?: CoverageGap | null
+}
 /* משפט הסיכום של מקצוע בכיתה */
 export function narrateSubjectHeadline(i: SubjectHeadlineInput): string {
-  if (!i.position) return `בכיתה ${i.className}: ${NO_DATA_YET} על הרמה ב${i.subject}. התמונה תופיע כשתלמידים יסיימו הדמיות.${i.attentionStudents > 0 ? ` ${attentionSentence(i.attentionStudents)}` : ''}`
+  if (!i.position) return `בכיתה ${i.className}: ${NO_DATA_YET} על הרמה ב${i.subject}. ${gapReason(i.gap) ?? 'התמונה תופיע כשתלמידים יסיימו הדמיות.'}${i.attentionStudents > 0 ? ` ${attentionSentence(i.attentionStudents)}` : ''}`
   const joiner = trendConnective(i.position, i.trend)
   /* "ו" נצמד למילה ("והמגמה"); "אך" עומד לבדו ("אך המגמה") */
   const trendClause = joiner && i.trend !== 'insufficient' ? `, ${joiner === 'ו' ? `ו${TREND_CLAUSE[i.trend]}` : `אך ${TREND_CLAUSE[i.trend]}`}` : ''
-  return `בכיתה ${i.className} הרמה ב${i.subject} ${POSITION_TEXT[i.position]}${trendClause}. ${attentionSentence(i.attentionStudents)}`
+  return `בכיתה ${i.className} הרמה ב${i.subject} ${POSITION_TEXT[i.position]}${trendClause}. ${attentionSentence(i.attentionStudents, i.attentionThin)}`
 }
 
 export interface StudentHeadlineInput {
@@ -354,6 +378,9 @@ export interface StudentHeadlineInput {
   crossSubject: boolean
   /* הממצא החשוב ביותר בטון "תשומת לב" (גוף משפט מ-narrateShortBody, בלי שם); כשחסר — ניסוח כללי */
   topAttention?: string | null
+  /* G1 (UX#9): false = בשום מקצוע גלוי לא נבדקה מגמה (אין עדיין מספיק נתונים) — לא אומרים "אין דבר חריג". חסר = true (כמו תמיד) */
+  hasBasis?: boolean
+  gap?: CoverageGap | null
 }
 /* משפט הסיכום של עמוד התלמיד: אומר מה נצפה, לא "יש משהו לבדוק".
    אחד: "אלון: ירידה ברמה בהיסטוריה מאז יוני." · כמה: "… יש 3 דברים שכדאי לבדוק. הדחוף ביותר: …" */
@@ -365,6 +392,10 @@ export function narrateStudentHeadline(i: StudentHeadlineInput): string {
     return top ? `${i.firstName}: יש ${i.attention} דברים שכדאי לבדוק. הדחוף ביותר: ${top}.` : `${i.firstName}: יש ${i.attention} דברים שכדאי לבדוק.`
   }
   if (i.positive > 0) return `${i.firstName}: נצפתה התקדמות.`
+  if (i.hasBasis === false) {
+    const reason = gapReason(i.gap)
+    return reason ? `${i.firstName}: עוד אין מספיק נתונים כדי לזהות שינוי. ${reason}` : `עוד אין מספיק נתונים כדי לזהות שינוי אצל ${i.firstName}.`
+  }
   return `${i.firstName}: אין כרגע דבר חריג לדווח.`
 }
 
@@ -384,25 +415,35 @@ export function narrateAlertsMore(shown: number, total: number, manyClasses = fa
 }
 
 /* ── משפט אחד לכל תת-טאב של מקצוע בכיתה (טעויות נפוצות · התקדמות · תלמידים) ── */
-export interface StudentsTabInput { total: number; improving: number; steady: number; declining: number }
-/* "20 מתוך 22 תלמידים בירידה." — הקבוצה הגדולה ראשונה, ואחריה השאר */
+export interface StudentsTabInput {
+  total: number; improving: number; steady: number; declining: number
+  /* G1 (UX#10): כמה משחקים במקצוע צריך לתלמיד/ה כדי שתיבדק מגמה — כשידוע, הניסוח אומר כמה חסר במקום משפט כללי */
+  needPlays?: number
+}
+/* "20 מתוך 22 תלמידים בירידה." — הקבוצה הגדולה ראשונה, ואחריה השאר.
+   G1 (UX#20): בלי לוכסנים — "אחד בירידה ואחד משתפר, ועל אחד עוד אין מספיק נתונים" (לשון זכר כללית, כמו "אחד מהם") */
 export function narrateStudentsTabSummary(i: StudentsTabInput): string {
   if (i.total <= 0) return EMPTY_TEXT.noStudents
   const measured = i.improving + i.steady + i.declining
-  if (measured === 0) return `${NO_DATA_YET} על מגמות התלמידים. הן יופיעו כשתלמידים יסיימו עוד הדמיות.`
-  const one = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת' : `${n} תלמידים`)
+  if (measured === 0) {
+    return i.needPlays && i.needPlays > 0
+      ? `עוד אין מגמות לתלמידים. מגמה נבדקת כשיש לפחות ${i.needPlays} משחקים במקצוע.`
+      : `${NO_DATA_YET} על מגמות התלמידים. הן יופיעו כשתלמידים יסיימו עוד הדמיות.`
+  }
+  const count = (n: number): string => (n === 1 ? 'אחד' : `${n} תלמידים`)
   /* סדר ההשוואה בשוויון: ירידה, אחר כך שיפור, אחר כך יציבות — מה שדורש תשומת לב קודם */
   const groups = [
     { n: i.declining, label: () => 'בירידה' },
-    { n: i.improving, label: (n: number) => (n === 1 ? 'משתפר/ת' : 'משתפרים') },
-    { n: i.steady, label: (n: number) => (n === 1 ? 'יציב/ה' : 'יציבים') },
+    { n: i.improving, label: (n: number) => (n === 1 ? 'משתפר' : 'משתפרים') },
+    { n: i.steady, label: (n: number) => (n === 1 ? 'יציב' : 'יציבים') },
   ].filter((g) => g.n > 0).sort((a, b) => b.n - a.n)
   const [first, ...others] = groups
-  const lead = first.n === i.total && i.total > 1 ? `כל ${i.total} התלמידים ${first.label(first.n)}` : `${countOf(first.n, i.total)} תלמידים ${first.label(first.n)}`
+  const lead = first.n === i.total && i.total > 1 ? `כל ${i.total} התלמידים ${first.label(first.n)}`
+    : first.n === 1 ? `תלמיד אחד מתוך ${i.total} ${first.label(1)}` : `${countOf(first.n, i.total)} תלמידים ${first.label(first.n)}`
   const unknown = i.total - measured
   const tail = [
-    others.length ? `, ${joinSubjectNames(others.map((g) => `${one(g.n)} ${g.label(g.n)}`))}` : '',
-    unknown > 0 ? `, ולגבי ${one(unknown)} ${NO_DATA_YET}` : '',
+    others.length ? `, ${joinSubjectNames(others.map((g) => `${count(g.n)} ${g.label(g.n)}`))}` : '',
+    unknown > 0 ? `, ועל ${count(unknown)} ${NO_DATA_YET_SHORT}` : '',
   ].join('')
   return `${lead}${tail}.`
 }
@@ -425,7 +466,8 @@ export function narrateProgressTabSummary(i: ProgressTabInput): string {
   const l = new Date(last.date)
   const monthsApart = (l.getUTCFullYear() - f.getUTCFullYear()) * 12 + (l.getUTCMonth() - f.getUTCMonth())
   const since = monthsApart >= 11 ? monthYear(first.date) : monthName(first.date)
-  if (delta === 0) return `הרמה הממוצעת של הכיתה כמעט לא השתנתה מאז ${since}.`
+  /* G1 (UX#8): אותו סף כמו תווית המגמה (TREND_LABEL_MIN_DELTA) — שינוי קטן ממנו אינו "עלייה" או "ירידה", אחרת הבנר סותר את "מגמת הכיתה: יציבה" */
+  if (Math.abs(delta) < TREND_LABEL_MIN_DELTA - 1e-9) return `הרמה הממוצעת של הכיתה כמעט לא השתנתה מאז ${since}.`
   return `הרמה הממוצעת ${delta > 0 ? 'עלתה' : 'ירדה'} ${byLevels(delta)} מאז ${since}.`
 }
 
@@ -436,9 +478,12 @@ export interface ErrorsTabInput {
   anyReported: boolean
   /* כמה שמות לקרוא במשפט (השאר: "ועוד N") */
   maxTitles: number
+  /* G1 (UX#1): false = הקטלוג ריק (נתוני אמת בלי תיוג) — התצוגה לא פעילה בחשבון, ולא מבטיחים ש"יופיעו כשיצטברו תשובות". חסר = true */
+  catalogReady?: boolean
 }
 /* "2 טעויות נפוצות: "א" ו"ב"." */
 export function narrateErrorsTabSummary(i: ErrorsTabInput): string {
+  if (i.catalogReady === false) return CATALOG_UNTAGGED_TEXT.errorsTabSummary
   if (!i.anyReported) return EMPTY_TEXT.noCommonErrors
   if (i.common.length === 0) return 'אין כרגע טעות שחוזרת אצל חלק גדול מהכיתה.'
   const titles = i.common.slice(0, Math.max(1, i.maxTitles)).map((t) => `"${t}"`)
@@ -456,7 +501,7 @@ export function narrateAdminSchool(grades: number, classes: number, students: nu
 export function narrateAdminPosition(gradeLabel: string, subject: string, position: Position): string {
   return `בשכבה ${gradeLabel} הרמה ב${subject} ${POSITION_TEXT[position]}.`
 }
-export const ADMIN_HIDDEN_CELL_TEXT = `מעט תלמידים מדי להצגה (פחות מ-${MIN_CELL_SIZE}), כדי לשמור על פרטיות`
+export const ADMIN_HIDDEN_CELL_TEXT = `הנתון הזה לא מוצג כי הוא מבוסס על פחות מ-${MIN_CELL_SIZE} תלמידים, כדי לשמור על פרטיות`
 export function narrateAdminGradeSummary(gradeLabel: string, above: number, within: number, below: number): string {
   const shown = above + within + below
   if (!shown) return `בשכבה ${gradeLabel}: ${NO_DATA_YET}.`
@@ -479,7 +524,7 @@ export function narrateAdminSubjectSummary(subject: string, parts: { gradeLabel:
 /* ── כותרות תדריך, הודעות שגיאה ושורות עזר (כל טקסט שמוצג — מכאן) ── */
 export const BRIEFING_SECTION_TITLES = {
   strengths: 'חוזקות',
-  difficulties: 'קשיים',
+  difficulties: 'נקודות לשיחה',
   trend: 'מגמה',
   recommendations: 'המלצות',
   unknowns: 'מה עדיין לא ידוע',
@@ -505,7 +550,7 @@ export const exposuresLine = (minExposures: number): string => `לפחות ${min
 /* ── טקסטי מצב ריק ותוויות מסכים — עברית פשוטה, אומרים מה קורה ומה יקרה ── */
 export const EMPTY_TEXT = {
   noRecent: 'עוד אין אירועים בולטים לדווח עליהם. הם יופיעו כאן כשיצטברו מספיק נתונים.',
-  noFindings: 'לא נמצא בינתיים דבר חריג. אם יתברר משהו בולט, הוא יופיע כאן.',
+  noFindings: 'בינתיים לא נמצא דפוס בולט בנתונים שיש עד עכשיו. אם יתברר משהו, הוא יופיע כאן.',
   noProgress: 'עוד אין מספיק הדמיות כדי להציג התקדמות. הגרף יופיע כאן כשתלמידים יסיימו כמה הדמיות.',
   noCommonErrors: 'עוד אין טעויות נפוצות לדווח עליהן. הן יופיעו כאן כשיצטברו מספיק תשובות.',
   noAreas: 'עוד אין מספיק נתונים על תחומים חזקים ותחומים מאתגרים.',
@@ -552,12 +597,14 @@ export const HOW_WE_CALC = {
   itemLabel: (kind: FindingKind, subject?: string | null): string => `${KIND_NOUN[kind]}${subject ? ` ב${subject}` : ''}`,
   /* הסברי החישוב בשפה פשוטה (כולל הספים מהקונפיג) — מוצגים מאחורי "איך חישבנו?" בכל מסך */
   lines: [
-    `הרמה הנוכחית במקצוע = ממוצע הרמה ב-${CURRENT_LEVEL_SESSIONS} ההדמיות האחרונות.`,
+    `הרמה הנוכחית במקצוע = ממוצע הרמה ב-${CURRENT_LEVEL_SESSIONS} המשחקים האחרונים.`,
+    /* G1: מה נכנס לתוצאות — המשחקים שכבר שוחקו בהדמיה בלי מקצוע לא יצטרפו בדיעבד */
+    'משחק נכלל בתוצאות רק אם ההדמיה כבר הייתה משויכת למקצוע כשהתלמיד/ה שיחק/ה בה. שיוך מקצוע בדיעבד אינו מוסיף משחקים שכבר שוחקו, כי הרמה שלהם חושבה בלי מקצוע.',
     `הטווח המיועד לשכבה = הרמה המיועדת לשכבה בסולם ההדמיות, פלוס מינוס ${AGE_NORM.bandHalfWidth}. זו נקודת ייחוס להקשר, לא מבחן ולא ציון.`,
     /* ── FX1a: שינוי ברמה (מגמה) בחשבון אמיתי — מתאר את השיטה בפועל (engine.peerRelativePoints / LIVE_TREND_RULE) ── */
-    `שינוי ברמה (מגמה) של תלמיד/ה: משווים את ${TREND_WINDOWS.recentDays} ימי הלימוד האחרונים לתקופה שלפניהם (עד ${TREND_WINDOWS.recentDays + TREND_WINDOWS.priorDays} ימי לימוד אחורה). בחשבון אמיתי בודקים את ההצלחה של התלמיד/ה ביחס לשאר הכיתה באותה הדמיה, ולא את הרמה עצמה: הרמה מושפעת גם מקושי ההדמיות שנבחרו, ולכן הדמיה קלה או קשה במיוחד לא נראית כשינוי של תלמיד/ה. כל הדמיה נספרת פעם אחת (ההשלמה הראשונה), ורק אם עוד ${LIVE_TREND_RULE.minPeers} תלמידים לפחות סיימו אותה.`,
-    `שינוי מוצג רק אם יש לפחות ${KIND_THRESHOLDS.level_trend.minN} הדמיות בכל אחת משתי התקופות, ההפרש ביחס לכיתה הוא לפחות ${Math.round(LIVE_TREND_RULE.minRelativeShift * 100)} נקודות אחוז והוא חריג גם לעומת השינוי של שאר תלמידי הכיתה, וגם ההצלחה וגם הרמה זזו באותו כיוון (הרמה — בהפרש של ${LEVEL_TREND_BASIS.minDeltaLevels} רמה לפחות). מי שנבדק/ה ולא נמצא אצלו/ה שינוי כזה מסומן/ת "יציב/ה" — זו בדיקה זהירה, ושינוי קטן עשוי שלא להתגלות. מי שאין לו/ה מספיק הדמיות משותפות עם הכיתה מסומן/ת "${NO_DATA_YET}".`,
-    'בחשבון אמיתי אין מגמה לכיתה, לשכבה או למקצוע שלמים: ההשוואה נעשית בתוך הכיתה, ולכן אי אפשר להבדיל בין שינוי של הכיתה כולה לבין שינוי בקושי ההדמיות. מגמה כזו תוצג כשתהיה שיטה אמינה למדוד אותה.',
+    `שינוי ברמה (מגמה) של תלמיד/ה: משווים את ${TREND_WINDOWS.recentDays} ימי הלימוד האחרונים לתקופה שלפניהם (עד ${TREND_WINDOWS.recentDays + TREND_WINDOWS.priorDays} ימי לימוד אחורה). בחשבון אמיתי בודקים את ההצלחה של התלמיד/ה ביחס לשאר הכיתה באותה הדמיה, ולא את הרמה עצמה: הרמה מושפעת גם מקושי ההדמיות שנבחרו, ולכן הדמיה קלה או קשה במיוחד לא נראית כשינוי של תלמיד/ה. כל הדמיה נספרת פעם אחת (המשחק הראשון של התלמיד/ה בה), ורק אם עוד ${LIVE_TREND_RULE.minPeers} תלמידים לפחות סיימו אותה.`,
+    `שינוי מוצג רק אם יש לפחות ${KIND_THRESHOLDS.level_trend.minN} משחקים בכל אחת משתי התקופות, ההפרש ביחס לכיתה הוא לפחות ${Math.round(LIVE_TREND_RULE.minRelativeShift * 100)} נקודות אחוז והוא חריג גם לעומת השינוי של שאר תלמידי הכיתה, וגם ההצלחה וגם הרמה זזו באותו כיוון (הרמה — בהפרש של ${LEVEL_TREND_BASIS.minDeltaLevels} רמה לפחות). מי שנבדק/ה ולא נמצא אצלו/ה שינוי כזה מסומן/ת "יציב/ה" — זו בדיקה זהירה, ושינוי קטן עשוי שלא להתגלות. מי שאין לו/ה מספיק משחקים בהדמיות משותפות עם הכיתה מסומן/ת "${NO_DATA_YET}".`,
+    'בחשבון אמיתי אין מגמה לכיתה, לשכבה או למקצוע שלמים: ההשוואה נעשית בתוך הכיתה, ולכן אי אפשר להבדיל בין שינוי של הכיתה כולה לבין שינוי בקושי ההדמיות.',
     `בנתוני ההדגמה המגמה מחושבת כהפרש בין ממוצע הרמה ב-${TREND_WINDOWS.recentDays} ימי הלימוד האחרונים לבין הממוצע ב-90 עד 150 ימי הלימוד שלפניהם; הפרש של ${TREND_LABEL_MIN_DELTA} רמה או יותר נחשב עלייה או ירידה.`,
     `תחום חזק או מאתגר = תחום שהרמה בו שונה מהרמה הכללית במקצוע ב-${AREA_MIN_DELTA} רמה או יותר, ורק אם נאספו בו מספיק תשובות.`,
     `טעות נפוצה = לפחות ${MISCONCEPTION_RULE.minExposuresPerStudent} שאלות בנושא, שבהן התלמיד/ה בחר/ה בתשובה השגויה המתויגת לפחות ${MISCONCEPTION_RULE.minHitsPerStudent} פעמים ובמחצית מהשאלות או יותר. אחוז מוצג רק כשיש לפחות ${MIN_CELL_SIZE} תלמידים.`,
@@ -723,7 +770,7 @@ export function howWeCalcResultsLines(): string[] {
   return [
     `אתגר נחשב ל"הצליחו" כשהתלמיד/ה פתר/ה אותו. "ויתרו" = לחצו על "אני מוותר/ת" או סגרו את האתגר בלי לענות.`,
     `תלמיד/ה מופיע/ה ב"תשומת לב" אם: עוד לא התחיל/ה, או ויתר/ה על ${ATTENTION_RULE.gaveUpAtLeast} אתגרים או יותר, או סיים/ה והצליח/ה בפחות מחצי מהאתגרים. זה כלל עובדתי בלבד — הוא לא מסביר למה.`,
-    'התוצאות נספרות לפי ההרצה האחרונה של כל תלמיד/ה בהדמיה.',
+    'התוצאות נספרות לפי המשחק האחרון שהושלם של כל תלמיד/ה בהדמיה.',
   ]
 }
 
@@ -795,7 +842,7 @@ export const DONUT_TEXT = {
   successTitle: 'כמה אתגרים הצליחו התלמידים שסיימו?',
   bandHigh: 'הצליחו ברוב האתגרים',
   bandMid: 'הצליחו בחלק מהאתגרים',
-  bandLow: 'הצליחו במעט',
+  bandLow: 'הצליחו במעט מהאתגרים',
   successEmpty: 'עוד אין מספיק תלמידים שסיימו כדי להראות התפלגות.',
   successEmptyNext: `היא תופיע כאן כשיסיימו לפחות ${CLASS_SUMMARY_MIN_COMPLETED} תלמידים.`,
   successNoChallenges: 'בהדמיה הזאת אין אתגרים שאפשר למדוד.',
@@ -815,12 +862,21 @@ export const donutLegendCount = (count: number, total: number, pct: number): str
 export const donutAriaLabel = (title: string, parts: { label: string; count: number }[], total: number): string =>
   `${title} ${parts.map((p) => `${countNb(p.count, total)} ${p.label}`).join(', ')}`
 
+/* שורת עזר גלויה מתחת לגרף השני: מה זה "ברוב" ו"במעט" (הספים מהתצורה, לא רק מאחורי "איך חישבנו?").
+   ספים מוכרים נכתבים במילים ("3 מכל 4", "ממחצית"); אחרים — באחוזים. */
+export function donutBandsHelp(bands: { low: number; high: number } = SUCCESS_DONUT_BANDS): string {
+  const near = (a: number, b: number): boolean => Math.abs(a - b) < 1e-9
+  const high = near(bands.high, 0.75) ? '3 מכל 4 אתגרים או יותר' : `${Math.round(bands.high * 100)}% מהאתגרים או יותר`
+  const low = near(bands.low, 0.5) ? 'פחות ממחצית האתגרים' : `פחות מ-${Math.round(bands.low * 100)}% מהאתגרים`
+  return `ברוב: ${high}. במעט: ${low}. בחלק: כל מה שביניהם.`
+}
+
 /* שורות "איך חישבנו?" של שני הדונאטים — הספים מגיעים מהקורא (ברירת מחדל: SUCCESS_DONUT_BANDS) */
 export function howWeCalcSuccessBandsLines(bands: { low: number; high: number } = SUCCESS_DONUT_BANDS): string[] {
   const low = Math.round(bands.low * 100)
   const high = Math.round(bands.high * 100)
   return [
-    `"${DONUT_TEXT.completionTitle}" סופר את כל תלמידי הכיתה לפי ההרצה האחרונה של כל אחד/ת: סיימו, באמצע (התחילו ולא סיימו) או עוד לא התחילו.`,
+    `"${DONUT_TEXT.completionTitle}" סופר את כל תלמידי הכיתה לפי המשחק האחרון של כל אחד/ת: סיימו, באמצע (התחילו ולא סיימו) או עוד לא התחילו.`,
     `"${DONUT_TEXT.successTitle}" סופר רק תלמידים שסיימו. לכל תלמיד/ה בודקים כמה אתגרים פתר/ה מתוך כל האתגרים בהדמיה.`,
     `"${DONUT_TEXT.bandHigh}" = ${high}% מהאתגרים או יותר. "${DONUT_TEXT.bandLow}" = פחות מ-${low}% (אותו כלל כמו "לתשומת לב"). "${DONUT_TEXT.bandMid}" = בין ${low}% ל-${high}%.`,
     `הגרף השני מופיע כשסיימו לפחות ${CLASS_SUMMARY_MIN_COMPLETED} תלמידים, כדי שלא יסכם את הכיתה לפי תלמיד/ה בודד/ת.`,
@@ -837,10 +893,11 @@ export type AiSummaryUnit = 'sessions' | 'students'
 export const AI_SUMMARY_TEXT = {
   heading: 'סיכום מילולי',
   headingByScope: {
-    student: 'סיכום מילולי על התלמיד/ה',
-    class: 'סיכום מילולי על הכיתה',
-    class_subject: 'סיכום מילולי על המקצוע בכיתה',
-    submission: 'סיכום מילולי על ההדמיה',
+    /* שם אחד לסיכום: "סיכום מד״ר הולו" — כמו הכפתור שפותח אותו (AI_SUMMARY_PANEL_TEXT.openButton) */
+    student: 'סיכום מד״ר הולו על התלמיד/ה',
+    class: 'סיכום מד״ר הולו על הכיתה',
+    class_subject: 'סיכום מד״ר הולו על המקצוע בכיתה',
+    submission: 'סיכום מד״ר הולו על ההדמיה',
   },
   label: {
     ai: 'נכתב על ידי ד״ר הולו (בינה מלאכותית)',
@@ -848,12 +905,14 @@ export const AI_SUMMARY_TEXT = {
     demo: 'סיכום הדגמה',
   },
   notice: {
-    template: 'זה סיכום אוטומטי מהנתונים, לא נכתב בבינה מלאכותית.',
+    /* מוצג אחרי ניסיון כתיבה בבינה מלאכותית שלא הצליח (תקלה או בדיקת פלט): אומרים מה קרה, לא רק מה מוצג */
+    template: 'ד״ר הולו לא הצליח לנסח הפעם סיכום, ולכן זה סיכום אוטומטי מהנתונים, שלא נכתב בבינה מלאכותית. אפשר לנסות שוב.',
     demo: 'זה סיכום הדגמה: הוא נבנה אוטומטית מנתוני ההדגמה ואינו נשמר.',
   },
   editedBadge: 'נערך על ידך',
   howWrittenTitle: 'איך נכתב הסיכום?',
-  persistenceNote: 'הסיכום מוצג אך עדיין לא נשמר במערכת. אם תערכו אותו, העריכה תישמר רק עד שתסגרו את המסך.',
+  /* מה לעשות: הסיכום נעלם עם סגירת המסך, ולכן שומרים אותו בייצוא או בהדפסה */
+  persistenceNote: 'הסיכום לא נשמר במערכת, והוא ייעלם כשתסגרו את המסך. כדי לשמור אותו, ייצאו ל-Word או הדפיסו לפני שתסגרו. אם תערכו אותו, גם העריכה תישמר רק עד סגירת המסך.',
   /* כפתורים ומצבים בממשק — כל כפתור עם מילה */
   ui: {
     generate: 'כתבו לי סיכום',
@@ -904,7 +963,7 @@ export const aiSummaryPrivacyNote = (scope: AiSummaryScopeKey): string =>
   scope === 'student' ? 'שם התלמיד/ה לא נשלח לבינה המלאכותית.' : 'שמות התלמידים לא נשלחים לבינה המלאכותית.'
 /* ההסבר מעל הכפתור "כתבו לי סיכום" */
 export const aiSummaryGenerateHint = (scope: AiSummaryScopeKey): string =>
-  `ד״ר הולו יכתוב 2-3 פסקאות מהנתונים שכבר מופיעים במסך. ${aiSummaryPrivacyNote(scope)}`
+  `הבינה המלאכותית (ד״ר הולו) תכתוב 2-3 פסקאות מהנתונים שכבר מופיעים במסך. ${aiSummaryPrivacyNote(scope)}`
 
 /* "אין מספיק נתונים": מה קורה ומה יקרה (עיקרון 9) */
 export function aiSummaryNotEnough(scope: AiSummaryScopeKey, min: number): { text: string; whatNext: string } {
@@ -1031,7 +1090,7 @@ export const ERR_V2_UNAVAILABLE = 'השירות אינו זמין לרגע — �
 export const ERR_V2_BAD_SUBJECT = 'מקצוע לא מוכר'
 export const ERR_V2_BAD_SCOPE = 'היקף לא תקין'
 /* תא שכולו כיתה אחת: המספר היה מזהה כיתה, ולכן הוא מוסתר (כמו תא קטן מדי) */
-export const ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT = 'התא מבוסס על כיתה אחת בלבד, ולכן הוא מוסתר כדי לשמור על פרטיות'
+export const ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT = 'הנתון הזה לא מוצג כי הוא מבוסס על כיתה אחת בלבד, כדי לשמור על פרטיות'
 /* כשיש שכבה קטנה מהסף היא אינה מוצגת, ולכן גם סך התלמידים והכיתות אינו מפורסם (חיסור היה חושף אותה) */
 export function narrateAdminSchoolPartial(grades: number): string {
   return grades === 1 ? 'התוצאות מוצגות לשכבה אחת בבית הספר.' : `התוצאות מוצגות ל-${grades} שכבות בבית הספר.`
@@ -1039,13 +1098,23 @@ export function narrateAdminSchoolPartial(grades: number): string {
 /* משחקים בהדמיות שעוד לא שויך להן מקצוע אינם נכנסים לתוצאות (לא מנחשים מקצוע) — המורה צריך לדעת למה חסר משהו ומה עושים */
 export function narrateUnclassifiedNote(plays: number): string {
   const what = plays === 1 ? 'משחק אחד בהדמיה שעוד לא שויך לה מקצוע לא נכלל' : `${plays} משחקים בהדמיות שעוד לא שויך להן מקצוע לא נכללו`
-  return `${what} כאן. כדי שהתוצאות יתווספו, שייכו מקצוע להדמיה בספרייה.`
+  /* G1: שיוך בדיעבד לא מחזיר משחקים שכבר שוחקו (הרמה שלהם חושבה בלי מקצוע) — לא מבטיחים שהתוצאות "יתווספו" */
+  return `${what} כאן. משחקים שכבר שוחקו לא ייכללו גם אחרי שיוך מקצוע, כי הרמה שלהם חושבה בלי מקצוע. כדי שמשחקים חדשים ייספרו, שייכו מקצוע להדמיות שיצרתם, בספרייה.`
 }
 /* ── LIVE_DATA: נתוני אמת — המתנה לטעינה וכיסוי תיוג ── */
 export const ERR_ANALYSIS_WARMING = 'אנחנו מרכזים את התוצאות של הכיתה. נסו שוב בעוד דקה.'
 export const ERR_ANALYSIS_UNAVAILABLE = 'לא הצלחנו לטעון את התוצאות כרגע. נסו שוב בעוד כמה שניות.'
 /* הדמיות עוד לא תויגו לטעויות נפוצות ולתחומי תוכן (רשימות סגורות ובדוקות בלבד) — אומרים מה קורה ומה יקרה */
-export const LIVE_COVERAGE_UNTAGGED = 'טעויות נפוצות ותחומי תוכן יופיעו כאן אחרי שההדמיות יתויגו. עד אז מוצגים הרמות והמגמות של התלמידים.'
+export const LIVE_COVERAGE_UNTAGGED = 'טעויות נפוצות (טעויות שחוזרות אצל כמה תלמידים) ותחומים חזקים ומאתגרים (חלוקת הרמה לנושאים) עדיין לא פעילים בחשבון שלכם. אין מה לעשות מצדכם כדי להפעיל אותם. בינתיים מוצגות הרמות והמגמות.'
+/* ── G1 (UX#15): מצב ריק כן אצל מנהל — תא מוצג רק עם מספיק תלמידים ומספיק כיתות, ולא מבטיחים ש"יופיע כשיסיימו" ── */
+export const ADMIN_MIN_CELL_CLASSES = 2 /* שווה ל-MIN_CELL_CLASSES ב-adminPrivacy.ts (נאכף בטסט) */
+export function narrateAdminNoResults(o: { minStudents?: number; minClasses?: number; singleClassPerGrade?: boolean } = {}): string {
+  const rule = `תוצאות של שכבה ומקצוע מוצגות רק כשיש בהן לפחות ${o.minStudents ?? MIN_CELL_SIZE} תלמידים ולפחות ${o.minClasses ?? ADMIN_MIN_CELL_CLASSES} כיתות, כדי שלא יהיה אפשר לזהות כיתה או מורה.`
+  return o.singleClassPerGrade
+    ? `עוד אין תוצאות להציג מבית הספר. בבית ספר עם כיתה אחת בשכבה לא מוצגות תוצאות לפי שכבה. ${rule}`
+    : `עוד אין תוצאות להציג מבית הספר. ${rule}`
+}
+export const ADMIN_NO_RESULTS_TEXT = narrateAdminNoResults()
 /* ── V2_CLIENT: מסכי האנליטיקה אצל מורה אמיתי — שגיאות בעברית פשוטה, מצבי "עוד אין תוצאות" והתצוגה הקודמת ── */
 export const ERR_V2_UNAUTHORIZED = 'ההתחברות פגה. התחברו שוב כדי להמשיך.'
 export const ERR_V2_FORBIDDEN = 'אין לכם הרשאה לצפות בזה. אפשר לראות רק כיתות ותלמידים שאתם מלמדים.'
@@ -1056,33 +1125,48 @@ export const ERR_V2_GENERIC = 'משהו השתבש בטעינת התוצאות. 
 export const V2_CLIENT_TEXT = {
   /* מורה מקצועי/ת בכיתה שבה עוד אין מקצוע פתוח לו/לה */
   noOpenSubject: {
-    title: 'עוד אין תוצאות במקצוע שלך בכיתה הזאת.',
-    whatNext: 'הן יופיעו כאן כשתלמידי הכיתה יסיימו הדמיות במקצוע שלך. אם המקצוע שלך עוד לא הוגדר בכיתה הזאת, מנהל/ת בית הספר יכולים להגדיר אותו.',
+    title: 'עוד אין תוצאות במקצוע שלכם בכיתה הזאת.',
+    whatNext: 'הן יופיעו כאן כשתלמידי הכיתה ישחקו בהדמיות במקצוע שלכם. אם המקצוע שלכם עוד לא הוגדר בכיתה הזאת, פנו למנהל/ת בית הספר. את המקצוע מגדירים בניהול הכיתות.',
   },
   noOpenSubjectStudent: {
-    title: 'עוד אין תוצאות במקצוע שלך אצל התלמיד/ה הזה/זו.',
-    whatNext: 'הן יופיעו כאן אחרי שיושלמו הדמיות במקצוע שלך.',
+    title: 'עוד אין תוצאות במקצוע שלכם אצל התלמיד/ה הזה/זו.',
+    whatNext: 'הן יופיעו כאן אחרי שיושלמו הדמיות במקצוע שלכם.',
   },
   classNotFound: { title: 'לא מצאנו את הכיתה הזאת.', whatNext: 'ייתכן שהקישור ישן, או שהכיתה אינה ברשימה שלכם. אפשר לבחור כיתה מחדש.' },
   entry: {
     noResultsBadge: 'עוד אין תוצאות',
     noResultsAtAll: 'עוד אין תוצאות באף כיתה. הן יופיעו כאן כשתלמידים יסיימו הדמיות שמשויך להן מקצוע.',
-    noClasses: { title: 'עוד לא שויכתם לכיתות.', whatNext: 'בקשו ממנהל/ת בית הספר לשייך אתכם לכיתה. התוצאות יופיעו כאן כשתלמידי הכיתה ישחקו בהדמיות. אם אתם משויכים לכיתה ועדיין לא רואים אותה, ייתכן שלא הוגדרה לה שכבה — גם את זה מנהל/ת בית הספר יכולים להגדיר.' },
+    noClasses: { title: 'עוד לא שויכתם לכיתות.', whatNext: 'בקשו ממנהל/ת בית הספר לשייך אתכם לכיתה. התוצאות יופיעו כאן כשתלמידי הכיתה ישחקו בהדמיות. אם אתם משויכים לכיתה ועדיין לא רואים אותה, ייתכן שלא הוגדרה לה שכבה — גם את זה מגדירים בניהול הכיתות, דרך מנהל/ת בית הספר.' },
     assignSubjects: 'שייכו מקצוע להדמיות',
     previousViewSentence: 'גרף ההתקדמות הכללי, כפי שהיה עד עכשיו, זמין בתצוגה הקודמת.',
-    previousView: 'התצוגה הקודמת',
+    /* בראש המסך (כשאין תוצאות באף כיתה): אומרים שזה מה שאפשר לראות בינתיים */
+    previousViewSentenceTop: 'בינתיים אפשר לראות את גרף ההתקדמות הכללי של התלמידים, כפי שהיה עד עכשיו.',
+    previousView: 'גרף ההתקדמות הכללי (התצוגה הקודמת)',
+    /* כרטיס כיתה: מילת פעולה גלויה בכותרת, והתפקיד של הצופה בכיתה הזאת (מחנך/ת בכיתה אחת ומורה מקצועי בשנייה — ההבדל גלוי לפני הלחיצה) */
+    openClassHomeroom: 'לסקירת הכיתה',
+    openClassSubject: 'לתוצאות הכיתה',
+    roleHomeroom: 'מחנך/ת',
+    roleSubject: (subjectNames: string): string => `מורה מקצוע: ${subjectNames}`,
+    /* "ועוד 2 תלמידים בכיתה" — קישור אל רשימת התלמידים של הכיתה */
+    seeAllStudents: 'לכל התלמידים בכיתה',
+    /* שיוך לכיתה בלי מקצוע פתוח: הסיבה האמיתית, במקום "עוד אין תוצאות" (שאומר שלא שיחקו) */
+    noOpenSubjectBadge: 'המקצוע שלכם עוד לא הוגדר',
   },
   /* מסך "התצוגה הקודמת": שם בנתיב החזרה, ומילת החזרה לתצוגה החדשה */
-  previous: { crumb: 'התצוגה הקודמת', backToNew: 'חזרה לתצוגה החדשה' },
+  previous: {
+    crumb: 'התצוגה הקודמת', backToNew: 'חזרה לתצוגה החדשה',
+    /* הערת הקשר בראש המסך הישן: מסבירה מה זה ושהוא זמני, בלי לשכתב אותו */
+    notice: 'זו התצוגה הקודמת של האנליטיקה, והיא תוסר בעתיד. התוצאות המלאות נמצאות בתצוגה החדשה.',
+  },
   briefingEmpty: { title: 'עוד אין מספיק נתונים להכנה לישיבה.', whatNext: 'ההכנה לישיבה תתמלא כשתלמידים יסיימו כמה הדמיות.' },
   feedbackEmpty: { title: 'עוד אין משוב להציג לתלמיד/ה.', whatNext: 'המשוב יופיע כאן אחרי שיהיו כמה הדמיות שהושלמו.' },
   focusedQuest: { exists: 'כבר קיימת הדמיה ממוקדת לטעות הזאת:', none: 'עוד אין הדמיה ממוקדת לטעות הזאת.' },
   /* ניהול הכיתה: הסיכום הפדגוגי של הכיתה נמצא באנליטיקה (מחנך/ת הכיתה בלבד) */
   classSummary: { title: 'סיכום פדגוגי לכיתה', sentence: 'הסיכום של ד״ר הולו על הכיתה נמצא במסך האנליטיקה של הכיתה.', open: 'פתיחת הסיכום' },
   noStudentsInSubject: 'עוד אין תלמידים להצגה במקצוע הזה. הם יופיעו כאן כשתלמידי הכיתה יסיימו הדמיות במקצוע.',
-  areasDash: 'מקף (—) אומר שעוד אין תחום בולט, או שעוד אין מספיק נתונים על התחומים.',
-  adminNoResults: 'עוד אין תוצאות להציג מבית הספר. הן יופיעו כאן כשתלמידים יסיימו הדמיות, ויהיו מספיק תלמידים בכל שכבה כדי לשמור על פרטיות.',
-  studentNoResults: (firstName: string): string => `עוד אין תוצאות על ${firstName}. הן יופיעו כאן אחרי כמה הדמיות שיושלמו.`,
+  areasDash: 'מקף (—) אומר שהנתון עוד לא נמדד.',
+  adminNoResults: ADMIN_NO_RESULTS_TEXT,
+  studentNoResults: (firstName: string): string => `עוד אין תוצאות על ${firstName}. הן יופיעו כאן אחרי כמה משחקים בהדמיות ששויך להן מקצוע.`,
 } as const
 /* ── V2_ROSTER_LINK: רוסטר הניהול — אין עמוד התקדמות / סיכום אישי באנליטיקה לתלמידים ולכיתות המוצגים. אומרים מה קורה ומה אפשר לעשות ── */
 export const V2_ROSTER_LINK_TEXT = {
@@ -1102,7 +1186,7 @@ export const V2_CONFIG_FALLBACK_TEXT = {
 /* ── AI_SUMMARY_CLIENT: הפאנל של הסיכום המילולי בלקוח — מצבים, שגיאות וייצוא (הכפתורים והתוויות הכלליות ב-AI_SUMMARY_TEXT) ── */
 export const AI_SUMMARY_PANEL_TEXT = {
   /* הכפתור שפותח את הסיכום ממסך תלמיד/כיתה */
-  openButton: 'סיכום מד״ר הולו',
+  openButton: 'סיכום מד״ר הולו (בינה מלאכותית)',
   loading: 'טוענים את הסיכום…',
   saving: 'שומרים…',
   retry: 'נסו שוב',
@@ -1147,7 +1231,7 @@ export const ERR_SUMMARY_SAVE = 'לא הצלחנו לשמור את העריכה.
 
 /* ── FX1B_PRIVACY_COVERAGE: דומיננטיות כיתה בתא מנהל · מה חסר בתוצאות ולמה (כיתה בלי שכבה / שלא נטענה / משחקים בלי רמה) ── */
 /* תא שנשען בעיקר על כיתה אחת: תורם בודד מכיתה אחרת לא מסתיר שהמספר הוא בפועל כיתה (ומורה) מזוהים */
-export const ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT = 'התא מבוסס בעיקר על כיתה אחת, ולכן הוא מוסתר כדי לשמור על פרטיות'
+export const ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT = 'הנתון הזה לא מוצג כי הוא מבוסס בעיקר על כיתה אחת, כדי לשמור על פרטיות'
 export interface CoverageGapsInput {
   /* כיתות בהיקף שלא הוגדרה להן שכבה (לא מופיעות במסכים) */
   ungradedClasses: number
@@ -1192,10 +1276,137 @@ export function narrateCoverageGaps(i: CoverageGapsInput): string[] {
       'לא הצלחנו לחשב את התוצאות של כיתה אחת, ולכן היא חסרה כאן. שאר הכיתות מוצגות כרגיל. אם זה חוזר גם בעוד כמה דקות, כדאי לדווח לנו.',
       (n) => `לא הצלחנו לחשב את התוצאות של ${n} כיתות, ולכן הן חסרות כאן. שאר הכיתות מוצגות כרגיל. אם זה חוזר גם בעוד כמה דקות, כדאי לדווח לנו.`))
   }
-  if (i.playsWithoutLevel > 0) {
-    out.push(i.playsWithoutLevel === 1
-      ? 'משחק אחד לא נכלל ברמות ובמגמות כי לא חושבה לו רמה. משחקים חדשים ייכללו כרגיל.'
-      : `${i.playsWithoutLevel} משחקים לא נכללו ברמות ובמגמות כי לא חושבה להם רמה. משחקים חדשים ייכללו כרגיל.`)
-  }
+  if (i.playsWithoutLevel > 0) out.push(playsWithoutLevelSentence(i.playsWithoutLevel))
   return out
 }
+
+/* ── G2_CLIENT: שיוך מקצוע בספרייה · הערת כיסוי במסכי כיתה/תלמיד · תוכן שעוד לא תויג · משוב והכנה לישיבה ──
+   · הספרייה מסוננת ל"הדמיות בלי מקצוע" (?filter=nosubject) — היעד של הכפתור "שייכו מקצוע להדמיות" באנליטיקה.
+   · תוכן שעוד לא תויג: אומרים מה חסר באמת (התיוג עוד לא בוצע בחשבון) ומה יקרה כשיבוצע — לא מבטיחים "כשיצטברו תשובות". */
+export const LIBRARY_ASSIGN_TEXT = {
+  filterGroupLabel: 'סינון ההדמיות שלי',
+  allChip: 'כל ההדמיות',
+  noSubjectChip: (n: number): string => `ללא מקצוע (${n})`,
+  intro: 'אלה ההדמיות שעוד לא שויכו למקצוע. בחרו מקצוע ליד כל אחת, כדי שמשחקים חדשים בהדמיה ייכללו בתוצאות ובאנליטיקה.',
+  noneLeft: { title: 'כל ההדמיות שלכם כבר משויכות למקצוע.', whatNext: 'התוצאות שלהן יופיעו באנליטיקה כשתלמידים ישחקו בהן.' },
+  selectLabel: 'מקצוע',
+  selectPlaceholder: 'בחרו מקצוע…',
+  /* אומר את האמת על שיוך בדיעבד: משחקים חדשים ייכללו; משחקים שכבר שוחקו לא (הרמה שלהם חושבה בלי מקצוע) — לא מבטיחים "הנתונים יופיעו" */
+  saved: 'המקצוע נשמר. משחקים חדשים בהדמיה הזאת ייכללו באנליטיקה; משחקים שכבר שוחקו בה לא ייכללו.',
+  backToAnalytics: 'חזרה לאנליטיקה',
+  dismiss: 'סגירה',
+  noMatches: 'אין תוצאות לחיפוש או לסינון',
+} as const
+
+/* מסכי כיתה/תלמיד: כשיש משחקים בהדמיות בלי מקצוע, מצב ריק שאומר "עוד לא שיחקו" היה שקרי — מוסיפים את ההסבר האמיתי */
+export const V2_COVERAGE_TEXT = {
+  emptyHint: 'אם התלמידים כבר שיחקו, ייתכן שההדמיות לא היו משויכות למקצוע בזמן המשחק — ראו ההסבר למעלה.',
+  classOverviewEmpty: {
+    title: (className: string): string => `עוד אין נתונים על כיתה ${className}.`,
+    whatNext: 'הסקירה תופיע כאן כשתלמידי הכיתה ישחקו בהדמיות.',
+  },
+} as const
+export const withCoverageHint = (text: string, hasCoverageNote: boolean): string => (hasCoverageNote ? `${text} ${V2_COVERAGE_TEXT.emptyHint}` : text)
+
+/* תוכן ההדמיות עוד לא תויג: המשפטים עצמם ב-CATALOG_UNTAGGED_TEXT (מקור יחיד); כאן רק תוויות המסך — כותרת הכרטיס שמחליף את "תחומים" ו"טעויות נפוצות",
+   והסיבה שמוצגת בתוך הטאב החסום (עיקרון 10: אפור + מנעול + הסבר גלוי) */
+export const V2_UNTAGGED_TEXT = {
+  cardTitle: 'תחומים וטעויות נפוצות',
+  tabLockedReason: 'לא פעיל בחשבון הזה',
+} as const
+
+/* שכבות-על: משוב אישי לתלמיד/ה (טיוטה למסירה) והכנה לישיבה פדגוגית */
+export const V2_SHEETS_TEXT = {
+  feedback: {
+    title: 'משוב אישי לתלמיד/ה — טיוטה למסירה',
+    intro: 'זו טיוטה של משוב אישי. אפשר להדפיס אותה ולמסור אותה לתלמיד/ה, או להראות אותה על המסך. המערכת לא שולחת אותה לתלמיד/ה, ואין בה השוואה לתלמידים אחרים.',
+    kind: { growth: 'צמיחה', streak: 'התמדה', next_step: 'הצעד הבא' },
+  },
+  briefing: {
+    student: 'מסמך להדפסה לישיבה פדגוגית על התלמיד/ה. אפשר להשתמש בו גם לישיבת תל״א (תכנית לימודים אישית).',
+    class: 'מסמך להדפסה לישיבה פדגוגית על הכיתה.',
+    emptySection: { strengths: 'עוד לא זוהתה חוזקה בולטת בנתונים שיש עד עכשיו.', difficulties: 'עוד לא זוהתה נקודה לשיחה בנתונים שיש עד עכשיו.', fallback: 'אין כאן פריטים עדיין.' },
+  },
+} as const
+
+/* ── G1_EMPTY_TRUTH: אמת במצבים ריקים (נתוני אמת) ──
+   · משחקים שכבר שוחקו ולא נכללו (בהדמיות בלי מקצוע / בלי רמה לפי מקצוע) — המצב הריק אומר זאת, ולא "כשיסיימו".
+   · קטלוג לא פעיל (אין תיוג): טעויות נפוצות ותחומים אינם פעילים בחשבון; אין הבטחת תאריך ואין מה לעשות מצד המורה.
+   · "אין חריג / אין תלמידים לתשומת לב" נאמר רק עם בסיס נתונים. */
+
+/* משחקים שלא נכללו בהיקף מסוים (כיתה / תלמיד/ה): בהדמיות בלי מקצוע, ובהדמיות עם מקצוע שלא חושבה להן רמה לפי מקצוע */
+export interface CoverageGap { unclassified: number; withoutLevel: number }
+
+export const NO_DATA_YET_SHORT = 'עוד אין מספיק נתונים'
+export const ATTENTION_THIN_TEXT = 'עוד אין מספיק נתונים כדי לזהות תלמידים לתשומת לב.'
+
+/* משפט הסיבה האמיתית למצב ריק (כיתה / תלמיד/ה), או null כשאין פער כיסוי. כשיש משחקים בהדמיות בלי מקצוע — הפעולה היא שיוך מקצוע (למשחקים חדשים) */
+export function gapReason(gap: CoverageGap | null | undefined): string | null {
+  if (!gap) return null
+  if (gap.unclassified > 0) return 'המשחקים שכבר שוחקו נמצאים בהדמיות שעוד לא שויך להן מקצוע, ולכן לא נכללו. כדי שמשחקים חדשים ייספרו, שייכו מקצוע להדמיות שיצרתם, בספרייה.'
+  if (gap.withoutLevel > 0) return 'המשחקים שכבר שוחקו לא נכללו, כי לא חושבה להם רמה לפי מקצוע. משחקים חדשים ייכללו כרגיל.'
+  return null
+}
+
+/* "משחק אחד לא נכלל ברמות ובמגמות כי לא חושבה לו רמה" (נאמר גם בהערת הכיתות וגם בהערה הממוקדת) */
+export function playsWithoutLevelSentence(plays: number): string {
+  return plays === 1
+    ? 'משחק אחד לא נכלל ברמות ובמגמות כי לא חושבה לו רמה. משחקים חדשים ייכללו כרגיל.'
+    : `${plays} משחקים לא נכללו ברמות ובמגמות כי לא חושבה להם רמה. משחקים חדשים ייכללו כרגיל.`
+}
+
+/* הערת כיסוי ממוקדת למסך כיתה / תלמיד/ה — אותם משפטים כמו הערת הכניסה, בהיקף המסך. null כשאין פער */
+export function narrateScopedCoverageNote(gap: CoverageGap | null | undefined): string | null {
+  if (!gap) return null
+  const parts: string[] = []
+  if (gap.unclassified > 0) parts.push(narrateUnclassifiedNote(gap.unclassified))
+  if (gap.withoutLevel > 0) parts.push(playsWithoutLevelSentence(gap.withoutLevel))
+  return parts.length > 0 ? parts.join(' ') : null
+}
+
+/* קטלוג ריק (אין תיוג של תוכן ההדמיות): תצוגות שתלויות בו לא פעילות בחשבון. משפט אחד לכל משטח, בלי הבטחת תאריך ובלי פעולה מצד המורה */
+export const CATALOG_UNTAGGED_TEXT = {
+  /* catalogNote בחוזה: משפט כללי אחד (מה זה, שזה לא פעיל, שאין מה לעשות) */
+  note: LIVE_COVERAGE_UNTAGGED,
+  /* משפט הלשונית "טעויות נפוצות" (tabSummaries.misconceptions) */
+  errorsTabSummary: 'טעויות נפוצות עדיין לא פעילות בחשבון שלכם, ואין מה לעשות מצדכם. בינתיים מוצגות הרמות והמגמות.',
+  /* מצב ריק של טעויות נפוצות (מנהל / תלמיד/ה) */
+  errorsEmpty: {
+    title: 'טעויות נפוצות עדיין לא פעילות בחשבון שלכם.',
+    whatNext: 'זו תצוגה של טעויות שחוזרות אצל כמה תלמידים באותו נושא. אין מה לעשות מצדכם כדי להפעיל אותה. בינתיים אפשר לראות את הרמות והמגמות בלשוניות האחרות.',
+  },
+  whatToTeach: 'המלצות לשיעור הבא נבנות מהטעויות הנפוצות, והן עדיין לא פעילות בחשבון שלכם. אין מה לעשות מצדכם.',
+  areas: 'תחומים חזקים ומאתגרים (חלוקת הרמה לנושאים) עדיין לא פעילים בחשבון שלכם. אין מה לעשות מצדכם.',
+  areasDash: 'מקף (—) אומר שהנתון עוד לא נמדד.',
+} as const
+
+/* בחשבון אמיתי אין מגמה לכיתה / מקצוע שלמים (ההשוואה היא בתוך הכיתה) — לא "אין עדיין מספיק נתונים", שמבטיח שזה יגיע */
+export const GROUP_TREND_NOT_SHOWN_TEXT = 'לא מוצגת מגמה לכיתה כולה'
+
+/* עמודת מגמה: "אין עדיין מספיק נתונים" הכללי מוחלף בכמה יש וכמה צריך (needMoreLine בגרסה קצרה לתא בטבלה) */
+export const narrateTrendNeedMore = (plays: number, need: number): string => `עוד אין מגמה: יש ${playsCount(plays)}, וצריך לפחות ${need}`
+
+/* כרטיס כיתה בכניסה בלי תלמידים לתשומת לב: וי ירוק רק עם בסיס נתונים. assessed = מי שאפשר היה לבדוק אצלו שינוי, total = תלמידי הכיתה */
+export const narrateEntryBasisNote = (assessed: number, total: number): string =>
+  assessed <= 0 ? 'עוד אין מספיק נתונים כדי לזהות שינוי.' : `נתונים על ${countOf(assessed, total)} תלמידים — עוד מוקדם לדעת.`
+
+/* מורה ששויך לכיתה בלי מקצוע (ובלי חינוך): אומרים את האמת — יש תלמידים, ואין מקצוע מוגדר — ולמי לפנות */
+export function narrateNoOpenSubjectNote(classNames: readonly string[]): string {
+  const names = classNames.map((n) => n.trim()).filter((n) => n.length > 0)
+  const count = Math.max(1, classNames.length)
+  const multi = count > 1
+  const where = names.length === 0 || names.length > 3 ? (multi ? `ל-${count} כיתות` : 'לכיתה') : names.length === 1 ? `לכיתה ${names[0]}` : `לכיתות ${joinSubjectNames(names)}`
+  return `אתם משויכים ${where} אבל עוד לא הוגדר לכם ${multi ? 'בהן' : 'בה'} מקצוע, ולכן אין לכם נתונים ${multi ? 'בהן' : 'בה'}. את המקצוע מגדירים בניהול הכיתות — פנו למנהל/ת בית הספר.`
+}
+
+/* מנהל: משחקים בהדמיות בלי מקצוע (סך בית הספר). מספר קטן מהסף לא מפורסם */
+export function narrateAdminUnclassifiedNote(plays: number): string {
+  const how = plays < MIN_CELL_SIZE ? 'כמה משחקים' : `${plays} משחקים`
+  return `${how} בהדמיות שעוד לא שויך להן מקצוע לא נכללו בתוצאות. כדי שמשחקים חדשים ייספרו, צריך לשייך מקצוע להדמיות בספריית ההדמיות.`
+}
+/* מנהל: "נתונים שלא מוצגים" — ללא "תא", ובצורת רבים/יחיד נכונה */
+export const narrateAdminHiddenNote = (n: number): string =>
+  n === 1 ? 'נתון אחד לא מוצג כי יש בו מעט תלמידים או כיתה אחת בלבד.' : `${n} נתונים לא מוצגים כי יש בהם מעט תלמידים או כיתה אחת בלבד.`
+/* מנהל: גודל שכבה — "כיתה אחת · 6 תלמידים" / "2 כיתות · 52 תלמידים" */
+export const narrateGradeSize = (classCount: number, studentCount: number): string =>
+  `${classCount === 1 ? 'כיתה אחת' : `${classCount} כיתות`} · ${studentCount === 1 ? 'תלמיד אחד' : `${studentCount} תלמידים`}`

@@ -13,18 +13,19 @@
    · תלמידים שנחשפו בשמם מדווחים ל-opts.audit; הנתיב כותב ליומן הגישה לפני שהתגובה נשלחת.
    ────────────────────────────────────────────────────────────────────────── */
 import {
-  CLASS_COMMON_ERROR_MIN_SHARE_PCT, CLASS_LEVEL_MIN_STUDENTS, ENTRY_MAX_ALERTS, ERRORS_TAB_TITLES_MAX, MISCONCEPTION_RULE, OVERVIEW_ALERT_TEXTS_MAX, PERSONAL_LEVEL_MIN_SESSIONS,
-  PROGRESS_EVENTS_MAX, SUMMARY_RECENT_MAX, contentVectorLabel, type Position,
+  CLASS_COMMON_ERROR_MIN_SHARE_PCT, CLASS_LEVEL_MIN_STUDENTS, ENTRY_MAX_ALERTS, ERRORS_TAB_TITLES_MAX, KIND_THRESHOLDS, MISCONCEPTION_RULE, OVERVIEW_ALERT_TEXTS_MAX, PERSONAL_LEVEL_MIN_SESSIONS,
+  PROGRESS_EVENTS_MAX, SUMMARY_RECENT_MAX, TREND_LABEL_MIN_SESSIONS, contentVectorLabel, type Position, type Trend,
 } from '../../../../src/shared/lib/analyticsConfig.js'
 import {
-  ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT, ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ANALYTICS_CAVEATS, BRIEFING_SECTION_TITLES, ERR_NOT_FOUND, ERR_NO_ACCESS, EVIDENCE_LIMITS_NOTE, FEEDBACK_INTRO_TEXT, HOW_WE_CALC,
-  basedOnChallenges, basedOnSessions, basisLine, basisWhat, briefingSubtitleClass, briefingSubtitleStudent, briefingTitleClass, briefingTitleStudent, exposuresLine,
-  groupTrendText, joinSubjectNames, narrateAdminGradeSummary, narrateAdminMisconception, narrateAdminPosition, narrateAdminSchool, narrateAdminSchoolPartial,
-  narrateAdminSubjectSummary, narrateAlertsMore, narrateAlertsTitle, narrateCoverageGaps, narrateDifficultyBelow, narrateDifficultyFromTrend, narrateErrorsTabSummary,
-  narrateEvidenceWindow, narrateFeedbackGrowth, narrateFeedbackHeadline, narrateFeedbackNextStep, narrateFeedbackStreak, narrateMisconceptionInsufficient,
-  narrateOverviewSummary, narrateProgressTabSummary, narrateRecommendation, narrateRecommendationFromFinding, narrateShort, narrateShortBody, narrateStrengthAbove,
-  narrateStudentHeadline, narrateStudentsTabSummary, narrateSubjectHeadline, narrateUnclassifiedNote, narrateVectorGap, narrateVectorStrength, needMoreLine, normBandLine,
-  positionText, studentsCountText, trendText, V2_CLIENT_TEXT,
+  ADMIN_HIDDEN_CELL_DOMINANT_CLASS_TEXT, ADMIN_HIDDEN_CELL_SINGLE_CLASS_TEXT, ADMIN_HIDDEN_CELL_TEXT, ANALYTICS_CAVEATS, BRIEFING_SECTION_TITLES, CATALOG_UNTAGGED_TEXT, ERR_NOT_FOUND, ERR_NO_ACCESS, EVIDENCE_LIMITS_NOTE,
+  FEEDBACK_INTRO_TEXT, GROUP_TREND_NOT_SHOWN_TEXT, HOW_WE_CALC,
+  basedOnChallenges, basedOnPlays, basisLine, basisWhat, briefingSubtitleClass, briefingSubtitleStudent, briefingTitleClass, briefingTitleStudent, exposuresLine,
+  groupTrendText, joinSubjectNames, narrateAdminGradeSummary, narrateAdminHiddenNote, narrateAdminMisconception, narrateAdminNoResults, narrateAdminPosition, narrateAdminSchool, narrateAdminSchoolPartial,
+  narrateAdminSubjectSummary, narrateAdminUnclassifiedNote, narrateAlertsMore, narrateAlertsTitle, narrateCoverageGaps, narrateDifficultyBelow, narrateDifficultyFromTrend, narrateEntryBasisNote, narrateErrorsTabSummary,
+  narrateEvidenceWindow, narrateFeedbackGrowth, narrateFeedbackHeadline, narrateFeedbackNextStep, narrateFeedbackStreak, narrateGradeSize, narrateMisconceptionInsufficient, narrateNoOpenSubjectNote,
+  narrateOverviewSummary, narrateProgressTabSummary, narrateRecommendation, narrateRecommendationFromFinding, narrateScopedCoverageNote, narrateShort, narrateShortBody, narrateStrengthAbove,
+  narrateStudentHeadline, narrateStudentsTabSummary, narrateSubjectHeadline, narrateTrendNeedMore, narrateUnclassifiedNote, narrateVectorGap, narrateVectorStrength, needMoreLine, normBandLine,
+  positionText, studentsCountText, trendText, type CoverageGap,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { subjectName, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import type {
@@ -47,7 +48,7 @@ import {
 import { skey, type WorldClass, type WorldStudent } from './demoWorld.js'
 import type { Analysis, MisStat, SubjectAnalysis } from './engine.js'
 import type { AnalyticsV2Provider } from './provider.js'
-import type { AnalyticsSource } from './source.js'
+import type { AnalyticsSource, SourceCoverage } from './source.js'
 import { mean } from './stats.js'
 
 const ok = <T>(data: T): Envelope<T> => ({ dataState: 'ok', data })
@@ -64,6 +65,31 @@ function denied(): never { throw new AppError(403, ERR_NO_ACCESS) }
 
 /* ממצאים מדווחים לפי טון */
 const countTone = (fs: Finding[], tone: 'attention' | 'positive'): number => fs.filter((f) => f.status === 'reported' && f.tone === tone).length
+
+/* ── G1: אמת במצבים ריקים ──
+   · קטלוג ריק (נתוני אמת בלי תיוג): טעויות נפוצות ותחומים אינם פעילים — catalogReady=false והמשפט ב-catalogNote; בהדמיה הקטלוג פעיל.
+   · "אין תלמידים לתשומת לב" נאמר רק כשלפחות REASSURE_MIN_SHARE מהתלמידים נבדקו (יש להם מגמה שנבדקה); אחרת משפט ניטרלי עם כמה נבדקו.
+   · עמודת מגמה שאין לה בסיס אומרת כמה משחקים יש וכמה צריך (בעולם חי: 2 × הסף בכל תקופה; בהדגמה: 2 × TREND_LABEL_MIN_SESSIONS). */
+const REASSURE_MIN_SHARE = 0.5
+const catalogReadyOf = (cov: SourceCoverage): boolean => cov.catalogEmpty !== true
+const emptyTruth = (cov: SourceCoverage, gap: CoverageGap | null) => {
+  const ready = catalogReadyOf(cov)
+  return { catalogReady: ready, catalogNote: ready ? null : CATALOG_UNTAGGED_TEXT.note, coverageNote: narrateScopedCoverageNote(gap) }
+}
+/* מספר המשחקים שצריך כדי שתיבדק מגמה אישית (חסם תחתון: משחקים בשתי התקופות יחד) */
+const trendPlaysNeeded = (live: boolean): number => 2 * (live ? KIND_THRESHOLDS.level_trend.minN : TREND_LABEL_MIN_SESSIONS)
+/* טקסט מגמה אישית: כשאין בסיס ומספר המשחקים מתחת לחסם — כמה יש וכמה צריך; אחרת הניסוח הרגיל */
+function trendCell(sa: Pick<SubjectAnalysis, 'sessionsCount' | 'liveTrend'>, trend: Trend): string {
+  if (trend !== 'insufficient') return trendText(trend)
+  const need = trendPlaysNeeded(sa.liveTrend !== undefined)
+  return sa.sessionsCount < need ? narrateTrendNeedMore(sa.sessionsCount, need) : trendText(trend)
+}
+/* טקסט מגמה לקבוצה: בעולם חי אין מגמה לכיתה / מקצוע בכלל (לא "כשיצטברו נתונים") */
+const groupTrendCell = (sas: readonly Pick<SubjectAnalysis, 'liveTrend'>[], trend: Trend): string =>
+  trend === 'insufficient' && sas.some((s) => s.liveTrend !== undefined) ? GROUP_TREND_NOT_SHOWN_TEXT : groupTrendText(trend)
+/* כמה מהתלמידים נבדקה אצלם מגמה (יש בסיס לומר "אין שינוי") */
+const assessedOf = (sas: readonly SubjectAnalysis[]): number => new Set(sas.filter((sa) => studentTrend(sa) !== 'insufficient').map((sa) => sa.studentId)).size
+const isThin = (assessed: number, total: number): boolean => total > 0 && assessed < total * REASSURE_MIN_SHARE
 
 /* ── עזרי הרשאה/נתונים ברמת תלמיד וכיתה ── */
 const studentsOf = (a: Analysis, cls: WorldClass): WorldStudent[] => cls.studentIds.map((sid) => a.studentById.get(sid)).filter((s): s is WorldStudent => !!s)
@@ -108,7 +134,7 @@ function panelOf(acc: StudentAccess, a: Analysis, sa: SubjectAnalysis): SubjectP
   return {
     access: 'visible', subject: sref(sa.subject), currentLevel: sa.currentLevel, levelSeries: sa.levelSeries,
     ageNorm: sa.ageNorm, positionVsNorm: personalPosition(sa), positionText: positionText(personalPosition(sa)),
-    trend, trendText: trendText(trend),
+    trend, trendText: trendCell(sa, trend),
     areas: { strong: areas.strong.map(contentVectorLabel), challenging: areas.challenging.map(contentVectorLabel) },
     commonErrors: commonErrorsOf(a, sa.studentId, sa.subject),
     sessionsCount: sa.sessionsCount,
@@ -192,6 +218,11 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
     const fromStudents = cls ? studentsOf(a, cls).flatMap((st) => st.subjects) : []
     return [...new Set([...source.classSubjects(a, classId), ...fromStudents])]
   }
+  /* פער כיסוי בהיקף קבוצת תלמידים (כיתה / תלמיד/ה): משחקים שלא נכללו. null כשאין (או כשהמקור — הדמיה — אינו מדווח) */
+  const gapOf = (v: V2Viewer, a: Analysis, studentIds: readonly string[]): CoverageGap | null => {
+    const g = source.scopedGap?.(v, a, studentIds)
+    return g && (g.unclassified > 0 || g.withoutLevel > 0) ? { unclassified: g.unclassified, withoutLevel: g.withoutLevel } : null
+  }
   /* כיתה שהצופה רשאי לגשת אליה (404 אחיד כשלא) */
   const classInScope = (v: V2Viewer, a: Analysis, classId: string): WorldClass => {
     const cls = a.classById.get(classId)
@@ -266,11 +297,15 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const alerted = new Set<string>()
       const classes = scoped(v, a).map((c) => {
         const students = studentsOf(a, c).filter((st) => isListed(v, a, st, c.id))
+        /* שיוך בלי מקצוע פתוח ובלי חינוך: אין תלמידים ברשימה, אבל הכיתה לא ריקה — גודלה מוצג (בלי פירוט אישי) והלקוח מסביר שהמקצוע לא הוגדר */
+        const noOpenSubject = !isHomeroomOf(v, c.id) && classSubjectAccess(v, c.id, subjectsOfClass(a, c.id)).open.length === 0
         let attentionCount = 0
         let hasResults = false
+        let assessed = 0
         for (const st of students) {
           const sas = visibleSubjectsOf(v, a, st).map((s) => saOf(a, st.id, s)).filter(defined)
           if (sas.some((sa) => sa.sessionsCount > 0)) hasResults = true
+          if (sas.some((sa) => studentTrend(sa) !== 'insufficient')) assessed++
           const cross = accessSeesCrossSubject(accessOf(v, a, st)) ? (a.crossSubject.get(st.id) ?? []) : []
           const best = [...sas.flatMap((sa) => sa.findings), ...cross].filter(isAttention).sort(compareAlert)[0]
           if (best) {
@@ -278,7 +313,12 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
             if (!alerted.has(st.id)) { alerted.add(st.id); alerts.push({ finding: best, studentId: st.id, classId: c.id }) }
           }
         }
-        return { id: c.id, name: c.name, gradeLabel: c.gradeLabel, studentCount: students.length, attentionCount, hasResults }
+        /* "אין תלמידים לתשומת לב" (תג ירוק) רק עם בסיס: אם נבדק פחות ממחצית התלמידים, משפט ניטרלי עם כמה נבדקו */
+        const basisNote = hasResults && attentionCount === 0 && isThin(assessed, students.length) ? narrateEntryBasisNote(assessed, students.length) : null
+        return {
+          id: c.id, name: c.name, gradeLabel: c.gradeLabel, studentCount: noOpenSubject ? c.studentIds.length : students.length, attentionCount, hasResults,
+          noOpenSubject, studentsAssessed: assessed, basisNote,
+        }
       })
       alerts.sort((x, y) => compareAlert(x.finding, y.finding) || x.studentId.localeCompare(y.studentId))
       const shown = alerts.slice(0, ENTRY_MAX_ALERTS)
@@ -287,7 +327,9 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const hasOpenSubject = grantsOf(v).some((g) => g.homeroom || g.subjects.length > 0)
       const cov = source.coverage(v, a)
       const unclassified = hasOpenSubject ? cov.unclassifiedSessions : 0
+      const noSubjectNames = scoped(v, a).filter((c) => !isHomeroomOf(v, c.id) && classSubjectAccess(v, c.id, subjectsOfClass(a, c.id)).open.length === 0).map((c) => c.name)
       const notes = [
+        ...(noSubjectNames.length > 0 ? [narrateNoOpenSubjectNote(noSubjectNames)] : []),
         ...(unclassified > 0 ? [narrateUnclassifiedNote(unclassified)] : []),
         ...narrateCoverageGaps({
           ungradedClasses: cov.ungradedClasses ?? 0, ungradedClassNames: cov.ungradedClassNames, notLoadedClasses: cov.classesNotLoaded ?? 0, loadingClasses: cov.classesLoading ?? 0,
@@ -314,16 +356,22 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       requireNotAdmin(v)
       const a = await source.analysis(v)
       const { st, acc, cls } = studentInScope(v, a, id)
+      const cov = source.coverage(v, a)
+      const gap = gapOf(v, a, [id])
       const panels = st.subjects.map((sub) => saOf(a, id, sub)).filter(defined).map((sa) => panelOf(acc, a, sa))
       const visibleFindings = panels.flatMap((p) => (p.access === 'visible' ? p.findings : []))
       const crossSubject = accessSeesCrossSubject(acc) ? (a.crossSubject.get(id) ?? []) : []
       /* הממצא החשוב ביותר שהצופה רשאי לראות — כדי שהמשפט בראש העמוד יגיד מה נצפה ולא רק "יש משהו לבדוק" */
       const topFinding = [...crossSubject.filter(isReported), ...visibleFindings.filter(isAttention)].sort(compareAlert)[0]
       const o: StudentOverview = {
+        ...emptyTruth(cov, gap),
         student: { id, displayName: st.displayName, classId: cls.id, className: cls.name, grade: cls.grade, gradeLabel: cls.gradeLabel },
         summary: narrateStudentHeadline({
           firstName: st.firstName, attention: countTone(visibleFindings, 'attention'), positive: countTone(visibleFindings, 'positive'), crossSubject: crossSubject.length > 0,
           topAttention: topFinding ? narrateShortBody(topFinding.evidence, { subjectName: topFinding.subjectCode ? subjectName(topFinding.subjectCode) : null }) : null,
+          /* בסיס נתונים: לפחות מקצוע גלוי אחד שנבדקה בו מגמה — אחרת אין "אין דבר חריג", אלא "עוד אין מספיק נתונים" */
+          hasBasis: panels.some((p) => p.access === 'visible' && p.trend !== 'insufficient'),
+          gap,
         }),
         access: accessSeesCrossSubject(acc) ? 'full' : 'subject_only',
         panels,
@@ -378,11 +426,13 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const subjects = classSubjectAccess(v, classId, subjectsOfClass(a, classId)).open
       const norm = a.ageNormOf(cls.grade)
       const stats = subjects.map((sub) => ({ sub, s: subjectStats(a, cls, sub) }))
+      const cov = source.coverage(v, a)
+      const gap = gapOf(v, a, cls.studentIds)
       const rows: ClassOverview['rows'] = stats.map(({ sub, s }) => {
         const areas = classAreaKeys(s.sas, s.areaReference)
         return {
           subject: sref(sub), level: s.level, ageNorm: norm, positionVsNorm: s.position, positionText: positionText(s.position),
-          trend: s.trend, trendText: groupTrendText(s.trend),
+          trend: s.trend, trendText: groupTrendCell(s.sas, s.trend),
           strongAreas: areas.strong.map(contentVectorLabel), challengingAreas: areas.challenging.map(contentVectorLabel),
           alerts: s.attention.length,
           alertTexts: s.attention.slice(0, OVERVIEW_ALERT_TEXTS_MAX).map((x) => narrateShort(x.finding.evidence, ctxOf(a, x.studentId, x.finding))),
@@ -391,9 +441,12 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const count = (p: Position): number => rows.filter((r) => r.positionVsNorm === p).length
       const attentionStudents = new Set(stats.flatMap(({ s }) => s.attention.map((x) => x.studentId))).size
       opts?.audit?.expose(stats.flatMap(({ s }) => s.attention.slice(0, OVERVIEW_ALERT_TEXTS_MAX).map((x) => x.studentId)))
+      /* בסיס ל"אין תלמידים לתשומת לב": כמה מתלמידי הכיתה נבדקה אצלם מגמה באחד המקצועות הפתוחים */
+      const attentionThin = isThin(assessedOf(stats.flatMap(({ s }) => s.sas)), cls.studentIds.length)
       return state(rows.some((r) => r.level !== null), {
+        ...emptyTruth(cov, gap),
         class: { id: cls.id, name: cls.name, gradeLabel: cls.gradeLabel, studentCount: cls.studentIds.length },
-        summary: narrateOverviewSummary({ className: cls.name, above: count('above'), within: count('within'), below: count('below'), attentionStudents }),
+        summary: narrateOverviewSummary({ className: cls.name, above: count('above'), within: count('within'), below: count('below'), attentionStudents, attentionThin, gap }),
         rows, caveats: CAVEATS,
       } satisfies ClassOverview)
     },
@@ -409,6 +462,9 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
       const { studentIds } = stats
       const norm = a.ageNormOf(cls.grade)
       const subName = subjectName(subject)
+      const cov = source.coverage(v, a)
+      const gap = gapOf(v, a, cls.studentIds)
+      const catalogReady = catalogReadyOf(cov)
 
       const defs = a.catalog.misconceptions.filter((m) => m.subject === subject && a.catalog.misconceptionAppliesTo(m, cls.grade))
       const rows = defs.flatMap((m) => { const stat = a.misByClass.get(`${classId}|${m.id}`); return stat ? [misRow(a, m, stat, true)] : [] })
@@ -440,30 +496,37 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         const trend = studentTrend(sa)
         return {
           id: sa.studentId, displayName: nameOf(sa.studentId), level: sa.currentLevel,
-          positionVsNorm: personalPosition(sa), positionText: positionText(personalPosition(sa)), trend, trendText: trendText(trend),
+          positionVsNorm: personalPosition(sa), positionText: positionText(personalPosition(sa)), trend, trendText: trendCell(sa, trend),
         }
       }).sort(compareHebrewNames) /* א-ב, ובשוויון — לפי מזהה */
       const series = classMonthlySeries(stats.sas)
       const countTrend = (t: 'improving' | 'steady' | 'declining'): number => studentRows.filter((s) => s.trend === t).length
 
       const view: ClassSubjectView = {
+        ...emptyTruth(cov, gap),
         class: { id: cls.id, name: cls.name, gradeLabel: cls.gradeLabel, studentCount: cls.studentIds.length },
         subject: sref(subject),
         classLevel: { mean: stats.level, ageNorm: norm },
         summary: {
-          headline: narrateSubjectHeadline({ className: cls.name, subject: subName, position: stats.position, trend: stats.trend, attentionStudents: stats.attention.length }),
+          headline: narrateSubjectHeadline({
+            className: cls.name, subject: subName, position: stats.position, trend: stats.trend, attentionStudents: stats.attention.length,
+            attentionThin: isThin(assessedOf(stats.sas), cls.studentIds.length), gap,
+          }),
           recent, whatToTeach: recs,
         },
         tabSummaries: {
-          misconceptions: narrateErrorsTabSummary({ common: commonRows.map((r) => r.titleHe), anyReported: rows.some((r) => r.status === 'reported'), maxTitles: ERRORS_TAB_TITLES_MAX }),
+          misconceptions: narrateErrorsTabSummary({ common: commonRows.map((r) => r.titleHe), anyReported: rows.some((r) => r.status === 'reported'), maxTitles: ERRORS_TAB_TITLES_MAX, catalogReady }),
           progress: narrateProgressTabSummary({ series }),
-          students: narrateStudentsTabSummary({ total: studentRows.length, improving: countTrend('improving'), steady: countTrend('steady'), declining: countTrend('declining') }),
+          students: narrateStudentsTabSummary({
+            total: studentRows.length, improving: countTrend('improving'), steady: countTrend('steady'), declining: countTrend('declining'),
+            needPlays: trendPlaysNeeded(stats.sas.some((sa) => sa.liveTrend !== undefined)),
+          }),
         },
         misconceptions: rows, recommendations: recs,
         progress: { series, ageNorm: norm, events: timeline },
         classFindings, studentFindings,
         students: studentRows,
-        trend: stats.trend, trendText: groupTrendText(stats.trend),
+        trend: stats.trend, trendText: groupTrendCell(stats.sas, stats.trend),
         otherSubjects, caveats: CAVEATS,
       }
       opts?.audit?.expose(studentIds)
@@ -480,7 +543,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
          ספירה לפי מזהים **שונים** בשכבה: תלמיד שרשום בשתי כיתות של אותה שכבה נספר פעם אחת (אחרת שכבה של 4 תלמידים שונים הייתה "5" ומתפרסמת) */
       const allGrades = [...new Set(w.classes.map((c) => c.grade))].sort((x, y) => x - y).map((g) => {
         const cls = w.classes.filter((c) => c.grade === g)
-        return { grade: g, gradeLabel: a.ageNormOf(g).gradeLabel, classCount: cls.length, studentCount: new Set(cls.flatMap((c) => c.studentIds)).size }
+        const studentCount = new Set(cls.flatMap((c) => c.studentIds)).size
+        return { grade: g, gradeLabel: a.ageNormOf(g).gradeLabel, classCount: cls.length, studentCount, sizeText: narrateGradeSize(cls.length, studentCount) }
       })
       const grades = allGrades.filter((g) => gradeVisible(g.studentCount))
       const cells: AdminCell[] = []
@@ -580,9 +644,17 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
         ungradedClasses: cov.ungradedClasses ?? 0, notLoadedClasses: cov.classesNotLoaded ?? 0, loadingClasses: cov.classesLoading ?? 0, dataErrorClasses: cov.classesDataError ?? 0,
         playsWithoutLevel: cov.playsWithoutLevel ?? 0,
       })
-      const highlights = gaps.length > 0 ? [...(base.length > 0 ? base : [V2_CLIENT_TEXT.adminNoResults]), gaps.join(' ')] : base
+      /* G1 (UX#15): יש שכבות אבל שום נתון לא מוצג — אומרים את הכלל האמיתי (מספיק תלמידים ומספיק כיתות), ובבית ספר עם כיתה אחת בשכבה — שזה לא ישתנה */
+      const singleClassPerGrade = shownAll.length === 0 && grades.length > 0 && grades.every((g) => g.classCount < MIN_CELL_CLASSES)
+      const noResultsLine = narrateAdminNoResults({ singleClassPerGrade })
+      const emptyExplain = shownAll.length === 0 && grades.length > 0 ? [noResultsLine] : []
+      const highlights = gaps.length > 0 ? [...(base.length > 0 ? [...base, ...emptyExplain] : [noResultsLine]), gaps.join(' ')] : [...base, ...emptyExplain]
+      const catalogReady = catalogReadyOf(cov)
 
       const out: AdminOverview = {
+        catalogReady, catalogNote: catalogReady ? null : CATALOG_UNTAGGED_TEXT.note,
+        coverageNote: cov.unclassifiedSessions > 0 ? narrateAdminUnclassifiedNote(cov.unclassifiedSessions) : null,
+        hiddenNote: hidden > 0 ? narrateAdminHiddenNote(hidden) : null,
         school: w.school, highlights, grades, gradeRows, subjectRows, cells, progress,
         comparisons: [...compRows.entries()].filter(([, rows]) => rows.length >= 2).map(([sub, rows]) => ({ subject: sref(sub), rows })),
         misconceptions: miss, hiddenCells: hidden, caveats: CAVEATS,
@@ -632,8 +704,8 @@ export function createProvider(source: AnalyticsSource): AnalyticsV2Provider {
           const sa = saOf(a, id, sub)
           if (!sa) continue
           const nm = subjectName(sub)
-          if (sa.currentLevel !== null && personalPosition(sa) === 'above') strengths.push({ text: narrateStrengthAbove(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
-          if (sa.currentLevel !== null && personalPosition(sa) === 'below') difficulties.push({ text: narrateDifficultyBelow(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnSessions(sa.sessionsCount)] })
+          if (sa.currentLevel !== null && personalPosition(sa) === 'above') strengths.push({ text: narrateStrengthAbove(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnPlays(sa.sessionsCount)] })
+          if (sa.currentLevel !== null && personalPosition(sa) === 'below') difficulties.push({ text: narrateDifficultyBelow(nm, sa.currentLevel, sa.ageNorm.center), subjectCode: sub, evidence: [normBandLine(sa.ageNorm.low, sa.ageNorm.high), basedOnPlays(sa.sessionsCount)] })
           /* תחומים: החזק והמאתגר ביותר במקצוע, מול רמת הייחוס של התחומים; בתדריך כולו מוצגים הבולטים ביותר בלבד */
           const ref = areaReference(sa)
           const reportedVec = sa.contentVectors.filter((c) => c.status === 'reported' && c.level !== null)

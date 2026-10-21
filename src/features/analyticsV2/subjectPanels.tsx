@@ -1,12 +1,14 @@
 /* ארבעת התכנים של מקצוע בכיתה. כולם צורכים את אותה תגובה (ClassSubjectView) ונכנסים במסך אחד ב-1366×768. */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { EMPTY_TEXT, V2_CLIENT_TEXT, countNb, dateHe, numberRange } from '../../shared/lib/findingsNarrative'
+import { CATALOG_UNTAGGED_TEXT, EMPTY_TEXT, V2_CLIENT_TEXT, countNb, dateHe, numberRange, withCoverageHint } from '../../shared/lib/findingsNarrative'
 import type { ClassSubjectView, MisconceptionRow } from '../../shared/types/analyticsV2'
 import { FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import type { ChartMarker } from './charts'
+import { catalogEmptyOf } from './catalog'
+import { coverageNoteOf } from './coverage'
 import { useV2Env } from './context'
 import { L } from './labels'
 import { questHref } from './logic'
@@ -25,7 +27,8 @@ export function SummaryPanel({ d }: { d: ClassSubjectView }) {
         <Card label={L.whatToTeach}>
           <CardTitle>{L.whatToTeach}</CardTitle>
           {d.summary.whatToTeach.length === 0 ? (
-            <Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noCommonErrors}</Note>
+            /* תוכן שעוד לא תויג: ההמלצות נבנות מהטעויות הנפוצות — אומרים שהן לא פעילות בחשבון, לא "כשיצטברו תשובות" */
+            <Note style={{ fontSize: 16 }}>{catalogEmptyOf(d) ? CATALOG_UNTAGGED_TEXT.whatToTeach : EMPTY_TEXT.noCommonErrors}</Note>
           ) : (
             <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
               {d.summary.whatToTeach.map((r) => {
@@ -115,6 +118,15 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
 export function ErrorsPanel({ d, classId }: { d: ClassSubjectView; classId: string }) {
   const env = useV2Env()
   const reported = d.misconceptions.some((m) => m.status === 'reported')
+  /* הטאב אפור בסרגל (SubjectArea); אם הגיעו אליו בכתובת — מסבירים פעם אחת מה זה ולמה הוא לא פעיל (המשפט שמעליו כבר אומר שהוא לא פעיל) */
+  if (catalogEmptyOf(d)) {
+    return (
+      <>
+        <Sentence compact>{d.tabSummaries.misconceptions}</Sentence>
+        <Card><Note style={{ fontSize: 16 }}>{CATALOG_UNTAGGED_TEXT.errorsEmpty.whatNext}</Note></Card>
+      </>
+    )
+  }
   if (d.misconceptions.length === 0) {
     return (
       <>
@@ -143,7 +155,7 @@ export function ProgressPanel({ d }: { d: ClassSubjectView }) {
     return (
       <>
         <Sentence compact>{d.tabSummaries.progress}</Sentence>
-        <Card><Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noProgress}</Note></Card>
+        <Card><Note style={{ fontSize: 16 }}>{withCoverageHint(EMPTY_TEXT.noProgress, coverageNoteOf(d) !== null)}</Note></Card>
       </>
     )
   }
@@ -183,7 +195,7 @@ export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: st
     return (
       <>
         <Sentence compact>{d.tabSummaries.students}</Sentence>
-        <Card><Note style={{ fontSize: 16 }}>{V2_CLIENT_TEXT.noStudentsInSubject}</Note></Card>
+        <Card><Note style={{ fontSize: 16 }}>{withCoverageHint(V2_CLIENT_TEXT.noStudentsInSubject, coverageNoteOf(d) !== null)}</Note></Card>
       </>
     )
   }

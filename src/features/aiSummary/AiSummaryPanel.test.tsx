@@ -126,9 +126,10 @@ describe('מוכן', () => {
     expect(html).toContain('data-ai-state="ready"')
     for (const p of PARAS) expect(html).toMatch(new RegExp(`<p style="[^"]*font-size:17px[^"]*line-height:1\\.7[^"]*">${p}</p>`))
     expect(authorLabel(html, 'ai'), 'תווית AI: אייקון + מילים').toEqual({ icon: true, words: AI_SUMMARY_TEXT.label.ai })
-    /* מתחת לטקסט (לפי המפרט), ולפני ההסתייגות הקבועה */
-    expect(html.indexOf('data-ai-label')).toBeGreaterThan(html.lastIndexOf(PARAS[PARAS.length - 1]))
+    /* מי כתב — מעל הטקסט (המורה יודעת מי כתב לפני שהיא קוראת), ובסוף עדיין לפני ההסתייגות הקבועה */
+    expect(html.indexOf('data-ai-label')).toBeLessThan(html.indexOf(PARAS[0]))
     expect(html.indexOf('data-ai-label')).toBeLessThan(html.indexOf('data-ai-caveat'))
+    expect((html.match(/data-ai-label=/g) ?? []).length, 'התווית פעם אחת').toBe(1)
     expect(text(html)).toContain('מבוסס על 14 הדמיות')
     expect(text(html)).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn('20 באוקטובר 2026'))
     expect(text(html)).toContain(CAVEAT_TREND)
@@ -172,6 +173,42 @@ describe('מוכן', () => {
     const html = render(loaded({ persisted: false, persistenceNote: AI_SUMMARY_TEXT.persistenceNote, summary: aiSummary({ id: null }) }))
     expect(text(html)).toContain(AI_SUMMARY_TEXT.persistenceNote)
     expect(buttons(html).map(buttonLabel)).toContain(AI_SUMMARY_TEXT.ui.edit)
+  })
+
+  it('לא נשמר בשרת: ההודעה אומרת מה לעשות (לייצא או להדפיס לפני הסגירה), והכפתורים האלה מודגשים — ורק הם', () => {
+    const note = AI_SUMMARY_TEXT.persistenceNote
+    expect(note).toMatch(/ייעלם/)
+    expect(note).toMatch(/Word/)
+    expect(note).toMatch(/הדפיסו/)
+    const html = render(loaded({ persisted: false, persistenceNote: note, summary: aiSummary({ id: null }) }))
+    const byLabel = (label: string): string => buttons(html).find((b) => buttonLabel(b) === label) ?? ''
+    /* ראשי = פס תחתון בצבע המבטא (inset box-shadow); משני — בלי */
+    expect(byLabel(AI_SUMMARY_TEXT.ui.exportWord)).toContain('box-shadow')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.print)).toContain('box-shadow')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.edit)).not.toContain('box-shadow')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.regenerate)).not.toContain('box-shadow')
+    /* ההודעה יושבת מעל שורת הפעולות */
+    expect(html.indexOf('data-ai-actions')).toBeGreaterThan(html.indexOf(note.slice(0, 20)))
+    expectClean(html)
+    /* סיכום שנשמר: אין הדגשה */
+    const saved = render(loaded())
+    expect(buttons(saved).find((b) => buttonLabel(b) === AI_SUMMARY_TEXT.ui.exportWord)).not.toContain('box-shadow')
+  })
+
+  it('שם אחד לסיכום: הכפתור שפותח אותו, הכותרת של כל היקף והכפתור שכותב אותו — כולם "סיכום מד״ר הולו"/"כתבו לי סיכום", והכפתור אומר שזו בינה מלאכותית', () => {
+    expect(AI_SUMMARY_PANEL_TEXT.openButton).toBe('סיכום מד״ר הולו (בינה מלאכותית)')
+    for (const scope of ['student', 'class', 'class_subject', 'submission'] as const) expect(AI_SUMMARY_TEXT.headingByScope[scope].startsWith('סיכום מד״ר הולו')).toBe(true)
+    expect(AI_SUMMARY_TEXT.ui.generate).toBe('כתבו לי סיכום')
+    /* ההסבר מעל כפתור הכתיבה אומר מי כותב */
+    expect(aiSummaryGenerateHint('student')).toContain('הבינה המלאכותית (ד״ר הולו)')
+  })
+
+  it('סיכום תבניתי אחרי כשל: הבאנר אומר מה קרה (ד״ר הולו לא הצליח לנסח הפעם) ולא רק מה מוצג', () => {
+    const n = AI_SUMMARY_TEXT.notice.template
+    expect(n).toContain('ד״ר הולו לא הצליח לנסח')
+    expect(n).toContain('סיכום אוטומטי מהנתונים')
+    expect(n).toContain('לא נכתב בבינה מלאכותית')
+    expect(n).toContain('אפשר לנסות שוב')
   })
 
   it('"איך נכתב הסיכום?" מקופל מאחורי <details> (כמו "איך חישבנו?"), והשורות בתוכו', () => {
@@ -290,7 +327,7 @@ describe('שגיאת טעינה', () => {
 describe('כרטיס מוטמע (compact) — בטאב "במבט אחד"', () => {
   it('אין סיכום: כותרת + הכפתור באותה שורה, וההסבר מתחת — כותרת h3', () => {
     const html = render(loaded({ summary: null }), { compact: true })
-    expect(html).toMatch(/<h3[^>]*>[\s\S]*?סיכום מילולי על התלמיד\/ה<\/h3>/)
+    expect(html).toMatch(/<h3[^>]*>[\s\S]*?סיכום מד״ר הולו על התלמיד\/ה<\/h3>/)
     expect(buttons(html).map(buttonLabel)).toEqual([AI_SUMMARY_TEXT.ui.generate])
     expect(html.indexOf('<button')).toBeLessThan(html.indexOf(aiSummaryGenerateHint('student').slice(0, 20)))
     expect(html).toMatch(/margin-top:8px/)

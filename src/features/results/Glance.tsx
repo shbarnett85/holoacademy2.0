@@ -5,11 +5,14 @@
    מתחת לגרפים נשמר חריץ לכרטיס הסיכום המילולי של ד״ר הולו: <div data-ai-summary-slot />. כשאין בו תוכן הוא לא תופס מקום
    (בלי ריווח, בלי גובה) — הכרטיס שיוכנס אליו מביא איתו marginTop משלו. SubmissionScreen מכניס אליו (prop summary) את AiSummaryPanel במצב compact. */
 import type { ReactNode } from 'react'
-import { DONUT_TEXT, donutAriaLabel } from '../../shared/lib/findingsNarrative'
+import { DONUT_TEXT, donutAriaLabel, donutBandsHelp } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView } from '../../shared/types/resultsV1'
-import { DonutChart } from '../teacherUi'
+import { DonutChart, FONT, T } from '../teacherUi'
 import type { DonutEmpty, DonutSlice } from '../teacherUi'
 import { card, panelTitle } from './styles'
+
+/* שורת העזר מתחת לגרף השני: 16px, צבע משני */
+const bandsHelp = { margin: '6px 0 0', fontFamily: FONT, fontSize: 16, lineHeight: 1.35, color: T.textSoft, textAlign: 'center' } as const
 
 /* קוטר הטבעת: קטן מברירת המחדל כדי שהמקרא ישב לצד הגרף (ולא מתחתיו) ברוחב של מסך 1366, וייוותר מקום מתחת לסיכום המילולי */
 const DONUT_SIZE = 120
@@ -61,6 +64,8 @@ export default function Glance({ view, summary }: { view: ClassSubmissionView; /
             centerNumber={String(bands.basis)} centerLabel={DONUT_TEXT.centerFinished} size={DONUT_SIZE} empty={successEmpty} />
         </DonutCard>
       </div>
+      {/* מה זה "ברוב" ו"במעט" — הספים גלויים על המסך, לא רק מאחורי "איך חישבנו?". שורה אחת לרוחב המסך (מתחת לשני הגרפים), כדי שהמסך ייכנס בגובה */}
+      {!successEmpty && <p data-donut-bands-help style={bandsHelp}>{donutBandsHelp()}</p>}
       <div data-ai-summary-area style={{ minWidth: 0 }}>
         <div data-ai-summary-slot>{summary}</div>
       </div>

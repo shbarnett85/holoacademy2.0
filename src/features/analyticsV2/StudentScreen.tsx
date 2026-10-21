@@ -2,12 +2,15 @@
    מחנך: "סקירה" ואז כל מקצוע. מורה מקצועי: מקצועו פעיל, שאר המקצועות באפור עם מנעול והסבר גלוי.
    בתוך מקצוע: מסלול הרמה עם הטווח המיועד והסתייגות, תחומים, טעויות נפוצות, ואירועים/דפוסים (מדווחים בלבד). */
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AI_SUMMARY_PANEL_TEXT, countNb, EMPTY_TEXT, HOW_WE_CALC, numberRange, V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
+import { AI_SUMMARY_PANEL_TEXT, countNb, EMPTY_TEXT, HOW_WE_CALC, numberRange, V2_CLIENT_TEXT, V2_UNTAGGED_TEXT, withCoverageHint } from '../../shared/lib/findingsNarrative'
 import { subjectName } from '../../shared/lib/subjects'
 import type { Finding, StudentOverview, SubjectPanel } from '../../shared/types/analyticsV2'
 import { bySubjectOrderOf, EmptyState, FONT, Icon, RADIUS, Sentence, SubjectLinkButton, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem, Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
+import { catalogEmptyOf, catalogNoteOf } from './catalog'
+import { coverageNoteOf } from './coverage'
+import { CoverageNote } from './CoverageNote'
 import { useRootCrumb, useV2Env } from './context'
 import { L, LOCKED_SUBJECT_TEXT, titles } from './labels'
 import { studentHeadline } from './logic'
@@ -40,7 +43,7 @@ function EvidenceBlock({ findings, subject }: { findings: Finding[]; subject?: s
   )
 }
 
-function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat: string; trendCaveat: string; firstName: string }) {
+function SubjectTab({ p, caveat, trendCaveat, firstName, catalogNote }: { p: Visible; caveat: string; trendCaveat: string; firstName: string; /* תוכן שעוד לא תויג: משפט אחד במקום כרטיסי התחומים והטעויות הנפוצות */ catalogNote: string | null }) {
   const reported = reportedOf(p)
   const noAreas = p.areas.strong.length === 0 && p.areas.challenging.length === 0
   return (
@@ -67,6 +70,12 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
       </Card>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+        {catalogNote !== null ? (
+          <Card label={V2_UNTAGGED_TEXT.cardTitle}>
+            <CardTitle>{V2_UNTAGGED_TEXT.cardTitle}</CardTitle>
+            <div data-catalog-note><Note style={{ fontSize: 16, color: T.text }}>{catalogNote}</Note></div>
+          </Card>
+        ) : (<>
         <Card label="תחומים">
           <CardTitle>תחומים</CardTitle>
           {noAreas ? <Note style={{ fontSize: 16 }}>{EMPTY_TEXT.noAreas}</Note> : (
@@ -89,6 +98,7 @@ function SubjectTab({ p, caveat, trendCaveat, firstName }: { p: Visible; caveat:
             </ul>
           )}
         </Card>
+        </>)}
       </div>
 
       <Card label="אירועים ודפוסים">
@@ -117,7 +127,8 @@ const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, vertica
 function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; subjectHref: (code: string) => string; crossText: string }) {
   const visible = byOrder(data.panels).filter((p): p is Visible => p.access === 'visible')
   /* מקף בתא תחומים: מסבירים במילים מה הוא אומר */
-  const anyDash = visible.some((p) => p.areas.strong.length === 0 || p.areas.challenging.length === 0)
+  const catalogEmpty = catalogEmptyOf(data)
+  const anyDash = !catalogEmpty && visible.some((p) => p.areas.strong.length === 0 || p.areas.challenging.length === 0)
   const cross = data.crossSubject.filter((f) => f.status === 'reported')
   return (
     <>
@@ -140,8 +151,9 @@ function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; 
               <th scope="col" style={th}>{L.level}</th>
               <th scope="col" style={th}>{L.tablePosition}</th>
               <th scope="col" style={th}>{L.trend}</th>
-              <th scope="col" style={th}>{L.strongAreas}</th>
-              <th scope="col" style={th}>{L.challengingAreas}</th>
+              {/* תוכן ההדמיות עוד לא תויג: שתי העמודות האלה היו ריקות תמיד — לא מציגים אותן */}
+              {!catalogEmpty && <th scope="col" style={th}>{L.strongAreas}</th>}
+              {!catalogEmpty && <th scope="col" style={th}>{L.challengingAreas}</th>}
               <th scope="col" style={th}>{L.attentionShort}</th>
             </tr>
           </thead>
@@ -156,8 +168,8 @@ function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; 
                   <td style={{ ...td, fontSize: 18, fontWeight: 800 }}>{p.currentLevel ?? '—'}</td>
                   <td style={td}><PositionWord position={p.positionVsNorm} text={p.positionText} size={16} /></td>
                   <td style={td}><TrendWord trend={p.trend} text={p.trendText} size={16} /></td>
-                  <td style={td}><AreasText items={p.areas.strong} /></td>
-                  <td style={td}><AreasText items={p.areas.challenging} /></td>
+                  {!catalogEmpty && <td style={td}><AreasText items={p.areas.strong} /></td>}
+                  {!catalogEmpty && <td style={td}><AreasText items={p.areas.challenging} /></td>}
                   <td style={td}>
                     {att > 0
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700 }}><ToneMark tone="attention" size={18} />{eventsText(att)}</span>
@@ -170,6 +182,7 @@ function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; 
         </table>
       </div>
       <Note>{crossText}{anyDash ? ` ${V2_CLIENT_TEXT.areasDash}` : ''}</Note>
+      {catalogEmpty && <div data-catalog-note><Note style={{ color: T.text }}>{catalogNoteOf(data)}</Note></div>}
     </>
   )
 }
@@ -193,7 +206,8 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
   if (data.panels.length === 0) {
     return (
       <AnalyticsShell title={titles.studentGeneric} breadcrumb={[root]}>
-        <EmptyState title={L.noStudentData} whatNext={L.noStudentDataNext} ctaLabel={L.backToEntry} ctaTo={env.href('/analytics')} />
+        <CoverageNote note={coverageNoteOf(data)} />
+        <EmptyState title={L.noStudentData} whatNext={withCoverageHint(L.noStudentDataNext, coverageNoteOf(data) !== null)} ctaLabel={L.backToEntry} ctaTo={env.href('/analytics')} />
       </AnalyticsShell>
     )
   }
@@ -228,6 +242,8 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
 
   return (
     <AnalyticsShell title={titles.student(firstName)} breadcrumb={crumbs} howExtra={<EvidenceBlock findings={evidenceFor} subject={active?.subject.nameHe} />}>
+      {/* משחקים בהדמיות בלי מקצוע לא נכנסו: אומרים את זה כאן, עם קישור לשיוך מקצוע */}
+      <CoverageNote note={coverageNoteOf(data)} />
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch', flexWrap: 'wrap' }}>
         <div style={{ flex: '1 1 480px', minWidth: 0 }}><Sentence tone={hasAttention ? 'attention' : 'neutral'}>{studentHeadline(dataState, firstName, data.summary)}</Sentence></div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -241,7 +257,7 @@ export default function StudentScreen({ studentId }: { studentId: string }) {
         onChange={(id) => navigate(studentHref({ tab: id }))} />
       <div {...tabPanelProps('stu', tab)} data-v2-ready style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {active
-          ? <SubjectTab p={active} caveat={data.caveats.ageNorm} trendCaveat={data.caveats.trend} firstName={firstName} />
+          ? <SubjectTab p={active} caveat={data.caveats.ageNorm} trendCaveat={data.caveats.trend} firstName={firstName} catalogNote={catalogEmptyOf(data) ? catalogNoteOf(data) : null} />
           : kind === 'overview' ? <OverviewTab data={data} crossText={data.caveats.crossSubject} subjectHref={(code) => studentHref({ tab: code })} />
             : <EmptyState title={V2_CLIENT_TEXT.noOpenSubjectStudent.title} whatNext={V2_CLIENT_TEXT.noOpenSubjectStudent.whatNext} />}
       </div>

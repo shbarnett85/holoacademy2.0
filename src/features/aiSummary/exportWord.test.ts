@@ -31,7 +31,7 @@ describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
   })
 
   it('כותרת עם השם מהמסך, תאריך, הפסקאות כפי שהן, שורת "נוצר בעזרת בינה מלאכותית", בסיס והסתייגות', () => {
-    expect(html).toContain('<h1>סיכום מילולי על התלמיד/ה: נועה כהן</h1>')
+    expect(html).toContain('<h1>סיכום מד״ר הולו על התלמיד/ה: נועה כהן</h1>')
     /* התאריך הוא תאריך הכתיבה (5 באוקטובר), לא יום הייצוא (21 באוקטובר) */
     expect(html).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn(formatSummaryDate('2026-10-05T08:00:00.000Z')))
     expect(html).not.toContain(formatSummaryDate('2026-10-21T09:00:00Z'))
@@ -78,13 +78,13 @@ describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
 
   it('בלי שם: הכותרת היא שם ההיקף בלבד; שורה חדשה בתוך פסקה נשמרת', () => {
     const noName = buildSummaryDocument({ ...BASE, name: '  ', paragraphs: ['שורה א\nשורה ב'] })
-    expect(noName).toContain('<h1>סיכום מילולי על התלמיד/ה</h1>')
+    expect(noName).toContain('<h1>סיכום מד״ר הולו על התלמיד/ה</h1>')
     expect(noName).toContain('שורה א<br/>שורה ב')
   })
 
   it('כותרת לפי ההיקף (כיתה / הגשה)', () => {
-    expect(buildSummaryDocument({ ...BASE, scope: 'class', name: 'כיתה ו׳2' })).toContain('<h1>סיכום מילולי על הכיתה: כיתה ו׳2</h1>')
-    expect(buildSummaryDocument({ ...BASE, scope: 'submission', name: 'צף או שוקע?' })).toContain('<h1>סיכום מילולי על ההדמיה: צף או שוקע?</h1>')
+    expect(buildSummaryDocument({ ...BASE, scope: 'class', name: 'כיתה ו׳2' })).toContain('<h1>סיכום מד״ר הולו על הכיתה: כיתה ו׳2</h1>')
+    expect(buildSummaryDocument({ ...BASE, scope: 'submission', name: 'צף או שוקע?' })).toContain('<h1>סיכום מד״ר הולו על ההדמיה: צף או שוקע?</h1>')
   })
 })
 

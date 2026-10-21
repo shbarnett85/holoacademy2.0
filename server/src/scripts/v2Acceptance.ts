@@ -15,8 +15,11 @@
    בסוף מנקה ומוודא שלא נשארה אף שורה zz-ux-v2-w8-*. סיסמאות אקראיות בזיכרון בלבד. בלי LLM.
    הרצה:  npm run v2:accept                                                                           */
 import '../env.js'
-import { ERR_AGGREGATE_ONLY, ERR_NOT_FOUND, ERR_NO_ACCESS, trendText } from '../../../src/shared/lib/findingsNarrative.js'
-import { ENTRY_MAX_ALERTS } from '../../../src/shared/lib/analyticsConfig.js'
+import {
+  CATALOG_UNTAGGED_TEXT, ERR_AGGREGATE_ONLY, ERR_NOT_FOUND, ERR_NO_ACCESS, LIVE_COVERAGE_UNTAGGED, narrateAdminHiddenNote, narrateAdminUnclassifiedNote, narrateEntryBasisNote,
+  narrateNoOpenSubjectNote, narrateScopedCoverageNote, narrateTrendNeedMore,
+} from '../../../src/shared/lib/findingsNarrative.js'
+import { ENTRY_MAX_ALERTS, KIND_THRESHOLDS } from '../../../src/shared/lib/analyticsConfig.js'
 import { EP, type EndpointName } from '../../../src/shared/types/analyticsV2.js'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { FX_PREFIX, cleanupAnalyticsFixture, leftoverAnalyticsFixture, seedAnalyticsFixture, type AnalyticsFixture } from './analyticsFixture.js'
@@ -229,8 +232,8 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   {
     const e = entry.unspecified.json.data
     const c = e.classes.find((x: any) => x.id === C.rich.id)
-    check('שיוך בלי מקצוע: הכיתה מופיעה אך בלי תלמידים, בלי תוצאות ובלי התרעות (אין ברירת מחדל למקצוע)', e.classes.length === 1 && c?.studentCount === 0 && c.hasResults === false && c.attentionCount === 0 && e.alerts.length === 0 && entry.unspecified.json.dataState === 'insufficient', JSON.stringify(c))
-    check('שיוך בלי מקצוע: הערת הכיסוי ("הדמיות בלי מקצוע") לא מוצגת — אין לו אף מקצוע פתוח, והמידע לא רלוונטי לו (unclassifiedCount=0, coverageNote=null)', e.unclassifiedCount === 0 && e.coverageNote === null, `unclassified=${e.unclassifiedCount}`)
+    check('שיוך בלי מקצוע: הכיתה מופיעה בגודלה האמיתי (14 תלמידים, בלי רשימה) ולא "0 תלמידים"; noOpenSubject=true; בלי תוצאות ובלי התרעות (אין ברירת מחדל למקצוע)', e.classes.length === 1 && c?.studentCount === 14 && c.noOpenSubject === true && c.hasResults === false && c.attentionCount === 0 && e.alerts.length === 0 && entry.unspecified.json.dataState === 'insufficient', JSON.stringify(c))
+    check('שיוך בלי מקצוע: הערת "הדמיות בלי מקצוע" לא מוצגת (אין לו מקצוע פתוח — unclassifiedCount=0), ובמקומה coverageNote שאומר שהמקצוע שלו לא הוגדר ולמי לפנות', e.unclassifiedCount === 0 && e.coverageNote === narrateNoOpenSubjectNote([c.name]), `unclassified=${e.unclassifiedCount} note=${e.coverageNote}`)
   }
   {
     const e = entry.emptyHomeroom.json.data
@@ -423,7 +426,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
       if (k === 'newcomer') {
         const m = panelsOf(r).find((p) => p.subject.code === 'math')
         check('תלמיד עם 3 משחקים בלבד: רמה קיימת, אפס ממצאים (גם לא "אין עדיין מספיק נתונים" — N קטן מדי אפילו להתחיל לבדוק)', m.sessionsCount === 3 && m.currentLevel !== null && m.findings.length === 0, `findings=${m.findings.length}`)
-        check('תלמיד עם 3 משחקים בלבד (שניים בחלון האחרון, אחד לפניו, הפרש 2.2 רמות): תווית המגמה בלוח = "אין עדיין מספיק נתונים" ולא "משתפר/ת" (סף של 3 משחקים בכל חלון)', m.trend === 'insufficient' && m.trendText === trendText('insufficient'), `trend=${m.trend}`)
+        check('תלמיד עם 3 משחקים בלבד (שניים בחלון האחרון, אחד לפניו, הפרש 2.2 רמות): המגמה "אין עדיין מספיק נתונים" ולא "משתפר/ת"; התווית אומרת כמה משחקים יש וכמה צריך (UX#10)', m.trend === 'insufficient' && m.trendText === narrateTrendNeedMore(3, 2 * KIND_THRESHOLDS.level_trend.minN), `trend=${m.trend} text=${m.trendText}`)
       }
     }
     check('בקרות (אחידה, קשוב, יציבים, ברמה נמוכה / גבוהה, חדש): אפס ממצאים מדווחים — לא ממציאים אירוע', out.length === 0, out.join())
@@ -548,6 +551,32 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     check('מנהל: אין מונחים של מורים בטקסטים (מחנך / מורה)', !/מחנך|מחנכת|המורה/.test(text))
   }
 
+  /* ───────── G1: אמת במצבים ריקים ───────── */
+  console.log('\n— אמת במצבים ריקים: קטלוג, כיסוי ממוקד, שיוך בלי מקצוע, בסיס ל"אין חריג" —')
+  {
+    const untagged = (d: any): boolean => d.catalogReady === false && d.catalogNote === LIVE_COVERAGE_UNTAGGED
+    const ovD = ovRes.get(`homeroom|${C.rich.id}`)!.json.data
+    const csD = subjRes.get(`homeroom|${C.rich.id}|math`)!.json.data
+    const csSubj = subjRes.get(`subject|${C.rich.id}|math`)!.json.data
+    const stCross = (await P('homeroom', stu(R.crossDip.id))).json.data
+    check('קטלוג ריק (אין תיוג בחשבון): סקירה / מקצוע / תלמידה / מנהל — catalogReady=false ו-catalogNote המשפט הכן; משפט הלשונית "טעויות נפוצות" אינו מבטיח שיופיעו', untagged(ovD) && untagged(csD) && untagged(stCross) && untagged(adm.json.data) && csD.tabSummaries.misconceptions === CATALOG_UNTAGGED_TEXT.errorsTabSummary && !/יופיעו|יצטברו/.test(`${csD.tabSummaries.misconceptions} ${csD.catalogNote}`), JSON.stringify([ovD.catalogReady, csD.catalogReady, stCross.catalogReady, adm.json.data.catalogReady]))
+
+    const gapClass = narrateScopedCoverageNote({ unclassified: fx.expected.unclassifiedSessions, withoutLevel: 0 }) as string
+    check(`הערת כיסוי ממוקדת בכיתה העשירה: ${fx.expected.unclassifiedSessions} משחקים בהדמיות בלי מקצוע — בסקירה, במסך המקצוע ואצל המורה המקצועי; ההערה אומרת ששיוך בדיעבד לא מחזיר משחקים שכבר שוחקו (לא "יתווספו")`, ovD.coverageNote === gapClass && csD.coverageNote === gapClass && csSubj.coverageNote === gapClass && /לא ייכללו גם אחרי שיוך/.test(gapClass) && !/יתווספו/.test(gapClass), String(ovD.coverageNote))
+    const withGap = fx.expected.unclassifiedStories.map((k) => R[k].id)
+    const stGap = await Promise.all(withGap.map(async (id) => (await P('homeroom', stu(id))).json.data.coverageNote))
+    const stNone = (await P('homeroom', stu(R.steadyA.id))).json.data
+    check(`הערת כיסוי במסך תלמיד/ה: רק למי ששיחק/ה בהדמיות בלי מקצוע (${fx.expected.unclassifiedStories.length} תלמידים, ${fx.expected.unclassifiedPlaysEach} משחקים לכל אחד/ת); לשאר — null`, stGap.every((n) => n === narrateScopedCoverageNote({ unclassified: fx.expected.unclassifiedPlaysEach, withoutLevel: 0 })) && stNone.coverageNote === null, JSON.stringify(stGap))
+    check('כיתות בלי משחקים כאלה (הדלה אצל המחנך שלה, הריקה): coverageNote=null בסקירה ובמסך מקצוע', ovRes.get(`mixed|${C.sparse.id}`)!.json.data.coverageNote === null && ovRes.get(`emptyHomeroom|${C.empty.id}`)!.json.data.coverageNote === null && subjRes.get(`mixed|${C.sparse.id}|math`)!.json.data.coverageNote === null)
+    check('מצב ריק בכיתה בלי תוצאות (היסטוריה בעשירה): הכותרת אומרת שהמשחקים שכבר שוחקו בהדמיות בלי מקצוע לא נכללו, ולא "התמונה תופיע כשתלמידים יסיימו"', /הדמיות שעוד לא שויך להן מקצוע/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline) && !/כשתלמידים יסיימו/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline), subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline)
+
+    const eMixed = entry.mixed.json.data.classes.find((x: any) => x.id === C.sparse.id), eRich = entry.homeroom.json.data.classes.find((x: any) => x.id === C.rich.id)
+    check('כרטיס כיתה בכניסה: בכיתה הדלה (3 תלמידים, אף אחד לא נבדק) אין "אין תלמידים לתשומת לב" אלא basisNote עם כמה נבדקו; בעשירה (יש תשומת לב) basisNote=null', eMixed?.attentionCount === 0 && eMixed.studentsAssessed === 0 && eMixed.basisNote === narrateEntryBasisNote(0, 3) && eRich?.basisNote === null, JSON.stringify(eMixed))
+
+    const dAdm = adm.json.data
+    check('מנהל: coverageNote על משחקים בהדמיות בלי מקצוע (בלי שמות), hiddenNote בלי המילה "תא", ו-sizeText ביחיד / רבים נכון', dAdm.coverageNote === narrateAdminUnclassifiedNote(fx.expected.unclassifiedSessions) && dAdm.hiddenNote === narrateAdminHiddenNote(dAdm.hiddenCells) && !/תא/.test(dAdm.hiddenNote) && dAdm.grades.every((g: any) => typeof g.sizeText === 'string' && g.sizeText.includes(g.classCount === 1 ? 'כיתה אחת' : `${g.classCount} כיתות`)), `${dAdm.coverageNote} | ${dAdm.hiddenNote}`)
+  }
+
   /* ───────── בידוד בין בתי ספר ───────── */
   console.log('\n— בידוד בין בתי ספר —')
   {
@@ -606,7 +635,9 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     const { data: justNow } = await supabaseAdmin.from('data_access_log').select('student_id').eq('viewer_id', T.subject.userId).eq('student_id', R.controlMc.id).eq('scope', 'analytics_v2_student')
     check('השורה ביומן כבר קיימת כשהתגובה מתקבלת (נכתבת לפני res.json)', first.status === 200 && (justNow ?? []).length === 1, `rows=${(justNow ?? []).length}`)
   }
-  await P('homeroom', stu(R.crossDip.id)) /* בקשה שלישית לאותו תלמיד באותה נקודה */
+  /* מטמון הכפילות חי בזיכרון השרת, ושרת הפיתוח מתאתחל בכל שמירת קובץ — לכן שלוש הבקשות הרצופות כאן הן הבדיקה, ולא ריק הזמן שבין הבקשה הראשונה למסך הזה */
+  const dedupFrom = new Date(Date.now() - 5000).toISOString()
+  for (let i = 0; i < 3; i++) await P('homeroom', stu(R.crossDip.id))
   const { data: logData } = await supabaseAdmin.from('data_access_log').select('viewer_id, viewer_role, student_id, scope, endpoint')
     .in('viewer_id', Object.values(T).map((t) => t.userId)).like('scope', 'analytics_v2_%')
   const logs = (logData ?? []) as { viewer_id: string; viewer_role: string; student_id: string | null; scope: string; endpoint: string }[]
@@ -615,7 +646,8 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   check('מחנך: roster נרשם לכל 14 תלמידי הכיתה (שורה לכל תלמיד, בלי כפילות)', rowsOf('homeroom', 'roster').length === 14 && stuSet(rowsOf('homeroom', 'roster')) === sortedIds(richIds))
   check('מחנך: מסך מקצוע (classSubject) נרשם לתלמידי הכיתה שנחשפו בשמם', new Set(rowsOf('homeroom', 'classSubject').map((r) => r.student_id)).size === 14 && rowsOf('homeroom', 'classSubject').every((r) => richIds.includes(r.student_id as string)))
   check('מחנך: מסך הכניסה נרשם לתלמידי ההתרעות שהוצגו (3) בלבד', rowsOf('homeroom', 'entry').length === ENTRY_MAX_ALERTS && rowsOf('homeroom', 'entry').every((r) => attentionIds.includes(r.student_id as string)))
-  check('מחנך: אותו תלמיד נפתח 3 פעמים באותה נקודה בחלון הכפילות — שורה אחת בלבד (בלי רישום כפול)', rowsOf('homeroom', 'student').filter((r) => r.student_id === R.crossDip.id).length === 1)
+  const { data: freshRows } = await supabaseAdmin.from('data_access_log').select('student_id').eq('viewer_id', T.homeroom.userId).eq('student_id', R.crossDip.id).eq('scope', 'analytics_v2_student').gte('created_at', dedupFrom)
+  check('מחנך: אותו תלמיד נפתח 3 פעמים ברצף באותה נקודה בחלון הכפילות — לכל היותר שורה אחת חדשה (בלי רישום כפול), והצפייה עצמה רשומה', (freshRows ?? []).length <= 1 && rowsOf('homeroom', 'student').filter((r) => r.student_id === R.crossDip.id).length >= 1, `fresh=${(freshRows ?? []).length}`)
   check('מחנך: משוב ותדריך תלמיד נרשמו (analytics_v2_feedback / analytics_v2_briefing)', rowsOf('homeroom', 'feedback').some((r) => r.student_id === R.crossDip.id) && rowsOf('homeroom', 'briefing').some((r) => r.student_id === R.crossDip.id))
   check('סקירת כיתה נרשמה לתלמידים שהוצגו בהתרעות הסקירה', rowsOf('homeroom', 'classOverview').length > 0 && rowsOf('homeroom', 'classOverview').every((r) => attentionIds.includes(r.student_id as string)))
   check('endpoint נרשם בצורה "GET /api/analytics-v2/…" ותפקיד הצופה = teacher', logs.length > 0 && logs.every((l) => l.endpoint.startsWith('GET /api/analytics-v2/') && l.viewer_role === 'teacher'))
@@ -664,6 +696,27 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   {
     const withNote = entry.homeroom.json.data.coverageNote as string
     check('coverageNote במילים פשוטות ובלי ז\'רגון (אין "אינדקס" / "וקטור" / "מובהק")', !/אינדקס|וקטור|מובהק|קורלציה/.test(withNote), withNote)
+  }
+
+  /* ───────── שיוך מקצוע מבטל את המטמון (UX#4) — אחרון: משנה את מצב הפיקסצ'ר ───────── */
+  console.log('\n— שיוך מקצוע להדמיה (PATCH /api/quests/:id) מבטל את מטמון האנליטיקה —')
+  {
+    const total = fx.expected.unclassifiedSessions
+    const idx = fx.expected.unclassifiedQuestPlays.findIndex((n) => n > 0)
+    const qid = fx.ids.unclassifiedQuestIds[idx]
+    const plays = fx.expected.unclassifiedQuestPlays[idx]
+    const warm = await P('homeroom', ov(C.rich.id)) /* הניתוח של הכיתה במטמון (TTL 5 דקות) */
+    const warmEntry = await P('homeroom', '/analytics-v2/entry')
+    check('לפני השיוך: הערת הכיסוי אומרת שכל המשחקים בהדמיות בלי מקצוע', warm.json.data.coverageNote === narrateScopedCoverageNote({ unclassified: total, withoutLevel: 0 }) && warmEntry.json.data.unclassifiedCount === total)
+    const r = await fetch(`${API}/quests/${qid}`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + tok('homeroom'), 'Content-Type': 'application/json' }, body: JSON.stringify({ subjectCode: 'math' }) })
+    check('המורה (יוצרת ההדמיה) משייכת מקצוע להדמיה אחת: 200', r.status === 200, `status=${r.status}`)
+    /* מיד אחרי השיוך, בלי להמתין ל-TTL: הניתוח נבנה מחדש — ההדמיה כבר אינה "בלי מקצוע", אך משחקים שכבר שוחקו לא נכנסים (הרמה שלהם חושבה בלי מקצוע) */
+    const after = await P('homeroom', ov(C.rich.id))
+    const afterEntry = await P('homeroom', '/analytics-v2/entry')
+    check(`מיד אחרי השיוך (בלי המתנה): ${plays} המשחקים עברו מ"בהדמיות בלי מקצוע" ל"בלי רמה לפי מקצוע", ושאר המשחקים נשארו — המטמון בוטל, לא הוגש הערך הישן`,
+      after.json.data.coverageNote === narrateScopedCoverageNote({ unclassified: total - plays, withoutLevel: plays }) && afterEntry.json.data.unclassifiedCount === total - plays,
+      `note=${String(after.json.data.coverageNote).slice(0, 120)} entry=${afterEntry.json.data.unclassifiedCount}`)
+    check('הרמות וההתרעות לא זזו בגלל השיוך (משחקים שכבר שוחקו אינם מצטרפים לסדרות)', JSON.stringify(after.json.data.rows.map((x: any) => [x.subject.code, x.level])) === JSON.stringify(warm.json.data.rows.map((x: any) => [x.subject.code, x.level])) && afterEntry.json.data.alertsTotal === warmEntry.json.data.alertsTotal)
   }
 }
 

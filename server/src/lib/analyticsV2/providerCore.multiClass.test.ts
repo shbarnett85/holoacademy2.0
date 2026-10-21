@@ -3,7 +3,7 @@
    · מחנך באחת + מקצוע בשנייה = מה שהיה רואה בכל כיתה לחוד, ולא יותר (אין מכפלה קרטזית).
    · ספירות המנהל לפי מזהים שונים; הערת "הדמיות בלי מקצוע" לא מוצגת למי שאין לו אף מקצוע פתוח. */
 import { describe, expect, it } from 'vitest'
-import { ERR_NOT_FOUND, ERR_NO_ACCESS, narrateAdminSchool, narrateAdminSchoolPartial } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ERR_NOT_FOUND, ERR_NO_ACCESS, narrateAdminSchool, narrateAdminSchoolPartial, narrateNoOpenSubjectNote } from '../../../../src/shared/lib/findingsNarrative.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { EP } from '../../../../src/shared/types/analyticsV2.js'
 import type { World } from './demoWorld.js'
@@ -201,9 +201,9 @@ describe('הערת "הדמיות בלי מקצוע" (coverageNote): רק למי 
     expect(e.unclassifiedCount).toBe(6)
     expect(e.coverageNote).not.toBeNull()
   })
-  it('שיוך בלי מקצוע ובלי מחנכות: 0 ו-null — אין לו מקצוע פתוח, והמידע לא רלוונטי לו', async () => {
+  it('שיוך בלי מקצוע ובלי מחנכות: unclassifiedCount=0 (אין לו מקצוע פתוח — הספירה לא רלוונטית לו), וההערה אומרת שהמקצוע שלו לא הוגדר', async () => {
     const e = await noteOf(live([grant(CA.id, { unspecified: true })]))
-    expect(e).toMatchObject({ unclassifiedCount: 0, coverageNote: null })
+    expect(e).toMatchObject({ unclassifiedCount: 0, coverageNote: narrateNoOpenSubjectNote([CA.name]) })
     expect(e.classes).toHaveLength(1) /* הכיתה עצמה עדיין מופיעה */
   })
   it('שיוך בלי מקצוע בכיתה אחת + מקצוע בשנייה: ההערה נשארת (יש לו מקצוע פתוח)', async () => {

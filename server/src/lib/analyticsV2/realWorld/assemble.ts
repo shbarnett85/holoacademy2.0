@@ -232,21 +232,25 @@ export function assembleWorldDetailed(raw: RawClassData, now: Date): AssembledWo
 
   const unclassifiedIds: string[] = []
   const withoutSubjectLevelIds: string[] = []
+  /* G1: אותם משחקים שהוחרגו, לפי תלמיד/ה — לפער ממוקד בכיתה ובמסך התלמיד/ה */
+  const unclassifiedBy = new Map<string, number>()
+  const unleveledBy = new Map<string, number>()
+  const bump = (m: Map<string, number>, studentId: string): void => { m.set(studentId, (m.get(studentId) ?? 0) + 1) }
   for (const s of sessions) {
     const day = dayIndexOf(days, s.completedAt)
     if (day === null) continue
     coverage.sessionsTotal++
     const snap = snapBySession.get(s.id)
     const subject = questSubject.get(s.questId) ?? null
-    if (subject === null) { coverage.unclassifiedSessions++; unclassifiedIds.push(s.id); continue }
+    if (subject === null) { coverage.unclassifiedSessions++; unclassifiedIds.push(s.id); bump(unclassifiedBy, s.studentId); continue }
     /* חוזרת על אותה הדמיה: שינון, לא שינוי ביכולת — לא נכנסת לסדרות ולא לראיות */
     if (!firstIds.has(s.id)) { coverage.repeatSessions++; continue }
     /* הרמה נגזרה מפרופיל המקצוע רק אם ה-snapshot נושא את מקצוע ההדמיה (subject_id); אחרת היא של הפרופיל הגלובלי ואסור לערבב אותה בסדרת המקצוע */
-    if (!snap || snap.subject !== subject) { coverage.sessionsWithoutSubjectLevel++; withoutSubjectLevelIds.push(s.id); continue }
+    if (!snap || snap.subject !== subject) { coverage.sessionsWithoutSubjectLevel++; withoutSubjectLevelIds.push(s.id); bump(unleveledBy, s.studentId); continue }
     const d = slot(s.studentId, subject)
     where.set(s.id, { studentId: s.studentId, subject, day })
     const level = snap.level, success = snap.success
-    if (!isFiniteNum(level) || level < 0 || level > 20 || !isFiniteNum(success) || success < 0 || success > 1) { coverage.sessionsWithoutLevel++; continue }
+    if (!isFiniteNum(level) || level < 0 || level > 20 || !isFiniteNum(success) || success < 0 || success > 1) { coverage.sessionsWithoutLevel++; bump(unleveledBy, s.studentId); continue }
 
     const myAnswers = answersBySession.get(s.id) ?? []
     const reading = readingOfSession(enters.get(s.id) ?? [], puzzleScenes.get(s.id) ?? new Set())
@@ -262,6 +266,8 @@ export function assembleWorldDetailed(raw: RawClassData, now: Date): AssembledWo
   }
   coverage.unclassifiedSessionIds = unclassifiedIds
   coverage.sessionsWithoutSubjectLevelIds = withoutSubjectLevelIds
+  if (unclassifiedBy.size > 0) coverage.unclassifiedByStudent = Object.fromEntries(unclassifiedBy)
+  if (unleveledBy.size > 0) coverage.unleveledByStudent = Object.fromEntries(unleveledBy)
 
   /* ── ראיות ברמת פריט: רק מההשלמה הראשונה (firstIds) ── */
   for (const a of raw.answers) {

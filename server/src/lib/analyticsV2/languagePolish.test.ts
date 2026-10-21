@@ -115,8 +115,12 @@ describe('משפט הסיכום של התלמיד/ה: אומר את הדבר ע�
     expect(f.status === 'reported' && alonOverview.summary).toBe(`${alon.firstName}: ${narrateShortBody((f as Extract<typeof f, { status: 'reported' }>).evidence, { subjectName: 'היסטוריה' })}.`)
     expect(alonOverview.summary).toMatch(/^[^:]+: ירידה ברמה בהיסטוריה מאז [א-ת]+\.$/)
 
+    /* G1 (UX#26): תצפית ולא תווית — "נצפה שהתשובה הראשונה נבחרה ב-37 מתוך 50 שאלות במתמטיקה" */
     const daniel = A.studentById.get(castId('daniel'))!
-    expect((await demoProvider.student(homeroom, daniel.id)).data.summary).toBe(`${daniel.firstName}: נטייה לבחור בתשובה הראשונה במתמטיקה.`)
+    const danielSummary = (await demoProvider.student(homeroom, daniel.id)).data.summary
+    expect(danielSummary.startsWith(`${daniel.firstName}: `)).toBe(true)
+    expect(danielSummary).toMatch(/נצפה שהתשובה הראשונה נבחרה ב-\d+ מתוך \d+ שאלות במתמטיקה\.$/)
+    expect(danielSummary).not.toContain('נטייה')
   })
 
   it('הספק: אף תלמיד לא מקבל ניסוח ריק מתוכן; כמה דברים → ספירה + "הדחוף ביותר"; מורה מקצועי לא רואה מקצוע אחר', async () => {
@@ -202,11 +206,15 @@ describe('מסך הכניסה: alertsTotal, כותרת הרצועה ו"ועוד 
 describe('משפט סיכום לכל תת-טאב של מקצוע בכיתה', () => {
   it('תלמידים: הקבוצה הגדולה ראשונה כ"X מתוך Y", ואחריה השאר ומי שאין עליו נתונים', () => {
     expect(narrateStudentsTabSummary({ total: 22, improving: 0, steady: 0, declining: 20 }))
-      .toBe('20 מתוך 22 תלמידים בירידה, ולגבי 2 תלמידים אין עדיין מספיק נתונים.')
+      .toBe('20 מתוך 22 תלמידים בירידה, ועל 2 תלמידים עוד אין מספיק נתונים.')
     expect(narrateStudentsTabSummary({ total: 22, improving: 0, steady: 2, declining: 20 })).toBe('20 מתוך 22 תלמידים בירידה, 2 תלמידים יציבים.')
     expect(narrateStudentsTabSummary({ total: 22, improving: 3, steady: 4, declining: 15 })).toBe('15 מתוך 22 תלמידים בירידה, 4 תלמידים יציבים ו-3 תלמידים משתפרים.')
     expect(narrateStudentsTabSummary({ total: 6, improving: 6, steady: 0, declining: 0 })).toBe('כל 6 התלמידים משתפרים.')
-    expect(narrateStudentsTabSummary({ total: 5, improving: 1, steady: 1, declining: 1 })).toBe('1 מתוך 5 תלמידים בירידה, תלמיד/ה אחד/ת משתפר/ת ותלמיד/ה אחד/ת יציב/ה, ולגבי 2 תלמידים אין עדיין מספיק נתונים.')
+    /* G1 (UX#20): בלי לוכסנים — "אחד" בלשון זכר כללית */
+    const lone = narrateStudentsTabSummary({ total: 5, improving: 1, steady: 1, declining: 1 })
+    expect(lone).toBe('תלמיד אחד מתוך 5 בירידה, אחד משתפר ואחד יציב, ועל 2 תלמידים עוד אין מספיק נתונים.')
+    expect(lone).not.toContain('/')
+    expect(narrateStudentsTabSummary({ total: 14, improving: 1, steady: 11, declining: 1 })).toBe('11 מתוך 14 תלמידים יציבים, אחד בירידה ואחד משתפר, ועל אחד עוד אין מספיק נתונים.')
     expect(narrateStudentsTabSummary({ total: 8, improving: 0, steady: 0, declining: 0 })).toContain(NO_DATA_YET)
     expect(narrateStudentsTabSummary({ total: 0, improving: 0, steady: 0, declining: 0 })).toBe(narrative.EMPTY_TEXT.noStudents)
   })
@@ -222,7 +230,10 @@ describe('משפט סיכום לכל תת-טאב של מקצוע בכיתה', ()
     expect(narrateProgressTabSummary({ series: s([['2025-10-01T12:00:00.000Z', 9]]) })).toBe(narrative.EMPTY_TEXT.noProgress)
     /* חודש שתלמיד/ה בודד/ת תרם/ה לו אינו נקודת קצה */
     const thin = [{ date: '2025-09-01T12:00:00.000Z', level: 5, n: 1 }, { date: '2025-10-01T12:00:00.000Z', level: 8, n: 20 }, { date: '2026-01-01T12:00:00.000Z', level: 8.4, n: 20 }]
-    expect(narrateProgressTabSummary({ series: thin })).toBe('הרמה הממוצעת עלתה ב-0.4 רמות מאז אוקטובר.')
+    /* G1 (UX#8): שינוי קטן מסף תווית המגמה (חצי רמה) אינו "עלייה" — אחרת הבנר סותר את "מגמת הכיתה: יציבה" */
+    expect(narrateProgressTabSummary({ series: thin })).toBe('הרמה הממוצעת של הכיתה כמעט לא השתנתה מאז אוקטובר.')
+    const atThreshold = [{ date: '2025-10-01T12:00:00.000Z', level: 8, n: 20 }, { date: '2026-01-01T12:00:00.000Z', level: 8 + TREND_LABEL_MIN_DELTA, n: 20 }]
+    expect(narrateProgressTabSummary({ series: atThreshold })).toBe('הרמה הממוצעת עלתה ב-0.5 רמות מאז אוקטובר.')
     expect(narrateProgressTabSummary({ series: thin.slice(0, 2) })).toBe(narrative.EMPTY_TEXT.noProgress)
   })
 

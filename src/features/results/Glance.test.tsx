@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { countNb, DONUT_TEXT } from '../../shared/lib/findingsNarrative'
+import { countNb, DONUT_TEXT, donutBandsHelp } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, SuccessBands } from '../../shared/types/resultsV1'
 import Glance from './Glance'
 
@@ -49,6 +49,25 @@ describe('Glance — שני הגרפים', () => {
     const second = card(h, 'success')
     expect([DONUT_TEXT.completionFinished, DONUT_TEXT.completionMiddle, DONUT_TEXT.completionNotStarted].map((w) => first.indexOf(w)).every((x, i, a) => x >= 0 && (i === 0 || x > a[i - 1]))).toBe(true)
     expect([DONUT_TEXT.bandHigh, DONUT_TEXT.bandMid, DONUT_TEXT.bandLow].map((w) => second.indexOf(w)).every((x, i, a) => x >= 0 && (i === 0 || x > a[i - 1]))).toBe(true)
+  })
+
+  it('התווית השלישית משלימה את הנושא ("מהאתגרים"), והספים גלויים על המסך בשורת עזר — לא רק מאחורי "איך חישבנו?"', () => {
+    expect(DONUT_TEXT.bandLow).toBe('הצליחו במעט מהאתגרים')
+    const second = card(h, 'success')
+    expect(second).toContain('data-donut-bands-help')
+    const help = /<p data-donut-bands-help[^>]*>([^<]*)<\/p>/.exec(second)?.[1] ?? ''
+    expect(help).toBe(donutBandsHelp())
+    /* הספים מהתצורה (75% ו-50%) במילים */
+    expect(help).toContain('3 מכל 4 אתגרים או יותר')
+    expect(help).toContain('פחות ממחצית האתגרים')
+    /* בגרף הראשון אין שורת עזר, ובמצב ריק של הגרף השני — גם לא */
+    expect(card(h, 'completion')).not.toContain('data-donut-bands-help')
+    expect(card(html(view({ bands: { basis: 1, low: 0, mid: 0, high: 1, enough: false } })), 'success')).not.toContain('data-donut-bands-help')
+  })
+
+  it('שורת העזר לפי הספים שמגיעים מהתצורה: ספים לא מוכרים נכתבים באחוזים', () => {
+    expect(donutBandsHelp({ low: 0.4, high: 0.9 })).toBe('ברוב: 90% מהאתגרים או יותר. במעט: פחות מ-40% מהאתגרים. בחלק: כל מה שביניהם.')
+    expect(donutBandsHelp({ low: 0.5, high: 0.75 })).toBe(donutBandsHelp())
   })
 
   it('המרכז: כל תלמידי הכיתה / מי שסיימו', () => {

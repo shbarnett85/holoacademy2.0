@@ -247,12 +247,18 @@ async function main() {
     const adminLogs = (logs ?? []).filter((l) => l.viewer_id === admin.userId || l.viewer_id === mun.userId)
     check('מנהלים לא מופיעים ביומן הצפיות (נחסמו לפני גישה)', adminLogs.length === 0)
 
-    /* ── 9) סיכום פדגוגי: מנהלים לא מקבלים סיכום תלמיד (לפני כל קריאת AI) ── */
-    console.log('\n— POST /analytics/summary (scope=student) —')
-    check('מנהל: 403', (await api(admin.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 403)
-    check('מנהל עירוני: 403', (await api(mun.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 403)
-    check('מורה מכיתה אחרת: 403', (await api(tOut.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 403)
-    check('מנהל, סיכום מטלה של כיתה קטנה: 400 "אין מספיק נתונים" (לפני LLM)', (await api(admin.token, 'POST', '/analytics/summary', { scope: 'assignment', id: aMathC })).status === 400)
+    /* ── 9) סיכום פדגוגי ──
+       הנתיב הישן (POST /analytics/summary) הופרש: 410 לכל משתמש אמיתי, בלי קשר להרשאה — ההרשאות עצמן נבדקות עכשיו ב-/api/ai-summary (הנתיב החדש),
+       וכל בדיקה כאן מסתיימת *לפני* כל קריאת AI (הרשאה → 403/404; לא מגיעים ליצירה). */
+    console.log('\n— POST /analytics/summary (הנתיב הישן): הופרש —')
+    check('מנהל: 410 (נתיב מופרש, לא 403)', (await api(admin.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 410)
+    check('מנהל עירוני: 410', (await api(mun.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 410)
+    check('מורה מכיתה אחרת: 410', (await api(tOut.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 410)
+    check('מנהל, סיכום מטלה: 410', (await api(admin.token, 'POST', '/analytics/summary', { scope: 'assignment', id: aMathC })).status === 410)
+    check('מחנך: גם הוא 410 (אין דרך לעקוף את ההרשאות דרך הנתיב הישן)', (await api(tHome.token, 'POST', '/analytics/summary', { scope: 'student', id: s1 })).status === 410)
+    check('PATCH בנתיב הישן: 410', (await api(tHome.token, 'PATCH', '/analytics/summary', { scope: 'student', id: s1, edited_content: 'x' })).status === 410)
+
+
 
     /* ── 10) ניהול כיתה + יצירה + שיוך מקצוע מהיר ── */
     console.log('— ניהול כיתה, יצירה ושיוך מקצוע —')
@@ -395,6 +401,24 @@ async function main() {
           st.status === 403 && ro.status === 200 && ro.json.data.classes.length === 0 && ro.json.data.students.length === 0 && ov.status === 200 && !leak, 'student=' + st.status + ' overview=' + ov.status)
       }
       check('v2 מורה מול admin/overview = 403', (await v2(tMath, '/admin/overview')).status === 403)
+
+      /* ── סיכום AI (/api/ai-summary): ההרשאה נאכפת *לפני* כל קריאת AI. כאן, אחרי שלכיתות יש שכבה — כך ש-404 פירושו "מחוץ להיקף" ולא "הכיתה לא בניתוח".
+         כל הבדיקות הן על הרשאה (403 / 404) או על GET זול; אף אחת לא מגיעה ליצירה (אין POST מורשה, ולכן אין קריאת LLM). ── */
+      console.log('\n— /api/ai-summary: הרשאה לפני כל קריאת AI —')
+      const ai = (t: Tok, method: 'GET' | 'POST', scope: string, id: string) =>
+        method === 'GET' ? api(t.token, 'GET', `/ai-summary?scope=${scope}&id=${id}`) : api(t.token, 'POST', '/ai-summary', { scope, id })
+      const sumControl = await ai(tHome, 'GET', 'student', s1)
+      check('בקרה חיובית: מחנך הכיתה — GET של סיכום תלמיד = 200 (הכיתה בניתוח; ה-403 / 404 שלמטה אינם כשל כללי)', sumControl.status === 200, `status=${sumControl.status} ${sumControl.status === 200 ? '' : JSON.stringify(sumControl.json).slice(0, 100)}`)
+      check('מנהל: סיכום תלמיד = 403 (POST ו-GET) — אין סיכום ברמת תלמיד לתפקיד אגרגטים', (await ai(admin, 'POST', 'student', s1)).status === 403 && (await ai(admin, 'GET', 'student', s1)).status === 403)
+      check('מנהל עירוני: סיכום תלמיד = 403', (await ai(mun, 'POST', 'student', s1)).status === 403)
+      check('מורה היסטוריה על תלמיד בכיתה C (לא משויך אליה): 404 אחיד, זהה לתלמיד שאינו קיים',
+        (await ai(tHist, 'POST', 'student', stuC[0])).status === 404 && (await ai(tHist, 'POST', 'student', NIL)).status === 404
+        && JSON.stringify((await ai(tHist, 'GET', 'student', stuC[0])).json) === JSON.stringify((await ai(tHist, 'GET', 'student', NIL)).json))
+      check('מנהל: סיכום הגשה (מטלה) = 403', (await ai(admin, 'POST', 'submission', aMathC)).status === 403)
+      check('מורה היסטוריה, סיכום כיתה C (לא משויך): 404', (await ai(tHist, 'POST', 'class', clsC)).status === 404)
+      const mathClassSummary = await ai(tMath, 'POST', 'class', clsA)
+      check('מורה מתמטיקה (לא מחנך), סיכום כיתה: 403 — רק מחנך הכיתה', mathClassSummary.status === 403, `status=${mathClassSummary.status} ${JSON.stringify(mathClassSummary.json).slice(0, 100)}`)
+      check('GET בלי יעד תקין: 400', (await api(tHome.token, 'GET', '/ai-summary?scope=student')).status === 400)
     }
   } finally {
     /* ניקוי: כל השורות שנוצרו (סדר: תלות → הורה) */

@@ -21,7 +21,12 @@ export interface SourceCoverage {
   classesDataError?: number
   /* משחקים בהדמיות עם מקצוע שהרמה שלהם לא חושבה (אין רמה, או שחושבה לא לפי המקצוע) */
   playsWithoutLevel?: number
+  /* אין קטלוג מאושר (מושגים / טעויות נפוצות): טעויות נפוצות ותחומי תוכן אינם פעילים בחשבון. חסר (דמו) = הקטלוג פעיל */
+  catalogEmpty?: boolean
 }
+
+/* משחקים של קבוצת תלמידים (כיתה / תלמיד/ה) שלא נכללו — לפי הסיבה: הדמיה בלי מקצוע / אין רמה לפי מקצוע */
+export interface ScopedGap { unclassified: number; withoutLevel: number }
 
 export interface AnalyticsSource {
   kind: 'demo' | 'live'
@@ -34,6 +39,8 @@ export interface AnalyticsSource {
   configParts(v: V2Viewer): { availableLenses: Lens[]; subjects: SubjectCode[]; dataNotice: string | null; curriculumNotice: string | null }
   /** כיסוי נתונים (חי: סשנים שהוחרגו כי להדמיה אין מקצוע; דמו: אפס) */
   coverage(v: V2Viewer, a: Analysis): SourceCoverage
+  /** הפער בהיקף קבוצת תלמידים (מסך כיתה / תלמיד/ה). חסר (דמו) = אין פער */
+  scopedGap?(v: V2Viewer, a: Analysis, studentIds: readonly string[]): ScopedGap
   /** רישום צפייה ברמת תלמיד (חי בלבד; דמו: אין) */
   logNamed?(v: V2Viewer, studentIds: string[], scope: string): Promise<void>
 }

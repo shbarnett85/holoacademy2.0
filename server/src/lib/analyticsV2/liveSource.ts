@@ -17,7 +17,7 @@ import { orderSubjects } from './realWorld/assemble.js'
 import type { LiveAnalysis, LiveCoverage } from './realWorld/coverage.js'
 import { fetchSchoolClassIds } from './realWorld/fetchRaw.js'
 import { emptyAnalysis } from './realWorld/analyzeRaw.js'
-import type { AnalyticsSource, SourceCoverage } from './source.js'
+import type { AnalyticsSource, ScopedGap, SourceCoverage } from './source.js'
 import { AppError } from '../../middleware/errors.js'
 
 /* צופה בארגון הדגמה (V2Viewer.seesSynthetic); חסר ← false */
@@ -118,6 +118,18 @@ export const liveSource: AnalyticsSource = {
       ...(c?.classesLoading ? { classesLoading: c.classesLoading } : {}),
       ...(c?.classesDataError ? { classesDataError: c.classesDataError } : {}),
       ...(playsWithoutLevel ? { playsWithoutLevel } : {}),
+      ...(c?.catalogEmpty ? { catalogEmpty: true } : {}),
     }
+  },
+
+  /* משחקים שלא נכללו אצל התלמידים הנתונים (סכום חברי כיתה / תלמיד/ה בודד): לכל תלמיד/ה משחק נספר פעם אחת, ולכן הסכום אינו כופל */
+  scopedGap(_v: V2Viewer, a: Analysis, studentIds: readonly string[]): ScopedGap {
+    const c = a.coverage as LiveCoverage | undefined
+    let unclassified = 0, withoutLevel = 0
+    for (const id of studentIds) {
+      unclassified += c?.unclassifiedByStudent?.[id] ?? 0
+      withoutLevel += c?.unleveledByStudent?.[id] ?? 0
+    }
+    return { unclassified, withoutLevel }
   },
 }

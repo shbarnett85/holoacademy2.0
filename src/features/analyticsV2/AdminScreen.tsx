@@ -2,10 +2,11 @@
    אין שם או מזהה תלמיד, אין השוואה בין מורים; תא קטן מדי נשאר מוסתר עם מנעול והסבר, בלי שום מספר. */
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
+import { CATALOG_UNTAGGED_TEXT, V2_CLIENT_TEXT, V2_UNTAGGED_TEXT, narrateAdminHiddenNote, narrateGradeSize } from '../../shared/lib/findingsNarrative'
 import type { AdminCell, AdminOverview } from '../../shared/types/analyticsV2'
 import { bySubjectOrderOf, EmptyState, FONT, Icon, ModeToggle, RADIUS, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem } from '../teacherUi'
+import { catalogEmptyOf } from './catalog'
 import { LineSwatch, MultiLineChart } from './charts'
 import { useRootCrumb, useV2Env } from './context'
 import { L, titles } from './labels'
@@ -23,6 +24,9 @@ const td = { padding: '6px 12px', borderBottom: `1px solid ${T.border}`, vertica
 const PRIVACY = 'תצוגת הנהלה: תמונות רחבות ומגמות בלבד, בלי שמות או נתונים של תלמידים בודדים ובלי השוואה בין מורים.'
 
 type Shown = Extract<AdminCell, { status: 'shown' }>
+
+/* "כיתה אחת · 6 תלמידים" — מהחוזה (sizeText); שרת ישן בלי השדה: אותה פונקציה משותפת (יחיד/רבים נכון) */
+const sizeOf = (g: { sizeText?: string; classCount: number; studentCount: number }): string => g.sizeText ?? narrateGradeSize(g.classCount, g.studentCount)
 
 /* שורת תא: מקצוע (או שכבה) · רמה · מיקום · מגמה. תא מוסתר: מנעול + ההסבר מהחוזה, בלי מספרים */
 function CellLine({ cell, lead }: { cell: AdminCell; lead: 'subject' | 'grade' }) {
@@ -48,6 +52,8 @@ function CellLine({ cell, lead }: { cell: AdminCell; lead: 'subject' | 'grade' }
 
 function OverviewTab({ d }: { d: AdminOverview }) {
   const [first, ...rest] = d.highlights
+  /* "2 נתונים לא מוצגים כי יש בהם מעט תלמידים או כיתה אחת בלבד" — מהחוזה; שרת ישן: אותה פונקציה משותפת */
+  const hiddenNote = d.hiddenNote ?? (d.hiddenCells > 0 ? narrateAdminHiddenNote(d.hiddenCells) : null)
   return (
     <>
       {/* אין עדיין מה להציג: משפט אחד שאומר מה קורה ומה יקרה (כולל למה תא קטן נשאר מוסתר) */}
@@ -66,7 +72,7 @@ function OverviewTab({ d }: { d: AdminOverview }) {
       </Card>
       {d.gradeRows.length > 0 && (
         <Card label="בכל שכבה">
-          <CardTitle aside={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{d.grades.map((g) => <Tag key={g.grade}>שכבה {g.gradeLabel}: {g.classCount} כיתות · {g.studentCount} תלמידים</Tag>)}</div>}>בכל שכבה</CardTitle>
+          <CardTitle aside={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{d.grades.map((g) => <Tag key={g.grade}>שכבה {g.gradeLabel}: {sizeOf(g)}</Tag>)}</div>}>בכל שכבה</CardTitle>
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {d.gradeRows.map((g) => (
               <li key={g.grade} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 16, lineHeight: 1.55, color: T.text }}>
@@ -76,7 +82,9 @@ function OverviewTab({ d }: { d: AdminOverview }) {
           </ul>
         </Card>
       )}
-      <Note>{PRIVACY}{d.hiddenCells > 0 ? ` ${d.hiddenCells === 1 ? 'תא אחד מוסתר' : `${d.hiddenCells} תאים מוסתרים`} כי יש בו מעט תלמידים מדי.` : ''}</Note>
+      {/* משחקים בהדמיות בלי מקצוע (סך בית הספר): מה חסר באמת, בלי כפתור — מנהל/ת אינו משייך מקצועות להדמיות של מורים */}
+      {d.coverageNote && <div data-coverage-note><Note style={{ color: T.text }}>{d.coverageNote}</Note></div>}
+      <Note>{PRIVACY}{hiddenNote ? ` ${hiddenNote}` : ''}</Note>
       <Note>{d.caveats.ageNorm}</Note>
     </>
   )
@@ -89,7 +97,7 @@ function GradesTab({ d }: { d: AdminOverview }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 560px), 1fr))', gap: 12, alignItems: 'start' }}>
         {d.gradeRows.map((g) => (
           <Card key={g.grade} label={`שכבה ${g.gradeLabel}`}>
-            <CardTitle aside={<Tag>{g.classCount} כיתות · {g.studentCount} תלמידים</Tag>}>שכבה {g.gradeLabel}</CardTitle>
+            <CardTitle aside={<Tag>{sizeOf(g)}</Tag>}>שכבה {g.gradeLabel}</CardTitle>
             <p style={{ margin: '0 0 6px', fontSize: 16, lineHeight: 1.5, color: T.text }}>{g.summary}</p>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {bySubjectOrderOf(g.cells, (c) => c.subject.code).map((c, i) => <div key={c.subject.code} style={{ borderTop: i === 0 ? `1px solid ${T.border}` : 'none', borderBottom: `1px solid ${T.border}` }}><CellLine cell={c} lead="subject" /></div>)}
@@ -140,6 +148,8 @@ function SubjectsTab({ d }: { d: AdminOverview }) {
 
 function ErrorsTab({ d, notice }: { d: AdminOverview; notice: string | null }) {
   const [picked, setPicked] = useState<number | null>(null)
+  /* תוכן ההדמיות עוד לא תויג: הטאב אפור בסרגל; אם הגיעו אליו בכתובת — אומרים מה זה ולמה הוא לא פעיל, בלי להבטיח "כשיצטברו תשובות" */
+  if (catalogEmptyOf(d)) return <EmptyState title={CATALOG_UNTAGGED_TEXT.errorsEmpty.title} whatNext={CATALOG_UNTAGGED_TEXT.errorsEmpty.whatNext} />
   if (d.misconceptions.length === 0) return <EmptyState title="עוד אין טעויות נפוצות לדווח עליהן." whatNext="הן יופיעו כאן כשיצטברו מספיק תשובות של תלמידים." />
   const withData = d.grades.filter((g) => d.misconceptions.some((m) => m.grade === g.grade))
   const grade = withData.find((g) => g.grade === picked) ?? withData[0]
@@ -206,7 +216,9 @@ export default function AdminScreen() {
   return (
     <AnalyticsShell title={titles.admin} breadcrumb={data ? crumbs : [{ label: L.analytics }]}>
       <TabBar ariaLabel="חלקי תמונת בית הספר" idPrefix="adm" withPanels value={tab}
-        items={TAB_IDS.map((id) => ({ id, label: TAB_LABEL[id] }))} onChange={(id) => navigate(env.href('/analytics', { tab: id }))} />
+        items={TAB_IDS.map((id) => (id === 'errors' && catalogEmptyOf(data)
+          ? { id, label: TAB_LABEL[id], locked: true, lockedReason: V2_UNTAGGED_TEXT.tabLockedReason }
+          : { id, label: TAB_LABEL[id] }))} onChange={(id) => navigate(env.href('/analytics', { tab: id }))} />
       <div {...tabPanelProps('adm', tab)} data-v2-ready={data && !loading ? true : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10, outline: 'none' }}>
         {loading && !data ? <LoadingBlock /> : error ? <ErrorBlock error={error} onRetry={reload} /> : data && (
           <>

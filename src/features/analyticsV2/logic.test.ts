@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
 import type { Briefing, Roster } from '../../shared/types/analyticsV2'
 import {
-  BRIEF_SCOPES, SUMMARY_SCOPES, PREVIOUS_VIEW_HREF, briefingHasContent, canSeePreviousView, configFailureView, entryClassState, feedbackHasContent, parseScopeId, questHref,
+  BRIEF_SCOPES, SUMMARY_SCOPES, PREVIOUS_VIEW_HREF, alertsMoreClassId, briefingHasContent, canSeePreviousView, configFailureView, entryClassState, entryRoleText, feedbackHasContent, parseScopeId, previousViewPlacement, questHref,
   rosterStudentCount, rosterStudentKey, studentHeadline, summaryContextOf, uniqueRosterStudents,
 } from './logic'
 
@@ -26,6 +26,56 @@ describe('entryClassState — "עוד אין תוצאות" אינו "אין תל
   it('יש תוצאות ואין התרעות → clear; יש התרעות → attention', () => {
     expect(entryClassState({ hasResults: true, attentionCount: 0 })).toBe('clear')
     expect(entryClassState({ hasResults: true, attentionCount: 2 })).toBe('attention')
+  })
+})
+
+describe('entryClassState — שדות החוזה החדשים (noOpenSubject / basisNote)', () => {
+  it('שיוך בלי מקצוע פתוח → noOpenSubject (גובר על "עוד אין תוצאות": הסיבה היא שהמקצוע לא הוגדר)', () => {
+    expect(entryClassState({ hasResults: false, attentionCount: 0, noOpenSubject: true })).toBe('noOpenSubject')
+    expect(entryClassState({ hasResults: true, attentionCount: 0, noOpenSubject: true })).toBe('noOpenSubject')
+  })
+  it('יש תוצאות, אין התרעות, ויש basisNote (נבדקו מעט תלמידים) → thin — לא clear', () => {
+    expect(entryClassState({ hasResults: true, attentionCount: 0, basisNote: 'נתונים על 1 מתוך 3 תלמידים — עוד מוקדם לדעת.' })).toBe('thin')
+    expect(entryClassState({ hasResults: true, attentionCount: 0, basisNote: null })).toBe('clear')
+  })
+  it('התרעות גוברות על basisNote; בלי תוצאות — noResults גם עם basisNote', () => {
+    expect(entryClassState({ hasResults: true, attentionCount: 2, basisNote: 'x' })).toBe('attention')
+    expect(entryClassState({ hasResults: false, attentionCount: 0, basisNote: 'x' })).toBe('noResults')
+  })
+})
+
+describe('entryRoleText — התפקיד בכרטיס הכיתה', () => {
+  const sub = (code: string, nameHe: string) => ({ code, nameHe }) as never
+  it('מחנך/ת: "מחנך/ת" (גם כשיש לו/ה מקצועות)', () => {
+    expect(entryRoleText({ isHomeroom: true, subjects: [sub('math', 'מתמטיקה')] })).toBe('מחנך/ת')
+  })
+  it('מורה מקצועי: "מורה מקצוע: …" בסדר הקבוע של המערכת', () => {
+    expect(entryRoleText({ isHomeroom: false, subjects: [sub('math', 'מתמטיקה')] })).toBe('מורה מקצוע: מתמטיקה')
+    expect(entryRoleText({ isHomeroom: false, subjects: [sub('math', 'מתמטיקה'), sub('hebrew', 'עברית')] })).toBe('מורה מקצוע: עברית, מתמטיקה')
+  })
+  it('בלי מקצוע פתוח, או כיתה לא ידועה: אין תג', () => {
+    expect(entryRoleText({ isHomeroom: false, subjects: [] })).toBeNull()
+    expect(entryRoleText(undefined)).toBeNull()
+  })
+})
+
+describe('alertsMoreClassId — לאן מובילה "ועוד N תלמידים בכיתה"', () => {
+  it('כיתה אחת עם תלמידים לתשומת לב → היא; כמה כיתות, או אף אחת → אין יעד אחד', () => {
+    expect(alertsMoreClassId([{ id: 'a', attentionCount: 0 }, { id: 'b', attentionCount: 3 }])).toBe('b')
+    expect(alertsMoreClassId([{ id: 'a', attentionCount: 1 }, { id: 'b', attentionCount: 3 }])).toBeNull()
+    expect(alertsMoreClassId([{ id: 'a', attentionCount: 0 }])).toBeNull()
+    expect(alertsMoreClassId([])).toBeNull()
+  })
+})
+
+describe('previousViewPlacement — איפה "התצוגה הקודמת" במסך הכניסה', () => {
+  it('יש כיתות וכולן בלי תוצאות → למעלה (שם היא המקום היחיד שיש בו מה לראות)', () => {
+    expect(previousViewPlacement([{ hasResults: false }, { hasResults: false }])).toBe('top')
+  })
+  it('לפחות כיתה אחת עם תוצאות → למטה; בלי כיתות בכלל → למטה (המצב הריק הוא הראשי)', () => {
+    expect(previousViewPlacement([{ hasResults: false }, { hasResults: true }])).toBe('bottom')
+    expect(previousViewPlacement([{ hasResults: true }])).toBe('bottom')
+    expect(previousViewPlacement([])).toBe('bottom')
   })
 })
 

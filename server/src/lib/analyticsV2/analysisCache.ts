@@ -8,6 +8,8 @@
      אין ערך שמיש → 503 מובחן (שגיאת 503 קיימת, למשל בדיקת סכמה, עוברת כמות שהיא). שגיאת נתונים (AnalysisDataError) מובחנת משגיאת תשתית.
    · מפתח הכיתה כולל includeSynthetic (נתוני הדגמה לעולם לא נמזגים לנתוני אמת).
    · אין invalidation חוצה-תהליכים (כמו שאר המטמונים בשרת); ה-TTL הקצר הוא הרענון.
+   · invalidation בתוך התהליך (clear / invalidateAllClassAnalyses): שיוך מקצוע להדמיה משנה אילו משחקים נספרים בכל כיתה, והמורה צריכה לראות את השינוי מיד.
+     בנייה שהתחילה לפני הביטול לא נכנסת למטמון (generation), ובקשה חדשה אינה מצטרפת אליה (single-flight מתאפס) — אחרת התוצאה הישנה הייתה חוזרת.
    ────────────────────────────────────────────────────────────────────────── */
 import { ERR_ANALYSIS_UNAVAILABLE, ERR_ANALYSIS_WARMING } from '../../../../src/shared/lib/findingsNarrative.js'
 import { AppError } from '../../middleware/errors.js'
@@ -55,6 +57,8 @@ export class AnalysisCache<T> {
   private inflight = new Map<string, Promise<Entry<T>>>()
   private waiting: (() => void)[] = []
   private running = 0
+  /* עולה בכל ביטול; בנייה שהחלה בדור קודם אינה נשמרת */
+  private generation = 0
 
   constructor(opts: Partial<AnalysisCacheOptions> = {}) {
     this.opts = { ...DEFAULT_CACHE_OPTIONS, ...opts }
@@ -68,8 +72,8 @@ export class AnalysisCache<T> {
   get inflightCount(): number { return this.inflight.size }
   has(key: string): boolean { return this.entries.has(key) }
   peek(key: string): T | undefined { return this.entries.get(key)?.value }
-  clear(): void { this.entries.clear() }
-  invalidate(key: string): void { this.entries.delete(key) }
+  clear(): void { this.entries.clear(); this.inflight.clear(); this.generation++ }
+  invalidate(key: string): void { this.entries.delete(key); this.inflight.delete(key); this.generation++ }
 
   async get(key: string, build: () => Promise<T>): Promise<T> {
     const e = this.entries.get(key)
@@ -109,11 +113,15 @@ export class AnalysisCache<T> {
     if (cur) return cur
     const p = (async (): Promise<Entry<T>> => {
       const release = await this.acquire()
+      const gen = this.generation
       try {
         const entry: Entry<T> = { value: await build(), builtAt: this.opts.now() }
-        this.entries.delete(key)
-        this.entries.set(key, entry)
-        while (this.entries.size > this.opts.maxEntries) this.entries.delete(this.entries.keys().next().value as string)
+        /* בוטל בזמן הבנייה (שיוך מקצוע וכד'): התוצאה מוחזרת למי שחיכה לה, אך לא נשמרת — הבקשה הבאה תבנה מחדש */
+        if (gen === this.generation) {
+          this.entries.delete(key)
+          this.entries.set(key, entry)
+          while (this.entries.size > this.opts.maxEntries) this.entries.delete(this.entries.keys().next().value as string)
+        }
         return entry
       } finally {
         release()
@@ -179,6 +187,10 @@ export function getClassAnalysis(classId: string, includeSynthetic: boolean, now
   return classCache.get(classCacheKey(classId, includeSynthetic), async () =>
     buildClassAnalysis(classId, includeSynthetic, now ?? new Date(), await getCatalog()))
 }
+
+/* שיוך (או שינוי) מקצוע להדמיה: משחקים שהיו מחוץ לתוצאות ייכנסו, ומשחקים שנספרו תחת מקצוע אחר יעברו — מבטלים את כל ניתוחי הכיתות, כדי שהמורה תראה את
+   השינוי בכניסה הבאה ולא רק אחרי פקיעת ה-TTL. ניקוי גורף מספיק: זו פעולה נדירה, והבנייה הבאה היא פר-כיתה לפי הצורך. הקטלוג לא מושפע. */
+export function invalidateAllClassAnalyses(): void { classCache.clear() }
 
 /* לבדיקות: מאפס את שני המטמונים (ומיישם מחדש את משתני הסביבה) */
 export function resetAnalysisCaches(): void {

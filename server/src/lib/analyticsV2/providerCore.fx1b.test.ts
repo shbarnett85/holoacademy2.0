@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest'
 import { CLASS_LEVEL_MIN_STUDENTS, PERSONAL_LEVEL_MIN_SESSIONS } from '../../../../src/shared/lib/analyticsConfig.js'
 import {
-  NO_DATA_YET, V2_CLIENT_TEXT, monthYear, narrateAdminGradeSummary, narrateCoverageGaps, narrateDifficultyBelow, narrateOverviewSummary, narrateSubjectHeadline, narrateUnclassifiedNote,
+  ATTENTION_THIN_TEXT, NO_DATA_YET, V2_CLIENT_TEXT, monthYear, narrateAdminGradeSummary, narrateCoverageGaps, narrateDifficultyBelow, narrateNoOpenSubjectNote, narrateOverviewSummary,
+  narrateSubjectHeadline, narrateUnclassifiedNote,
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { EP } from '../../../../src/shared/types/analyticsV2.js'
@@ -99,7 +100,10 @@ describe('טענת רמה כיתתית: לפחות 3 תלמידים שלכל א�
   it('סקירה: מקצוע אחד נמדד — ללא "מתוך 1 מקצועות"', async () => {
     const ov = (await providerOf(world([CA], solid(3))).classOverview(v, CA.id)).data
     expect(ov.summary).not.toMatch(/מתוך 1 מקצועות/)
-    expect(ov.summary).toBe(narrateOverviewSummary({ className: CA.name, above: 0, within: 0, below: 1, attentionStudents: 0 }))
+    /* G1 (UX#9): ל-3 תלמידים אין מגמה שנבדקה — "אין תלמידים לתשומת לב" אינו נאמר; במקומו משפט שאומר שעוד אין מספיק נתונים */
+    expect(ov.summary).toBe(narrateOverviewSummary({ className: CA.name, above: 0, within: 0, below: 1, attentionStudents: 0, attentionThin: true }))
+    expect(ov.summary).toContain(ATTENTION_THIN_TEXT)
+    expect(ov.summary).not.toContain('אין כרגע תלמידים לתשומת לב')
     expect(ov.summary).toContain('מקצוע אחד')
   })
 
@@ -186,7 +190,7 @@ describe('תדריך: חלון הראיות המוצהר הוא הטווח בפ�
   it('regression (R2#8): משחקים רק מלפני יום 179 — החלון מתחיל בחודש המשחק הראשון ומסתיים באחרון (לא "עד היום"), והמספר הוא כל המשחקים', async () => {
     const days = [255, 252, 249, 246, 243, 240]
     const text = await basisOf(days)
-    expect(text).toContain('6 הדמיות')
+    expect(text).toContain('6 משחקים')
     expect(text).toContain(`מ${monthYear(DAYS[255])} עד ${monthYear(DAYS[240])}`)
     expect(monthYear(DAYS[255])).not.toBe(monthYear(DAYS[179])) /* אחרת הבדיקה לא מבחינה */
     expect(text).not.toContain(monthYear(DAYS[0]))
@@ -242,7 +246,9 @@ describe('הערות כיסוי במסך הכניסה ובתמונת המנהל'
   it('כיתה בלי שכבה בלבד (שיוך בלי מקצוע): ההערה מופיעה; הערות "בלי מקצוע" ו"בלי רמה" — לא (אין לו מה לסווג מולן)', async () => {
     const e = (await providerOf(w, cov({ unclassifiedSessions: 5, ungradedClasses: 1, playsWithoutLevel: 4 })).entry(live([grant(CA.id, { unspecified: true })]))).data
     expect(e.unclassifiedCount).toBe(0)
-    expect(e.coverageNote).toBe(narrateCoverageGaps({ ungradedClasses: 1, notLoadedClasses: 0, loadingClasses: 0, playsWithoutLevel: 0 }).join(' '))
+    /* G1 (UX#5): שיוך בלי מקצוע — קודם המשפט שמסביר שהמקצוע לא הוגדר (ולמי לפנות), ואחריו הערת השכבה. עדיין בלי הערות "בלי מקצוע" / "בלי רמה" */
+    const gaps = narrateCoverageGaps({ ungradedClasses: 1, notLoadedClasses: 0, loadingClasses: 0, playsWithoutLevel: 0 }).join(' ')
+    expect(e.coverageNote).toBe(`${narrateNoOpenSubjectNote([CA.name])} ${gaps}`)
   })
 
   it('מנהל: ההערה נוספת אחרי המשפטים הרגילים; כשאין מה להדגיש — קודם "עוד אין תוצאות" ואז ההערה', async () => {

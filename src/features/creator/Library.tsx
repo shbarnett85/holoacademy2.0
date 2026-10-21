@@ -1,7 +1,10 @@
 import { SHARING_DISABLED_UI_MESSAGE } from '../../shared/lib/contact'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch, apiJson } from '../../shared/lib/api'
+import { LIBRARY_ASSIGN_TEXT } from '../../shared/lib/findingsNarrative'
+import { countNoSubject, filterMine, wantsNoSubjectFilter, withNoSubjectFilter } from '../../shared/lib/libraryLinks'
+import { FONT as TU_FONT, MIN_TARGET, T } from '../teacherUi/tokens'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
@@ -77,6 +80,69 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
 
+/* "הספרייה שלי": מה קרה ומה עושים בזרימת שיוך המקצוע.
+   · אחרי שיוך — הודעה שנשארת על המסך (לא נעלמת מעצמה), שאומרת מה ייכלל באנליטיקה, עם קישור חזרה אליה;
+   · הגעה מהאנליטיקה (?filter=nosubject) — משפט פתיחה שאומר מה עושים;
+   · צ'יפ "ללא מקצוע (N)" (וחזרה ל"כל ההדמיות") — כשיש הדמיות בלי מקצוע. */
+export function MineToolbar({ assignedNote, onlyNoSubject, noSubjectCount, onDismissAssigned, onSetNoSubject }: {
+  assignedNote: boolean; onlyNoSubject: boolean; noSubjectCount: number; onDismissAssigned: () => void; onSetNoSubject: (on: boolean) => void
+}) {
+  return (
+    <>
+      {assignedNote && (
+        <div role="status" data-library-assigned style={noteBox}>
+          <span style={{ flex: '1 1 260px' }}>{LIBRARY_ASSIGN_TEXT.saved}</span>
+          <Link to="/analytics" style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
+          <button type="button" onClick={onDismissAssigned} style={noteBtn}>{LIBRARY_ASSIGN_TEXT.dismiss}</button>
+        </div>
+      )}
+      {/* משפט הפתיחה נעלם אחרי השיוך הראשון (הודעת השמירה כבר אומרת מה קרה ומה הלאה, ויש בה את הקישור) — כדי שהרשימה תישאר גלויה */}
+      {onlyNoSubject && !assignedNote && (
+        <div data-library-nosubject-intro style={noteBox}>
+          <span style={{ flex: '1 1 260px' }}>{LIBRARY_ASSIGN_TEXT.intro}</span>
+          <Link to="/analytics" style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
+        </div>
+      )}
+      {(noSubjectCount > 0 || onlyNoSubject) && (
+        <div role="group" aria-label={LIBRARY_ASSIGN_TEXT.filterGroupLabel} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <FilterChip pressed={!onlyNoSubject} onClick={() => onSetNoSubject(false)}>{LIBRARY_ASSIGN_TEXT.allChip}</FilterChip>
+          <FilterChip pressed={onlyNoSubject} onClick={() => onSetNoSubject(true)}>{LIBRARY_ASSIGN_TEXT.noSubjectChip(noSubjectCount)}</FilterChip>
+        </div>
+      )}
+    </>
+  )
+}
+
+/* שיוך מקצוע להדמיה "לא סווג": תווית גלויה, גופן 16px ויעד של 44px לפחות (עקרונות מסכי המורה), במסגרת רגילה ולא מקווקוות.
+   מקצוע שנבחר נשמר מיד; הכרטיס עצמו לא נפתח בלחיצה על הפקד. */
+export function SubjectAssign({ busy, onAssign }: { busy: boolean; onAssign: (code: string) => void }) {
+  return (
+    <label onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 700, color: T.text }}>
+      {LIBRARY_ASSIGN_TEXT.selectLabel}
+      <select className="lib-subject-select" disabled={busy} value="" onChange={(e) => { e.stopPropagation(); if (e.target.value) onAssign(e.target.value) }}
+        style={{ minHeight: MIN_TARGET, minWidth: 200, padding: '0 12px', borderRadius: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 600, cursor: 'pointer', color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}`, opacity: busy ? 0.55 : 1 }}>
+        <option value="">{LIBRARY_ASSIGN_TEXT.selectPlaceholder}</option>
+        {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
+      </select>
+    </label>
+  )
+}
+
+/* הודעה/כפתור/צ'יפ סינון בספרייה — מעוצבים לפי עקרונות מסכי המורה (גופן 16px, יעד 44px), בטוקנים של הערכה */
+const noteBox: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', marginBottom: 10, borderRadius: 12, background: T.surface, border: `1.5px solid ${T.controlBorder}`, borderInlineStart: `6px solid ${T.accent}`, fontFamily: TU_FONT, fontSize: 16, lineHeight: 1.5, color: T.text }
+const noteBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: MIN_TARGET, padding: '0 16px', borderRadius: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 800, color: T.text, textDecoration: 'none', cursor: 'pointer', background: T.surface, border: `2px solid ${T.controlBorder}`, whiteSpace: 'nowrap' }
+
+/* צ'יפ סינון: הנבחר מסומן במסגרת עבה, קו תחתון, משקל כבד ווי — לא בצבע בלבד */
+function FilterChip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" aria-pressed={pressed} onClick={onClick}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', borderRadius: 22, fontFamily: TU_FONT, fontSize: 16, fontWeight: pressed ? 800 : 600, cursor: 'pointer', color: T.text, background: pressed ? T.accentFill : T.surface, border: `2px solid ${pressed ? T.accent : T.controlBorder}`, boxShadow: pressed ? `inset 0 -3px 0 ${T.accent}` : 'none' }}>
+      {pressed && <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+      {children}
+    </button>
+  )
+}
+
 /* ── כרטיס הדמיה שלי ── */
 function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete, onAssignSubject }: {
   q: QuestSummary; busy: boolean; isGuest: boolean; shareBlocked: boolean; onShareBlocked: () => void
@@ -98,23 +164,11 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
           <Chip>{q.sceneCount} סצנות</Chip>
-          {q.subject
-            ? <Chip>{q.subject}</Chip>
-            : (
-              /* הדמיה "לא סווג" — שיוך מהיר למקצוע (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */
-              <select
-                aria-label="שיוך למקצוע"
-                disabled={busy}
-                value=""
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => { e.stopPropagation(); if (e.target.value) onAssignSubject(e.target.value) }}
-                style={{ fontSize: 11, fontWeight: 700, color: 'var(--t164)', padding: '3px 8px', borderRadius: 20, cursor: 'pointer', background: 'var(--t166)', border: '1px dashed var(--t168)', fontFamily: 'var(--font-display)' }}>
-                <option value="">{UNCLASSIFIED_LABEL} — שייכו למקצוע…</option>
-                {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
-              </select>
-            )}
+          {q.subject && <Chip>{q.subject}</Chip>}
           <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
         </div>
+        {/* הדמיה "לא סווג" — שיוך מהיר למקצוע (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */}
+        {!q.subject && <SubjectAssign busy={busy} onAssign={onAssignSubject} />}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
           {/* הסר שיתוף — מופיע רק כשהדמיה משותפת, כפתור משני */}
           {q.is_public && (
@@ -624,6 +678,12 @@ export default function Library() {
   const [reportReason, setReportReason] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
+  /* ?filter=nosubject — היעד של "שייכו מקצוע להדמיות" באנליטיקה: רק ההדמיות שעוד לא שויכו למקצוע */
+  const [sp, setSp] = useSearchParams()
+  const onlyNoSubject = wantsNoSubjectFilter(sp)
+  const setOnlyNoSubject = (on: boolean) => setSp((prev) => withNoSubjectFilter(prev, on), { replace: true })
+  /* אחרי שיוך מקצוע: הודעה שנשארת על המסך (לא נעלמת מעצמה) עם קישור חזרה לאנליטיקה */
+  const [assignedNote, setAssignedNote] = useState(false)
 
   /* עוקב חיים — מונע setState אחרי unmount (ניווט מהיר באמצע טעינה).
      חשוב: מאתחלים ל-true בגוף ה-effect (לא רק בהצהרה) — ב-StrictMode ה-effect רץ
@@ -658,7 +718,7 @@ export default function Library() {
     try {
       const out = await apiJson<{ subject?: string; subjectCode?: string }>(`/api/quests/${q.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subjectCode: code }) })
       setQuests((prev) => (prev ?? []).map((it) => (it.id === q.id ? { ...it, subject: out.subject ?? null, subjectCode: out.subjectCode ?? code } : it)))
-      flash('✓ ההדמיה שויכה למקצוע')
+      setAssignedNote(true)
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה בשיוך המקצוע') } finally { setBusyId(null) }
   }
   async function doDelete(q: QuestSummary) {
@@ -685,22 +745,24 @@ export default function Library() {
   }
 
   const subjKeys = Object.keys(subjOn)
-  const dirty = subjKeys.length > 0 || query.trim() !== '' || lo > 0 || hi < GRADES.length - 1
-  const clearAll = () => { setQuery(''); setSubjOn({}); setLo(0); setHi(GRADES.length - 1) }
+  const dirty = subjKeys.length > 0 || query.trim() !== '' || lo > 0 || hi < GRADES.length - 1 || onlyNoSubject
+  const clearAll = () => { setQuery(''); setSubjOn({}); setLo(0); setHi(GRADES.length - 1); if (onlyNoSubject) setOnlyNoSubject(false) }
   const toggleSubj = (sub: string) => setSubjOn((p) => { const n = { ...p }; if (n[sub]) delete n[sub]; else n[sub] = true; return n })
 
-  const mineF = useMemo(() => {
-    const q = query.trim().toLowerCase()
+  /* מורה אורח: מסננים לספרייה המקומית של הדפדפן שלו בלבד (בידוד per-browser —
+     כל האורחים חולקים את חשבון הדמו, אז השרת מחזיר את ההדמיות של כולם). */
+  const mineBase = useMemo(() => {
     if (!quests) return []
-    /* מורה אורח: מסננים לספרייה המקומית של הדפדפן שלו בלבד (בידוד per-browser —
-       כל האורחים חולקים את חשבון הדמו, אז השרת מחזיר את ההדמיות של כולם). */
-    let list = quests
-    if (isGuest) {
-      const own = new Set(getGuestQuestIds())
-      list = list.filter((it) => own.has(it.id))
-    }
-    return q ? list.filter((it) => it.title.toLowerCase().includes(q)) : list
-  }, [quests, query, isGuest])
+    if (!isGuest) return quests
+    const own = new Set(getGuestQuestIds())
+    return quests.filter((it) => own.has(it.id))
+  }, [quests, isGuest])
+  const noSubjectCount = countNoSubject(mineBase)
+  /* "הספרייה שלי" מסוננת לפי שם, לפי המקצועות שנבחרו בסרגל הסינון (כמו הקהילה), וגם לפי "ללא מקצוע" */
+  const mineF = useMemo(
+    () => filterMine(mineBase, { query, subjects: subjOn, onlyNoSubject, unclassifiedLabel: UNCLASSIFIED_LABEL }),
+    [mineBase, query, subjOn, onlyNoSubject],
+  )
 
   const commF = useMemo(() => {
     return (publicQuests ?? []).filter((it) => {
@@ -726,6 +788,7 @@ export default function Library() {
       <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
 
+      <style>{`.lib-subject-select option { background: var(--t75); color: var(--t68); }`}</style>
       <StudioTopBar active="library" />
 
       <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16, padding: '12px 30px 26px' }}>
@@ -767,9 +830,21 @@ export default function Library() {
               <ColHead rgb={CYAN} title="הספרייה שלי" kicker="MY LIBRARY" count={`${mineF.length} הדמיות`}
                 icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t15)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>} />
               {error && <div style={{ color: 'var(--t5)', padding: 12, borderRadius: 12, border: '1px solid var(--t102)', background: 'var(--t199)', marginBottom: 10 }}>{error}</div>}
+              <MineToolbar assignedNote={assignedNote} onlyNoSubject={onlyNoSubject} noSubjectCount={noSubjectCount}
+                onDismissAssigned={() => setAssignedNote(false)} onSetNoSubject={setOnlyNoSubject} />
               <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 11, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8 }}>
                 {!quests && !error && emptyMsg('טוען…')}
-                {quests && mineF.length === 0 && emptyMsg((isGuest ? getGuestQuestIds().length === 0 : quests.length === 0) ? 'עדיין אין הדמיות — צרו את הראשונה!' : 'אין תוצאות לחיפוש')}
+                {quests && mineF.length === 0 && (
+                  onlyNoSubject && noSubjectCount === 0
+                    ? (
+                      /* כל ההדמיות שויכו: משפט קריא (16px) ולא שורת העזר הזעירה של שאר המצבים הריקים */
+                      <div data-library-none-left style={{ fontFamily: TU_FONT, textAlign: 'center', padding: '28px 12px', color: T.text }}>
+                        <p style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, lineHeight: 1.5 }}>{LIBRARY_ASSIGN_TEXT.noneLeft.title}</p>
+                        <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: T.textSoft }}>{LIBRARY_ASSIGN_TEXT.noneLeft.whatNext}</p>
+                      </div>
+                    )
+                    : emptyMsg((isGuest ? getGuestQuestIds().length === 0 : quests.length === 0) ? 'עדיין אין הדמיות — צרו את הראשונה!' : LIBRARY_ASSIGN_TEXT.noMatches)
+                )}
                 {mineF.map((q) => (
                   <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
                     onOpen={() => navigate(`/creator/quest/${q.id}`)}

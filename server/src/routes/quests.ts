@@ -28,6 +28,7 @@ import { loadViewer, canAssignToClass } from '../lib/authz.js'
 import { loadReviewBasis } from '../lib/results/realResults.js'
 import { REVIEW_MIN_COMPLETED } from '../../../src/shared/lib/analyticsConfig.js'
 import { subjectByCode, subjectFieldsOfQuest, questSubjectOut } from '../lib/subjects.js'
+import { invalidateAllClassAnalyses } from '../lib/analyticsV2/analysisCache.js'
 import { subjectName as subjectName_, isSubjectCode } from '../../../src/shared/lib/subjects.js'
 import { loadEffectiveProfile } from '../lib/profileCalibration.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
@@ -851,6 +852,8 @@ questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
 
     const { error: updateError } = await supabaseAdmin.from('quests').update(patch).eq('id', quest.id)
     if (updateError) throw new AppError(500, 'שגיאה בשמירה: ' + updateError.message)
+    /* שיוך מקצוע משנה אילו משחקים נספרים באנליטיקה — מבטלים את מטמון ניתוחי הכיתות כדי שהמורה תראה את השינוי בכניסה הבאה */
+    if (subjectOut) invalidateAllClassAnalyses()
 
     res.json({ ok: true, title, ...(subjectOut ?? {}) })
   } catch (err) {

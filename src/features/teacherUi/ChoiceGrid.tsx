@@ -26,11 +26,15 @@ interface BigChoiceButtonProps {
   onClick?: () => void
   /** בלי מסגרת ורקע משלו — לכפתור שיושב בתוך כרטיס עוטף (למשל כרטיס כיתה עם קיצורי מקצועות מתחתיו) */
   flat?: boolean
+  /** מילת פעולה גלויה בקצה שורת הכותרת ("לסקירת הכיתה") — עם קו תחתון וחץ, כדי שיהיה ברור שהכותרת לחיצה */
+  actionLabel?: string
+  /** שורת מידע קטנה ליד התת-כותרת (למשל תג תפקיד: "מחנך/ת") — מילים בלבד */
+  meta?: ReactNode
 }
 
 const BADGE_ICON = { positive: 'check', attention: 'alert', error: 'alert', neutral: 'info' } as const
 
-export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, onClick, flat }: BigChoiceButtonProps) {
+export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, onClick, flat, actionLabel, meta }: BigChoiceButtonProps) {
   const style = {
     display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', alignItems: 'flex-start', gap: 6, minHeight: flat ? 64 : 88, padding: flat ? '14px 16px' : '14px 18px',
     borderRadius: RADIUS.lg, fontFamily: FONT, textAlign: 'start' as const, textDecoration: 'none', cursor: 'pointer', color: T.text,
@@ -40,11 +44,23 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
   }
   const inner = (
     <>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>
-        {icon && <span aria-hidden="true" style={{ display: 'inline-flex' }}>{icon}</span>}
-        {label}
+      <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 16, rowGap: 2, width: '100%', fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+          {icon && <span aria-hidden="true" style={{ display: 'inline-flex' }}>{icon}</span>}
+          {label}
+        </span>
+        {actionLabel && (
+          <span data-choice-action style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
+            {actionLabel}<Icon name="chevLeft" size={16} />
+          </span>
+        )}
       </span>
-      {sublabel && <span style={{ fontSize: 16, fontWeight: 500, color: T.textSoft }}>{sublabel}</span>}
+      {(sublabel || meta) && (
+        <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 12, rowGap: 2, fontSize: 16, fontWeight: 500, color: T.textSoft }}>
+          {sublabel && <span>{sublabel}</span>}
+          {meta}
+        </span>
+      )}
       {badge && (() => {
         const tone = badge.tone ?? 'attention'
         return (

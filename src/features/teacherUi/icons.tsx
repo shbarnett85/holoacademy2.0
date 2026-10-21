@@ -16,6 +16,10 @@ const PATHS = {
   /* ריק / אין נתונים */
   inbox: <><path d="M3 13l2.5-7.5h13L21 13" /><path d="M3 13v6h18v-6h-5.5a3.5 3.5 0 0 1-7 0z" /></>,
   logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
+  /* משוב לתלמיד/ה: צמיחה (חץ עולה) · התמדה (חזרה במעגל) · הצעד הבא (דגל) — תמיד לצד מילים */
+  growth: <><path d="M4 17l5.5-5.5 4 4L21 8" /><path d="M15 8h6v6" /></>,
+  streak: <><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5" /><path d="M20 4v4.5h-4.5" /><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5" /><path d="M4 20v-4.5h4.5" /></>,
+  step: <><path d="M6 21V4" /><path d="M6 5h11l-2.5 4 2.5 4H6" /></>,
 } satisfies Record<string, ReactElement>
 
 export type IconName = keyof typeof PATHS

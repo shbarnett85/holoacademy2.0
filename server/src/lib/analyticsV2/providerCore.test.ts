@@ -144,7 +144,8 @@ describe('שיוך בלי מקצוע ובלי מחנכות (unspecified)', () =>
     expect(r.classes[0].lockedSubjects.map((s) => s.code).sort()).toEqual(['history', 'math'])
     expect(r.students).toEqual([])
     const e = (await P.entry(v)).data
-    expect(e.classes[0]).toMatchObject({ studentCount: 0, attentionCount: 0, hasResults: false })
+    /* G1 (UX#5): גודל הכיתה האמיתי (בלי פירוט אישי) ולא "0 תלמידים"; הדגל noOpenSubject מאפשר ללקוח להסביר שהמקצוע לא הוגדר */
+    expect(e.classes[0]).toMatchObject({ studentCount: 10, attentionCount: 0, hasResults: false, noOpenSubject: true })
   })
   it('כל מקצוע / סקירה / תדריך כיתה → 403; תלמיד נפתח עם כל החלונות אפורים', async () => {
     await failsWith(P.classSubject(v, CA.id, 'math'), 403, ERR_NO_ACCESS)

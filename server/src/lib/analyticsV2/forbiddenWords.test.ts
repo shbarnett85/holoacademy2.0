@@ -137,10 +137,10 @@ describe('עברית פשוטה: אין מונחים טכניים בשום תג�
     expect(howText).toContain('N = ')
     const others = b.sections.filter((s) => s.id !== 'how_we_calculated')
     expect([...strings(others)].filter((s) => hits(s.text).length)).toEqual([])
-    /* שורת הראיה הפשוטה: "מבוסס על 10 הדמיות, מדצמבר 2025 עד אוקטובר 2026" */
+    /* שורת הראיה הפשוטה: "מבוסס על 10 משחקים, מדצמבר 2025 עד אוקטובר 2026" */
     const basis = b.sections.find((s) => s.id === 'evidence_basis')!
     expect(basis.items.length).toBeGreaterThan(0)
-    for (const it of basis.items) expect(it.text).toMatch(/מבוסס על \d+ הדמיות, מ[א-ת]+ \d{4} עד [א-ת]+ \d{4}/)
+    for (const it of basis.items) expect(it.text).toMatch(/מבוסס על \d+ משחקים, מ[א-ת]+ \d{4} עד [א-ת]+ \d{4}/)
     /* כל ממצא מדווח בתדריך מקבל פריט בסעיף "איך חישבנו?" עם השורות הטכניות */
     const trend = b.sections.find((s) => s.id === 'trend')!
     expect(trend.items.length).toBeGreaterThan(0)

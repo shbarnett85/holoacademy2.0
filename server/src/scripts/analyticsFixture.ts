@@ -72,6 +72,8 @@ export interface AnalyticsFixture {
     emptyStudentId: string
     /* המקצוע שבו יש הכי הרבה נתונים */
     subject: 'math'
+    /* ההדמיות בלי מקצוע (נוצרו על ידי מחנך הכיתה העשירה — הוא רשאי לשייך להן מקצוע דרך PATCH /api/quests/:id); expected.unclassifiedQuestPlays = כמה משחקים בכל אחת */
+    unclassifiedQuestIds: string[]
   }
   teachers: {
     homeroom: FxPrincipal
@@ -110,6 +112,10 @@ export interface AnalyticsFixture {
     emptyStudentCount: number
     /* משחקים בהדמיות בלי מקצוע (בכיתה rich) */
     unclassifiedSessions: number
+    /* מפתחות students.rich שיש להם משחקים בהדמיות בלי מקצוע, וכמה משחקים לכל אחד/ת; וכמה משחקים בכל הדמיה בלי מקצוע (לפי ids.unclassifiedQuestIds) */
+    unclassifiedStories: string[]
+    unclassifiedPlaysEach: number
+    unclassifiedQuestPlays: number[]
     /* תורמים לכל תא שכבה ו׳ × מקצוע בתמונת המנהל: מי שיש לו לפחות PERSONAL_LEVEL_MIN_SESSIONS משחקים במקצוע (מחושב מהתצורה, לא קבוע) */
     adminContributors: { math: number; hebrew: number; science: number; bible: number }
     /* סיפורים (מפתחות students.rich) שאמורים לקבל ממצא מדווח בטון "תשומת לב" */
@@ -240,6 +246,7 @@ const OTHER_NAMES = [['חגי', 'ירון'], ['טלי', 'פז']]
 const DUAL_NAMES = [['קורן', 'ליבני'], ['רינת', 'אשכנזי'], ['שחר', 'בנימיני']]
 /* מי מקבל משחקים בהדמיות בלי מקצוע (2 כל אחד) */
 const UNCLASSIFIED_STUDENTS = ['trendUp', 'trendDown', 'crossDip']
+const UNCLASSIFIED_PLAYS_EACH = 2
 
 const POOL = 18 /* הדמיות לכל מקצוע מרכזי — כל משחק בהדמיה אחרת (ההשלמה הראשונה לכל תלמיד-הדמיה היא מקור הראיות) */
 
@@ -484,10 +491,13 @@ async function build(): Promise<AnalyticsFixture> {
 
   /* הדמיות בלי מקצוע: 2 משחקים לכל אחד משלושה תלמידים (נספרים ב-coverage, לא נכנסים לתוצאות) */
   let unclassified = 0
+  const unclassifiedQuestPlays = unclassifiedQuests.map(() => 0)
   UNCLASSIFIED_STUDENTS.forEach((key, i) => {
     for (const [k, dayIdx] of [4 + i, 9 + i].entries()) {
-      addSession(students.rich[key].id, rich, unclassifiedQuests[(i + k) % unclassifiedQuests.length], null, dayIdx, 31, round1(9 + rand()), 0.7)
+      const qi = (i + k) % unclassifiedQuests.length
+      addSession(students.rich[key].id, rich, unclassifiedQuests[qi], null, dayIdx, 31, round1(9 + rand()), 0.7)
       unclassified++
+      unclassifiedQuestPlays[qi]++
     }
   })
 
@@ -525,12 +535,16 @@ async function build(): Promise<AnalyticsFixture> {
       classId: rich.id, homeroomClassId: rich.id, sparseClassId: sparse.id, emptyClassId: empty.id,
       attentionStudentId: students.rich.crossDip.id, studentId: students.rich.crossDip.id, calmStudentId: students.rich.steadyB.id, emptyStudentId: students.empty.e1.id,
       subject: 'math',
+      unclassifiedQuestIds: unclassifiedQuests,
     },
     teachers: { homeroom, subject, mixed, cross, unspecified, emptyHomeroom, noClasses, unlinked: noClasses, admin, municipal, outsider, outsiderAdmin, emptySchoolAdmin, dual },
     students,
     expected: {
       richStudentCount: STORIES.length, sparseStudentCount: SPARSE_NAMES.length, emptyStudentCount: EMPTY_NAMES.length,
       unclassifiedSessions: unclassified,
+      unclassifiedStories: [...UNCLASSIFIED_STUDENTS],
+      unclassifiedPlaysEach: UNCLASSIFIED_PLAYS_EACH,
+      unclassifiedQuestPlays,
       adminContributors,
       attentionStories: ['trendDown', 'crossDip', 'positionBias', 'memoryRandom', 'readingSkipper'],
       positiveStories: ['trendUp'],

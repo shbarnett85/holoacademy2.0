@@ -179,7 +179,18 @@ export const CaveatsSchema = z.object({
   trend: z.string().min(1),
 })
 
+/* ── G1: אמת במצבים ריקים (שדות אופציונליים — השרת תמיד שולח אותם; לקוח ישן מתעלם) ──
+   · catalogReady=false: נתוני אמת בלי תיוג — טעויות נפוצות ותחומים חזקים/מאתגרים אינם פעילים בחשבון (לא "יופיעו כשיצטברו תשובות").
+     catalogNote הוא המשפט המוכן להצגה פעם אחת (בלשונית / בכרטיס שתלוי בתיוג). חסר או true = כרגיל.
+   · coverageNote: משחקים בהיקף המסך (כיתה / תלמיד/ה) שלא נכללו — בהדמיות בלי מקצוע או בלי רמה לפי מקצוע — ומה עושים. null כשאין פער. */
+export const EmptyTruthFields = {
+  catalogReady: z.boolean().optional(),
+  catalogNote: z.string().min(1).nullable().optional(),
+  coverageNote: z.string().min(1).nullable().optional(),
+}
+
 export const StudentOverviewSchema = z.object({
+  ...EmptyTruthFields,
   student: StudentRefSchema,
   /* משפט סיכום אחד על התלמיד/ה — לפני הפירוט */
   summary: z.string().min(1),
@@ -226,6 +237,14 @@ export const EntryClassSchema = z.object({
   attentionCount: z.number().int().nonnegative(),
   /* האם יש בכיתה (בהיקף שהצופה רשאי לראות) לפחות משחק אחד שהושלם. false = "עוד אין תוצאות" — לא "אין תלמידים לתשומת לב" */
   hasResults: z.boolean(),
+  /* G1: לצופה אין מקצוע פתוח בכיתה הזאת ואינו מחנך שלה (שיוך בלי מקצוע). studentCount הוא אז גודל הכיתה (בלי פירוט אישי), והלקוח מסביר
+     "המקצוע שלכם עוד לא הוגדר" במקום "עוד אין תוצאות" */
+  noOpenSubject: z.boolean().optional(),
+  /* G1: כמה מתלמידי הכיתה אפשר היה לבדוק אצלם שינוי (יש מספיק נתונים למגמה) */
+  studentsAssessed: z.number().int().nonnegative().optional(),
+  /* G1: משפט ניטרלי כשאין תלמידים לתשומת לב אבל אין בסיס מספיק לומר זאת ("נתונים על 1 מתוך 3 תלמידים — עוד מוקדם לדעת").
+     כשהוא קיים — לא מציגים תג ירוק "אין תלמידים לתשומת לב". null/חסר = יש בסיס, או שיש תלמידים לתשומת לב */
+  basisNote: z.string().min(1).nullable().optional(),
 })
 export const EntryAlertSchema = z.object({
   studentId: z.string().min(1), studentName: z.string().min(1),
@@ -315,6 +334,7 @@ export const ClassSubjectTabSummariesSchema = z.object({
 })
 
 export const ClassSubjectViewSchema = z.object({
+  ...EmptyTruthFields,
   class: z.object({ id: z.string(), name: z.string(), gradeLabel: z.string(), studentCount: z.number().int() }),
   subject: SubjectRefSchema,
   classLevel: z.object({ mean: z.number().nullable(), ageNorm: AgeNormSchema }),
@@ -360,6 +380,7 @@ export const ClassOverviewRowSchema = z.object({
   alertTexts: z.array(z.string().min(1)),
 })
 export const ClassOverviewSchema = z.object({
+  ...EmptyTruthFields,
   class: z.object({ id: z.string(), name: z.string(), gradeLabel: z.string(), studentCount: z.number().int() }),
   /* משפט סיכום אחד על הכיתה */
   summary: z.string().min(1),
@@ -408,6 +429,8 @@ export const AdminMisconceptionSchema = z.object({
    אין כאן שם/מזהה תלמיד ואין מידע על מורים; תא קטן מ-5 מוסתר בכל החיתוכים. */
 export const AdminGradeRowSchema = z.object({
   grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int(),
+  /* G1: "כיתה אחת · 6 תלמידים" (יחיד/רבים נכון), מוכן להצגה */
+  sizeText: z.string().optional(),
   summary: z.string().min(1),
   cells: z.array(AdminCellSchema), /* שורה לכל מקצוע בשכבה */
 })
@@ -418,10 +441,14 @@ export const AdminSubjectRowSchema = z.object({
 })
 
 export const AdminOverviewSchema = z.object({
+  /* G1: catalogReady/catalogNote כמו אצל המורה; coverageNote = משחקים בבית הספר בהדמיות בלי מקצוע (מספר קטן מהסף לא מפורסם) */
+  ...EmptyTruthFields,
+  /* G1: "N נתונים לא מוצגים כי יש בהם מעט תלמידים או כיתה אחת בלבד" — מוכן להצגה; null כשאין נתון מוסתר */
+  hiddenNote: z.string().min(1).nullable().optional(),
   school: z.object({ id: z.string(), name: z.string() }),
   /* עד 3 משפטים פשוטים לטאב "סקירה", ואחריהם (אם יש) הערת כיסוי אחת: כיתות בלי שכבה / שלא נטענו / משחקים בלי רמה (בלי שמות ובלי פירוט כיתה) */
   highlights: z.array(z.string().min(1)).max(4),
-  grades: z.array(z.object({ grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int() })),
+  grades: z.array(z.object({ grade: z.number().int(), gradeLabel: z.string(), classCount: z.number().int(), studentCount: z.number().int(), sizeText: z.string().optional() })),
   gradeRows: z.array(AdminGradeRowSchema),
   subjectRows: z.array(AdminSubjectRowSchema),
   cells: z.array(AdminCellSchema),
