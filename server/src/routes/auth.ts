@@ -4,7 +4,9 @@ import { z } from 'zod'
 import { supabaseAdmin, supabaseAnon } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { isUserActive, isSuperAdminEmail } from '../middleware/staffAuth.js'
-import { hasCanShare } from '../lib/activeColumn.js'
+import { hasCanShare, hasApprovalStatus, hasIsActive } from '../lib/activeColumn.js'
+import { planSignup, signupMail, confirmationRedirect, JOIN_UNAVAILABLE_MESSAGE } from '../lib/staffSignup.js'
+import { info as logInfo, error as logError } from '../lib/log.js'
 import { rateLimitByIp, recordFailure, isLocked, RATE_LIMIT_MESSAGE } from '../middleware/rateLimit.js'
 
 export const authRouter = Router()
@@ -39,64 +41,115 @@ const staffSignupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6, 'הסיסמה חייבת לפחות 6 תווים'),
   name: z.string().min(1),
-  role: z.enum(['teacher', 'admin']),
+  /* 'admin' תקף רק יחד עם newSchoolName (יוצר בית ספר חדש) — planSignup דוחה אותו בהצטרפות לבית ספר קיים */
+  role: z.enum(['teacher', 'admin']).optional(),
   schoolId: z.string().uuid().optional(),
   /* בית ספר שאינו ברשימה — נוצר תוך כדי ההרשמה */
   newSchoolName: z.string().min(2).max(80).optional(),
 }).refine((d) => d.schoolId || d.newSchoolName, { message: 'יש לבחור בית ספר או להזין חדש' })
 
-/* POST /api/auth/staff-signup — יצירת מורה/מנהל (MVP: signup פתוח) */
+/* POST /api/auth/staff-signup — הרשמה עצמית של צוות.
+   - בית ספר חדש: היוצר מורה/מנהל של בית הספר החדש שלו (ללא גישה לאחרים).
+   - בית ספר קיים: מורה ממתין (approval_status='pending', is_active=false) עד אישור מנהל בית הספר.
+   - בשני המסלולים המייל לא מאושר מראש: נשלח קישור אימות, ועד אז staff-login חסום. */
 authRouter.post('/auth/staff-signup', rateLimitByIp('staff-signup', 5), async (req, res, next) => {
   try {
     const parsed = staffSignupSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה: ' + parsed.error.message)
-    const { email, password, name, role, newSchoolName } = parsed.data
-    let schoolId = parsed.data.schoolId ?? null
+    const { email, password, name, newSchoolName } = parsed.data
+    const plan = planSignup(parsed.data)
 
-    /* הרשמה עצמית לארגון פיילוט מוגבל חסומה — רק מנהל הארגון מוסיף אליו מורים */
-    if (schoolId && (await hasRestrictedOrgColumn())) {
-      const { data: org } = await supabaseAdmin.from('schools').select('is_restricted_org').eq('id', schoolId).maybeSingle()
-      if ((org as { is_restricted_org?: boolean } | null)?.is_restricted_org) {
-        throw new AppError(403, 'ההרשמה לארגון זה מתבצעת דרך מנהל הארגון בלבד')
+    if (plan.kind === 'join') {
+      /* נכשלים סגור: בלי עמודת approval_status אין איך לסמן/לאכוף המתנה לאישור. (users.is_active אינה תנאי —
+         היא נכשלת-פתוח כשהעמודה חסרה, ולכן האכיפה היא על approval_status; is_active=false מתווספת כשהיא קיימת.) */
+      if (!(await hasApprovalStatus())) throw new AppError(503, JOIN_UNAVAILABLE_MESSAGE, 'JOIN_UNAVAILABLE')
+      /* הרשמה עצמית לארגון פיילוט מוגבל חסומה — רק מנהל הארגון מוסיף אליו מורים */
+      if (await hasRestrictedOrgColumn()) {
+        const { data: org } = await supabaseAdmin.from('schools').select('is_restricted_org').eq('id', plan.schoolId).maybeSingle()
+        if ((org as { is_restricted_org?: boolean } | null)?.is_restricted_org) {
+          throw new AppError(403, 'ההרשמה לארגון זה מתבצעת דרך מנהל הארגון בלבד')
+        }
       }
+      const { data: school } = await supabaseAdmin.from('schools').select('id').eq('id', plan.schoolId).maybeSingle()
+      if (!school) throw new AppError(404, 'בית הספר לא נמצא')
     }
 
-    /* 0) בית ספר חדש — נוצר עם slug ייחודי (נגזר מהשם או אקראי) */
-    if (!schoolId && newSchoolName) {
-      const base = newSchoolName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-      const slug = (base || 'school') + '-' + Math.random().toString(36).slice(2, 7)
-      const { data: school, error: schoolErr } = await supabaseAdmin
-        .from('schools')
-        .insert({ name: newSchoolName.trim(), slug })
-        .select('id')
-        .single()
-      if (schoolErr || !school) throw new AppError(500, 'יצירת בית הספר נכשלה: ' + (schoolErr?.message ?? ''))
-      schoolId = school.id
-    }
-
-    /* 1) יצירת משתמש ב-Supabase Auth (admin API, service_role) */
-    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    })
+    /* 1) משתמש ב-Supabase Auth — ללא email_confirm: ההתחברות נחסמת עד לחיצה על קישור האימות */
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: false })
     if (createErr || !created.user) {
+      if (createErr?.code === 'email_exists' || /already.*registered/i.test(createErr?.message ?? '')) {
+        throw new AppError(409, 'כתובת האימייל כבר רשומה — התחברו, או השתמשו ב"שכחתי סיסמה"', 'EMAIL_EXISTS')
+      }
       throw new AppError(400, 'יצירת המשתמש נכשלה: ' + (createErr?.message ?? 'שגיאה'))
     }
-
-    /* 2) רשומה בטבלת users עם auth_id מקושר */
-    const { data: userRow, error: insErr } = await supabaseAdmin
-      .from('users')
-      .insert({ name, role, school_id: schoolId, auth_id: created.user.id })
-      .select('id, name, role, school_id')
-      .single()
-    if (insErr || !userRow) {
-      /* ניקוי משתמש ה-auth כדי לא להשאיר יתום */
-      await supabaseAdmin.auth.admin.deleteUser(created.user.id).catch(() => {})
-      throw new AppError(500, 'יצירת רשומת המשתמש נכשלה: ' + (insErr?.message ?? ''))
+    const authId = created.user.id
+    let createdSchoolId: string | null = null
+    let userId: string | null = null
+    /* ניקוי בסדר הפוך — כדי שכשל בשלב כלשהו לא ישאיר חשבון/בית ספר יתומים */
+    const rollback = async () => {
+      if (userId) { try { await supabaseAdmin.from('users').delete().eq('id', userId) } catch { /* best-effort */ } }
+      if (createdSchoolId) { try { await supabaseAdmin.from('schools').delete().eq('id', createdSchoolId) } catch { /* best-effort */ } }
+      await supabaseAdmin.auth.admin.deleteUser(authId).catch(() => {})
     }
 
-    res.status(201).json({ ok: true, user: userRow })
+    try {
+      /* 2) בית ספר חדש — slug ייחודי (נגזר מהשם או אקראי) */
+      let schoolId: string
+      if (plan.kind === 'new_school') {
+        const base = newSchoolName!.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+        const slug = (base || 'school') + '-' + Math.random().toString(36).slice(2, 7)
+        const { data: school, error: schoolErr } = await supabaseAdmin
+          .from('schools')
+          .insert({ name: newSchoolName!.trim(), slug })
+          .select('id')
+          .single()
+        if (schoolErr || !school) throw new AppError(500, 'יצירת בית הספר נכשלה: ' + (schoolErr?.message ?? ''))
+        createdSchoolId = school.id
+        schoolId = school.id
+      } else {
+        schoolId = plan.schoolId
+      }
+
+      /* 3) רשומה בטבלת users עם auth_id מקושר. מצטרף לבית ספר קיים נוצר ממתין ולא-פעיל */
+      const payload: Record<string, unknown> = { name, role: plan.role, school_id: schoolId, auth_id: authId }
+      if (plan.kind === 'join') {
+        payload.approval_status = 'pending'
+        if (await hasIsActive('users')) payload.is_active = false
+      }
+      const { data: userRow, error: insErr } = await supabaseAdmin
+        .from('users')
+        .insert(payload)
+        .select('id, name, role, school_id')
+        .single()
+      if (insErr || !userRow) throw new AppError(500, 'יצירת רשומת המשתמש נכשלה: ' + (insErr?.message ?? ''))
+      userId = userRow.id
+
+      /* 4) מייל אימות. אם השליחה נכשלה — מבטלים הכול (חשבון שאי אפשר לאמת הוא חשבון מת) */
+      const sent = await signupMail.sendConfirmation(email, confirmationRedirect(req.headers.origin as string | undefined))
+      if (!sent.ok) {
+        logError('[staff-signup] שליחת מייל האימות נכשלה:', sent.error)
+        throw new AppError(503, 'לא הצלחנו לשלוח מייל אימות — נסו שוב בעוד כמה דקות', 'EMAIL_SEND_FAILED')
+      }
+
+      logInfo('[staff-signup] נרשם', plan.kind === 'join' ? 'מורה ממתין לאישור' : `${plan.role} בבית ספר חדש`, userRow.id)
+      res.status(201).json({ ok: true, user: userRow, needsEmailVerification: true, pendingApproval: plan.kind === 'join' })
+    } catch (err) {
+      await rollback()
+      throw err
+    }
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* POST /api/auth/resend-confirmation — שליחה חוזרת של מייל האימות. תמיד 200 (לא מדליפים אילו
+   כתובות קיימות); Supabase עצמו מגביל תדירות פר-משתמש, ופה גם פר-IP. */
+authRouter.post('/auth/resend-confirmation', rateLimitByIp('resend-confirmation', 5), async (req, res, next) => {
+  try {
+    const email = z.string().email().safeParse((req.body as { email?: string })?.email)
+    if (!email.success) throw new AppError(400, 'כתובת אימייל לא תקינה')
+    await signupMail.sendConfirmation(email.data, confirmationRedirect(req.headers.origin as string | undefined)).catch(() => {})
+    res.json({ ok: true })
   } catch (err) {
     next(err)
   }
@@ -145,6 +198,9 @@ authRouter.post('/auth/staff-login', rateLimitByIp('staff-login', 10), async (re
     const { email, password } = parsed.data
 
     const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password })
+    if (error?.code === 'email_not_confirmed') {
+      throw new AppError(403, 'יש לאשר את כתובת האימייל — שלחנו קישור אימות למייל שהוזן בהרשמה', 'EMAIL_NOT_CONFIRMED')
+    }
     if (error || !data.session || !data.user) throw new AppError(401, 'אימייל או סיסמה שגויים')
 
     /* מנהל-על מבוסס-אימייל — אינו דורש רשומת users / ערך enum / is_active */
@@ -161,15 +217,20 @@ authRouter.post('/auth/staff-login', rateLimitByIp('staff-login', 10), async (re
     }
 
     const withShare = await hasCanShare()
+    const withApproval = await hasApprovalStatus()
     const { data: userRowRaw, error: uErr } = await supabaseAdmin
       .from('users')
-      .select(withShare ? 'id, name, role, school_id, can_share' : 'id, name, role, school_id')
+      .select('id, name, role, school_id' + (withShare ? ', can_share' : '') + (withApproval ? ', approval_status' : ''))
       .eq('auth_id', data.user.id)
       .single()
-    const userRow = userRowRaw as unknown as { id: string; name: string; role: string; school_id: string | null; can_share?: boolean } | null
+    const userRow = userRowRaw as unknown as { id: string; name: string; role: string; school_id: string | null; can_share?: boolean; approval_status?: string | null } | null
     if (uErr || !userRow) throw new AppError(403, 'המשתמש אינו מורה/מנהל רשום')
     if (!['teacher', 'admin', 'municipal_admin', 'super_admin'].includes(userRow.role)) {
       throw new AppError(403, 'אין הרשאת צוות')
+    }
+    /* מצטרף לבית ספר קיים שטרם אושר — לא מחזירים session בכלל (גם לא "מושבת" גנרי) */
+    if (userRow.approval_status === 'pending') {
+      throw new AppError(403, 'ההרשמה התקבלה וממתינה לאישור מנהל בית הספר — תקבלו גישה ברגע שהבקשה תאושר', 'PENDING_APPROVAL')
     }
     if (!(await isUserActive(userRow.id))) throw new AppError(403, 'החשבון הושבת — פנה למנהל המערכת')
 

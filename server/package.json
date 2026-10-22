@@ -17,6 +17,7 @@
     "seed-nesher-demo": "tsx src/scripts/seedNesherDemo.ts",
     "demo-data:accept": "tsx src/scripts/demoDataAcceptance.ts",
     "authz:accept": "tsx src/scripts/authzAcceptance.ts",
+    "signup:accept": "tsx src/scripts/staffSignupAcceptance.ts",
     "results:accept": "tsx src/scripts/resultsAcceptance.ts",
     "ai-summary:accept": "tsx src/scripts/aiSummaryAccept.ts",
     "v2:accept": "tsx src/scripts/v2Acceptance.ts",

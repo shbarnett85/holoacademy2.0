@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from './errors.js'
-import { hasCanShare } from '../lib/activeColumn.js'
+import { hasCanShare, hasApprovalStatus } from '../lib/activeColumn.js'
 
 /* municipal_admin — מנהל עירוני מוגבל-ארגון: מנהל מורים/כיתות/תלמידים ואנליטיקה
    של הארגון שלו בלבד; אין לו גישה להדמיות של אחרים ולא לשינוי תפקידים/הרשאות. */
@@ -75,14 +75,18 @@ async function loadStaffContext(token: string): Promise<{ ctx: StaffContext | nu
   }
 
   const withShare = await hasCanShare()
+  const withApproval = await hasApprovalStatus()
   const { data: userRow, error: uErr } = await supabaseAdmin
     .from('users')
-    .select(withShare ? 'id, name, role, school_id, auth_id, can_share' : 'id, name, role, school_id, auth_id')
+    .select('id, name, role, school_id, auth_id' + (withShare ? ', can_share' : '') + (withApproval ? ', approval_status' : ''))
     .eq('auth_id', data.user.id)
     .single()
   if (uErr || !userRow) return { ctx: null, reason: 'המשתמש אינו מורה/מנהל', status: 403 }
-  const row = userRow as unknown as { id: string; name: string; role: StaffRole; school_id: string | null; auth_id: string; can_share?: boolean }
+  const row = userRow as unknown as { id: string; name: string; role: StaffRole; school_id: string | null; auth_id: string; can_share?: boolean; approval_status?: string | null }
   if (!STAFF_ROLES.includes(row.role)) return { ctx: null, reason: 'אין הרשאת צוות', status: 403 }
+  /* בקשת הצטרפות שטרם אושרה: גם עם JWT תקף של Supabase (למשל מקישור האימות) אין שום גישה.
+     זו האכיפה העיקרית — ל-is_active אי אפשר להסתמך (נכשל-פתוח כשהעמודה חסרה, וכך ב-DB החי), והיא רק שכבה נוספת. */
+  if (row.approval_status === 'pending') return { ctx: null, reason: 'הבקשה להצטרפות ממתינה לאישור מנהל בית הספר', status: 403 }
   if (!(await isUserActive(row.id))) return { ctx: null, reason: 'החשבון הושבת — פנה למנהל המערכת', status: 403 }
 
   const guestEmail = (process.env.GUEST_EMAIL || 'teacher@demo.com').toLowerCase()
@@ -152,12 +156,21 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
   })
 }
 
-/* עזר: ודא שהמשתמש הוא הבעלים של ההדמיה (או מנהל). הדמיות ישנות ללא created_by — מותרות לכל צוות. */
-export function ensureOwner(req: Request, createdBy: string | null | undefined): void {
+/* האם מנהל (role=admin) רשאי לנהל הדמיה של יוצר נתון — רק מאותו בית ספר. בלי שיוך לבית ספר
+   (של המנהל או של היוצר) אין התאמה: null לא שווה ל-null. */
+export function adminMayManageCreator(staffSchoolId: string | null | undefined, creatorSchoolId: string | null | undefined): boolean {
+  return !!staffSchoolId && !!creatorSchoolId && staffSchoolId === creatorSchoolId
+}
+
+/* עזר: ודא שהמשתמש הוא הבעלים של ההדמיה, או מנהל של אותו בית ספר. הדמיות ישנות ללא created_by — מותרות לכל צוות.
+   (בעבר role=admin עקף בעלות על *כל* הדמיה בכל בית ספר; מאחר שהרשמה עצמית אפשרה להפוך למנהל, זו הייתה גישה גלובלית.) */
+export async function ensureOwner(req: Request, createdBy: string | null | undefined): Promise<void> {
   const s = req.staff
   if (!s) throw new AppError(401, 'נדרשת התחברות צוות')
-  if (s.role === 'admin') return
-  if (createdBy && createdBy !== s.userId) {
-    throw new AppError(403, 'אין לך הרשאה לערוך הדמיה זו')
+  if (!createdBy || createdBy === s.userId) return
+  if (s.role === 'admin' && s.schoolId) {
+    const { data } = await supabaseAdmin.from('users').select('school_id').eq('id', createdBy).maybeSingle()
+    if (adminMayManageCreator(s.schoolId, (data as { school_id?: string | null } | null)?.school_id)) return
   }
+  throw new AppError(403, 'אין לך הרשאה לערוך הדמיה זו')
 }

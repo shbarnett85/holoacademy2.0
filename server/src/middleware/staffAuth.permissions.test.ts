@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 /* supabase נטען ע"י staffAuth — מדמים כדי שהבדיקה תהיה טהורה (בלי רשת/.env) */
 vi.mock('../lib/supabase.js', () => ({ supabaseAdmin: {}, supabaseAnon: {} }))
-vi.mock('../lib/activeColumn.js', () => ({ hasCanShare: async () => true }))
+vi.mock('../lib/activeColumn.js', () => ({ hasCanShare: async () => true, hasApprovalStatus: async () => true }))
 
 import { requireCanShare, isOrgAdminRole, SHARING_DISABLED_MESSAGE } from './staffAuth.js'
 import { AppError } from './errors.js'

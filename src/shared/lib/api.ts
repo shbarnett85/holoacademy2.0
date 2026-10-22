@@ -13,10 +13,21 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   return res
 }
 
-/* מחזיר JSON; זורק Error עם הודעת השרת אם הקריאה נכשלה */
+/* שגיאת API: ההודעה מהשרת + קוד מכונה אופציונלי (למשל EMAIL_NOT_CONFIRMED) שהמסכים יכולים להסתעף לפיו */
+export class ApiError extends Error {
+  code?: string
+  status?: number
+  constructor(message: string, code?: string, status?: number) {
+    super(message)
+    this.code = code
+    this.status = status
+  }
+}
+
+/* מחזיר JSON; זורק ApiError (תת-מחלקה של Error) עם הודעת השרת אם הקריאה נכשלה */
 export async function apiJson<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await apiFetch(path, options)
-  const body = (await res.json().catch(() => null)) as { error?: string } | null
-  if (!res.ok) throw new Error(body?.error ?? 'שגיאה בלתי צפויה')
+  const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+  if (!res.ok) throw new ApiError(body?.error ?? 'שגיאה בלתי צפויה', body?.code, res.status)
   return body as T
 }
