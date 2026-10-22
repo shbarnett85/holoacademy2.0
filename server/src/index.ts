@@ -16,7 +16,10 @@ import { staffRouter } from './routes/staff.js'
 import { demoDataRouter } from './routes/demoData.js'
 import { sessionsRouter } from './routes/sessions.js'
 import { analyticsRouter } from './routes/analytics.js'
-import { analyticsV2Router } from './routes/analyticsV2.js'
+import { analyticsV2Router, providerFor as analyticsV2ProviderFor } from './routes/analyticsV2.js'
+import { resultsRouter } from './routes/results.js'
+import { registerAiSummaryRoutes } from './routes/aiSummary.js'
+import { createAiSummaryDeps } from './lib/aiSummary/deps.js'
 import { libraryRouter } from './routes/library.js'
 import { funnelRouter } from './routes/funnel.js'
 import { errorHandler } from './middleware/errors.js'
@@ -64,6 +67,9 @@ app.use('/api/staff', staffRouter)
 app.use('/api/sessions', sessionsRouter)
 app.use('/api/analytics', analyticsRouter)
 app.use('/api/analytics-v2', analyticsV2Router)
+app.use('/api/results', resultsRouter)
+/* סיכום מילולי של ד״ר הולו — ההרשאה והעובדות מגיעות מאותם ספקים כמו המסכים (אנליטיקה v2 / תוצאות), הספק נבחר כמו ב-/api/analytics-v2 */
+app.use('/api/ai-summary', registerAiSummaryRoutes(createAiSummaryDeps({ providerFor: analyticsV2ProviderFor })))
 app.use('/api/library', libraryRouter)
 app.use('/api/funnel', funnelRouter)
 

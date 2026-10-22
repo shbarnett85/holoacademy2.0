@@ -8,25 +8,34 @@ vi.mock('../lib/authz.js', async (orig) => {
 vi.mock('../lib/subjects.js', () => ({ subjectById: vi.fn(async (id: string) => (id === 'sid-history' ? { id, code: 'history', nameHe: 'היסטוריה' } : null)) }))
 
 import { loadViewer, type Viewer } from '../lib/authz.js'
-import { resolveV2Viewer } from './analyticsV2.js'
+import { ANALYTICS_CAVEATS, FEEDBACK_INTRO_TEXT } from '../../../src/shared/lib/findingsNarrative.js'
+import { EP } from '../../../src/shared/types/analyticsV2.js'
+import { getAnalysis } from '../lib/analyticsV2/demoProvider.js'
+import { resolveV2Context } from '../lib/analyticsV2/viewer.js'
+import { analyticsV2Router, resolveV2Viewer } from './analyticsV2.js'
 
+const A_STUDENT = getAnalysis().classById.get('c-v2')!.studentIds[0]
 const req = (staff: Record<string, unknown>, query: Record<string, string> = {}): Request => ({ staff, query } as unknown as Request)
 const viewer = (over: Partial<Viewer>): Viewer => ({ userId: 'u1', role: 'teacher', schoolId: 's1', grants: new Map(), seesSynthetic: false, ...over })
 
-describe('דגל ANALYTICS_V2 — מי רואה את האנליטיקה החדשה', () => {
-  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.DEMO_ANALYTICS })
+describe('מי רואה את האנליטיקה החדשה', () => {
+  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.ANALYTICS_V2_LIVE; delete process.env.DEMO_ANALYTICS })
   afterEach(() => vi.clearAllMocks())
 
-  it('משתמש אמיתי (ארגון ללא demo_data_enabled): הדגל כבוי — נשאר במסכים הקיימים', async () => {
+  it('משתמש אמיתי (ארגון ללא demo_data_enabled): הספק החי — לא null; resolveV2Viewer (תאימות להדגמה) נשאר null', async () => {
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    expect(await resolveV2Context(req({ role: 'teacher', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'subject_teacher', source: 'live' } })
     expect(await resolveV2Viewer(req({ role: 'teacher', isGuest: false }))).toBeNull()
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'admin', seesSynthetic: false }))
-    expect(await resolveV2Viewer(req({ role: 'admin', isGuest: false }))).toBeNull()
+    expect(await resolveV2Context(req({ role: 'admin', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'admin' } })
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'municipal_admin', seesSynthetic: false }))
+    expect(await resolveV2Context(req({ role: 'municipal_admin', isGuest: false }))).toMatchObject({ provider: 'live', viewer: { lens: 'admin' } })
   })
 
-  it('מנהל-על אינו נכלל (אין ארגון הדגמה)', async () => {
+  it('מנהל-על אינו נכלל (נשאר בפאנל הקודם / ב-/admin)', async () => {
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'super_admin', seesSynthetic: false }))
     expect(await resolveV2Viewer(req({ role: 'super_admin' }))).toBeNull()
+    expect(await resolveV2Context(req({ role: 'super_admin' }))).toBeNull()
   })
 
   it('מורה אורח: העדשה נבחרת מהבורר, וכל עדשה נגזרת בשרת', async () => {
@@ -62,5 +71,101 @@ describe('דגל ANALYTICS_V2 — מי רואה את האנליטיקה החדש
   it('kill-switch: ANALYTICS_V2=0 מכבה גם לאורח', async () => {
     process.env.ANALYTICS_V2 = '0'
     expect(await resolveV2Viewer(req({ role: 'teacher', isGuest: true }, { lens: 'admin' }))).toBeNull()
+  })
+})
+
+/* ── נקודות הקצה החדשות ב-router (חיווט + אימות תגובה מול הסכמה + הרשאות) ── */
+interface Layer { route?: { path: string; stack: { handle: (req: Request, res: unknown, next: (e?: unknown) => void) => Promise<void> }[] } }
+const layers = (): Layer[] => (analyticsV2Router as unknown as { stack: Layer[] }).stack.filter((l) => l.route)
+async function callRoute(path: string, r: Request): Promise<{ body?: unknown; error?: { status?: number } }> {
+  const layer = layers().find((l) => l.route!.path === path)
+  if (!layer) throw new Error(`נתיב לא רשום: ${path}`)
+  let body: unknown
+  let error: { status?: number } | undefined
+  /* הידית האחרונה במחסנית היא הטיפול עצמו (לפניה ייתכנו מגבילי קצב ברמת הנתיב) */
+  const stack = layer.route!.stack
+  await stack[stack.length - 1].handle(r, { json: (b: unknown) => { body = b } }, (e) => { error = e as { status?: number } })
+  return { body, error }
+}
+const guestReq = (query: Record<string, string>, params: Record<string, string> = {}): Request => ({ staff: { role: 'teacher', isGuest: true }, query, params } as unknown as Request)
+
+describe('נתיבי האנליטיקה החדשה: חיווט', () => {
+  beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.ANALYTICS_V2_LIVE; delete process.env.DEMO_ANALYTICS })
+
+  it('כל נקודת קצה ברישום EP רשומה ב-router (GET)', () => {
+    const registered = new Set(layers().map((l) => l.route!.path))
+    for (const [name, ep] of Object.entries(EP)) {
+      const local = ep.path.replace('/api/analytics-v2', '')
+      expect(registered.has(local), `${name}: ${local}`).toBe(true)
+    }
+    expect(registered.has('/entry')).toBe(true)
+    expect(registered.has('/class/:classId/overview')).toBe(true)
+  })
+
+  it('GET /entry: מחנך מקבל את כיתתו, מנהל מקבל מערכים ריקים (התגובה מאומתת מול הסכמה)', async () => {
+    const hr = await callRoute('/entry', guestReq({ lens: 'homeroom' }))
+    expect(hr.error).toBeUndefined()
+    const data = (hr.body as { dataState: string; data: { classes: { id: string }[]; alerts: unknown[] } })
+    expect(data.dataState).toBe('ok')
+    expect(data.data.classes.map((c) => c.id)).toEqual(['c-v2'])
+    expect(data.data.alerts.length).toBeLessThanOrEqual(3)
+    expect(EP.entry.response.safeParse(hr.body).success).toBe(true)
+
+    const ad = await callRoute('/entry', guestReq({ lens: 'admin' }))
+    expect((ad.body as { data: unknown }).data).toMatchObject({ classes: [], alerts: [], alertsTotal: 0, alertsMore: null })
+    expect(EP.entry.response.safeParse(ad.body).success).toBe(true)
+  })
+
+  it('GET /class/:classId/overview: מחנך — כן; מורה מקצועי ומנהל — 403', async () => {
+    const ok = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v2' }))
+    expect(ok.error).toBeUndefined()
+    expect(EP.classOverview.response.safeParse(ok.body).success).toBe(true)
+    const t = await callRoute('/class/:classId/overview', guestReq({ lens: 'subject_teacher', subject: 'math' }, { classId: 'c-v2' }))
+    expect(t.body).toBeUndefined()
+    expect(t.error?.status).toBe(403)
+    const a = await callRoute('/class/:classId/overview', guestReq({ lens: 'admin' }, { classId: 'c-v2' }))
+    expect(a.error?.status).toBe(403)
+    /* כיתה אחרת מחוץ להיקף: 404 אחיד (כמו כיתה שאינה קיימת), ולא 403 שחושף קיום */
+    const other = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'c-v1' }))
+    expect(other.error?.status).toBe(404)
+    const ghost = await callRoute('/class/:classId/overview', guestReq({ lens: 'homeroom' }, { classId: 'no-such-class' }))
+    expect(ghost.error?.status).toBe(404)
+    expect(ghost.error).toEqual(other.error)
+  })
+
+  it('התגובות נושאות את השדות החדשים (alertsTotal · tabSummaries · intro) ועוברות את הסכמה', async () => {
+    const entry = await callRoute('/entry', guestReq({ lens: 'homeroom' }))
+    const e = (entry.body as { data: { alertsTotal: number; alerts: unknown[]; alertsTitle: string; alertsMore: string | null } }).data
+    expect(e.alertsTotal).toBeGreaterThan(e.alerts.length)
+    expect(e.alertsTitle).toBe(`${e.alerts.length} מתוך ${e.alertsTotal} התלמידים לתשומת לב — הדחופים ביותר`)
+    expect(e.alertsMore).toMatch(/^ועוד \d+ תלמידים בכיתה$/)
+
+    const subject = await callRoute('/class/:classId/subject/:subject', guestReq({ lens: 'homeroom' }, { classId: 'c-v2', subject: 'math' }))
+    expect(subject.error).toBeUndefined()
+    const tabs = (subject.body as { data: { tabSummaries: Record<string, string> } }).data.tabSummaries
+    expect(Object.keys(tabs).sort()).toEqual(['misconceptions', 'progress', 'students'])
+    expect(EP.classSubject.response.safeParse(subject.body).success).toBe(true)
+
+    const fb = await callRoute('/student/:id/feedback', guestReq({ lens: 'homeroom' }, { id: A_STUDENT }))
+    expect(fb.error).toBeUndefined()
+    expect((fb.body as { data: { intro: string } }).data.intro).toBe(FEEDBACK_INTRO_TEXT)
+  })
+
+  it('config כשהספק החי כבוי (ANALYTICS_V2_LIVE=0) נושא את אותן הסתייגויות כמו בכל מסך', async () => {
+    process.env.ANALYTICS_V2_LIVE = '0'
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: {} } as unknown as Request
+    const cfg = await callRoute('/config', real)
+    expect((cfg.body as { data: { enabled: boolean; caveats: unknown } }).data.enabled).toBe(false)
+    expect((cfg.body as { data: { caveats: unknown } }).data.caveats).toEqual(ANALYTICS_CAVEATS)
+    expect((cfg.body as { data: { caveats: { crossSubject: string } } }).data.caveats.crossSubject).toBe('הרמות של מקצועות שונים אינן ניתנות להשוואה ישירה.')
+  })
+
+  it('משתמש אמיתי כשהספק החי כבוי: entry ו-overview מחזירים 403', async () => {
+    process.env.ANALYTICS_V2_LIVE = '0'
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: false }))
+    const real = { staff: { role: 'teacher', isGuest: false }, query: {}, params: { classId: 'c-v2' } } as unknown as Request
+    expect((await callRoute('/entry', real)).error?.status).toBe(403)
+    expect((await callRoute('/class/:classId/overview', real)).error?.status).toBe(403)
   })
 })

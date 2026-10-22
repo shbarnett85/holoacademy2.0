@@ -1,7 +1,8 @@
 import type { Request } from 'express'
 import { supabaseAdmin } from './supabase.js'
 import { AppError } from '../middleware/errors.js'
-import { hasClassTeachers, hasDataAccessLog } from './activeColumn.js'
+import { hasDataAccessLog } from './activeColumn.js'
+import { ProbeUnavailableError, isSchemaMissingError } from './schemaErrors.js'
 
 /* ══════════════════════════════════════════════════════════════════════════════
    authz — מודול ההרשאות המרכזי לאנליטיקה (חוק 12 ב-CLAUDE.md).
@@ -89,6 +90,11 @@ export function classAccess(v: Viewer, cls: { id: string; school_id: string | nu
   return v.grants.has(cls.id) ? 'teacher' : 'none'
 }
 
+/* הקצאת הדמיה לכיתה (POST /quests/:id/assign): רק מי שיש לו גישה לכיתה — מורה עם קישור כלשהו אליה (מחנך / מקצוע / שיוך כללי), מנהל או מנהל עירוני
+   של בית הספר של הכיתה, ומנהל-על. מי שיצר את ההדמיה אך אינו קשור לכיתה אינו יכול לשלוח אליה (אחרת הכיתה "הקורבן" הייתה מקבלת הדמיה זרה,
+   ומחנכה היה רואה אותה ואת שם השולח בתוצאות). */
+export const canAssignToClass = (v: Viewer, cls: { id: string; school_id: string | null }): boolean => classAccess(v, cls) !== 'none'
+
 /* הדמיה גלויה לצופה ברמת כיתה (דשבורד מטלה): מחנך הכיתה / מקצוע מתאים / יוצר ההדמיה.
    מנהלים רואים אגרגט של כל מטלה בבית הספר. */
 export function assignmentVisible(v: Viewer, classId: string, quest: { subject_id: string | null; created_by: string | null }): boolean {
@@ -96,6 +102,25 @@ export function assignmentVisible(v: Viewer, classId: string, quest: { subject_i
   const g = v.grants.get(classId)
   if (!g) return false
   if (g.homeroom) return true
+  if (quest.created_by !== null && quest.created_by === v.userId) return true
+  return quest.subject_id !== null && g.subjectIds.has(quest.subject_id)
+}
+
+/* ── תוצאות (טאב "תוצאות", שלב UX): מי רואה שליחה — הקצאה (הדמיה × כיתה).
+   · המורה ששלח/ה (assignments.user_id) או יצר/ה את ההדמיה, אך רק בכיתה שהוא/היא מקושר/ת אליה.
+   · מחנך/ת הכיתה — כל השליחות לכיתה.
+   · מורה מקצוע בכיתה — שליחות במקצוע שלו/ה בלבד.
+   · admin / municipal_admin — אין תוצאות (המידע ברמת תלמיד); התמונה המצטברת שלהם באנליטיקה.
+   · super_admin — מפעיל פלטפורמה: גישה מלאה (נרשם ביומן ברמת תלמיד). ── */
+export const canUseResults = (v: Viewer): boolean => v.role === 'teacher' || v.role === 'super_admin'
+
+export function submissionVisible(v: Viewer, classId: string, quest: { subject_id: string | null; created_by: string | null }, senderId: string | null = null): boolean {
+  if (!canUseResults(v)) return false
+  if (isSuper(v)) return true
+  const g = v.grants.get(classId)
+  if (!g) return false
+  if (g.homeroom) return true
+  if (senderId !== null && senderId === v.userId) return true
   if (quest.created_by !== null && quest.created_by === v.userId) return true
   return quest.subject_id !== null && g.subjectIds.has(quest.subject_id)
 }
@@ -116,29 +141,36 @@ export async function loadViewer(req: Request): Promise<Viewer> {
   const role = s.role as ViewerRole
   const grants = new Map<string, TeachGrant>()
 
+  /* כשל בטעינת ההרשאות **אינו** "אין הרשאות": צופה שנבנה בתקלה חולפת (ניתוק, timeout, 5xx) היה נשמר במטמון הצופה (ViewerMemo) ומוצג כ"אין כיתות" / כיתה חסרה.
+     "הטבלה / העמודה חסרה" (קוד סכמה, לפני מיגרציה) ← מסלול ההתנהגות הקיים; כל שגיאה אחרת ← 503 (ProbeUnavailableError), והבקשה נכשלת בלי להיכנס למטמון. */
   if (role === 'teacher') {
-    if (await hasClassTeachers()) {
-      const { data } = await supabaseAdmin.from('class_teachers').select('*').eq('teacher_id', s.userId)
-      for (const r of (data ?? []) as { class_id: string; subject_id?: string | null; is_homeroom?: boolean }[]) {
+    const ct = await supabaseAdmin.from('class_teachers').select('*').eq('teacher_id', s.userId)
+    if (!ct.error) {
+      for (const r of (ct.data ?? []) as { class_id: string; subject_id?: string | null; is_homeroom?: boolean }[]) {
         const g = grants.get(r.class_id) ?? { classId: r.class_id, homeroom: false, subjectIds: new Set<string>(), unspecified: false }
         if (r.is_homeroom) g.homeroom = true
         else if (r.subject_id) g.subjectIds.add(r.subject_id)
         else g.unspecified = true
         grants.set(r.class_id, g)
       }
-    } else {
+    } else if (isSchemaMissingError(ct.error)) {
       /* לפני מיגרציית class_teachers: מורה הכיתה היחיד = מחנך (התנהגות קיימת) */
-      const { data } = await supabaseAdmin.from('classes').select('id').eq('teacher_id', s.userId)
-      for (const c of (data ?? []) as { id: string }[]) {
+      const legacy = await supabaseAdmin.from('classes').select('id').eq('teacher_id', s.userId)
+      if (legacy.error) throw new ProbeUnavailableError('classes.teacher_id', String(legacy.error.code || legacy.error.message || 'unknown'))
+      for (const c of (legacy.data ?? []) as { id: string }[]) {
         grants.set(c.id, { classId: c.id, homeroom: true, subjectIds: new Set(), unspecified: false })
       }
+    } else {
+      throw new ProbeUnavailableError('class_teachers', String(ct.error.code || ct.error.message || 'unknown'))
     }
   }
 
   let seesSynthetic = false
   if (s.schoolId && role !== 'super_admin') {
-    const { data } = await supabaseAdmin.from('schools').select('demo_data_enabled').eq('id', s.schoolId).maybeSingle()
-    seesSynthetic = (data as { demo_data_enabled?: boolean } | null)?.demo_data_enabled === true
+    const sc = await supabaseAdmin.from('schools').select('demo_data_enabled').eq('id', s.schoolId).maybeSingle()
+    /* עמודה חסרה (לפני המיגרציה) = לא ארגון הדגמה; תקלה אחרת ← 503 (אחרת ארגון הדגמה היה נשמר כארגון רגיל) */
+    if (sc.error && !isSchemaMissingError(sc.error)) throw new ProbeUnavailableError('schools.demo_data_enabled', String(sc.error.code || sc.error.message || 'unknown'))
+    seesSynthetic = (sc.data as { demo_data_enabled?: boolean } | null)?.demo_data_enabled === true
   }
 
   const v: Viewer = { userId: s.userId, role, schoolId: s.schoolId ?? null, grants, seesSynthetic }
@@ -165,18 +197,68 @@ export async function requireStudentScope(req: Request, studentId: string): Prom
   return { viewer, scope, classIds }
 }
 
-/* ── יומן גישה: כל צפייה/שינוי ברמת תלמיד. best-effort — לעולם לא מפיל בקשה. ── */
-export async function logAccess(viewer: Viewer, entry: { studentId?: string | null; scope: string; endpoint: string }): Promise<void> {
+/* ── יומן גישה: כל צפייה/שינוי ברמת תלמיד. ──
+   ברירת מחדל: best-effort — כשל בכתיבה לעולם לא מפיל בקשה.
+   studentLevel=true (קריאת נתוני תלמיד): מנהל-על — מפעיל הפלטפורמה, הגישה הרחבה ביותר — נכשל סגור: אם אי אפשר לכתוב ליומן, הבקשה נחסמת
+   (503) *לפני* שהנתונים מוחזרים. שאר התפקידים נשארים best-effort.
+   opts.failClosed: 'super' (ברירת מחדל = ההתנהגות שלמעלה) | 'all' — נכשל סגור לכל התפקידים בקריאה ברמת תלמיד.
+   opts.dedupMs: אותה צפייה (צופה × תלמיד × scope) שכבר נרשמה בחלון הזה אינה נרשמת שוב — מסכי כיתה אינם מציפים את היומן.
+   שורה נחשבת "נרשמה" רק אחרי הכתיבה המוצלחת, כך שכשל כתיבה לא מסתיר צפייה מהניסיון הבא. */
+export interface AccessEntry { studentId?: string | null; scope: string; endpoint: string }
+export interface AccessLogOpts { studentLevel?: boolean; failClosed?: 'super' | 'all'; dedupMs?: number }
+export const MSG_ACCESS_LOG_UNAVAILABLE = 'לא ניתן לתעד את הצפייה כרגע — הבקשה נחסמה. נסו שוב בעוד כמה שניות.'
+const LOG_BATCH = 500
+
+/* צפיות שנרשמו לאחרונה (מפתח → מועד), לדילוג בחלון dedupMs. בזיכרון השרת בלבד: איבוד בריסטארט = עוד שורות ביומן, כיוון בטוח */
+const RECENT_VIEWS = new Map<string, number>()
+const RECENT_MAX = 20_000
+const viewKey = (viewer: Viewer, e: AccessEntry): string => `${viewer.userId}|${e.studentId ?? '-'}|${e.scope}`
+function rememberViews(keys: string[], now: number, windowMs: number): void {
+  if (RECENT_VIEWS.size > RECENT_MAX) for (const [k, t] of RECENT_VIEWS) if (now - t >= windowMs) RECENT_VIEWS.delete(k)
+  if (RECENT_VIEWS.size > RECENT_MAX) RECENT_VIEWS.clear()
+  for (const k of keys) RECENT_VIEWS.set(k, now)
+}
+/* לבדיקות בלבד */
+export const resetAccessLogDedup = (): void => RECENT_VIEWS.clear()
+
+export async function logAccessMany(viewer: Viewer, allEntries: AccessEntry[], opts: AccessLogOpts = {}): Promise<void> {
+  const now = Date.now()
+  const dedupMs = opts.dedupMs ?? 0
+  const inBatch = new Set<string>()
+  const entries = dedupMs > 0
+    ? allEntries.filter((e) => {
+      const k = viewKey(viewer, e)
+      const t = RECENT_VIEWS.get(k)
+      if ((t !== undefined && now - t < dedupMs) || inBatch.has(k)) return false
+      inBatch.add(k)
+      return true
+    })
+    : allEntries
+  if (entries.length === 0) return
+  const failClosed = opts.studentLevel === true && (opts.failClosed === 'all' || isSuper(viewer))
   try {
-    if (!(await hasDataAccessLog())) return
-    await supabaseAdmin.from('data_access_log').insert({
+    if (!(await hasDataAccessLog())) {
+      if (failClosed) throw new Error('data_access_log missing')
+      return
+    }
+    const rows = entries.map((e) => ({
       viewer_id: viewer.userId,
       viewer_role: viewer.role,
-      student_id: entry.studentId ?? null,
-      scope: entry.scope,
-      endpoint: entry.endpoint,
-    })
+      student_id: e.studentId ?? null,
+      scope: e.scope,
+      endpoint: e.endpoint,
+    }))
+    for (let i = 0; i < rows.length; i += LOG_BATCH) {
+      const { error } = await supabaseAdmin.from('data_access_log').insert(rows.slice(i, i + LOG_BATCH))
+      if (error) throw new Error(error.message)
+    }
+    if (dedupMs > 0) rememberViews(entries.map((e) => viewKey(viewer, e)), now, dedupMs)
   } catch {
+    if (failClosed) throw new AppError(503, MSG_ACCESS_LOG_UNAVAILABLE)
     /* יומן — best-effort */
   }
+}
+
+export async function logAccess(viewer: Viewer, entry: AccessEntry, opts: AccessLogOpts = {}): Promise<void> {
+  return logAccessMany(viewer, [entry], opts)
 }

@@ -26,13 +26,13 @@ export function normalCdf(z: number): number {
 
 /* ── lnGamma + בטא לא-שלמה מוסדרת (Lentz) → התפלגות t ── */
 function lnGamma(x: number): number {
-  const c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]
+  const c = [76.18009172947146, -86.50532032941678, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5]
   let y = x
   let tmp = x + 5.5
   tmp -= (x + 0.5) * Math.log(tmp)
   let ser = 1.000000000190015
   for (let j = 0; j < 6; j++) ser += c[j] / ++y
-  return -tmp + Math.log((2.5066282746310005 * ser) / x)
+  return -tmp + Math.log((2.5066282746310007 * ser) / x)
 }
 function betacf(a: number, b: number, x: number): number {
   const MAXIT = 200, EPS = 3e-12, FPMIN = 1e-300
@@ -64,8 +64,9 @@ export function betaRegularized(x: number, a: number, b: number): number {
   const bt = Math.exp(lnGamma(a + b) - lnGamma(a) - lnGamma(b) + a * Math.log(x) + b * Math.log(1 - x))
   return x < (a + 1) / (a + b + 2) ? (bt * betacf(a, b, x)) / a : 1 - (bt * betacf(b, a, 1 - x)) / b
 }
-/* P(T ≥ t) — זנב עליון של t עם df דרגות חופש */
+/* P(T ≥ t) — זנב עליון של t עם df דרגות חופש. df ≤ 0 או t לא-סופי = אין התפלגות להשוות מולה → 0.5 (ולא NaN) */
 export function tUpperTail(t: number, df: number): number {
+  if (!(df > 0) || !Number.isFinite(t)) return 0.5
   const x = df / (df + t * t)
   const p = 0.5 * betaRegularized(x, df / 2, 0.5)
   return t >= 0 ? p : 1 - p
@@ -81,7 +82,17 @@ export function welch(a: number[], b: number[]): TTestResult {
   const t = (ma - mb) / Math.sqrt(se2 || 1e-12)
   const df = se2 ** 2 / ((va / a.length) ** 2 / (a.length - 1) + (vb / b.length) ** 2 / (b.length - 1) || 1e-12)
   const pooled = Math.sqrt(((a.length - 1) * va + (b.length - 1) * vb) / (a.length + b.length - 2))
+  /* רשת ביטחון: df ≤ 0 (שונות 0 בשתי הקבוצות / n=1) או t לא-סופי = המבחן לא מוגדר → p=1, d=0.
+     בלי זה p יוצא NaN והוא מזהם את תיקון ה-BH של כל המשפחה (תלמיד תקרה אחד מספיק). t נשמר כפי שחושב (changePoint משתמש בו). */
+  if (!(df > 0) || !Number.isFinite(t)) return { t, df: Number.isFinite(df) ? df : 0, pTwoSided: 1, d: 0, meanA: ma, meanB: mb }
   return { t, df, pTwoSided: tTwoSided(t, df), d: pooled > 0 ? (ma - mb) / pooled : 0, meanA: ma, meanB: mb }
+}
+
+/* ── הפרדה מושלמת: שתי קבוצות קבועות (שונות 0) עם ממוצעים שונים. Welch אינו מוגדר שם (df=0), אבל התוצאה אינה "אין מידע":
+   בבדיקת תמורות כל ערכי הקבוצה הראשונה שווים ושונים מכל ערכי השנייה רק ב-2 מתוך C(n1+n2, n1) חלוקות (הנצפית והמשתקפת). p שמרני. ── */
+export function perfectSeparationP(n1: number, n2: number): number {
+  if (!(n1 > 0) || !(n2 > 0)) return 1
+  return Math.min(1, 2 * Math.exp(-lnChoose(n1 + n2, n1)))
 }
 
 /* ── t זוגי על הפרשים: p דו-צדדי + dz ── */
@@ -89,6 +100,8 @@ export function pairedT(diffs: number[]): { t: number; df: number; pTwoSided: nu
   const n = diffs.length
   const m = mean(diffs), s = sd(diffs)
   const t = m / ((s || 1e-12) / Math.sqrt(n))
+  /* רשת ביטחון (כמו ב-welch): n<2 / t לא-סופי → p=1, dz=0 */
+  if (!(n - 1 > 0) || !Number.isFinite(t)) return { t, df: Math.max(0, n - 1), pTwoSided: 1, dz: 0, meanDiff: m }
   return { t, df: n - 1, pTwoSided: tTwoSided(t, n - 1), dz: s > 0 ? m / s : 0, meanDiff: m }
 }
 

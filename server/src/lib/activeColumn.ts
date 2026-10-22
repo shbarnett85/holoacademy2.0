@@ -1,4 +1,8 @@
 import { supabaseAdmin } from './supabase.js'
+import { ProbeUnavailableError, isSchemaMissingError } from './schemaErrors.js'
+
+/* מיוצאים מחדש מכאן (הקוד הקיים מייבא אותם מ-activeColumn); ההגדרה ב-schemaErrors.ts כדי שגם authz / subjects יסתמכו עליה בלי לטעון את כל הבדיקות */
+export { ProbeUnavailableError, isSchemaMissingError }
 
 /* בדיקה האם עמודה/טבלה קיימת — cache רק תוצאות חיוביות (true).
    תוצאה שלילית לא נשמרת, כך שאחרי הרצת מיגרציה השרת מתעדכן אוטומטית
@@ -11,6 +15,23 @@ async function check(key: string, query: () => PromiseLike<{ error: any }>): Pro
   const { error } = await query()
   if (!error) { cache.add(key); return true }
   return false
+}
+
+/* ── בדיקות פרטיות: נכשלות סגור ──
+   check() מתייחס לכל שגיאה כ"העמודה לא קיימת". בבדיקות שמגנות על פרטיות זה מסוכן: תקלה זמנית (timeout, ניתוק, 5xx) הייתה נקראת
+   "אין דגל is_synthetic / is_fictitious" (ולכן נתוני הדגמה הוצגו למורה אמיתי), או "אין יומן גישה" (ולכן צפייה בתלמיד לא נרשמה),
+   או "אין is_active" (ולכן משתמש מושבת נחשב פעיל).
+   checkStrict מבחין: שגיאה שמשמעה "הסכמה חסרה" (קודי Postgres/PostgREST) → false כמו קודם;
+   כל שגיאה אחרת → זורק (הבקשה נכשלת) ולא נשמר ב-cache, כך שהבדיקה הבאה תנסה שוב. */
+/* קודי הסכמה-החסרה והשגיאה הזמנית (ProbeUnavailableError): schemaErrors.ts */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function checkStrict(key: string, query: () => PromiseLike<{ error: any }>): Promise<boolean> {
+  if (cache.has(key)) return true
+  const { error } = await query()
+  if (!error) { cache.add(key); return true }
+  if (isSchemaMissingError(error)) return false
+  throw new ProbeUnavailableError(key, String(error?.code || error?.message || 'unknown'))
 }
 
 /* ── יסודות האנליטיקה (migrations/analytics_foundations.sql) ── */
@@ -27,11 +48,11 @@ export async function hasLevelHistory(): Promise<boolean> {
   return check('__level_history', () => supabaseAdmin.from('level_history').select('id').limit(1))
 }
 export async function hasDataAccessLog(): Promise<boolean> {
-  return check('__data_access_log', () => supabaseAdmin.from('data_access_log').select('id').limit(1))
+  return checkStrict('__data_access_log', () => supabaseAdmin.from('data_access_log').select('id').limit(1))
 }
 /* דגל is_synthetic על sessions/events/progress_snapshots/difficulty_profiles */
 export async function hasSyntheticFlag(): Promise<boolean> {
-  return check('__synthetic', () => supabaseAdmin.from('sessions').select('is_synthetic').limit(1))
+  return checkStrict('__synthetic', () => supabaseAdmin.from('sessions').select('is_synthetic').limit(1))
 }
 export async function hasClassTeacherSubjectId(): Promise<boolean> {
   return check('__ct_subject_id', () => supabaseAdmin.from('class_teachers').select('subject_id').limit(1))
@@ -42,7 +63,7 @@ export async function hasProfileLock(): Promise<boolean> {
 
 /* האם עמודות הנתונים הפיקטיביים (users/classes/sessions.is_fictitious) קיימות */
 export async function hasFictitious(): Promise<boolean> {
-  return check('__fictitious', async () => {
+  return checkStrict('__fictitious', async () => {
     const a = await supabaseAdmin.from('users').select('is_fictitious').limit(1)
     if (a.error) return a
     const b = await supabaseAdmin.from('classes').select('is_fictitious').limit(1)
@@ -62,8 +83,10 @@ export async function hasApprovalStatus(): Promise<boolean> {
   return check('__users_approval_status', () => supabaseAdmin.from('users').select('approval_status').limit(1))
 }
 
+/* users.is_active מגן על כניסה/נראות של משתמשים מושבתים — נכשל סגור; classes/schools — כמו קודם */
 export async function hasIsActive(table: 'users' | 'classes' | 'schools'): Promise<boolean> {
-  return check(table, () => supabaseAdmin.from(table).select('is_active').limit(1))
+  const probe = () => supabaseAdmin.from(table).select('is_active').limit(1)
+  return table === 'users' ? checkStrict(table, probe) : check(table, probe)
 }
 
 /* האם המודל החדש (טבלת class_teachers) כבר קיים — אחרת fallback ל-classes.teacher_id */
@@ -126,6 +149,12 @@ export async function hasPedagogicalSummaries(): Promise<boolean> {
   return check('__pedagogical_summaries', () => supabaseAdmin.from('pedagogical_summaries').select('id').limit(1))
 }
 
+/* האם טבלת ai_summaries קיימת (migrations/ai_summaries.sql) — סיכום מילולי שמור, אישי לצופה.
+   check ולא checkStrict: כשל בבדיקה אינו דליפה — הסיכום פשוט לא נשמר ולא נקרא מה-cache. */
+export async function hasAiSummaries(): Promise<boolean> {
+  return check('__ai_summaries', () => supabaseAdmin.from('ai_summaries').select('id').limit(1))
+}
+
 /* האם עמודת rolling_tallies קיימת ב-difficulty_profiles — אקומולטור חוצה-סשנים */
 export async function hasRollingTallies(): Promise<boolean> {
   return check('__rolling_tallies', () => supabaseAdmin.from('difficulty_profiles').select('rolling_tallies').limit(1))
@@ -149,4 +178,21 @@ export async function hasQuestVariants(): Promise<boolean> {
 /* האם עמודות המטא של הספרייה (grade_min/grade_max/is_official) קיימות */
 export async function hasQuestGrade(): Promise<boolean> {
   return check('__quest_grade', () => supabaseAdmin.from('quests').select('grade_min').limit(1))
+}
+
+/* ── תוצאות (טאב "תוצאות"): טבלאות הפירוט — עמידות אם המיגרציה טרם הורצה ── */
+export async function hasAnswersTable(): Promise<boolean> {
+  return check('__answers_table', () => supabaseAdmin.from('answers').select('id').limit(1))
+}
+export async function hasOptionTags(): Promise<boolean> {
+  return check('__option_tags', () => supabaseAdmin.from('option_tags').select('id').limit(1))
+}
+export async function hasMisconceptions(): Promise<boolean> {
+  return check('__misconceptions', () => supabaseAdmin.from('misconceptions').select('id').limit(1))
+}
+export async function hasMisconceptionLinks(): Promise<boolean> {
+  return check('__misconception_links', () => supabaseAdmin.from('misconception_content_links').select('quest_id').limit(1))
+}
+export async function hasMoralChoices(): Promise<boolean> {
+  return check('__moral_choices', () => supabaseAdmin.from('moral_choices').select('id').limit(1))
 }

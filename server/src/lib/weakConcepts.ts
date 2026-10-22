@@ -1,12 +1,12 @@
 import { supabaseAdmin } from './supabase.js'
+import { WEAK_MIN_ATTEMPTS as MIN_ATTEMPTS, WEAK_RATE, type ReviewConcept } from './results/core.js'
 
 /* ── חישוב המושגים החלשים של כיתה בהדמיה — הבסיס להדמיית החזרה ──
-   נשען על אותם events מסוכמים של האנליטיקה (puzzle_solved/failed, session אחרון
-   פר-תלמיד). קיבוץ לפי **יעד למידה** כשההדמיה מתויגת (איכות גבוהה), אחרת לפי סצנה.
-   סף חולשה = הצלחה כיתתית מתחת ל-60% עם 2 ניסיונות לפחות (עקבי עם ספי הכיול). */
-
-const WEAK_RATE = 0.6
-const MIN_ATTEMPTS = 2
+   · **הנתיב של "תרגול חזרה" במסך התוצאות** (POST /quests/:id/review-quest): הליבה של התוצאות (results/core → reviewConceptsOf) מחשבת את
+     התחומים לחיזוק — אותו חישוב שמזין את review.weakCount שבמסך, ולכן הכפתור ונקודת הקצה תמיד מסכימים. כאן רק מעשירים אותם בשאלות מההדמיה
+     (weakConceptsFromReview).
+   · computeWeakConcepts (להלן) הוא החישוב הישן מה-events המסוכמים (session אחרון פר-תלמיד) — עדיין בשימוש "ד"ר הולו מציע" באנליטיקה.
+   קיבוץ לפי **יעד למידה** כשההדמיה מתויגת (איכות גבוהה), אחרת לפי סצנה. סף חולשה (60% / 2 ניסיונות) מיובא מהליבה — מקור אחד. */
 
 export interface WeakConcept {
   /* קיים רק כשההדמיה מתויגת ביעדים */
@@ -30,6 +30,7 @@ interface SceneLite {
     choices?: { text: string; isCorrect: boolean }[]
     answer?: string
     answers?: string[]
+    questions?: { question?: string; options?: string[]; correctIndex?: number }[]
   }
 }
 
@@ -41,6 +42,29 @@ function challengeDetail(scene: SceneLite): string | null {
     p.choices?.find((c) => c.isCorrect)?.text ??
     (p.answers && p.answers.length > 0 ? p.answers.join(', ') : p.answer)
   return correct ? `נשאל: "${p.question}" · התשובה הנכונה: "${correct}"` : `נשאל: "${p.question}"`
+}
+
+/* פירוט יחידה: אתגר שלם, או שאלה אחת במבחן סיכום (itemIndex) */
+function unitDetail(scene: SceneLite | undefined, itemIndex: number | null): string | null {
+  if (!scene) return null
+  const q = itemIndex !== null ? scene.puzzle?.questions?.[itemIndex] : undefined
+  if (q?.question) {
+    const correct = typeof q.correctIndex === 'number' ? q.options?.[q.correctIndex] : undefined
+    return correct ? `נשאל: "${q.question}" · התשובה הנכונה: "${correct}"` : `נשאל: "${q.question}"`
+  }
+  return challengeDetail(scene)
+}
+
+/* התחומים לחיזוק מתוך הליבה, מועשרים בשאלות שנשאלו (מזינות את הפרומפט "מזווית חדשה") */
+export function weakConceptsFromReview(concepts: ReviewConcept[], gameData: unknown): WeakConcept[] {
+  const scenes = (gameData as { scenes?: SceneLite[] } | null)?.scenes
+  const sceneById = new Map((Array.isArray(scenes) ? scenes : []).map((s) => [s.id, s]))
+  return concepts.map((c) => ({
+    ...(c.objectiveId ? { objectiveId: c.objectiveId } : {}),
+    text: c.text,
+    successRate: c.successRate,
+    details: c.units.map((u) => unitDetail(sceneById.get(u.sceneId), u.itemIndex)).filter((d): d is string => !!d),
+  }))
 }
 
 export async function computeWeakConcepts(

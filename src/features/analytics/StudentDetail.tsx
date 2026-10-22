@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
+import { AI_SUMMARY_HARDENING_TEXT } from '../../shared/lib/findingsNarrative'
 import { glass, micro } from '../creator/studioStyles'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { pct, duration } from './format'
-import PedagogicalSummary from './PedagogicalSummary'
 import ProgressGraph from './ProgressGraph'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
 
@@ -192,8 +193,16 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
         )}
       </Panel>}
 
-      {/* סיכום פדגוגי — ד"ר הולו קורא את הנתונים */}
-      {mode !== 'progress' && <PedagogicalSummary scope="student" id={studentId} title={data.student.name} />}
+      {/* הסיכום של ד"ר הולו עבר למסך התלמיד/ה באנליטיקה (הנתיב הישן הופרש): כאן רק הפניה אליו */}
+      {mode !== 'progress' && (
+        <div data-legacy-summary-moved style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--t68)' }}>{AI_SUMMARY_HARDENING_TEXT.legacyMoved.sentence}</span>
+          <Link to={`/analytics/student/${encodeURIComponent(studentId)}?sum=student:${encodeURIComponent(studentId)}`} data-tu-press
+            style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 16px', borderRadius: 11, fontSize: 16, fontWeight: 700, textDecoration: 'none', color: 'var(--t49)', background: 'var(--t47)', border: '1px solid var(--t48)' }}>
+            {AI_SUMMARY_HARDENING_TEXT.legacyMoved.open}
+          </Link>
+        </div>
+      )}
 
       {mode !== 'summary' && <Trend trend={data.trend} />}
 

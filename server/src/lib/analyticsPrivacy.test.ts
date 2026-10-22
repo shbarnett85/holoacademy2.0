@@ -2,26 +2,25 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-/* רגרסיית פרטיות (חוק 12): שם תלמיד לעולם לא נשלח ל-LLM חיצוני — רק כינוי, והשם חוזר בשרת.
-   בדיקת מקור: ה-label של הסיכום האישי משתמש בכינוי, ושם התלמיד נוגע רק בהחלפה שאחרי התשובה. */
+/* רגרסיית פרטיות (חוק 12): שם תלמיד לעולם לא נשלח ל-LLM חיצוני.
+   בעבר: הסיכום הפדגוגי הישן ב-analytics.ts שלח כינוי ("תלמיד/ה 1") והחליף אותו בשם אחרי התשובה, ובדיקת מקור אכפה את הדפוס הזה.
+   עכשיו הנתיב הישן הופרש (410) והקובץ analytics.ts **אינו קורא למודל בכלל** — ההבטחה חזקה יותר: אין בו מה לדלוף.
+   הסיכום החדש (lib/aiSummary) נבדק ב-inputs.test.ts (canary על 631 מקורות), guard.test.ts ו-aiSummary.http.test.ts. */
 const src = readFileSync(resolve(__dirname, '../routes/analytics.ts'), 'utf8')
 
-describe('סיכום פדגוגי — כינוי במקום שם תלמיד', () => {
-  it('ה-label של scope=student בנוי מהכינוי, לא מהשם', () => {
-    const m = src.match(/label: `\$\{STUDENT_ALIAS\} · כיתה/)
-    expect(m).not.toBeNull()
-    expect(src).not.toMatch(/label: `תלמיד\/ה: \$\{/)
+describe('analytics.ts — אין קריאה ל-LLM ולכן אין שם תלמיד שיגיע אליו', () => {
+  it('אין ייבוא של מודל (claude / gemini / modelRouter) ואין פרומפט או קריאת סיכום', () => {
+    expect(src).not.toMatch(/from '\.\.\/lib\/(claude|gemini|modelRouter)\.js'/)
+    expect(src).not.toMatch(/callSonnetSummary|buildPedagogicalPrompt|callGeminiText|claude\.messages/)
   })
-  it('שם התלמיד לא נכנס לפרומפט: buildPedagogicalPrompt מקבל רק label + data', () => {
-    const fn = src.slice(src.indexOf('function buildPedagogicalPrompt'), src.indexOf('async function callSonnetSummary'))
-    expect(fn).not.toMatch(/studentName|\.name\b/)
+  it('אין מנגנון כינוי→שם (STUDENT_ALIAS): הנתיב הישן לא שולח כלום', () => {
+    expect(src).not.toMatch(/STUDENT_ALIAS/)
   })
-  it('השם האמיתי משמש רק להחלפת הכינוי בתשובה (split/join), אחרי קריאת ה-LLM', () => {
-    const uses = [...src.matchAll(/studentName/g)].length
-    expect(src).toContain('rawContent.split(STUDENT_ALIAS).join(studentName)')
-    expect(uses).toBeGreaterThan(0)
-    const idxCall = src.indexOf('await callSonnetSummary(')
-    const idxJoin = src.indexOf('rawContent.split(STUDENT_ALIAS)')
-    expect(idxJoin).toBeGreaterThan(idxCall)
+  it('נתיבי /summary הישנים: POST ו-PATCH מחזירים 410, GET "אין סיכום"', () => {
+    const zone = src.slice(src.indexOf('סיכום פדגוגי (נתיב ישן)'), src.indexOf('GET /api/analytics/review-suggestions'))
+    expect(zone).toContain("analyticsRouter.get('/summary'")
+    expect(zone).toContain("analyticsRouter.post('/summary'")
+    expect(zone).toContain("analyticsRouter.patch('/summary'")
+    expect(zone.match(/new AppError\(410, ERR_LEGACY_SUMMARY_MOVED\)/g)).toHaveLength(2)
   })
 })

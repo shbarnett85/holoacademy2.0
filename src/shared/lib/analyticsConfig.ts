@@ -28,7 +28,7 @@ export type FindingKind = (typeof FINDING_KINDS)[number]
    (היחידה נקבעת בסוג: d של Cohen / עודף חלק / פער שיעורים / יחס). */
 export interface KindThreshold { minN: number; minEffect: number; effectUnit: string }
 export const KIND_THRESHOLDS: Record<FindingKind, KindThreshold> = {
-  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בסשנים: חלון אחרון מול קודם)' },
+  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בהדמיות: חלון אחרון מול קודם; בחשבון אמיתי — ההצלחה ביחס לשאר הכיתה באותה הדמיה, ראו LIVE_TREND_RULE)' },
   class_concept_improvement: { minN: 15, minEffect: 0.8, effectUnit: 'dz (שינוי זוגי פר-תלמיד)' },
   memory_random_pattern: { minN: 6, minEffect: 0.25, effectUnit: 'פער בשיעור איתור זוג מוכר מול הצפוי בקשב (N = משחקים)' },
   position_bias: { minN: 25, minEffect: 0.15, effectUnit: 'עודף חלק האפשרות הראשונה מעל הצפוי (פריטים)' },
@@ -87,3 +87,107 @@ export type BehaviorVectorKey = (typeof BEHAVIOR_VECTOR_KINDS)[number]['key']
 
 export const contentVectorLabel = (k: string): string => CONTENT_VECTOR_KINDS.find((v) => v.key === k)?.labelHe ?? k
 export const behaviorVectorLabel = (k: string): string => BEHAVIOR_VECTOR_KINDS.find((v) => v.key === k)?.labelHe ?? k
+
+/* ── תוצאות (טאב "תוצאות") ── */
+
+/* "תשומת לב" בתוצאות — כלל עובדתי בלבד (לא מסקנה): לא התחיל/ה, ויתר/ה על לפחות 2 אתגרים,
+   או הצליח/ה בפחות מחצי מהאתגרים. עריכה כאן משנה את כל המסכים והסבר "איך חישבנו?". */
+export const ATTENTION_RULE = {
+  notStarted: true,
+  gaveUpAtLeast: 2,
+  /* חלק האתגרים שנפתרו (מתוך כל אתגרי ההדמיה) מתחת לערך הזה = תשומת לב; נבדק רק למי שסיים/ה */
+  solvedShareBelow: 0.5,
+} as const
+
+/* טעות נפוצה מוצגת באתגר/בהדמיה כשלפחות כך וכך תלמידים בחרו במסיח המתויג שלה */
+export const COMMON_ERROR_MIN_STUDENTS = 2
+
+/* סף לניסוח "רוב הכיתה הצליחה" (חלק האתגרים שנפתרו בממוצע בין מי שסיימו) */
+export const CLASS_SUCCESS_BANDS = { most: 0.75, some: 0.5 } as const
+
+/* מינימום תלמידים שסיימו כדי לסכם את הכיתה במשפט כללי כשעדיין לא כולם סיימו ("רובם הצליחו").
+   מתחת לזה המשפט אומר רק כמה סיימו — לא מכליל מתלמיד/ה בודד/ת. */
+export const CLASS_SUMMARY_MIN_COMPLETED = 2
+
+/* התפלגות בחירות בדילמה מוסרית: ב-moral_choices אין שם/תלמיד בכוונה, ולכן התפלגות על מעט תלמידים מאפשרת לזהות מי בחר מה.
+   מוצגת רק כשיש לפחות כך וכך שורות בחירה, וכך וכך תלמידים שסיימו את ההדמיה (שני התנאים יחד). */
+export const MORAL_MIN_ROWS = MIN_CELL_SIZE
+export const MORAL_MIN_COMPLETED = MIN_CELL_SIZE
+
+/* הצעה ל"תרגול חזרה" / יצירת הדמיית חזרה: מינימום תלמידים שסיימו. המורה ממילא רואה תוצאות ברמת תלמיד בשליחה הגלויה לו, ולכן הסף אינו
+   של פרטיות מול המורה — הוא מונע בניית הדמיה חדשה (שאפשר גם לשתף) על בסיס ביצועים של תלמיד/ה בודד/ת. אותו סף במסך ובנקודת הקצה. */
+export const REVIEW_MIN_COMPLETED = COMMON_ERROR_MIN_STUDENTS
+
+/* שליטה ביעד למידה (טאב "יעדי הלמידה"): חלק התלמידים שהצליחו ביעד — לפחות strong = "למדו", לפחות partial = "למדו חלקית",
+   פחות מזה = "עדיין קשה". אותו partial הוא גם הסף האישי: תלמיד/ה שהצליח/ה בפחות מ-partial מהאתגרים והשאלות של היעד נחשב/ת מתקשה בו.
+   (ספי 60/80 — עקביים עם מודל כיול הקושי.) */
+export const OBJECTIVE_BANDS = { strong: 0.8, partial: 0.6 } as const
+
+/* ── אנליטיקה v2 — מסכי מורה בעיצוב החדש (שלב UX; תוספת בלבד) ── */
+
+/* מגמה (פר תלמיד / כיתה / שכבה) — מילים בלבד בממשק: משתפר/ת · יציב/ה · בירידה · אין עדיין מספיק נתונים */
+export const TRENDS = ['improving', 'steady', 'declining', 'insufficient'] as const
+export type Trend = (typeof TRENDS)[number]
+export const POSITIONS = ['above', 'within', 'below'] as const
+export type Position = (typeof POSITIONS)[number]
+
+/* מגמה = ממוצע הרמה ב-60 ימי הלימוד האחרונים פחות ממוצע הרמה ב-90 עד 150 ימי הלימוד שלפני כן.
+   הפרש של לפחות חצי רמה = שיפור/ירידה; חסר אחד הצדדים = אין עדיין מספיק נתונים. */
+export const TREND_LABEL_MIN_DELTA = 0.5
+/* לצבירה כיתתית/שכבתית: מינימום תלמידים שיש להם מגמה כדי לדווח מגמה לקבוצה */
+export const GROUP_TREND_MIN_STUDENTS = 3
+/* תווית מגמה לתלמיד/ה (ולכל תת-קבוצה): לפחות כך וכך משחקים בכל אחד משני החלונות (האחרון והקודם).
+   מתחת לזה — "אין עדיין מספיק נתונים", ולא "משתפר/ת" על סמך שני משחקים. (ממצא מגמה מדווח דורש הרבה יותר: KIND_THRESHOLDS.level_trend.minN.) */
+export const TREND_LABEL_MIN_SESSIONS = 3
+
+/* תחום (סוג תוכן) נחשב "חזק" / "מאתגר" כשהרמה בו רחוקה מרמת המקצוע לפחות ברמה אחת, והוא מדווח (N מספיק) */
+export const AREA_MIN_DELTA = 1
+/* ברמת כיתה: מינימום תלמידים שהתחום מדווח אצלם */
+export const CLASS_AREA_MIN_STUDENTS = MIN_CELL_SIZE
+
+/* מסך הכניסה: כמה התרעות "דורש תשומת לב" מוצגות לכל היותר */
+export const ENTRY_MAX_ALERTS = 3
+/* "מה קרה לאחרונה" בסיכום המקצוע */
+export const SUMMARY_RECENT_MAX = 3
+/* טקסטי התרעות בשורת מקצוע בסקירת הכיתה */
+export const OVERVIEW_ALERT_TEXTS_MAX = 3
+/* אירועים על ציר הזמן של ההתקדמות */
+export const PROGRESS_EVENTS_MAX = 12
+
+/* טעות נפוצה בכיתה: לפחות כך וכך אחוזים מהתלמידים שנחשפו לנושא חוזרים עליה.
+   משמש גם ל"מה ללמד" (המלצות) וגם למשפט הסיכום של טאב "טעויות נפוצות". */
+export const CLASS_COMMON_ERROR_MIN_SHARE_PCT = 20
+/* משפט הסיכום של טאב "טעויות נפוצות": כמה שמות של טעויות נקראים במשפט (השאר: "ועוד N") */
+export const ERRORS_TAB_TITLES_MAX = 3
+
+/* "הרמה הנוכחית" = ממוצע הרמה בכמה ההדמיות האחרונות במקצוע */
+export const CURRENT_LEVEL_SESSIONS = 4
+
+/* ── מנוע הדפוסים על נתוני אמת (W1) ── */
+
+/* מגמת רמה בנתוני אמת (FX1a). הרמה היא תוצר של כיול 60/80: כל רמה תלויה בקודמתה (הליכה אקראית), והיא זזה גם כשקושי ההדמיה זז ולא רק כשהתלמיד/ה השתנו —
+   ולכן מבחן ישיר על הרמה מסמן "שינוי" אצל 4% עד 35% מהתלמידים גם כשלא השתנה דבר (נמדד בסימולציית אפס).
+   הבדיקה בנתוני אמת היא על ההצלחה של התלמיד/ה ביחס לשאר הכיתה באותה הדמיה: הצלחה פחות הצלחת הכיתה (בלי התלמיד/ה) באותה הדמיה.
+   זה מנטרל קושי הדמיה ושינוי קושי כיתתי. הרמה משמשת רק לאישור — מדווחים רק אם גם ההצלחה הגולמית וגם הרמה זזו באותו כיוון.
+   · minPeers: כמה תלמידים אחרים צריכים לסיים את אותה הדמיה כדי שיהיה לה ציון יחסי (בלי מספיק עמיתים אין ציון, והמשחק לא נספר במגמה).
+   · minRelativeShift: הפרש מינימלי בממוצע ההצלחה היחסית בין החלון האחרון לקודם (שבר הצלחה).
+   · minRawShift: הפרש מינימלי באותו כיוון בהצלחה הגולמית.
+   · outlierK / outlierMinScale: השינוי היחסי של התלמיד/ה חייב להיות חריג גם מול שינוי היתר בכיתה (חציון ו-MAD של השינוי היחסי של התלמידים שנבדקו; הסקאלה לא קטנה מ-outlierMinScale).
+     כך תגובה לא אחידה לשינוי קושי כיתתי (תלמידי תקרה זזים פחות) ושונות בין תלמידים אינן נקראות כשינוי של תלמיד/ה.
+   · LEVEL_TREND_BASIS.minDeltaLevels: הפרש ממוצע הרמה באותו כיוון — צעד הכיול. (בהדגמה הבדיקה נשארת על ההצלחה, כמו תמיד.) */
+export const LEVEL_TREND_BASIS = { minDeltaLevels: 1 } as const
+export const LIVE_TREND_RULE = { minPeers: MIN_CELL_SIZE, minRelativeShift: 0.2, minRawShift: 0.05, outlierK: 2, outlierMinScale: 0.03 } as const
+
+/* שיעור איתור זוג מוכר "בקשב" במשחק הזיכרון — הבסיס שממנו נמדד דפוס אקראי. נגזר מחציון התלמידים רק כשיש לפחות MIN_CELL_SIZE תורמים,
+   אחרת ערך קבוע; ותמיד בתוך [min, max] — חציון של 1.0 (כולם מושלמים) הופך כל החמצה ל-p=0 וממצא כוזב על ילד. */
+export const MEMORY_ATTENTIVE_RATE = { fallback: 0.7, min: 0.5, max: 0.95 } as const
+
+/* ── FX1b: סף N לטענות רמה (מיקום מול הטווח המיועד, "הרמה בכיתה מתחת לטווח") ──
+   רמה "נוכחית" היא ממוצע ארבעת המשחקים האחרונים; מתלמיד/ה עם משחק אחד היא עדיין לא טענה על רמה.
+   · אישי: מיקום מול הטווח המיועד רק מ-PERSONAL_LEVEL_MIN_SESSIONS משחקים במקצוע.
+   · כיתתי: רמה ומיקום של הכיתה רק כש-CLASS_LEVEL_MIN_STUDENTS תלמידים לפחות עומדים בסף האישי (והממוצע מחושב מהם בלבד).
+   · מנהל: תורם לתא שכבה × מקצוע רק מי שעומד בסף האישי; ותא מוצג רק אם אחרי הסרת הכיתה הגדולה ביותר נשארים ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS תורמים לפחות
+     (אחרת הממוצע שמתפרסם הוא בפועל ממוצע כיתה אחת, ומורה מזוהה — חוק 9). */
+export const PERSONAL_LEVEL_MIN_SESSIONS = CURRENT_LEVEL_SESSIONS
+export const CLASS_LEVEL_MIN_STUDENTS = 3
+export const ADMIN_CELL_MIN_OUTSIDE_LARGEST_CLASS = MIN_CELL_SIZE

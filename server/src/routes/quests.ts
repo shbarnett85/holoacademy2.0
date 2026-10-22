@@ -23,8 +23,12 @@ import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAcc
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasQuestSubjectId, hasUserGender, hasPublicQuests, hasQuestVariants, hasQuestGrade } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasQuestSubjectId, hasUserGender, hasPublicQuests, hasQuestVariants, hasQuestGrade, isSchemaMissingError } from '../lib/activeColumn.js'
+import { loadViewer, canAssignToClass } from '../lib/authz.js'
+import { loadReviewBasis } from '../lib/results/realResults.js'
+import { REVIEW_MIN_COMPLETED } from '../../../src/shared/lib/analyticsConfig.js'
 import { subjectByCode, subjectFieldsOfQuest, questSubjectOut } from '../lib/subjects.js'
+import { invalidateAllClassAnalyses } from '../lib/analyticsV2/analysisCache.js'
 import { subjectName as subjectName_, isSubjectCode } from '../../../src/shared/lib/subjects.js'
 import { loadEffectiveProfile } from '../lib/profileCalibration.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
@@ -34,7 +38,7 @@ import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE, SAFETY_TECH_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
 import { rephraseForAddress, buildStudentVariant } from '../lib/questVariants.js'
-import { computeWeakConcepts, reviewContextBlock } from '../lib/weakConcepts.js'
+import { weakConceptsFromReview, reviewContextBlock } from '../lib/weakConcepts.js'
 import { groundCurriculum } from '../lib/factBrief.js'
 import { callGeminiText, callGeminiJSON } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
@@ -401,7 +405,10 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
    המסוכמים), ומייצר הרפתקת-המשך קצרה (4 סצנות) שבוחנת אותם **מזווית חדשה** דרך צינור
    היצירה הרגיל (בטיחות/ולידציה/fact-check — הכל כלול). תמונות ממוחזרות מההדמיה
    המקורית (אפס עלות תמונות). ההדמיה החדשה נושאת reviewOf + objectives של היעדים
-   החלשים — כך דיווח השליטה מודד את שיפור החזרה מול המקור. */
+   החלשים — כך דיווח השליטה מודד את שיפור החזרה מול המקור.
+   הרשאה: אותו כלל כמו מסך התוצאות (loadReviewBasis) — מנהל/עירוני 403; מטלה שאינה קיימת *או שאינה גלויה למורה* 404 אחיד; ובנוסף המורה
+   חייב להיות יוצר ההדמיה (ensureOwner). התחומים לחיזוק מחושבים בליבת התוצאות (אותו מקור כמו review.weakCount שבמסך), ורק אחרי
+   שלפחות REVIEW_MIN_COMPLETED תלמידים סיימו — כדי שהדמיה חדשה (שאפשר גם לשתף) לא תיבנה על ביצועים של תלמיד/ה בודד/ת. */
 const reviewQuestSchema = z.object({ assignmentId: z.string().uuid() })
 
 questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
@@ -409,13 +416,8 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
     const parsed = reviewQuestSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'assignmentId נדרש')
 
-    const { data: asg, error: asgErr } = await supabaseAdmin
-      .from('assignments')
-      .select('id, quest_id, class_id')
-      .eq('id', parsed.data.assignmentId)
-      .single()
-    if (asgErr || !asg) throw new AppError(404, 'מטלה לא נמצאה')
-    if (asg.quest_id !== req.params.id) throw new AppError(400, 'המטלה אינה שייכת להדמיה זו')
+    const basis = await loadReviewBasis(req, parsed.data.assignmentId, String(req.params.id))
+    const asg = { id: parsed.data.assignmentId, class_id: basis.classId }
 
     const { data: base, error: baseErr } = await supabaseAdmin
       .from('quests')
@@ -425,7 +427,10 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
     if (baseErr || !base?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
     await ensureOwner(req, base.created_by)
 
-    const concepts = await computeWeakConcepts(base.id, asg.class_id, base.game_data)
+    if (basis.completed < REVIEW_MIN_COMPLETED) {
+      throw new AppError(400, `אפשר ליצור הדמיית חזרה אחרי ש-${REVIEW_MIN_COMPLETED} תלמידים לפחות סיימו את ההדמיה — עד אז אין מספיק נתונים`)
+    }
+    const concepts = weakConceptsFromReview(basis.concepts, base.game_data)
     if (concepts.length === 0) {
       throw new AppError(400, 'אין מושגים חלשים לחיזוק — הכיתה שלטה בחומר או שאין עדיין מספיק נתונים')
     }
@@ -547,35 +552,58 @@ questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
 })
 
 /* POST /api/quests/:id/assign — הקצאת הדמיה לכיתות (יוצר ההדמיה)
-   body: { classIds: string[] } — מזהי כיתות UUID; upsert כדי לא לשכפל */
+   body: { classIds: string[] } — מזהי כיתות UUID; כיתה שכבר מוקצית לה ההדמיה מדולגת (אין כפילות).
+   הרשאה לכל כיתה: המורה חייב להיות משויך אליה (כל קישור), או מנהל/עירוני של בית הספר שלה, או מנהל-על (authz.canAssignToClass).
+   מדיניות: **הכול או כלום** — אם לפחות כיתה אחת אינה קיימת או שאין למבקש גישה אליה, כל הבקשה נדחית ב-403 (הודעה אחת לשני המקרים,
+   כדי שלא לחשוף אילו כיתות קיימות) ושום הקצאה לא נוצרת.
+   assignments.user_id = השולח (המשתמש המחובר), נפרד מ-quests.created_by — כך מסך התוצאות מבדיל בין "מי שלח" ל"מי יצר". */
+const MAX_ASSIGN_CLASSES = 100
+const ASSIGN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const ASSIGN_DENIED_MESSAGE = 'אין לך הרשאה להקצות לאחת הכיתות שנבחרו'
 questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res, next) => {
   try {
-    const { classIds } = req.body as { classIds?: string[] }
-    if (!Array.isArray(classIds) || classIds.length === 0) throw new AppError(400, 'חסר classIds')
+    const rawIds = (req.body as { classIds?: unknown } | undefined)?.classIds
+    if (!Array.isArray(rawIds) || rawIds.length === 0 || !rawIds.every((id) => typeof id === 'string')) throw new AppError(400, 'חסר classIds')
+    const classIds = [...new Set(rawIds as string[])]
 
     /* מורה אורח: הכיתה וירטואלית (demo-class-1) — אין שורות DB בדמו */
     if (isDemoGuest(req) && classIds.every((id) => id.startsWith('demo-'))) {
       res.status(201).json({ assignments: [], demo: true })
       return
     }
+    if (classIds.length > MAX_ASSIGN_CLASSES) throw new AppError(400, 'יותר מדי כיתות בבקשה אחת')
+    if (!classIds.every((id) => ASSIGN_UUID_RE.test(id))) throw new AppError(400, 'מזהה כיתה לא תקין')
 
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
     if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
+    /* הרשאה פר-כיתה (לפני כל כתיבה): כיתה לא קיימת או בלי גישה — דוחים את הכול */
+    const viewer = await loadViewer(req)
+    const { data: classRows, error: classErr } = await supabaseAdmin.from('classes').select('id, school_id').in('id', classIds)
+    if (classErr) throw new AppError(500, 'שגיאה בבדיקת הכיתות: ' + classErr.message)
+    const classById = new Map((classRows ?? []).map((c: { id: string; school_id: string | null }) => [c.id, c]))
+    if (classIds.some((id) => { const c = classById.get(id); return !c || !canAssignToClass(viewer, c) })) {
+      throw new AppError(403, ASSIGN_DENIED_MESSAGE)
+    }
+
     /* סינון כיתות שכבר מוקצות — מניעת כפילויות ללא unique constraint */
     const { data: existing } = await supabaseAdmin
       .from('assignments').select('class_id').eq('quest_id', quest.id).in('class_id', classIds)
     const existingIds = new Set((existing ?? []).map((r: { class_id: string }) => r.class_id))
-    const newRows = classIds.filter((id: string) => !existingIds.has(id))
-      .map((classId: string) => ({ quest_id: quest.id, class_id: classId }))
+    const fresh = classIds.filter((id: string) => !existingIds.has(id))
 
     const inserted: { id: string; class_id: string }[] = []
-    if (newRows.length > 0) {
-      const { data, error: insErr } = await supabaseAdmin
-        .from('assignments').insert(newRows).select('id, class_id')
-      if (insErr) throw new AppError(500, 'שגיאה ביצירת הקצאות: ' + insErr.message)
-      if (data) inserted.push(...data)
+    if (fresh.length > 0) {
+      /* user_id = השולח. מנהל-על מזוהה לפי אימייל וייתכן שאין לו שורה ב-users (FK) — אצלו נשאר ריק. סביבה בלי העמודה — מכניסים בלעדיה */
+      const sender = req.staff!.role === 'super_admin' ? {} : { user_id: req.staff!.userId }
+      const rows = fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId, ...sender }))
+      let ins = await supabaseAdmin.from('assignments').insert(rows).select('id, class_id')
+      if (ins.error && isSchemaMissingError(ins.error)) {
+        ins = await supabaseAdmin.from('assignments').insert(fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId }))).select('id, class_id')
+      }
+      if (ins.error) throw new AppError(500, 'שגיאה ביצירת הקצאות: ' + ins.error.message)
+      if (ins.data) inserted.push(...ins.data)
     }
 
     res.status(201).json({ assignments: inserted })
@@ -833,6 +861,8 @@ questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
 
     const { error: updateError } = await supabaseAdmin.from('quests').update(patch).eq('id', quest.id)
     if (updateError) throw new AppError(500, 'שגיאה בשמירה: ' + updateError.message)
+    /* שיוך מקצוע משנה אילו משחקים נספרים באנליטיקה — מבטלים את מטמון ניתוחי הכיתות כדי שהמורה תראה את השינוי בכניסה הבאה */
+    if (subjectOut) invalidateAllClassAnalyses()
 
     res.json({ ok: true, title, ...(subjectOut ?? {}) })
   } catch (err) {

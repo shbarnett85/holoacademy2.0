@@ -578,3 +578,39 @@ html {
   color: var(--holo-cyan);
   text-shadow: 0 0 12px rgba(0, 246, 255, 0.7), 0 0 30px rgba(0, 246, 255, 0.3);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ערכת מסכי המורה (src/features/teacherUi) — נוסף פעם אחת, מוגבל ל-[data-teacher-ui].
+   עיקרון 7+8: טבעת פוקוס גלויה, אין מידע במעבר עכבר בלבד (ה-hover דקורטיבי בלבד).
+   ══════════════════════════════════════════════════════════════════════════ */
+[data-teacher-ui] :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--t15);
+  outline-offset: 2px;
+}
+/* מחליף את ברירת-המחדל של הדפדפן במקשי עכבר/מגע — הטבעת מופיעה רק במקלדת */
+[data-teacher-ui] :where(a, button, summary):focus:not(:focus-visible) { outline: none; }
+
+/* הדגשת hover דקורטיבית (שכבה שקופה, לא נוגעת ברקע ה-inline של הרכיב) */
+[data-teacher-ui] [data-tu-press] { position: relative; }
+[data-teacher-ui] [data-tu-press]::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--t20);
+  opacity: 0; transition: opacity .14s; pointer-events: none;
+}
+[data-teacher-ui] [data-tu-press]:not([aria-disabled="true"]):not(:disabled):hover::after { opacity: 1; }
+
+/* "איך חישבנו?" — חץ מתהפך בפתיחה; בלי סמן ברירת-מחדל של הדפדפן */
+[data-teacher-ui] details[data-how-we-calc] > summary { list-style: none; }
+[data-teacher-ui] details[data-how-we-calc] > summary::-webkit-details-marker { display: none; }
+[data-teacher-ui] details[data-how-we-calc] > summary [data-tu-chev] { transition: transform .18s; }
+[data-teacher-ui] details[data-how-we-calc][open] > summary [data-tu-chev] { transform: rotate(180deg); }
+
+/* קישור דילוג לתוכן — גלוי רק בפוקוס מקלדת */
+[data-teacher-ui] .tu-skip {
+  position: absolute; top: -100px; inset-inline-start: 12px; z-index: 50; padding: 12px 18px; border-radius: 10px;
+  background: var(--t-studio-bg); color: var(--t68); border: 2px solid var(--t15); font-weight: 700; font-size: 16px; text-decoration: none;
+}
+[data-teacher-ui] .tu-skip:focus { top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-teacher-ui] * { transition: none !important; }
+}

@@ -1,102 +1,166 @@
-import { useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import StudioTopBar from '../creator/StudioTopBar'
-import type { AnalyticsConfig, Lens } from '../../shared/types/analyticsV2'
-import AdminView from './AdminView'
-import { BriefingOverlay, FeedbackOverlay } from './Overlays'
-import { HomeroomView, SubjectTeacherView, type NavState } from './Views'
-import { Chip, ErrorBox, Loading, Notice } from './ui'
-import { C } from './tokens'
-import { useV2, type V2Params } from './v2api'
+/* ──────────────────────────────────────────────────────────────────────────
+   האנליטיקה — נקודת הכניסה (default export; נטענת עצלנית מ-features/analytics/index.tsx). זה המסך של כל המורים והמנהלים.
+   המסכים צורכים את חוזה analyticsV2 בלבד: אין כאן ידיעה אם הנתונים מהדגמה או מנתוני אמת.
+   מי מחליט מה מוצג: התצורה (GET /config) נטענת כאן פעם אחת, והכיתות (GET /roster) אחריה, פעם אחת — ומשותפות לכל המסכים בהקשר.
+     · config.enabled=false (מתג כיבוי): מנהל-על → /admin; כל השאר → המסך הקודם (Legacy, מועבר מ-index.tsx);
+     · ?view=previous (מורה אמיתי בלבד): "התצוגה הקודמת" — גרף ההתקדמות הכללי כפי שהיה, עם נתיב חזרה גלוי.
+   הכתובת היא המצב:
+     /analytics                          כניסה "איזו כיתה תרצו לראות?" (מנהל: ?tab=overview|grades|subjects|errors)
+     /analytics/class/:classId           ?tab=overview|<מקצוע>&sub=summary|errors|progress|students
+     /analytics/student/:studentId       ?class=<id>&tab=overview|<מקצוע>
+     שכבות-על: ?brief=student:<id>|class:<id>  ·  ?fb=<studentId>  ·  ?sum=student:<id>|class:<id> (הניתוב בלבד; השכבה עצמה בנפרד)
+     אורח מוסיף: &lens=homeroom|subject_teacher|admin&subject=<קוד>   (השרת הוא שגוזר את הצופה)
+   העדשה של האורח: הכתובת קודמת; כשאין בה — הערך השמור (teacherUi/guestLens, sessionStorage holo_guest_lens);
+   כל עדשה שנטענה נכתבת בחזרה, כך שהיא שורדת מעבר בין הטאבים הראשיים (תוצאות ↔ אנליטיקה).
+   ────────────────────────────────────────────────────────────────────────── */
+import { useCallback, useEffect, useMemo } from 'react'
+import type { ComponentType, ReactNode } from 'react'
+import { Navigate, useMatch, useNavigate, useSearchParams } from 'react-router-dom'
+import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
+import { V2_CONFIG_FALLBACK_TEXT } from '../../shared/lib/findingsNarrative'
+import { GUEST_LENSES, GuestLensSwitcher, Icon, RADIUS, ScreenShell, T, TONE_META, lensToParams, readGuestLens, useGuestLens, writeGuestLens } from '../teacherUi'
+import type { AnalyticsConfig, Lens, Roster } from '../../shared/types/analyticsV2'
+import AdminScreen from './AdminScreen'
+import ClassScreen from './ClassScreen'
+import { V2Context, type V2Env } from './context'
+import EntryScreen from './EntryScreen'
+import { L, titles } from './labels'
+import { BRIEF_SCOPES, PREVIOUS_VIEW_PARAM, PREVIOUS_VIEW_VALUE, SUMMARY_SCOPES, canSeePreviousView, configFailureView, parseScopeId, summaryContextOf } from './logic'
+import { BriefingOverlay, FeedbackOverlay, SummaryOverlay } from './Overlays'
+import StudentScreen from './StudentScreen'
+import { ActionButton, ErrorBlock, LoadingBlock } from './ui'
+import { useV2, type V2Params, type V2State } from './v2api'
 
-const LENS_LABEL: Record<Lens, string> = { homeroom: 'צפו כמחנך/ת', subject_teacher: 'כמורה מקצועי/ת', admin: 'כמנהל/ת' }
-const LENS_ORDER: Lens[] = ['homeroom', 'subject_teacher', 'admin']
+/* המסך הקודם (גרף ההתקדמות הכללי) מוגש מ-index.tsx; backTo = נתיב החזרה לתצוגה החדשה כשנפתח מכפתור "התצוגה הקודמת";
+   notice = הסבר (עם "נסו שוב") שמוצג מעל התוכן כשהמסכים החדשים לא נטענו והמורה נופל לתצוגה הקודמת */
+export type LegacyView = ComponentType<{ backTo?: string; notice?: ReactNode }>
 
-/* האנליטיקה החדשה. המסך צורך את חוזה analyticsV2 בלבד — אין כאן ידיעה אם הנתונים מהדגמה או מהמנוע האמיתי.
-   בורר העדשה מוצג רק כשהשרת מצהיר על כמה עדשות זמינות (מורה אורח); כל עדשה נאכפת בשרת. */
-export default function AnalyticsV2App() {
+/* התצורה החדשה לא נטענה אצל מורה אמיתי: אומרים במילים מה קרה ומה מוצג במקום, וכפתור אחד לניסיון חוזר (ניסיון אחד לכל לחיצה, בלי לולאה) */
+function ConfigFallbackNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <section role="status" data-v2-fallback style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '12px 16px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${TONE_META.attention.color}` }}>
+      <span style={{ color: TONE_META.attention.color, display: 'inline-flex' }}><Icon name="alert" size={24} /></span>
+      <p style={{ margin: 0, fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: T.text, flex: '1 1 280px' }}>{V2_CONFIG_FALLBACK_TEXT.notice}</p>
+      <ActionButton onClick={onRetry}>{L.retry}</ActionButton>
+    </section>
+  )
+}
+
+export default function AnalyticsV2App({ Legacy }: { Legacy: LegacyView }) {
   const [sp, setSp] = useSearchParams()
-  const update = useCallback((patch: Record<string, string | null>) => {
+  const navigate = useNavigate()
+  const classMatch = useMatch('/analytics/class/:classId')
+  const studentMatch = useMatch('/analytics/student/:studentId')
+
+  /* הכתובת קודמת; אורח בלי עדשה בכתובת — העדשה האחרונה שנבחרה (במסכי תוצאות/אנליטיקה). מורה אמיתי לעולם לא שולח עדשה */
+  const { isGuest, isSuperAdmin, role } = useStaffAuth()
+  const stored = useGuestLens()
+  const lensParam = isGuest ? sp.get('lens') ?? stored?.lens ?? null : null
+  const subjectParam = isGuest ? sp.get('subject') ?? stored?.subject ?? null : null
+  const previousAllowed = canSeePreviousView({ role, isGuest })
+  const showPrevious = previousAllowed && sp.get(PREVIOUS_VIEW_PARAM) === PREVIOUS_VIEW_VALUE && !classMatch && !studentMatch
+
+  const { data: cfg, loading, error, reload } = useV2<AnalyticsConfig>(showPrevious ? null : '/config', { lens: lensParam ?? undefined, subject: subjectParam ?? undefined })
+
+  const guest = !!cfg && cfg.availableLenses.length > 1
+  const lens: Lens = cfg?.lens ?? 'homeroom'
+  const subject = useMemo<string | null>(() => {
+    /* המקצוע הנבחר הוא של בורר העדשה של האורח. למורה אמיתי config.subjects הוא איחוד ההרשאות של כל כיתותיו — לא מקצוע אחד, ולכן אין לו מקצוע כאן (ההרשאה לכל כיתה מגיעה מ-GET /roster) */
+    if (!cfg || !guest || lens !== 'subject_teacher') return null
+    return cfg.subjects.some((s) => s.code === subjectParam) ? subjectParam : cfg.subjects[0]?.code ?? null
+  }, [cfg, guest, lens, subjectParam])
+  const params = useMemo<V2Params>(() => (guest ? { lens, subject: lens === 'subject_teacher' ? subject ?? undefined : undefined } : {}), [guest, lens, subject])
+
+  /* הכיתות והתלמידים — פעם אחת לכל המסכים (הכניסה והכיתה). מנהל/ת אינו מקבל רשימות (אגרגטים בלבד), ולכן לא נטען */
+  const rosterReady = !!cfg && !loading && cfg.enabled && lens !== 'admin'
+  const rosterRaw = useV2<Roster>(rosterReady ? '/roster' : null, params)
+  /* בזמן טעינה (החלפת עדשה / ניסיון חוזר) לא מציגים את הרשימה של העדשה הקודמת */
+  const roster: V2State<Roster> = rosterRaw.loading ? { ...rosterRaw, data: null } : rosterRaw
+
+  /* העדשה הנטענת נכתבת למאגר המשותף — רק כשהתצורה טרייה (בזמן טעינה cfg עוד של העדשה הקודמת), ורק כשיש עדשה
+     מפורשת (בכתובת או שמורה): אורח שעוד לא בחר דבר נשאר "ללא בחירה" = ברירת המחדל של השרת, בלי טעינה כפולה של התצורה */
+  const lensInUrl = sp.has('lens')
+  useEffect(() => {
+    if (!cfg || loading || !guest || !cfg.lens) return
+    const saved = readGuestLens()
+    if (!lensInUrl && !saved) return
+    writeGuestLens({ lens: cfg.lens, subject: cfg.lens === 'subject_teacher' ? subject : saved?.subject ?? null })
+  }, [cfg, loading, guest, subject, lensInUrl])
+
+  const href = useCallback<V2Env['href']>((path, q = {}) => {
+    const p = new URLSearchParams()
+    for (const [k, v] of Object.entries(q)) if (v) p.set(k, v)
+    if (guest) for (const [k, v] of Object.entries(lensToParams(lens, subject))) p.set(k, v)
+    const s = p.toString()
+    return s ? `${path}?${s}` : path
+  }, [guest, lens, subject])
+
+  const setOverlay = useCallback((key: 'brief' | 'fb' | 'sum', value: string | null) => {
     setSp((prev) => {
       const next = new URLSearchParams(prev)
-      for (const [k, v] of Object.entries(patch)) { if (v === null) next.delete(k); else next.set(k, v) }
+      if (value === null) next.delete(key); else next.set(key, value)
       return next
-    }, { replace: true })
+    }, { replace: value === null })
   }, [setSp])
 
-  const lensParam = sp.get('lens')
-  const subjectParam = sp.get('subject')
-  const baseParams: V2Params = { lens: lensParam ?? undefined, subject: subjectParam ?? undefined }
-  const { data: cfg, loading, error } = useV2<AnalyticsConfig>('/config', baseParams)
+  /* החלפת עדשה/מקצוע (אורח): חוזרים למסך הכניסה כדי להישאר במסך תקף */
+  const goLens = (nextLens: Lens, nextSubject?: string | null): void => { void navigate(`/analytics?${new URLSearchParams(lensToParams(nextLens, nextSubject)).toString()}`) }
 
-  const student = sp.get('student')
-  const brief = sp.get('brief') /* "student:<id>" | "class:<id>" */
-  const fb = sp.get('fb')
-  const nav: NavState = {
-    student,
-    setStudent: (id) => update({ student: id }),
-    openBriefing: (scope, id) => update({ brief: `${scope}:${id}` }),
-    openFeedback: (id) => update({ fb: id }),
+  /* "התצוגה הקודמת": רק למורה אמיתי, ורק כשביקש אותה במפורש (כפתור במסך הכניסה) */
+  if (showPrevious) return <Legacy backTo="/analytics" />
+
+  /* בזמן טעינת תצורה חדשה (החלפת עדשה/מקצוע) לא מציגים מסך של העדשה הקודמת. אורח ממשיך לראות את הבורר (עם העדשה
+     שביקש), כדי שהוא לא יקפוץ ויחזור; ובמסך פנימי נתיב החזרה גלוי גם בזמן הטעינה. */
+  if (!cfg || loading) {
+    /* התצורה לא נטענה (אין חיבור / עומס / השרת עוד מרכז את התוצאות): מורה אמיתי נופל לתצוגה הקודמת עם הסבר ו"נסו שוב";
+       כל השאר מקבלים בלוק שגיאה. אין ניסיון חוזר אוטומטי — בקשה חדשה רק בלחיצה על "נסו שוב" */
+    if (error && configFailureView({ role, isGuest, status: error.status }) === 'legacy') {
+      return <Legacy notice={<ConfigFallbackNotice onRetry={reload} />} />
+    }
+    const pending = classMatch ? titles.classGeneric : studentMatch ? titles.studentGeneric : titles.entry
+    const requested: Lens = (GUEST_LENSES as readonly string[]).includes(lensParam ?? '') ? (lensParam as Lens) : lens
+    const staleGuest = !!cfg && cfg.availableLenses.length > 1
+    return (
+      <ScreenShell active="analytics" title={pending} breadcrumb={classMatch || studentMatch ? [{ label: L.analytics }] : undefined}
+        lensSwitcher={staleGuest ? <GuestLensSwitcher force value={{ lens: requested, subject: subjectParam ?? null }} onChange={(n) => goLens(n.lens, n.subject)} /> : undefined}>
+        {error ? <ErrorBlock error={error} onRetry={reload} /> : <LoadingBlock label={L.loading} />}
+      </ScreenShell>
+    )
   }
 
-  const shell = (children: React.ReactNode): React.ReactElement => (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <StudioTopBar active="analytics" />
-      <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 24px 32px', width: '100%', boxSizing: 'border-box' }}>
-        {children}
-      </div>
-    </div>
-  )
+  /* מתג כיבוי של האנליטיקה החדשה (או חשבון שאינו נתמך בה): מנהל-על מנהל את המערכת ב-/admin; כל השאר — המסך הקודם */
+  if (!cfg.enabled) return isSuperAdmin ? <Navigate to="/admin" replace /> : <Legacy />
 
-  if (loading && !cfg) return shell(<Loading />)
-  if (error || !cfg) return shell(<ErrorBox message={error ?? 'לא ניתן לטעון את האנליטיקה'} />)
+  const env: V2Env = {
+    cfg, lens, guest, subject, params, href,
+    goLens,
+    openBriefing: (scope, id) => setOverlay('brief', `${scope}:${id}`),
+    openFeedback: (id) => setOverlay('fb', id),
+    roster,
+    isHomeroomClass: (classId) => roster.data?.classes.find((c) => c.id === classId)?.isHomeroom === true,
+    canSeePreviousView: previousAllowed && !guest && lens !== 'admin',
+    summary: parseScopeId(sp.get('sum'), SUMMARY_SCOPES),
+    openSummary: (scope, id) => setOverlay('sum', `${scope}:${id}`),
+    closeSummary: () => setOverlay('sum', null),
+  }
 
-  const lens = cfg.lens ?? 'homeroom'
-  const guest = cfg.availableLenses.length > 1
-  const subject = (guest ? subjectParam : null) ?? cfg.subjects[0]?.code ?? 'math'
-  const params: V2Params = guest ? { lens, subject: lens === 'subject_teacher' ? subject : undefined } : {}
+  const brief = parseScopeId(sp.get('brief'), BRIEF_SCOPES)
+  const fb = sp.get('fb')
+  /* סיכום מילולי: מנהל/ת אינו מקבל סיכום על תלמיד/כיתה (אגרגטים בלבד); השם בכותרת מרשימת הכיתות */
+  const sum = env.summary && lens !== 'admin' ? { ...env.summary, ...summaryContextOf(roster.data, env.summary.scope, env.summary.id) } : null
 
-  return shell(
-    <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <h1 style={{ margin: 0, fontSize: 22, color: C.text }}>אנליטיקה — תמונת למידה</h1>
-        {cfg.dataNotice && <Chip tone="accent" title={cfg.dataNotice}>🎬 נתוני הדגמה</Chip>}
-        <div style={{ flex: 1 }} />
-        {guest && (
-          <div role="radiogroup" aria-label="בחירת עדשה" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {LENS_ORDER.filter((l) => cfg.availableLenses.includes(l)).map((l) => (
-              <button key={l} type="button" role="radio" aria-checked={lens === l} onClick={() => update({ lens: l, student: null, brief: null, fb: null })}
-                style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '7px 14px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${lens === l ? C.accent : C.border}`, background: lens === l ? 'var(--t20)' : 'transparent', color: lens === l ? C.accentBright : C.muted }}>
-                {LENS_LABEL[l]}
-              </button>
-            ))}
-            {lens === 'subject_teacher' && (
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: C.muted }}>
-                מקצוע:
-                <select value={subject} onChange={(e) => update({ subject: e.target.value, student: null })} aria-label="מקצוע המורה"
-                  style={{ fontFamily: 'var(--font-display)', fontSize: 13, padding: '6px 10px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'var(--t57)', color: C.text }}>
-                  {cfg.subjects.map((s) => <option key={s.code} value={s.code}>{s.nameHe}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
-        )}
-      </div>
-      {cfg.curriculumNotice && <Notice style={{ fontSize: 11.5 }}>{cfg.curriculumNotice}</Notice>}
-
-      {lens === 'homeroom' && <HomeroomView params={params} nav={nav} />}
-      {lens === 'subject_teacher' && <SubjectTeacherView params={params} nav={nav} subject={subject} classes={cfg.classes} />}
-      {lens === 'admin' && <AdminView params={params} />}
-
-      {brief && (() => {
-        const [scope, id] = brief.split(':')
-        return (scope === 'student' || scope === 'class') && id
-          ? <BriefingOverlay scope={scope} id={id} params={params} notice={cfg.dataNotice} onClose={() => update({ brief: null })} />
-          : null
-      })()}
-      {fb && <FeedbackOverlay studentId={fb} params={params} onClose={() => update({ fb: null })} />}
-    </>,
+  return (
+    <V2Context.Provider value={env}>
+      {classMatch?.params.classId
+        ? <ClassScreen classId={classMatch.params.classId} />
+        : studentMatch?.params.studentId
+          ? <StudentScreen studentId={studentMatch.params.studentId} />
+          : lens === 'admin' ? <AdminScreen /> : <EntryScreen />}
+      {brief && (
+        <BriefingOverlay scope={brief.scope} id={brief.id} params={params} notice={cfg.dataNotice} onClose={() => setOverlay('brief', null)} />
+      )}
+      {fb && <FeedbackOverlay studentId={fb} params={params} onClose={() => setOverlay('fb', null)} />}
+      {sum && <SummaryOverlay scope={sum.scope} id={sum.id} params={params} name={sum.name} subjectOnly={sum.subjectOnly} onClose={env.closeSummary} />}
+    </V2Context.Provider>
   )
 }

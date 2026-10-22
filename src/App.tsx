@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
 import CrystalDevGallery from './features/player/CrystalDevGallery'
@@ -25,9 +25,26 @@ const SuperAdmin = lazy(() => import('./features/superadmin'))
 const Management = lazy(() => import('./features/management'))
 const Students   = lazy(() => import('./features/management/Students'))
 const Analytics  = lazy(() => import('./features/analytics'))
+const Results    = lazy(() => import('./features/results'))
+const TeacherUiGallery = import.meta.env.DEV ? lazy(() => import('./features/teacherUi/DevGallery')) : null
+
+/* מסכי מורה (יושבים על טוקני הערכה, ברירת מחדל בהירה) — הטוען שלהם בצבעי הערכה כדי שלא יהבהב כהה לפני מסך בהיר */
+const TEACHER_PREFIXES = ['/creator', '/library', '/manage', '/analytics', '/results']
 
 /* טוען הולוגרפי — טבעת מסתובבת + ליבת זוהר פועמת, בצבעי הערכה */
 function Loader() {
+  const { pathname } = useLocation()
+  const teacher = TEACHER_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  if (teacher) {
+    return (
+      <div role="status" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--t-studio-bg)', fontFamily: 'var(--font-display)' }}>
+        <div style={{ position: 'relative', width: 64, height: 64 }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid var(--t26)', borderTopColor: 'var(--t15)', borderRightColor: 'var(--t14)', animation: 'holo-spin 0.9s linear infinite' }} />
+        </div>
+        <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--t6)' }}>טוען…</span>
+      </div>
+    )
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--holo-bg-deep)', fontFamily: 'var(--font-display)' }}>
       <div style={{ position: 'relative', width: 64, height: 64 }}>
@@ -69,11 +86,20 @@ export default function App() {
           <Route path="/admin"           element={<ProtectedRoute superAdminOnly><SuperAdmin /></ProtectedRoute>} />
           <Route path="/manage"          element={<ProtectedRoute><Management /></ProtectedRoute>} />
           <Route path="/manage/students" element={<ProtectedRoute><Students /></ProtectedRoute>} />
+          {/* תוצאות: רשימת שליחות → שליחה (כיתה) → תלמיד/ה. הקומפוננטה קוראת את הכתובת בעצמה */}
+          <Route path="/results"         element={<ProtectedRoute><Results /></ProtectedRoute>} />
+          <Route path="/results/:submissionId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+          <Route path="/results/:submissionId/student/:studentId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/analytics"       element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          {/* האנליטיקה החדשה מנתבת פנימית בין כיתה לתלמיד; הכתובות האלה מוכנות עבורה */}
+          <Route path="/analytics/class/:classId" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/analytics/student/:studentId" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/play/:questId"   element={<Player />} />
           {/* גלריית עיצוב לשקעי הקריסטלים — DEV בלבד */}
           {import.meta.env.DEV && <Route path="/dev/crystals" element={<CrystalDevGallery />} />}
           {import.meta.env.DEV && <Route path="/dev/memory" element={<MemoryDevHarness />} />}
+          {/* גלריית ערכת הממשק למסכי מורה (בהיר + כהה) — DEV בלבד */}
+          {import.meta.env.DEV && TeacherUiGallery && <Route path="/dev/teacher-ui" element={<TeacherUiGallery />} />}
           {/* עמוד סודי (לא מקושר): מצגת GESAwards 2026 */}
           <Route path="/ges2026" element={<SecretDeck />} />
           <Route path="/student"         element={<StudentHome />} />

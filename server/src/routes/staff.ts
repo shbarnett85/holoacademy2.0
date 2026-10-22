@@ -5,7 +5,8 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
-import { demoRoster, demoClasses } from '../lib/demoAnalytics.js'
+import { demoClassesV2, demoRosterV2 } from '../lib/analyticsV2/demoRoster.js'
+import { v2LinkFor } from '../lib/staffV2Link.js'
 import { hasIsActive, hasApprovalStatus, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasUserGender, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
 import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
@@ -347,8 +348,10 @@ staffRouter.post('/teacher-requests/:id/reject', async (req, res, next) => {
 
 staffRouter.get('/classes', async (req, res, next) => {
   try {
-    /* מצב הדגמה — הכיתה הווירטואלית בלבד */
-    if (isDemoGuest(req)) { res.json(demoClasses()); return }
+    /* האם קיים מסך אנליטיקה לכיתות האלה (v2Linked): ארגון הדגמה מקבל כיתות DB פיקטיביות שאינן בעולם ההדגמה של האנליטיקה — בלי קישור, כדי שלא ינווט ל-404 */
+    const link = await v2LinkFor(req)
+    /* מצב הדגמה — הכיתה הווירטואלית בלבד (אותה כיתה כמו ברוסטר ובאנליטיקה) */
+    if (isDemoGuest(req)) { res.json({ classes: demoClassesV2(req.staff!.userId).classes.map((c) => ({ ...c, ...link })) }); return }
     const withGrade = await hasGradeLabel()
     let query = supabaseAdmin.from('classes').select('*').order('name')
     if (isAdmin(req)) {
@@ -381,6 +384,7 @@ staffRouter.get('/classes', async (req, res, next) => {
         studentCount: studentCount.get(c.id) ?? 0,
         is_active: c.is_active !== false,
         is_fictitious: c.is_fictitious === true,
+        ...link,
       })),
     })
   } catch (err) {
@@ -612,8 +616,10 @@ staffRouter.post('/classes/:id/reactivate', async (req, res, next) => {
    מנהל → בית ספרו; מורה → כיתותיו. כולל קוד כיתה (url_code), PIN, מגדר ופעילות אחרונה. */
 staffRouter.get('/students', async (req, res, next) => {
   try {
-    /* מצב הדגמה — רוסטר התלמידים הווירטואליים בלבד */
-    if (isDemoGuest(req)) { res.json(demoRoster(new Date())); return }
+    /* האם קיים עמוד תלמיד/ה באנליטיקה לתלמידים האלה (v2Linked + הסיבה): ארגון הדגמה מקבל תלמידי DB פיקטיביים שאינם בעולם ההדגמה — בלי קישור, כדי שלא ינווט ל-404 */
+    const link = await v2LinkFor(req)
+    /* מצב הדגמה — תלמידי עולם ההדגמה של האנליטיקה (אותם מזהים, כדי שהמעבר לעמוד התלמיד/ה לא יחזיר 404) */
+    if (isDemoGuest(req)) { res.json({ ...demoRosterV2(new Date()), ...link }); return }
     const withGrade = await hasGradeLabel()
     const withGender = await hasUserGender()
     const withActive = await hasIsActive('users')
@@ -631,7 +637,7 @@ staffRouter.get('/students', async (req, res, next) => {
     const classes = (clsData ?? []) as unknown as { id: string; name: string; grade_label?: string | null; url_code: string }[]
     const classById = new Map(classes.map((c) => [c.id, c]))
     const classIds = classes.map((c) => c.id)
-    if (classIds.length === 0) { res.json({ students: [] }); return }
+    if (classIds.length === 0) { res.json({ students: [], ...link }); return }
 
     /* תלמידי הכיתות */
     const sCols = ['id', 'name', 'role', 'pin']
@@ -677,7 +683,7 @@ staffRouter.get('/students', async (req, res, next) => {
       students.forEach((s) => { s.lastActive = last.get(s.id) ?? null })
     }
 
-    res.json({ students })
+    res.json({ students, ...link })
   } catch (err) {
     next(err)
   }

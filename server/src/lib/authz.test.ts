@@ -1,9 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /* fake מינימלי של supabase: טבלאות כמערכים + select/eq/in/maybeSingle/insert */
 const h = vi.hoisted(() => {
   type Row = Record<string, unknown>
   const db: Record<string, Row[]> = {}
+  /* שליטה בבדיקות היומן: האם הטבלה קיימת, והאם ה-insert נכשל (מחזיר error) או זורק (תקלת רשת) */
+  const flags = { logTable: true, insertError: false, insertThrows: false }
   class Q {
     private filters: ((r: Row) => boolean)[] = []
     private one = false
@@ -18,20 +20,25 @@ const h = vi.hoisted(() => {
     then(ok?: any, bad?: any) {
       const tbl = db[this.t]
       if (!tbl) return Promise.resolve({ data: null, error: { message: 'no table' } }).then(ok, bad)
-      if (this.ins) { tbl.push(...this.ins); return Promise.resolve({ data: null, error: null }).then(ok, bad) }
+      if (this.ins) {
+        if (flags.insertThrows) return Promise.reject(new Error('network down')).then(ok, bad)
+        if (flags.insertError) return Promise.resolve({ data: null, error: { message: 'insert failed' } }).then(ok, bad)
+        tbl.push(...this.ins)
+        return Promise.resolve({ data: null, error: null }).then(ok, bad)
+      }
       const rows = tbl.filter((r) => this.filters.every((f) => f(r)))
       return Promise.resolve({ data: this.one ? (rows[0] ?? null) : rows, error: null }).then(ok, bad)
     }
   }
-  return { db, client: { from: (t: string) => new Q(t) } }
+  return { db, flags, client: { from: (t: string) => new Q(t) } }
 })
 
 vi.mock('./supabase.js', () => ({ supabaseAdmin: h.client, supabaseAnon: {} }))
-vi.mock('./activeColumn.js', () => ({ hasClassTeachers: async () => true, hasDataAccessLog: async () => true }))
+vi.mock('./activeColumn.js', () => ({ hasClassTeachers: async () => true, hasDataAccessLog: async () => h.flags.logTable }))
 
 import {
   MIN_CELL_SIZE, studentScope, questVisible, canPatchLevels, classAccess, assignmentVisible, belowMinCell,
-  loadViewer, logAccess, type Viewer, type TeachGrant,
+  loadViewer, logAccess, logAccessMany, canUseResults, canAssignToClass, submissionVisible, MSG_ACCESS_LOG_UNAVAILABLE, resetAccessLogDedup, type Viewer, type TeachGrant,
 } from './authz.js'
 import type { Request } from 'express'
 
@@ -203,5 +210,277 @@ describe('loadViewer — טעינת טווח הרשאות מ-class_teachers', ()
     await logAccess(v, { studentId: 'stu-1', scope: 'student_detail', endpoint: 'GET /student/:id' })
     expect(h.db.data_access_log).toHaveLength(1)
     expect(h.db.data_access_log[0]).toMatchObject({ viewer_id: 't-home', viewer_role: 'teacher', student_id: 'stu-1', scope: 'student_detail' })
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   מטריצת הרשאות של טאב "תוצאות": תפקיד × (רשימה / מסך הדמיה / מסך תלמיד)
+   · רשימה = השער canUseResults; מסך הדמיה = submissionVisible (שולח / יוצר / מחנך / מורה מקצוע בכיתה);
+   · מסך תלמיד = אותה גישה לשליחה + התלמיד חבר בכיתת השליחה (הספק מחזיר 404 אחרת).
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('מטריצת הרשאות: תוצאות', () => {
+  const OTHER = 'someone-else'
+  const SENDER_ID = 'u-sender'
+  const mathQuest = { subject_id: MATH, created_by: OTHER }
+  const histQuest = { subject_id: HIST, created_by: OTHER }
+  const unclassified = { subject_id: null, created_by: OTHER }
+
+  /* מורה ששלח (user_id של ההקצאה) אך אינו מחנך ולא מורה המקצוע: שיוך כללי לכיתה */
+  const sender = viewer('teacher', [grant(CLASS_A, { unspecified: true })], { userId: SENDER_ID })
+  /* מורה שיצר את ההדמיה (created_by) ושלח מורה אחר */
+  const creator = viewer('teacher', [grant(CLASS_A, { unspecified: true })], { userId: 'u-creator' })
+  const sameSubject = mathTeacher
+  const otherSubject = histTeacher
+  const unlinked = viewer('teacher', [grant(CLASS_B, { homeroom: true })], { userId: 'u-unlinked' })
+  /* גם אם הוא השולח/היוצר — בלי קישור לכיתה אין גישה */
+  const unlinkedSender = viewer('teacher', [grant(CLASS_B, { homeroom: true })], { userId: SENDER_ID })
+
+  type Case = readonly [string, Viewer, { subject_id: string | null; created_by: string | null }, string | null, boolean]
+  const cases: Case[] = [
+    ['מורה ששלח, בכיתה שלו, הדמיה במקצוע אחר', sender, histQuest, SENDER_ID, true],
+    ['מורה ששלח — אך לא הוא השולח (שולח אחר)', sender, histQuest, OTHER, false],
+    ['יוצר ההדמיה (לא השולח), בכיתה שלו', creator, { subject_id: HIST, created_by: 'u-creator' }, OTHER, true],
+    ['מחנך הכיתה — כל שליחה, גם "לא סווג"', homeroom, unclassified, OTHER, true],
+    ['מחנך הכיתה — שליחה של מורה אחר במקצוע אחר', homeroom, histQuest, OTHER, true],
+    ['מורה מקצוע (אותו מקצוע)', sameSubject, mathQuest, OTHER, true],
+    ['מורה מקצוע (מקצוע אחר)', otherSubject, mathQuest, OTHER, false],
+    ['מורה מקצוע — הדמיה "לא סווג" שלא שלח ולא יצר', sameSubject, unclassified, OTHER, false],
+    ['מורה שאינו מקושר לכיתה', unlinked, mathQuest, OTHER, false],
+    ['מורה שאינו מקושר לכיתה, גם כשהוא השולח', unlinkedSender, mathQuest, SENDER_ID, false],
+    ['מנהל', admin, mathQuest, OTHER, false],
+    ['מנהל עירוני', municipal, mathQuest, OTHER, false],
+    ['מנהל-על', superAdmin, unclassified, OTHER, true],
+  ]
+
+  describe('מסך הדמיה (submissionVisible)', () => {
+    it.each(cases)('%s', (_n, v, quest, senderId, allowed) => {
+      expect(submissionVisible(v, CLASS_A, quest, senderId)).toBe(allowed)
+    })
+  })
+
+  describe('מסך תלמיד: גישה לשליחה + התלמיד בכיתת השליחה', () => {
+    const studentView = (v: Viewer, quest: Case[2], senderId: string | null, studentClassIds: string[]) =>
+      studentClassIds.includes(CLASS_A) && submissionVisible(v, CLASS_A, quest, senderId)
+    it.each(cases)('%s', (_n, v, quest, senderId, allowed) => {
+      expect(studentView(v, quest, senderId, [CLASS_A])).toBe(allowed)
+    })
+    it('תלמיד מכיתה אחרת — נדחה לכל תפקיד, גם מחנך ומנהל-על', () => {
+      for (const v of [homeroom, sameSubject, sender, superAdmin]) expect(studentView(v, mathQuest, SENDER_ID, [CLASS_B])).toBe(false)
+    })
+  })
+
+  describe('רשימה (canUseResults)', () => {
+    it.each([
+      ['מורה ששלח', sender, true], ['יוצר', creator, true], ['מחנך', homeroom, true],
+      ['מורה מקצוע', sameSubject, true], ['מורה לא מקושר (הרשימה ריקה אצלו, אך השער פתוח)', unlinked, true],
+      ['מנהל', admin, false], ['מנהל עירוני', municipal, false], ['מנהל-על', superAdmin, true],
+    ] as const)('%s', (_n, v, allowed) => {
+      expect(canUseResults(v)).toBe(allowed)
+    })
+  })
+
+  it('מנהלים לעולם לא רואים שליחה, בכל כיתה ובכל מקצוע', () => {
+    for (const q of [mathQuest, histQuest, unclassified, { subject_id: MATH, created_by: admin.userId }]) {
+      for (const c of [CLASS_A, CLASS_B]) {
+        expect(submissionVisible(admin, c, q, admin.userId)).toBe(false)
+        expect(submissionVisible(municipal, c, q, municipal.userId)).toBe(false)
+      }
+    }
+  })
+})
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   הקצאת הדמיה לכיתה (POST /quests/:id/assign): מי רשאי לשלוח לכיתה
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('מטריצת הרשאות: הקצאה לכיתה (canAssignToClass)', () => {
+  const cls = { id: CLASS_A, school_id: SCHOOL }
+  const otherSchool = { id: CLASS_A, school_id: 'school-2' }
+  const noSchool = { id: CLASS_A, school_id: null }
+
+  it.each([
+    ['מחנך הכיתה', homeroom, cls, true],
+    ['מורה מקצוע בכיתה', mathTeacher, cls, true],
+    ['מורה עם שיוך כללי (בלי מקצוע)', legacyTeacher, cls, true],
+    ['מורה שאינו משויך לכיתה (גם אם יצר את ההדמיה)', outsider, cls, false],
+    ['מורה בלי שום שיוך', viewer('teacher'), cls, false],
+    ['מנהל של בית הספר של הכיתה', admin, cls, true],
+    ['מנהל עירוני של בית הספר של הכיתה', municipal, cls, true],
+    ['מנהל מבית ספר אחר', admin, otherSchool, false],
+    ['מנהל עירוני מארגון אחר', municipal, otherSchool, false],
+    ['מנהל מול כיתה בלי בית ספר', admin, noSchool, false],
+    ['מנהל-על — כל כיתה', superAdmin, otherSchool, true],
+  ] as const)('%s', (_n, v, c, allowed) => {
+    expect(canAssignToClass(v, c)).toBe(allowed)
+  })
+
+  it('מנהל בלי בית ספר (schoolId=null) לא מתאים לכיתה בלי בית ספר', () => {
+    expect(canAssignToClass(viewer('admin', [], { schoolId: null }), noSchool)).toBe(false)
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   יומן גישה: הכנסה מרוכזת; למנהל-על נכשל סגור בקריאת נתוני תלמיד, לאחרים best-effort
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('יומן גישה לתוצאות', () => {
+  const teacher = viewer('teacher', [grant(CLASS_A, { homeroom: true })])
+  const entries = ['s1', 's2', 's3'].map((id) => ({ studentId: id, scope: 'results_class', endpoint: 'GET /api/results/submission/:id' }))
+
+  beforeEach(() => {
+    h.db.data_access_log = []
+    h.flags.logTable = true
+    h.flags.insertError = false
+    h.flags.insertThrows = false
+  })
+
+  it('מסך הדמיה: שורה לכל תלמיד ברשימה, scope=results_class, עם התפקיד של הצופה', async () => {
+    await logAccessMany(teacher, entries, { studentLevel: true })
+    expect(h.db.data_access_log).toHaveLength(3)
+    expect(h.db.data_access_log.map((r) => r.student_id)).toEqual(['s1', 's2', 's3'])
+    expect(h.db.data_access_log.every((r) => r.scope === 'results_class' && r.viewer_id === teacher.userId && r.viewer_role === 'teacher')).toBe(true)
+  })
+
+  it('רשימה: שורה אחת בלי תלמיד (scope=results_list)', async () => {
+    await logAccess(teacher, { scope: 'results_list', endpoint: 'GET /api/results/submissions' })
+    expect(h.db.data_access_log).toEqual([{ viewer_id: teacher.userId, viewer_role: 'teacher', student_id: null, scope: 'results_list', endpoint: 'GET /api/results/submissions' }])
+  })
+
+  it('רשימה ריקה (כיתה בלי תלמידים): לא כותב כלום', async () => {
+    await logAccessMany(teacher, [], { studentLevel: true })
+    expect(h.db.data_access_log).toHaveLength(0)
+  })
+
+  it('הרבה תלמידים: ההכנסה מתחלקת לאצוות ואף שורה לא אובדת', async () => {
+    const many = Array.from({ length: 1234 }, (_, i) => ({ studentId: `s${i}`, scope: 'results_class', endpoint: 'e' }))
+    await logAccessMany(teacher, many, { studentLevel: true })
+    expect(h.db.data_access_log).toHaveLength(1234)
+  })
+
+  describe('כשלון בכתיבה ליומן', () => {
+    it.each([
+      ['מחזיר שגיאה', () => { h.flags.insertError = true }],
+      ['זורק (רשת)', () => { h.flags.insertThrows = true }],
+      ['הטבלה חסרה', () => { h.flags.logTable = false }],
+    ] as const)('מנהל-על + קריאת נתוני תלמיד (%s): נחסם 503 לפני שמחזירים נתונים', async (_n, breakIt) => {
+      breakIt()
+      await expect(logAccessMany(superAdmin, entries, { studentLevel: true })).rejects.toMatchObject({ status: 503, message: MSG_ACCESS_LOG_UNAVAILABLE })
+      await expect(logAccess(superAdmin, entries[0], { studentLevel: true })).rejects.toMatchObject({ status: 503 })
+    })
+
+    it.each([
+      ['מחזיר שגיאה', () => { h.flags.insertError = true }],
+      ['זורק (רשת)', () => { h.flags.insertThrows = true }],
+      ['הטבלה חסרה', () => { h.flags.logTable = false }],
+    ] as const)('מורה (%s): best-effort — לא נחסם', async (_n, breakIt) => {
+      breakIt()
+      await expect(logAccessMany(teacher, entries, { studentLevel: true })).resolves.toBeUndefined()
+      await expect(logAccess(teacher, entries[0], { studentLevel: true })).resolves.toBeUndefined()
+    })
+
+    it('מנהל-על בלי studentLevel (למשל רשימה): best-effort', async () => {
+      h.flags.insertError = true
+      await expect(logAccess(superAdmin, { scope: 'results_list', endpoint: 'e' })).resolves.toBeUndefined()
+    })
+
+    it('מנהל-על כשהיומן תקין: נרשם כרגיל', async () => {
+      await logAccessMany(superAdmin, entries, { studentLevel: true })
+      expect(h.db.data_access_log).toHaveLength(3)
+      expect(h.db.data_access_log[0]).toMatchObject({ viewer_role: 'super_admin' })
+    })
+  })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   יומן גישה לאנליטיקה v2: נכשל-סגור לכל התפקידים (אופציונלי) ודילוג על צפיות חוזרות בחלון קצר
+   ══════════════════════════════════════════════════════════════════════════════ */
+describe('יומן גישה: failClosed ו-dedup', () => {
+  const teacher = viewer('teacher', [grant(CLASS_A, { homeroom: true })])
+  const other = viewer('teacher', [grant(CLASS_A, { homeroom: true })], { userId: 'u-other' })
+  const one = (studentId: string, scope = 'analytics_v2_student') => ({ studentId, scope, endpoint: 'GET /api/analytics-v2/student/:id' })
+
+  beforeEach(() => {
+    h.db.data_access_log = []
+    h.flags.logTable = true
+    h.flags.insertError = false
+    h.flags.insertThrows = false
+    resetAccessLogDedup()
+  })
+
+  describe("failClosed: 'all' — נכשל סגור גם למורה, רק בקריאה ברמת תלמיד", () => {
+    it.each([
+      ['מחזיר שגיאה', () => { h.flags.insertError = true }],
+      ['זורק (רשת)', () => { h.flags.insertThrows = true }],
+      ['הטבלה חסרה', () => { h.flags.logTable = false }],
+    ] as const)('מורה (%s): נחסם 503 לפני שמחזירים נתונים', async (_n, breakIt) => {
+      breakIt()
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all' })).rejects.toMatchObject({ status: 503, message: MSG_ACCESS_LOG_UNAVAILABLE })
+      await expect(logAccess(admin, one('s1'), { studentLevel: true, failClosed: 'all' })).rejects.toMatchObject({ status: 503 })
+    })
+    it('בלי studentLevel — best-effort גם עם failClosed', async () => {
+      h.flags.insertError = true
+      await expect(logAccess(teacher, { scope: 'analytics_v2_admin', endpoint: 'e' }, { failClosed: 'all' })).resolves.toBeUndefined()
+    })
+    it("ברירת מחדל ו-'super': מורה best-effort (כמו בתוצאות), מנהל-על נכשל סגור", async () => {
+      h.flags.insertError = true
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true })).resolves.toBeUndefined()
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'super' })).resolves.toBeUndefined()
+      await expect(logAccessMany(superAdmin, [one('s1')], { studentLevel: true, failClosed: 'super' })).rejects.toMatchObject({ status: 503 })
+    })
+    it('יומן תקין: נרשם כרגיל', async () => {
+      await logAccessMany(teacher, [one('s1'), one('s2')], { studentLevel: true, failClosed: 'all' })
+      expect(h.db.data_access_log).toHaveLength(2)
+    })
+  })
+
+  describe('dedupMs — אותה צפייה (צופה × תלמיד × scope) נרשמת פעם אחת בחלון', () => {
+    const WINDOW = 10 * 60_000
+    let nowMs = 1_000_000
+    beforeEach(() => { nowMs = 1_000_000; vi.spyOn(Date, 'now').mockImplementation(() => nowMs) })
+    afterEach(() => vi.restoreAllMocks())
+
+    it('אותה צפייה בתוך החלון — לא נרשמת שוב; אחרי החלון — נרשמת', async () => {
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      nowMs += WINDOW - 1
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+      nowMs += 1
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(2)
+    })
+    it('מפתח הדילוג: צופה, תלמיד ו-scope — שינוי בכל אחד נרשם', async () => {
+      await logAccessMany(teacher, [one('s1')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s2')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s1', 'analytics_v2_feedback')], { dedupMs: WINDOW })
+      await logAccessMany(other, [one('s1')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(4)
+      await logAccessMany(other, [one('s1')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(4)
+    })
+    it('חלק מהאצווה כבר נרשם: נכתבות רק החדשות; כפילויות בתוך האצווה נכתבות פעם אחת', async () => {
+      await logAccessMany(teacher, [one('s1')], { dedupMs: WINDOW })
+      await logAccessMany(teacher, [one('s1'), one('s2'), one('s2'), one('s3')], { dedupMs: WINDOW })
+      expect(h.db.data_access_log.map((r) => r.student_id)).toEqual(['s1', 's2', 's3'])
+    })
+    it('כתיבה שנכשלה לא נחשבת "נרשמה": הניסיון הבא כותב', async () => {
+      h.flags.insertError = true
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(0)
+      h.flags.insertError = false
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+    })
+    it('נכשל-סגור לא מדלג: צפייה שלא נרשמה לא נחשבת כנרשמה', async () => {
+      h.flags.insertError = true
+      await expect(logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all', dedupMs: WINDOW })).rejects.toMatchObject({ status: 503 })
+      h.flags.insertError = false
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true, failClosed: 'all', dedupMs: WINDOW })
+      expect(h.db.data_access_log).toHaveLength(1)
+    })
+    it('בלי dedupMs — כל קריאה נרשמת (ההתנהגות הקודמת)', async () => {
+      await logAccessMany(teacher, [one('s1'), one('s1')], { studentLevel: true })
+      await logAccessMany(teacher, [one('s1')], { studentLevel: true })
+      expect(h.db.data_access_log).toHaveLength(3)
+    })
   })
 })

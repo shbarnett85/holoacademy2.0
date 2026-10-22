@@ -7,12 +7,14 @@
    · זה גלם בלבד: אחוזים, ממצאים, BH והטקסטים נגזרים ב-engine.ts וב-findingsNarrative.ts.
    ────────────────────────────────────────────────────────────────────────── */
 import { CLASS_IMPROVEMENT_WINDOW_DAYS, DEMO_WORLD } from '../../../../src/shared/lib/analyticsConfig.js'
-import { latestTermStart, type Term } from '../../../../src/shared/lib/findingsNarrative.js'
+import { latestTermStart } from '../../../../src/shared/lib/findingsNarrative.js'
+import type { ContentVectorKey } from '../../../../src/shared/lib/analyticsConfig.js'
 import type { SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import {
   DEMO_GRADES, ELECTIVE_SUBJECT, FIRST_FEMALE, FIRST_MALE, LAST_NAMES, MISCONCEPTIONS,
   MORPHOLOGY_KEY, SUBJECTS_BY_GRADE, conceptsOfSubject,
 } from './catalog.js'
+import { buildSchoolDays, type SchoolTerm } from './schoolCalendar.js'
 
 /* ── PRNG ── */
 function hash32(s: string): number {
@@ -35,7 +37,11 @@ const r1 = (v: number): number => Math.round(v * 10) / 10
 const smooth = (x: number): number => x * x * (3 - 2 * x)
 
 /* ── טיפוסים ── */
-export interface WorldClass { id: string; name: string; gradeLabel: string; grade: number; studentIds: string[] }
+export interface WorldClass {
+  id: string; name: string; gradeLabel: string; grade: number; studentIds: string[]
+  /* מקצועות הכיתה (למשל משיוכי מורים) גם בלי נתונים — אופציונלי; עולם ההדגמה אינו ממלא */
+  subjects?: SubjectCode[]
+}
 export interface WorldStudent {
   id: string; firstName: string; displayName: string; gender: 'male' | 'female'
   classId: string; grade: number; subjects: SubjectCode[]; cast: string | null
@@ -58,31 +64,25 @@ export interface StudentSubjectData { sessions: SessionRec[]; mc: McItem[]; memo
 export interface World {
   now: Date
   days: string[] /* ISO לכל יום-לימוד, אינדקס 0 = אחרון */
-  /* המחצית שלפיה נמדד "שיפור מאז תחילת המחצית": ב׳ כשחלפו בה מספיק ימי לימוד, אחרת א׳ */
-  term: { kind: Term; startIso: string; idx: number }
+  /* המחצית שלפיה נמדד "שיפור מאז תחילת המחצית". בהדגמה: ב׳ כשחלפו בה מספיק ימי לימוד, אחרת א׳ (pickTerm).
+     בעולם חי: null כשחלפו פחות מדי ימי לימוד במחצית (liveTerm) — אז אין מדידת שיפור כיתתי. */
+  term: SchoolTerm | null
   school: { id: string; name: string }
   classes: WorldClass[]
   students: WorldStudent[]
   data: Map<string, StudentSubjectData>
+  /* נתוני אמת (ספק חי). מפעיל בסיס-בדיקה 'level' למגמת רמה (הכיול 60/80 שומר הצלחה ~60–80%, ולכן הצלחה אינה מזהה שינוי).
+     חסר / false = עולם הדמו, ובו הבדיקה נשארת על ההצלחה. */
+  live?: boolean
 }
+/* עולם ההדגמה תמיד נושא מחצית */
+export type DemoWorld = World & { term: SchoolTerm }
 export const skey = (studentId: string, subject: SubjectCode): string => `${studentId}|${subject}`
 
-/* ── ימי לימוד ── */
-function buildSchoolDays(now: Date, count: number): string[] {
-  const out: string[] = []
-  let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 12)
-  while (out.length < count) {
-    const d = new Date(t)
-    const dow = d.getUTCDay()
-    const month = d.getUTCMonth()
-    if (dow <= 4 && month !== 6 && month !== 7) out.push(d.toISOString())
-    t -= 86400000
-  }
-  return out
-}
+/* ── ימי לימוד: buildSchoolDays ב-schoolCalendar.ts (משותף לעולם החי) ── */
 
 /* בחירת המחצית: ב׳ אם חלפו בה לפחות 2·חלון+10 ימי לימוד; אחרת א׳ (שמתחילה בספטמבר) */
-function pickTerm(now: Date, days: string[]): { kind: Term; startIso: string; idx: number } {
+function pickTerm(now: Date, days: string[]): SchoolTerm {
   const need = 2 * CLASS_IMPROVEMENT_WINDOW_DAYS + 10
   for (const kind of ['half_b', 'half_a'] as const) {
     const start = latestTermStart(kind, now)
@@ -120,16 +120,63 @@ interface SubjProfile {
   L0: number; slope: number; mods: LevelMod[]; sessions: number; succBase: number
   mcItems: number; bias: number; msPerWord: number; maxDay: number
   memGames: number; memAttention: number
+  /* מגמה כיתתית ברמות בלבד (לא נוגעת באחוזי ההצלחה, ולכן אינה משפיעה על ממצאי "שינוי ברמה") */
+  classTrend: number
 }
 
 const H = DEMO_WORLD.schoolDays
 const NORM_OF_GRADE = (g: number): number => g + 4
 
+/* ── אפקטים כיתתיים לתצוגת הדמו (רק לתלמידים שאינם בסגל התרחישים): הזזת רמת הכיתה במקצוע (level, ברמות)
+   ומגמה כיתתית בחודשים האחרונים (trend). נותנים לכיתות פרצופים שונים מול הטווח המיועד, בלי לגעת בהצלחה. ── */
+const CLASS_EFFECTS: Record<string, Partial<Record<SubjectCode, { level?: number; trend?: number }>>> = {
+  'c-v2': { math: { level: 1.8, trend: 0.8 }, history: { level: -1.9, trend: -1.6 }, science: { level: 0.5 }, english: { level: 0.4, trend: 0.8 } },
+  'c-v1': { math: { level: -0.6 }, history: { level: -2.7, trend: 0.8 }, hebrew: { level: 0.5 } },
+  'c-d1': { math: { level: -1.8, trend: -1.0 }, english: { level: 1.9 }, science: { level: 0.4 } },
+  'c-d2': { science: { level: 1.7, trend: 0.8 }, hebrew: { level: -0.5 }, bible: { level: 0.4 } },
+}
+
+/* ── תחומים (סוגי תוכן) חזקים/מאתגרים: הסטת רמות המושגים של תחום שלם. רכיב כיתתי (תחום חזק + תחום מאתגר לכל
+   כיתה×מקצוע) ורכיב אישי (לחלק מהתלמידים). קבוע בזמן, ולכן מתבטל בהפרש בין חלונות השיפור הכיתתי. ── */
+const AREA_STEP = 1.7
+const AREA_STEP_STUDENT = 1.3
+function areaOffsets(classId: string, studentId: string, subject: SubjectCode): Partial<Record<ContentVectorKey, number>> {
+  /* בעברית "הבנת מושגים" = מושג המורפולוגיה, שמודד תרחיש נפרד — לא מזיזים אותו */
+  const vectors = [...new Set(conceptsOfSubject(subject).map((c) => c.vector))].filter((v) => !(subject === 'hebrew' && v === 'concept_understanding'))
+  const out: Partial<Record<ContentVectorKey, number>> = {}
+  if (vectors.length < 2) return out
+  const shuffle = (label: string): ContentVectorKey[] => {
+    const r = rngFor(label)
+    return vectors.map((v) => ({ v, k: r() })).sort((x, y) => x.k - y.k).map((x) => x.v)
+  }
+  const cls = shuffle(`area-class:${classId}:${subject}`)
+  out[cls[0]] = (out[cls[0]] ?? 0) + AREA_STEP
+  out[cls[1]] = (out[cls[1]] ?? 0) - AREA_STEP
+  const r = rngFor(`area-student:${studentId}:${subject}`)
+  if (r() < 0.45) {
+    const v = vectors[Math.floor(r() * vectors.length)]
+    out[v] = (out[v] ?? 0) + (r() < 0.5 ? AREA_STEP_STUDENT : -AREA_STEP_STUDENT)
+  }
+  return out
+}
+
+/* מגמה אישית ברמות בלבד (חלק מהתלמידים עולים, חלק יורדים) — כדי שבדמו תהיה מגוון מגמות בלי ממצאי שינוי */
+function studentTrendOf(studentId: string, subject: SubjectCode): number {
+  const r = rngFor(`trend-student:${studentId}:${subject}`)
+  const x = r()
+  return x < 0.18 ? 0.9 + r() * 0.5 : x < 0.3 ? -(0.9 + r() * 0.5) : 0
+}
+
 function levelAt(p: SubjProfile, i: number): number {
   const u = 1 - i / (H - 1)
   let v = p.L0 + p.slope * u
   for (const m of p.mods) v += m.delta * smooth(clamp((m.startIdx - i) / m.ramp, 0, 1))
+  v += classTrendAt(p, i)
   return v
+}
+/* המגמה הכיתתית נכנסת לרמת המפגש בלבד — לא לרמות המושגים (אחרת היא יוצרת ממצאי שיפור כיתתי במושגים) */
+function classTrendAt(p: SubjProfile, i: number): number {
+  return p.classTrend * smooth(clamp((90 - i) / 60, 0, 1))
 }
 function modOffset(p: SubjProfile, i: number): number {
   let v = 0
@@ -167,7 +214,7 @@ function simulateMemory(a: number, rng: () => number): MemTurn[] {
 }
 
 /* ── בניית העולם ── */
-export function buildWorld(now: Date): World {
+export function buildWorld(now: Date): DemoWorld {
   const days = buildSchoolDays(now, H)
   const pickedTerm = pickTerm(now, days)
   const halfBIdx = pickedTerm.idx
@@ -224,7 +271,7 @@ export function buildWorld(now: Date): World {
   const morphIds = v2Students.filter((id) => id !== roiId)
   const gr = rngFor('morph-gains')
   const raw = morphIds.map(() => clamp(2.4 + 0.8 * gauss(gr), 0.8, 4.2))
-  let tenths = raw.map((x) => Math.round(x * 10))
+  const tenths = raw.map((x) => Math.round(x * 10))
   let diff = morphIds.length * 24 - tenths.reduce((s, x) => s + x, 0)
   for (let k = 0; diff !== 0; k = (k + 1) % tenths.length) { const step = diff > 0 ? 1 : -1; tenths[k] += step; diff -= step }
   const targetDelta = new Map(morphIds.map((id, k) => [id, tenths[k] / 10]))
@@ -244,13 +291,16 @@ export function buildWorld(now: Date): World {
       const rP = rngFor(`prof:${st.id}:${subject}`)
       const centre = NORM_OF_GRADE(st.grade)
       const prof: SubjProfile = {
-        L0: r1(centre + ability + gauss(rP) * 0.5 - 0.3), slope: 0.5 + gauss(rP) * 0.25, mods: [],
+        L0: r1(centre + ability + gauss(rP) * 0.5 - 0.3 + (CLASS_EFFECTS[st.classId]?.[subject]?.level ?? 0)), slope: 0.5 + gauss(rP) * 0.25, mods: [],
         sessions: 34 + Math.floor(rP() * 13), succBase: clamp(0.7 + ability * 0.03, 0.55, 0.85),
         mcItems: 14 + Math.floor(rP() * 15), bias: 0, msPerWord: baseMsPerWord, maxDay: H - 1,
         memGames: memHeavy && rP() < 0.5 ? 8 + Math.floor(rP() * 3) : Math.floor(rP() * 3), memAttention: clamp(0.76 + gauss(rP) * 0.07, 0.55, 0.9),
+        classTrend: st.cast ? 0 : (CLASS_EFFECTS[st.classId]?.[subject]?.trend ?? 0) + studentTrendOf(st.id, subject),
       }
       if (subject === ELECTIVE_SUBJECT) { prof.sessions = 26; prof.mcItems = 12 }
       const cast = st.cast
+      const areaOff = areaOffsets(st.classId, st.id, subject)
+      const areaOf = (c: { vector: ContentVectorKey }): number => areaOff[c.vector] ?? 0
       /* ── תרחישים ── */
       if (cast === 'alon' && subject === 'history') { prof.L0 = centre - 0.2; prof.slope = 1.9; prof.mods = [{ startIdx: 50, delta: -2.4, ramp: 12 }]; prof.sessions = 46 }
       if (cast === 'noa') {
@@ -312,7 +362,7 @@ export function buildWorld(now: Date): World {
         const succ = clamp(prof.succBase + 0.1 * modOffset(prof, i) + gauss(rSes) * 0.06, 0.15, 0.98)
         const conceptLevels: Record<string, number> = {}
         const pick = concepts.length ? [concepts[Math.floor(rSes() * concepts.length)], concepts[Math.floor(rSes() * concepts.length)]] : []
-        for (const c of pick) conceptLevels[c.key] = r1(clamp(lvl + gauss(rSes) * 0.25, 1, 20))
+        for (const c of pick) conceptLevels[c.key] = r1(clamp(lvl - classTrendAt(prof, i) + gauss(rSes) * 0.25 + areaOf(c), 1, 20))
         if (subject === 'hebrew') {
           if (isMorphClass) {
             const p = clamp((halfBIdx - i) / halfBIdx, 0, 1)
@@ -392,8 +442,8 @@ export function buildWorld(now: Date): World {
 function r1000(v: number): number { return Math.round(v * 1000) / 1000 }
 
 /* מטמון לפי יום (הנתונים זהים בכל יום; רק התאריכים זזים) */
-const CACHE = new Map<string, World>()
-export function getWorld(now: Date = new Date()): World {
+const CACHE = new Map<string, DemoWorld>()
+export function getWorld(now: Date = new Date()): DemoWorld {
   const key = now.toISOString().slice(0, 10)
   let w = CACHE.get(key)
   if (!w) {

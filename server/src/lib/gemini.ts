@@ -15,8 +15,9 @@ export function hasGeminiKey(): boolean {
 }
 
 /* ליבת הקריאה ל-Gemini: model + system אופציונלי + user → טקסט. retry על 429/5xx
-   (עד 3, backoff לינארי), 4xx → כשל מיידי. זורק בכשל (הקורא אחראי לנסיגה/כשל-סגור). */
-async function geminiCall(model: string, system: string | undefined, user: string, maxTokens: number, json = false): Promise<string> {
+   (עד 3, backoff לינארי), 4xx → כשל מיידי. זורק בכשל (הקורא אחראי לנסיגה/כשל-סגור).
+   signal (אופציונלי): מבטל את ה-fetch עצמו וחוסם ניסיונות נוספים — בלעדיו timeout של הקורא רק "מפסיק לחכות" והבקשה ממשיכה (ומחויבת) ברקע. */
+async function geminiCall(model: string, system: string | undefined, user: string, maxTokens: number, json = false, signal?: AbortSignal): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY חסר ב-env')
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
@@ -28,8 +29,10 @@ async function geminiCall(model: string, system: string | undefined, user: strin
   if (system) body.systemInstruction = { parts: [{ text: system }] }
   let lastErr = 'Gemini failed'
   for (let attempt = 0; attempt < 3; attempt++) {
+    signal?.throwIfAborted()
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt))
-    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    signal?.throwIfAborted()
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...(signal ? { signal } : {}) })
     if (res.ok) {
       const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
       return (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim()
@@ -41,8 +44,8 @@ async function geminiCall(model: string, system: string | undefined, user: strin
 }
 
 /* קריאת JSON (system+user) — ליצירה/ולידציה. תקציב פלט גדול (thinking של 2.5). */
-export async function callGeminiJSON(system: string, user: string, maxTokens = 32000): Promise<string> {
-  return geminiCall(CONTENT_MODEL, system, user, maxTokens, true)
+export async function callGeminiJSON(system: string, user: string, maxTokens = 32000, signal?: AbortSignal): Promise<string> {
+  return geminiCall(CONTENT_MODEL, system, user, maxTokens, true, signal)
 }
 
 /* קריאת בטיחות ייעודית: **thinking כבוי** (thinkingBudget=0 — סיווג לא צריך חשיבה, וה-thinking
