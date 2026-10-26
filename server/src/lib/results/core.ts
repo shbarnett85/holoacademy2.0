@@ -24,6 +24,7 @@ import type {
 import {
   ATTENTION_RULE, CLASS_SUMMARY_MIN_COMPLETED, COMMON_MISTAKE_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
 } from '../../../../src/shared/lib/analyticsConfig.js'
+import { lessonThumbUrl } from '../lessonThumb.js'
 import { slideWordCount, validLevel } from '../../../../src/shared/lib/answerTelemetry.js'
 import { compareToPeers, levelBandsOf, type PeerPlay } from '../../../../src/shared/lib/levelComparison.js'
 import {
@@ -205,12 +206,10 @@ export function slideIndexOf(gameData: unknown): Map<string, { order: number; ti
   return map
 }
 
-/* תמונת הפתיחה של ההדמיה — לכרטיס ברשימה */
+/* תמונת השיעור ברשימה — אותו מקור כמו כרטיס השיעור בספרייה וברשימת התלמיד (הסצנה השנייה, לא מעבדת הפתיחה).
+   הממוזערת השמורה נבחרת בשכבת ה-IO (lessonThumbStore); זה ה-fallback הטהור (כתובת המקור) */
 export function questThumbUrl(gameData: unknown): string | null {
-  const gd = gameData as GameDataLike | null
-  const scenes = scenesOf(gameData)
-  const entry = scenes.find((s) => s.id === gd?.entrySceneId) ?? scenes[0]
-  return typeof entry?.imageUrl === 'string' && entry.imageUrl ? entry.imageUrl : null
+  return lessonThumbUrl(gameData as never)
 }
 
 /* ── הגדרת האתגרים מתוך ההדמיה ── */

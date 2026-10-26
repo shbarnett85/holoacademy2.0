@@ -3,8 +3,9 @@ import { z } from 'zod'
 import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
-import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestSubjectId, hasQuestGrade } from '../lib/activeColumn.js'
-import { lessonThumbUrl } from '../lib/lessonThumb.js'
+import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestSubjectId, hasQuestGrade, hasQuestThumb } from '../lib/activeColumn.js'
+import { loadStoredThumbs, THUMB_COLUMNS, thumbsFor } from '../lib/lessonThumbStore.js'
+import { lessonGradeRange } from '../../../src/shared/lib/lessonGrade.js'
 import { subjectByCode, subjectByLegacyName, questSubjectOut, subjectFieldsOfQuest } from '../lib/subjects.js'
 
 /* ספרייה ציבורית — כל מורה במערכת רואה הדמיות משותפות, מעתיק אותן לעריכה, ומדווח. */
@@ -25,15 +26,16 @@ function puzzleTypes(gd: PublicGameData | null | undefined): string[] {
 libraryRouter.get('/', async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) { res.json({ quests: [] }); return }
-    const [withSubject, withSubjectId, withGrade] = await Promise.all([hasQuestSubject(), hasQuestSubjectId(), hasQuestGrade()])
+    const [withSubject, withSubjectId, withGrade, withThumb] = await Promise.all([hasQuestSubject(), hasQuestSubjectId(), hasQuestGrade(), hasQuestThumb()])
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : ''
     const subject = typeof req.query.subject === 'string' ? req.query.subject.trim() : ''
     const subjectCode = typeof req.query.subjectCode === 'string' ? req.query.subjectCode.trim() : ''
 
-    const cols = 'id, title, game_data, created_at, published_at, created_by, original_author_id'
+    const cols = 'id, title, game_data, created_at, published_at, created_by, original_author_id, difficulty_settings'
       + (withSubject ? ', subject' : '')
       + (withSubjectId ? ', subject_id' : '')
       + (withGrade ? ', grade_min, grade_max, is_official' : '')
+      + (withThumb ? ', ' + THUMB_COLUMNS : '')
     let query = supabaseAdmin.from('quests').select(cols).eq('is_public', true).order('published_at', { ascending: false })
     if (q) query = query.ilike('title', `%${q}%`)
     /* סינון לפי מקצוע: קוד (מועדף) או שם היסטורי — שניהם דרך subject_id */
@@ -47,8 +49,9 @@ libraryRouter.get('/', async (req, res, next) => {
     const { data, error } = await query
     if (error) throw new AppError(500, 'שגיאה בשליפת הספרייה: ' + error.message)
 
-    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
+    type Row = { id: string; title: string; game_data?: PublicGameData; created_at: string; published_at: string | null; created_by: string | null; original_author_id: string | null; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean; difficulty_settings?: unknown; thumb_url?: string | null; thumb_src?: string | null }
     const rows = (data ?? []) as unknown as Row[]
+    const thumbs = await thumbsFor(rows)
 
     /* שמות היוצרים המקוריים (לקרדיט) */
     const authorIds = [...new Set(rows.map((r) => r.original_author_id ?? r.created_by).filter((x): x is string => !!x))]
@@ -67,13 +70,12 @@ libraryRouter.get('/', async (req, res, next) => {
         subject: subj.subject,
         subjectCode: subj.subjectCode,
         sceneCount: r.game_data?.scenes?.length ?? 0,
-        thumbUrl: lessonThumbUrl(r.game_data as never),
+        thumbUrl: thumbs.get(r.id) ?? null,
         puzzleTypes: puzzleTypes(r.game_data),
         authorName: (authorId && names.get(authorId)) || 'מורה',
         publishedAt: r.published_at ?? r.created_at,
         /* מטא לפילטר השכבות + badge רשמי (null כשהמיגרציה טרם רצה) */
-        gradeMin: r.grade_min ?? null,
-        gradeMax: r.grade_max ?? null,
+        ...(lessonGradeRange(r) ?? { gradeMin: null, gradeMax: null }),
         isOfficial: r.is_official === true,
       }
     }))
@@ -103,6 +105,9 @@ libraryRouter.post('/:id/copy', async (req, res, next) => {
     }
     /* העותק יורש את מקצוע המקור (subject_id + הטקסט המסונכרן) */
     Object.assign(insert, (await subjectFieldsOfQuest(s.id)).fields)
+    /* אותן תמונות סצנה → אותה תמונה ממוזערת שמורה (לא יוצרים ומעלים שוב) */
+    const storedThumb = (await loadStoredThumbs([s.id])).get(s.id)
+    if (storedThumb?.url && storedThumb.src) Object.assign(insert, { thumb_url: storedThumb.url, thumb_src: storedThumb.src })
     const { data: created, error: insErr } = await supabaseAdmin.from('quests').insert(insert).select('id, title').single()
     if (insErr || !created) throw new AppError(500, 'שגיאה ביצירת העותק: ' + (insErr?.message ?? ''))
     res.status(201).json({ quest: created })

@@ -28,7 +28,8 @@ export default function HeadStrip({ head, mode, onMode, onDueChanged, liveTo }: 
   const { isGuest } = useStaffAuth()
   return (
     <section aria-label={UI.headLabel} data-head-strip style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px 20px', flexWrap: 'wrap', padding: '6px 14px' }}>
-      <Thumb url={head.thumbUrl} subjectCode={head.subject?.code ?? null} width={48} height={36} />
+      {/* תמונה קטנה: שם המקצוע כתוב לידה (SubjectBadge), ולכן בלי תגית נוספת על התמונה */}
+      <Thumb url={head.thumbUrl} subjectCode={head.subject?.code ?? null} width={72} height={48} tag="none" />
       {/* שם ההדמיה והפרטים בשורה אחת (גולשים לשנייה רק כשהשם ארוך) */}
       <div style={{ flex: '1 1 440px', minWidth: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 14px', fontFamily: FONT, fontSize: 16, color: T.textSoft }}>
         <h2 style={{ margin: 0, fontFamily: FONT, fontSize: 20, fontWeight: 800, color: T.text, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{head.title}</h2>

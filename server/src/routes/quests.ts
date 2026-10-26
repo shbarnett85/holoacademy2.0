@@ -24,7 +24,7 @@ import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAcc
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasQuestSubjectId, hasPublicQuests, hasQuestVariants, hasQuestGrade, hasAssignmentDueAt, isSchemaMissingError } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasQuestSubjectId, hasPublicQuests, hasQuestVariants, hasQuestGrade, hasQuestThumb, hasAssignmentDueAt, isSchemaMissingError } from '../lib/activeColumn.js'
 import { loadViewer, canAssignToClass } from '../lib/authz.js'
 import { loadReviewBasis } from '../lib/results/realResults.js'
 import { REVIEW_MIN_COMPLETED } from '../../../src/shared/lib/analyticsConfig.js'
@@ -47,7 +47,8 @@ import { weakConceptsFromReview, reviewContextBlock } from '../lib/weakConcepts.
 import { groundCurriculum } from '../lib/factBrief.js'
 import { callGeminiText, callGeminiJSON } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
-import { lessonThumbUrl } from '../lib/lessonThumb.js'
+import { THUMB_COLUMNS, thumbsFor } from '../lib/lessonThumbStore.js'
+import { lessonGradeRange } from '../../../src/shared/lib/lessonGrade.js'
 import { dueAtFromDay, defaultDueAt } from '../../../src/shared/lib/lessonState.js'
 import { ERR_DUE_INVALID, ERR_DUE_PAST } from '../../../src/shared/lib/findingsNarrative.js'
 
@@ -103,8 +104,8 @@ async function recoverMissingQuestions(raw: unknown, warnings: string[]): Promis
 /* GET /api/quests — ספריית ההדמיות של הצוות. מורה רואה רק את שלו; מנהל רואה את בית הספר שלו. */
 questsRouter.get('/', requireCreator, async (req, res, next) => {
   try {
-    const [pub, subj, subjId] = await Promise.all([hasPublicQuests(), hasQuestSubject(), hasQuestSubjectId()])
-    const cols = 'id, title, game_data, status, created_at' + (pub ? ', is_public' : '') + (subj ? ', subject' : '') + (subjId ? ', subject_id' : '')
+    const [pub, subj, subjId, withGrade, withThumb] = await Promise.all([hasPublicQuests(), hasQuestSubject(), hasQuestSubjectId(), hasQuestGrade(), hasQuestThumb()])
+    const cols = 'id, title, game_data, status, created_at, difficulty_settings' + (pub ? ', is_public' : '') + (subj ? ', subject' : '') + (subjId ? ', subject_id' : '') + (withGrade ? ', grade_min, grade_max' : '') + (withThumb ? ', ' + THUMB_COLUMNS : '')
     let query = supabaseAdmin
       .from('quests')
       .select(cols)
@@ -128,7 +129,9 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
 
     if (error) throw new AppError(500, 'שגיאה בשליפת שיעורים: ' + error.message)
 
-    const rows = (data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null; subject_id?: string | null }[]
+    const rows = (data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null; subject_id?: string | null; difficulty_settings?: unknown; grade_min?: number | null; grade_max?: number | null }[]
+    /* תמונות ממוזערות שמורות (נוצרות ברקע לשיעור שעוד אין לו) */
+    const thumbs = await thumbsFor(rows)
     const quests = await Promise.all(rows.map(async (q) => ({
       id: q.id,
       title: q.title,
@@ -137,8 +140,10 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       is_public: pub ? q.is_public === true : false,
       is_review: !!q.game_data?.reviewOf,
       sceneCount: q.game_data?.scenes?.length ?? 0,
-      /* תמונת השיעור ברשימה — אותו רכיב (LessonThumb) כמו ברשימת התלמיד */
-      thumbUrl: lessonThumbUrl(q.game_data as never),
+      /* תמונת השיעור ברשימה — הממוזערת השמורה; אותו כרטיס (LessonCard) כמו ברשימת התלמיד */
+      thumbUrl: thumbs.get(q.id) ?? null,
+      /* תגית השכבות בכרטיס */
+      ...(lessonGradeRange(q) ?? { gradeMin: null, gradeMax: null }),
       /* כלל "אורך טקסט לתלמיד": כמה סצנות ארוכות מדי למסך אחד (לפי fitsScreen המכוילת; למורה בלבד) */
       longSceneCount: q.game_data?.scenes ? analyzeQuest({ scenes: q.game_data.scenes as never }, bandOfGameData(q.game_data as { readingScale?: number })).long : 0,
       /* subject = שם לתצוגה; subjectCode = המזהה היציב; שניהם null = "לא סווג" */
@@ -186,7 +191,8 @@ questsRouter.get('/showcase', async (_req, res, next) => {
     const withGrade = await hasQuestGrade()
     const withSubject = await hasQuestSubject()
     const withSubjectId = await hasQuestSubjectId()
-    const cols = `id, title, game_data, created_at${withSubject ? ', subject' : ''}${withSubjectId ? ', subject_id' : ''}${withGrade ? ', grade_min, grade_max, is_official' : ''}`
+    const withThumb = await hasQuestThumb()
+    const cols = `id, title, game_data, created_at${withSubject ? ', subject' : ''}${withSubjectId ? ', subject_id' : ''}${withGrade ? ', grade_min, grade_max, is_official' : ''}${withThumb ? ', ' + THUMB_COLUMNS : ''}`
     const { data, error } = await supabaseAdmin
       .from('quests')
       .select(cols)
@@ -194,13 +200,14 @@ questsRouter.get('/showcase', async (_req, res, next) => {
       .order('created_at', { ascending: true })
       .limit(40)
     if (error) throw new AppError(500, error.message)
-    interface Row { id: string; title: string; game_data: unknown; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean }
+    interface Row { id: string; title: string; game_data: unknown; subject?: string | null; subject_id?: string | null; grade_min?: number | null; grade_max?: number | null; is_official?: boolean; thumb_url?: string | null; thumb_src?: string | null }
     const rows = (data ?? []) as unknown as Row[]
     const subjectOf = new Map<string, string | null>()
     for (const r of rows) subjectOf.set(r.id, (await questSubjectOut({ subject: withSubject ? r.subject : undefined, subject_id: withSubjectId ? (r.subject_id ?? null) : undefined })).subject)
     /* רשמיות קודם; אם אין עמודת is_official/אין רשמיות — כל הציבוריות */
     const officials = withGrade ? rows.filter((r) => r.is_official) : []
     const pool = officials.length > 0 ? officials : rows
+    const showcaseThumbs = await thumbsFor(pool)
     const mapped = pool.map((r) => {
       const gd = r.game_data as { scenes?: { id: string; imageUrl?: string }[]; entrySceneId?: string } | null
       const scenes = gd?.scenes ?? []
@@ -212,7 +219,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
         gradeMin: r.grade_min ?? null,
         gradeMax: r.grade_max ?? null,
         sceneCount: scenes.length,
-        thumbUrl: lessonThumbUrl(gd),
+        thumbUrl: showcaseThumbs.get(r.id) ?? null,
       }
     }).filter((q) => q.sceneCount > 0)
     /* גיוון מקצועות במדף: קודם החדשה-ביותר מכל מקצוע (כל מורה רואה את המקצוע שלו),

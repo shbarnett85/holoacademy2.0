@@ -26,7 +26,7 @@ vi.mock('../middleware/studentAuth.js', () => ({
 }))
 vi.mock('../lib/activeColumn.js', async (orig) => {
   const m = await orig<Record<string, unknown>>()
-  return { ...m, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true }
+  return { ...m, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true, hasQuestGrade: async () => true, hasQuestThumb: async () => true }
 })
 vi.mock('../lib/subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),
@@ -59,8 +59,8 @@ beforeEach(() => {
     { quest_id: 'q-2', class_id: 'c-1', created_at: '2026-10-10T08:00:00Z', due_at: null },
   ]
   h.db.quests = [
-    { id: 'q-1', title: 'מסע המים', game_data: GAME, art_style: 'storybook', created_by: 't-1', subject: 'מדעים', subject_id: 'sid-sci' },
-    { id: 'q-2', title: 'בלי מקצוע', game_data: { scenes: [{ id: 'x' }] }, art_style: 'anime', created_by: 't-1', subject: null, subject_id: null },
+    { id: 'q-1', title: 'מסע המים', game_data: GAME, art_style: 'storybook', created_by: 't-1', subject: 'מדעים', subject_id: 'sid-sci', difficulty_settings: { writingLevel: 11 }, grade_min: null, grade_max: null, thumb_url: null, thumb_src: null },
+    { id: 'q-2', title: 'בלי מקצוע', game_data: { scenes: [{ id: 'x' }] }, art_style: 'anime', created_by: 't-1', subject: null, subject_id: null, difficulty_settings: {}, thumb_url: null, thumb_src: null },
   ]
   h.db.users = [{ id: 't-1', name: 'המורה רון' }]
   h.db.sessions = []
@@ -76,6 +76,22 @@ describe('שיעורים של התלמיד: מקצוע, תמונה, מועד ו�
     const { quests } = await get()
     expect(byId(quests, 'q-1')).toMatchObject({ subject: 'מדעים', subjectCode: 'science', thumbUrl: 'world.png', entryImageUrl: 'lab.png' })
     expect(byId(quests, 'q-2')).toMatchObject({ subject: null, subjectCode: null, thumbUrl: null })
+  })
+
+  it('תמונה ממוזערת שמורה מהמקור הנוכחי מחליפה את תמונת הסצנה; מקור שהתחלף — חוזרים לכתובת המקור', async () => {
+    now('2026-10-12T10:00:00Z')
+    h.db.quests[0] = { ...h.db.quests[0], thumb_url: 'https://res.cloudinary.com/x/holo-thumbs/q-1.jpg', thumb_src: 'world.png' }
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ thumbUrl: 'https://res.cloudinary.com/x/holo-thumbs/q-1.jpg' })
+    h.db.quests[0] = { ...h.db.quests[0], thumb_src: 'old-scene.png' }
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ thumbUrl: 'world.png' })
+  })
+
+  it('שכבות השיעור לתגית: מטא שכבות אם יש; אחרת שכבת היעד מהיצירה (רמת כתיבה פחות 4); בלי נתון — null', async () => {
+    now('2026-10-12T10:00:00Z')
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ gradeMin: 7, gradeMax: 7 })
+    expect(byId((await get()).quests, 'q-2')).toMatchObject({ gradeMin: null, gradeMax: null })
+    h.db.quests[0] = { ...h.db.quests[0], grade_min: 5, grade_max: 6 }
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ gradeMin: 5, gradeMax: 6 })
   })
 
   it('dueAt של ההקצאה האחרונה; state open לפני המועד, ended אחריו; בלי מועד — open', async () => {

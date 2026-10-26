@@ -6,6 +6,7 @@ import { callGeminiText } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
 import { generateImage, styledPrompt, HISTORICAL_NEGATIVE } from '../lib/together.js'
 import { uploadBase64Image } from '../lib/storage.js'
+import { refreshQuestThumb } from '../lib/lessonThumbStore.js'
 import { AppError } from '../middleware/errors.js'
 import { DR_HOLO_PLACEHOLDER, drHoloWithExpression } from '../prompts/constants.js'
 import { requireCreator, ensureQuestAccess } from '../lib/creatorAccess.js'
@@ -204,6 +205,8 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
     /* מיזוג אל game_data טרי — לא דורסים עריכות/בדיקת-עובדות שנכתבו בזמן היצירה */
     const updateErr = await saveImageUrlsFresh(quest.id, [{ sceneId, kind, url: imageUrl }])
     if (updateErr) throw new AppError(500, updateErr)
+    /* תמונת הסצנה התחלפה — התמונה הממוזערת של השיעור (אם זו תמונת הכרטיס) נוצרת מחדש ברקע */
+    if (kind === 'scene') void refreshQuestThumb(quest.id)
 
     res.json({ sceneId, kind, imageUrl })
   } catch (err) {
@@ -340,6 +343,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
        בדיקת-העובדות ברקע, עריכות מורה) */
     const saveErr = await saveImageUrlsFresh(quest.id, produced)
     if (saveErr) warnings.push(saveErr)
+    else void refreshQuestThumb(quest.id) /* התמונה הממוזערת של הכרטיס — ברקע, לא חוסמת את סיום ה-SSE */
 
     send({ done: true, completed, total, warnings })
     res.end()

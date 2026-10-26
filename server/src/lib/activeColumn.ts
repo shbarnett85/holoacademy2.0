@@ -190,6 +190,10 @@ export async function hasQuestVariants(): Promise<boolean> {
 export async function hasQuestGrade(): Promise<boolean> {
   return check('__quest_grade', () => supabaseAdmin.from('quests').select('grade_min').limit(1))
 }
+/* תמונה ממוזערת שמורה לשיעור (migrations/quest_thumbs.sql) */
+export async function hasQuestThumb(): Promise<boolean> {
+  return check('__quest_thumb', () => supabaseAdmin.from('quests').select('thumb_url, thumb_src').limit(1))
+}
 
 /* ── תוצאות (טאב "תוצאות"): טבלאות הפירוט — עמידות אם המיגרציה טרם הורצה ── */
 export async function hasAnswersTable(): Promise<boolean> {

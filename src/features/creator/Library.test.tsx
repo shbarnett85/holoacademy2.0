@@ -2,11 +2,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { LIBRARY_ASSIGN_TEXT } from '../../shared/lib/findingsNarrative'
-import { SUBJECTS } from '../../shared/lib/subjects'
+import { SUBJECTS, SUBJECT_VISUAL } from '../../shared/lib/subjects'
 
 vi.mock('./StudioTopBar', () => ({ default: () => null }))
 
-import { MineToolbar, SubjectAssign } from './Library'
+import { MineToolbar, PublicCard, QuestCard, SubjectAssign } from './Library'
 
 /* זרימת שיוך המקצוע בספרייה: רכיבים שמרנדרים בלי רשת. בודקים מה כתוב על המסך ואיך (מילים, גדלים), לא איך הוא נראה. */
 const render = (el: React.ReactElement): string => renderToStaticMarkup(<MemoryRouter>{el}</MemoryRouter>)
@@ -82,10 +82,12 @@ describe('פקד שיוך המקצוע בכרטיס שיעור', () => {
   const html = render(<SubjectAssign busy={false} onAssign={NOOP} />)
   const select = /<select\b[^>]*>/.exec(html)?.[0] ?? ''
 
-  it('תווית "מקצוע" גלויה, שדה שנבחר ממנה (label עוטף), ואפשרות ראשונה שמבקשת לבחור', () => {
+  it('כפתור אחד "שיוך למקצוע": הטקסט הגלוי הוא שם הפעולה, ובחירת מקצוע שומרת מיד (אין כפתור שמירה נוסף)', () => {
     expect(text(html).startsWith(LIBRARY_ASSIGN_TEXT.selectLabel)).toBe(true)
-    expect(html).toMatch(/^<label\b/)
+    expect(LIBRARY_ASSIGN_TEXT.selectPlaceholder).toBe('שיוך למקצוע')
+    expect(select).toContain(`aria-label="${LIBRARY_ASSIGN_TEXT.selectLabel}"`)
     expect(html).toMatch(new RegExp(`<option value=""[^>]*>${LIBRARY_ASSIGN_TEXT.selectPlaceholder}</option>`))
+    expect(buttons(html)).toHaveLength(0)
   })
 
   it('גופן 16px ויעד 44px לפחות (לא 11px), ומסגרת רגילה — לא מקווקוות ולא עמומה', () => {
@@ -93,7 +95,6 @@ describe('פקד שיוך המקצוע בכרטיס שיעור', () => {
     expect(select).toContain('font-size:16px')
     expect(select).not.toMatch(/dashed|font-size:1[0-5]px/)
     expect(select).toMatch(/border:2px solid var\(--t\d+\)/)
-    expect(html).toMatch(/^<label[^>]*font-size:16px/)
   })
 
   it('כל המקצועות ברשימה (בסדר הקבוע), והפקד מושבת בזמן שמירה', () => {
@@ -116,5 +117,74 @@ describe('גדלים בהודעות ובצ׳יפים', () => {
     }
     const sizes = [...html.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => parseFloat(m[1]))
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(16)
+  })
+})
+
+/* ───────── כרטיסי שיעור בספרייה: אותו רכיב (LessonCard) כמו אצל התלמיד ─────────
+   רינדור בצד שרת (בלי חלון): useTheme מחזיר "כהה", ולכן הצבעים הם הווריאנט הכהה של המקצוע; הבהיר נבדק ב-subjects.test.ts. */
+describe('כרטיס שיעור בספרייה שלי', () => {
+  const base = { id: 'q1', title: 'המהפכה הצרפתית', created_at: '2026-10-01T09:00:00Z', is_published: true, is_public: false, sceneCount: 6, subject: 'היסטוריה', subjectCode: 'history', thumbUrl: 'https://img.example/holo-thumbs/q1.jpg', gradeMin: 8, gradeMax: 9 }
+  const card = (over: Record<string, unknown> = {}, props: Record<string, unknown> = {}): string =>
+    render(<QuestCard q={{ ...base, ...over }} busy={false} isGuest={false} shareBlocked={false} onShareBlocked={NOOP} onOpen={NOOP} onPlay={NOOP}
+      onShare={NOOP} onUnshare={NOOP} onDelete={NOOP} onAssignSubject={NOOP} {...props} />)
+  const labels = (html: string): string[] => buttons(html).map(text)
+
+  it('תמונה, כותרת, תגית מקצוע (השם על הצבע) ותגית שכבות — ואין סמל מקצוע נפרד', () => {
+    const html = card()
+    expect(html).toContain('data-lesson-card')
+    expect(html).toMatch(/<img[^>]*src="https:\/\/img\.example\/holo-thumbs\/q1\.jpg"[^>]*loading="lazy"/)
+    expect(text(html)).toContain('המהפכה הצרפתית')
+    expect(html).toMatch(/data-subject-tag="history"[^>]*>[\s\S]*?היסטוריה/)
+    expect(html).toMatch(/data-grade-tag[^>]*>שכבות ח׳–ט׳</)
+    expect(html).not.toContain(SUBJECT_VISUAL.history.glyph)
+  })
+
+  it('מסגרת הכרטיס בצבע המקצוע', () => {
+    expect(card()).toContain(`border:3px solid ${SUBJECT_VISUAL.history.dark}`)
+    expect(card({ subject: 'מתמטיקה', subjectCode: 'math' })).toContain(`border:3px solid ${SUBJECT_VISUAL.math.dark}`)
+  })
+
+  it('אותן פעולות מורה בדיוק — מחק · שתף · ערוך · הפעל (והסר מהספרייה רק לשיעור משותף); בלי "שחקו"', () => {
+    const own = labels(card())
+    expect(own).toEqual(['מחק 🗑️', 'שתף', 'ערוך', 'הפעל ▶'])
+    expect(labels(card({ is_public: true }))).toEqual(['הסר מהספרייה', 'מחק 🗑️', 'שתף', 'ערוך', 'הפעל ▶'])
+    expect(own.join(' ')).not.toContain('שחקו')
+  })
+
+  it('"לא סווג": מסגרת אפורה, תגית "לא סווג" וכפתור "שיוך למקצוע" אחד', () => {
+    const html = card({ subject: null, subjectCode: null })
+    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.unclassified.dark}`)
+    expect(html).toMatch(/data-subject-tag="unclassified"[^>]*>[\s\S]*?לא סווג/)
+    expect(html.match(/data-subject-assign/g)).toHaveLength(1)
+    expect(html).toContain(`aria-label="${LIBRARY_ASSIGN_TEXT.selectLabel}"`)
+    /* שיעור שכבר משויך — אין פקד שיוך */
+    expect(card()).not.toContain('data-subject-assign')
+  })
+
+  it('שיעור בלי תמונה: משטח בצבע המקצוע ועליו שם המקצוע (בלי תגית כפולה)', () => {
+    const html = card({ thumbUrl: null })
+    expect(html).not.toContain('<img')
+    expect(html).toMatch(new RegExp(`data-has-image="false"[^>]*background:${SUBJECT_VISUAL.history.dark}`))
+    expect(html).toMatch(/data-thumb-name[^>]*>היסטוריה</)
+    expect(html).not.toContain('data-subject-tag')
+  })
+
+  it('אין תגית שכבות כשלשיעור אין טווח שכבות', () => {
+    expect(card({ gradeMin: null, gradeMax: null })).not.toContain('data-grade-tag')
+  })
+})
+
+describe('כרטיס בספרייה הציבורית', () => {
+  const pub = { id: 'p1', title: 'מסע טיפת המים', subject: 'מדעים', subjectCode: 'science', thumbUrl: 'https://img.example/holo-thumbs/p1.jpg', sceneCount: 7, puzzleTypes: ['multipleChoice', 'memory'], authorName: 'דנה', publishedAt: '2026-10-01', gradeMin: 5, gradeMax: 6, isOfficial: true }
+  const html = render(<PublicCard q={pub} busy={false} onCopy={NOOP} onReport={NOOP} />)
+
+  it('אותו כרטיס: תמונה, כותרת, תגית מקצוע ותגית שכבות, ובמקום "שחקו" — הפעולות הקיימות (דווח · השתמש)', () => {
+    expect(html).toContain('data-lesson-card')
+    expect(html).toMatch(/data-subject-tag="science"[^>]*>[\s\S]*?מדעים/)
+    expect(html).toMatch(/data-grade-tag[^>]*>שכבות ה׳–ו׳</)
+    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.science.dark}`)
+    expect(buttons(html).map(text)).toEqual(['דווח 🚩', 'השתמש (העתק אליי) 📥'])
+    expect(text(html)).toContain('נוצר במקור על ידי דנה')
+    expect(text(html)).toContain('✓ רשמי')
   })
 })

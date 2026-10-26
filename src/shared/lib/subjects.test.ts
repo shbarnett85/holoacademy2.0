@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_FRAME_CONTRAST, SUBJECTS, SUBJECT_SURFACES, SUBJECT_VISUAL, UNCLASSIFIED_CODE, subjectVisual } from './subjects'
+import { MIN_FRAME_CONTRAST, SUBJECTS, SUBJECT_SURFACES, SUBJECT_VISUAL, UNCLASSIFIED_CODE, subjectTagColors, subjectVisual } from './subjects'
 import { subjectStyle } from './subjectStyle'
 
 /* WCAG 2.x — יחס ניגודיות בין שני צבעי hex */
@@ -71,5 +71,29 @@ describe('subjectVisual / subjectStyle', () => {
     expect(s.color).toBe(SUBJECT_VISUAL.science.dark)
     expect(s.icon).toBe(SUBJECT_VISUAL.science.glyph)
     expect(s.label).toBe('מדעים')
+  })
+})
+
+describe('תגית מקצוע — שם המקצוע על הצבע', () => {
+  it('הטקסט על התגית עומד ב-AA (4.5:1 לפחות) לכל 16 הצבעים בשני הווריאנטים', () => {
+    for (const code of ALL) {
+      for (const mode of ['light', 'dark'] as const) {
+        const t = subjectTagColors(code, mode)
+        expect(t.bg, `${code} ${mode}`).toBe(SUBJECT_VISUAL[code][mode])
+        expect(contrast(t.bg, t.fg), `${code} ${mode}: ${t.fg} על ${t.bg}`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
+  it('התווית היא שם המקצוע; "לא סווג" אפור עם המילים "לא סווג"', () => {
+    expect(subjectTagColors('history').label).toBe('היסטוריה')
+    expect(subjectTagColors('pe').label).toBe('חינוך גופני')
+    expect(subjectTagColors(null).label).toBe('לא סווג')
+    expect(subjectTagColors('nope').code).toBe(UNCLASSIFIED_CODE)
+    expect(subjectTagColors(null, 'light').bg).toBe(SUBJECT_VISUAL.unclassified.light)
+  })
+
+  it('כל שמות המקצועות נכנסים בתגית בלי להתחלק (נקראים בשורה אחת)', () => {
+    for (const s of SUBJECTS) expect(s.nameHe.length).toBeLessThanOrEqual(12)
   })
 })

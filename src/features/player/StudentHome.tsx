@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { useSoundSettings } from '../../shared/lib/sound'
-import LessonThumb from '../../shared/ui/LessonThumb'
+import LessonCard from '../../shared/ui/LessonCard'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
-import { subjectVisual } from '../../shared/lib/subjects'
 
 
 type SortKey = 'newest' | 'oldest' | 'alpha' | 'alpha-desc' | 'score-high' | 'score-low'
@@ -23,6 +22,9 @@ interface AssignedQuest {
   entryImageUrl?: string | null
   /* תמונת השיעור (הסצנה השנייה); entryImageUrl נשאר לתאימות */
   thumbUrl?: string | null
+  /* שכבות השיעור (1–12, א׳=1) — תגית השכבות בכרטיס */
+  gradeMin?: number | null
+  gradeMax?: number | null
   /* מועד ההגשה (ISO) ומצב מפונקציית המצב היחידה בשרת; late = ההשלמה הראשונה הייתה אחרי המועד */
   dueAt?: string | null
   state?: 'active_now' | 'open' | 'ended'
@@ -50,113 +52,60 @@ function CrystalRow({ crystals, max = 5 }: { crystals: number; max?: number }) {
   )
 }
 
-/* ── כרטיס הדמיה ── */
+/* ── כרטיס שיעור — הרכיב המשותף (shared/ui/LessonCard): תמונה, כותרת, תגית מקצוע, תגית שכבות. מתחתיו: מועד הגשה ו"שחקו" ── */
+const BADGE: React.CSSProperties = { borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)', lineHeight: 1.3 }
+
 function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onPlay: () => void }) {
   const [hov, setHov] = useState(false)
   const status = q.sessionStatus
   const crystals = q.crystals ?? 0
-  /* מסגרת בצבע המקצוע (וריאנט כהה — מסכי תלמיד תמיד כהים) + סמל המקצוע בפינה; "לא סווג" = אפור */
-  const frameColor = subjectVisual(q.subjectCode, 'dark').color
   /* "להגשה עד [תאריך]" — רק לשיעור שעוד לא הושלם; אחרי המועד: "המועד עבר" (השיעור לא ננעל) */
   const due = q.dueAt && status !== 'completed'
     ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: '#fbbf24' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'rgba(255,255,255,.92)' })
     : null
 
   return (
-    <div
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      onClick={onPlay}
-      style={{
-        position: 'relative', borderRadius: 16, cursor: 'pointer',
-        boxShadow: hov ? `0 0 36px color-mix(in srgb, ${frameColor} 32%, transparent),0 6px 28px rgba(0,0,0,.55)` : '0 3px 16px rgba(0,0,0,.4)',
-        transition: 'box-shadow .22s,transform .18s',
-        transform: hov ? 'translateY(-3px)' : 'translateY(0)',
-        height: 'clamp(180px,17.5vw,260px)',
-      }}
-    >
-     <LessonThumb url={q.thumbUrl ?? q.entryImageUrl} subjectCode={q.subjectCode} mode="dark" width="100%" height="100%" radius={16} frame={3} corner="top-start" chipSize={34} alt={q.title}>
-      {/* overlay */}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(2,5,15,.97) 0%,rgba(2,5,15,.5) 50%,rgba(2,5,15,.08) 100%)' }} />
-
-      {/* badge: חדש */}
-      {isNew && (
-        <div style={{
-          position: 'absolute', top: 12, right: 52,
-          background: 'rgba(47,243,255,.15)', border: '1px solid rgba(47,243,255,.7)',
-          borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
-          color: '#2ff3ff', fontFamily: 'var(--font-display)', letterSpacing: '0.1em',
-          boxShadow: '0 0 12px rgba(47,243,255,.5)', backdropFilter: 'blur(6px)',
-          animation: 'holo-status-pulse 2s ease-in-out infinite',
-        }}>✦ חדש</div>
-      )}
-
-      {/* badge: הדמיית חזרה (משימת חיזוק) — מוזז שמאלה כשיש גם "חדש" */}
-      {q.isReview && (
-        <div style={{
-          position: 'absolute', top: 12, right: isNew ? 114 : 52,
-          background: 'rgba(155,140,255,.18)', border: '1px solid rgba(155,140,255,.65)',
-          borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
-          color: '#c9b6ff', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
-        }}>🔄 חיזוק</div>
-      )}
-
-      {/* badge: הושלם */}
-      {status === 'completed' && (
-        <div style={{
-          position: 'absolute', top: 10, left: 10,
-          background: 'rgba(16,185,80,.18)', border: '1px solid rgba(16,185,80,.55)',
-          borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 800,
-          color: '#22d46a', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
-        }}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</div>
-      )}
-
-      {/* badge: בתהליך */}
-      {status === 'in_progress' && (
-        <div style={{
-          position: 'absolute', top: 10, left: 10,
-          background: 'rgba(255,180,0,.14)', border: '1px solid rgba(255,180,0,.5)',
-          borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 800,
-          color: '#fbbf24', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
-        }}>↻ בתהליך</div>
-      )}
-
-      {/* תחתית */}
-      <div style={{ position: 'absolute', bottom: 0, right: 0, left: 0, padding: '10px 12px 11px' }}>
-        <div style={{
-          fontWeight: 800, fontSize: 13, color: '#fff', fontFamily: 'var(--font-display)',
-          textShadow: '0 1px 6px rgba(0,0,0,.9)', marginBottom: 5,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>{q.title}</div>
-        {due && <div style={{ fontSize: 12, fontWeight: 700, color: due.color, fontFamily: 'var(--font-display)', textShadow: '0 1px 6px rgba(0,0,0,.9)', marginBottom: 5 }}>{due.text}</div>}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-          <div>
-            {status === 'completed'
-              ? <CrystalRow crystals={crystals} />
-              : <span style={{
-                  fontSize: 10, padding: '1px 7px', borderRadius: 5, fontWeight: 600,
-                  background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.25)',
-                  color: 'rgba(47,243,255,.85)', backdropFilter: 'blur(4px)',
-                }}>{q.sceneCount} סצנות</span>
-            }
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <LessonCard
+        mode="dark" title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl}
+        gradeMin={q.gradeMin} gradeMax={q.gradeMax} glow={hov} onClick={onPlay}
+        badges={<>
+          {isNew && <span style={{ ...BADGE, background: 'rgba(4,16,24,.88)', border: '1px solid rgba(47,243,255,.7)', color: '#2ff3ff', animation: 'holo-status-pulse 2s ease-in-out infinite' }}>✦ חדש</span>}
+          {q.isReview && <span style={{ ...BADGE, background: 'rgba(20,12,40,.9)', border: '1px solid rgba(155,140,255,.65)', color: '#c9b6ff' }}>🔄 חיזוק</span>}
+          {status === 'completed' && <span style={{ ...BADGE, background: 'rgba(4,24,14,.9)', border: '1px solid rgba(16,185,80,.55)', color: '#22d46a' }}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</span>}
+          {status === 'in_progress' && <span style={{ ...BADGE, background: 'rgba(30,20,0,.9)', border: '1px solid rgba(255,180,0,.5)', color: '#fbbf24' }}>↻ בתהליך</span>}
+        </>}
+        body={due ? <div style={{ fontSize: 13, fontWeight: 700, color: due.color, fontFamily: 'var(--font-display)' }}>{due.text}</div> : undefined}
+        actions={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div>
+              {status === 'completed'
+                ? <CrystalRow crystals={crystals} />
+                : <span style={{
+                    fontSize: 12, padding: '2px 8px', borderRadius: 5, fontWeight: 600,
+                    background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.25)',
+                    color: 'rgba(47,243,255,.9)',
+                  }}>{q.sceneCount} סצנות</span>
+              }
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onPlay() }}
+              style={{
+                background: status === 'completed'
+                  ? 'linear-gradient(135deg,rgba(34,212,106,.9),rgba(16,160,70,.9))'
+                  : 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
+                color: '#021018', fontWeight: 800, fontSize: 13,
+                padding: '7px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                fontFamily: 'var(--font-display)', flexShrink: 0,
+                boxShadow: hov ? (status === 'completed' ? '0 0 20px rgba(34,212,106,.6)' : '0 0 20px rgba(47,243,255,.6)') : 'none',
+                transition: 'box-shadow .2s',
+              }}
+            >
+              {status === 'completed' ? '▶ שחקו שוב' : status === 'in_progress' ? '▶ המשיכו' : '▶ שחקו'}
+            </button>
           </div>
-          <button
-            onClick={(e) => { e.stopPropagation(); onPlay() }}
-            style={{
-              background: status === 'completed'
-                ? 'linear-gradient(135deg,rgba(34,212,106,.9),rgba(16,160,70,.9))'
-                : 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
-              color: '#021018', fontWeight: 800, fontSize: 11,
-              padding: '6px 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
-              fontFamily: 'var(--font-display)', flexShrink: 0,
-              boxShadow: hov ? (status === 'completed' ? '0 0 20px rgba(34,212,106,.6)' : '0 0 20px rgba(47,243,255,.6)') : 'none',
-              transition: 'box-shadow .2s',
-            }}
-          >
-            {status === 'completed' ? '▶ שחקו שוב' : status === 'in_progress' ? '▶ המשיכו' : '▶ שחקו'}
-          </button>
-        </div>
-      </div>
-     </LessonThumb>
+        }
+      />
     </div>
   )
 }
@@ -544,7 +493,7 @@ export default function StudentHome() {
 
           {/* גריד 3 עמודות */}
           {!loading && displayed.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 'clamp(8px,1.2vw,16px)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 270px), 1fr))', gap: 'clamp(10px,1.2vw,16px)' }}>
               {displayed.map((q) => (
                 <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
               ))}

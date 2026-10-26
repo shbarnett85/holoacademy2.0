@@ -7,8 +7,9 @@ import { requireStudent } from '../middleware/studentAuth.js'
 import { warn } from '../lib/log.js'
 import { questSubjectOut } from '../lib/subjects.js'
 import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
-import { hasSessionLive, hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt } from '../lib/activeColumn.js'
-import { lessonThumbUrl } from '../lib/lessonThumb.js'
+import { hasSessionLive, hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt, hasQuestGrade, hasQuestThumb } from '../lib/activeColumn.js'
+import { THUMB_COLUMNS, thumbsFor } from '../lib/lessonThumbStore.js'
+import { lessonGradeRange } from '../../../src/shared/lib/lessonGrade.js'
 import { lessonState, isLate } from '../../../src/shared/lib/lessonState.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 import { parseAnswers, parseMoral, parseGateEvents, toGateEventRow, writeAnswerTelemetry } from '../lib/answerWriter.js'
@@ -40,8 +41,9 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     for (const r of asgRows) { const cur = latestAsg.get(r.quest_id); if (!cur || r.created_at > cur.created_at) latestAsg.set(r.quest_id, r) }
     const assignedAtMap = new Map([...latestAsg].map(([id, r]) => [id, r.created_at]))
 
+    const [withGrade, withThumb] = await Promise.all([hasQuestGrade(), hasQuestThumb()])
     const [questResult, sessionResult] = await Promise.all([
-      supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by').in('id', questIds),
+      supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by, difficulty_settings' + (withGrade ? ', grade_min, grade_max' : '') + (withThumb ? ', ' + THUMB_COLUMNS : '')).in('id', questIds),
       supabaseAdmin.from('sessions')
         .select('quest_id, completed_at, crystals, total_score, max_score')
         .eq('user_id', req.student!.userId)
@@ -52,10 +54,13 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     type Scene = { id: string; imageUrl?: string }
     type GameData = { scenes?: Scene[]; entrySceneId?: string; reviewOf?: unknown }
-    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; created_by?: string | null }
+    type QuestRow = { id: string; title: string; game_data: GameData; art_style?: string; created_by?: string | null; difficulty_settings?: unknown; grade_min?: number | null; grade_max?: number | null; thumb_url?: string | null; thumb_src?: string | null }
+    /* תמונה ממוזערת שמורה (נוצרת ברקע לשיעור שעוד אין לו) */
+    const questRows = (questResult.data ?? []) as unknown as QuestRow[]
+    const thumbs = await thumbsFor(questRows)
 
     /* שמות מורים לפי created_by */
-    const teacherIds = [...new Set((questResult.data ?? []).map((q: QuestRow) => q.created_by).filter(Boolean))] as string[]
+    const teacherIds = [...new Set(questRows.map((q) => q.created_by).filter(Boolean))] as string[]
     const teacherMap = new Map<string, string>()
     if (teacherIds.length > 0) {
       const { data: teachers } = await supabaseAdmin.from('users').select('id, name').in('id', teacherIds)
@@ -85,7 +90,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     }
 
     const dueAtOf = (questId: string): string | null => latestAsg.get(questId)?.due_at ?? null
-    const quests = (questResult.data ?? []).map((q: QuestRow) => {
+    const quests = questRows.map((q) => {
       const gd = q.game_data as GameData
       const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
 
@@ -110,7 +115,9 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
         assignedAt: assignedAtMap.get(q.id) ?? null,
         entryImageUrl: entryScene?.imageUrl ?? null,
-        thumbUrl: lessonThumbUrl(gd),
+        thumbUrl: thumbs.get(q.id) ?? null,
+        /* תגית השכבות בכרטיס */
+        ...(lessonGradeRange(q) ?? { gradeMin: null, gradeMax: null }),
         /* מועד ההגשה של ההקצאה האחרונה + מצב השיעור מפונקציית המצב היחידה (open/ended; אין "פעיל עכשיו" ברשימת התלמיד) */
         dueAt: dueAtOf(q.id),
         state: lessonState({ now: Date.now(), dueAt: dueAtOf(q.id) }),

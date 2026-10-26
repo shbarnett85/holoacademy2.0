@@ -1,7 +1,8 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   צילומי מסך לבדיקה ויזואלית של שלב L ("שיעור", שפה חזותית של מקצועות, תאריך הגשה):
-     1. ספריית שיעורים — מורה, מצב בהיר (שיעורים שלי: מסגרת בצבע המקצוע + סמל; "לא סווג" אפור + שיוך למקצוע)
-     2. רשימת השיעורים של התלמיד — מצב כהה (מסגרת + סמל + "להגשה עד …")
+   צילומי מסך לבדיקה ויזואלית של שלב L ("שיעור", שפה חזותית של מקצועות, תאריך הגשה) ושל כרטיס השיעור (תמונה במקום אייקון):
+     1. ספריית שיעורים — מורה, מצב בהיר (כרטיס שיעור: תמונה ממוזערת, מסגרת בצבע המקצוע, תגית מקצוע + שכבות; "לא סווג" אפור + שיוך למקצוע;
+        שיעור בלי תמונה = משטח בצבע המקצוע עם השם)
+     2. רשימת השיעורים של התלמיד — מצב כהה (אותו כרטיס + "להגשה עד …" + "שחקו")
      3. שליחה לכיתה — שדה "להגשה עד" עם ברירת מחדל (שבוע מהיום)
      4. סיכום שיעור — ראש המסך: תג מצב + מועד הגשה + "שינוי מועד הגשה" (חלונית פתוחה)
    הנתונים: התמונות/המקצועות/הכותרות מהספרייה הציבורית האמיתית (GET /api/library); רשימות "הספרייה שלי" ו"השיעורים של התלמיד" והתלמידים
@@ -18,7 +19,7 @@ import { guestLogin } from './lib/login.ts'
 const args = process.argv.slice(2)
 const outDir = args.includes('--out') ? path.resolve(args[args.indexOf('--out') + 1]) : path.join(E2E_DIR, 'out')
 
-interface PublicQ { id: string; title: string; subject: string | null; subjectCode: string | null; sceneCount: number; thumbUrl: string | null }
+interface PublicQ { id: string; title: string; subject: string | null; subjectCode: string | null; sceneCount: number; thumbUrl: string | null; gradeMin?: number | null; gradeMax?: number | null }
 
 async function main(): Promise<void> {
   await mkdir(outDir, { recursive: true })
@@ -49,15 +50,15 @@ async function main(): Promise<void> {
       if (route.request().method() !== 'GET') return route.continue()
       const quests = picks.map((q, i) => ({
         id: q.id, title: q.title, created_at: new Date(Date.UTC(2026, 9, 26 - i)).toISOString(), is_published: i % 2 === 0, is_public: i === 1, is_review: i === 3,
-        sceneCount: q.sceneCount, longSceneCount: 0, thumbUrl: q.thumbUrl,
+        sceneCount: q.sceneCount, longSceneCount: 0, thumbUrl: i === 4 ? null : q.thumbUrl, gradeMin: q.gradeMin ?? 7 + (i % 3), gradeMax: q.gradeMax ?? 8 + (i % 3),
         /* שני שיעורים "לא סווג" — לצילום האפור ושיוך המקצוע */
         subject: i === 5 || i === 6 ? null : q.subject, subjectCode: i === 5 || i === 6 ? null : q.subjectCode,
       }))
       await route.fulfill({ json: { quests, permissions: { canShare: true } } })
     })
     await page.goto(`${DEFAULT_BASE}/creator/library`, { waitUntil: 'networkidle' })
-    await page.waitForSelector('[data-lesson-thumb]')
-    await page.waitForTimeout(800)
+    await page.waitForSelector('[data-lesson-card]')
+    await page.waitForTimeout(1200)
     await page.screenshot({ path: path.join(outDir, 'lesson-library-teacher-light.png') })
     /* גלילה לשיעורים ה"לא סווג" */
     const unclassified = page.locator('[data-lesson-thumb][data-subject="unclassified"]').first()
@@ -90,12 +91,12 @@ async function main(): Promise<void> {
     const day = 86_400_000
     await page.route('**/api/sessions/assigned', (route) => route.fulfill({ json: { quests: picks.slice(0, 6).map((q, i) => ({
       id: q.id, title: q.title, sceneCount: q.sceneCount, artStyle: 'digital-painting', subject: q.subject, subjectCode: i === 5 ? null : q.subjectCode, teacherName: 'המורה רון',
-      assignedAt: new Date(now - (i + 1) * day).toISOString(), entryImageUrl: q.thumbUrl, thumbUrl: q.thumbUrl,
+      assignedAt: new Date(now - (i + 1) * day).toISOString(), entryImageUrl: i === 4 ? null : q.thumbUrl, thumbUrl: i === 4 ? null : q.thumbUrl, gradeMin: q.gradeMin ?? 7 + (i % 3), gradeMax: q.gradeMax ?? 8 + (i % 3),
       dueAt: new Date(now + (i === 2 ? -2 : 3 + i) * day).toISOString(), state: i === 2 ? 'ended' : 'open', late: i === 4,
       sessionStatus: i === 3 ? 'completed' : i === 4 ? 'completed' : i === 1 ? 'in_progress' : null, crystals: i === 3 ? 4 : i === 4 ? 2 : null, maxScore: 5, isReview: i === 1,
     })) } }))
     await page.goto(`${DEFAULT_BASE}/student`, { waitUntil: 'networkidle' }).catch(() => undefined)
-    await page.waitForSelector('[data-lesson-thumb]', { timeout: 10_000 }).catch(() => console.log('לא נמצא כרטיס תלמיד — כתובת /student אינה נכונה?', page.url()))
+    await page.waitForSelector('[data-lesson-card]', { timeout: 10_000 }).catch(() => console.log('לא נמצא כרטיס תלמיד — כתובת /student אינה נכונה?', page.url()))
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(outDir, 'lesson-student-list-dark.png') })
     await ctx.close()
@@ -105,8 +106,16 @@ async function main(): Promise<void> {
   {
     const ctx = await mk('light', `localStorage.setItem('holo_staff_session', ${JSON.stringify(JSON.stringify({ ...session, staff: { ...session.staff, isGuest: false } }))});`)
     const page = await ctx.newPage()
+    /* שיעורי ההדגמה אין להם תמונות סצנה; לצילום — תמונות ממוזערות אמיתיות מהספרייה (שורה אחת נשארת בלי תמונה) */
+    await page.route('**/api/results/submissions*', async (route) => {
+      const res = await route.fetch()
+      const body = (await res.json()) as { data?: { submissions?: { thumbUrl: string | null }[] } }
+      body.data?.submissions?.forEach((r, i) => { r.thumbUrl = i === 1 ? null : (picks[i % picks.length]?.thumbUrl ?? null) })
+      await route.fulfill({ response: res, json: body })
+    })
     await page.goto(`${DEFAULT_BASE}/results`, { waitUntil: 'networkidle' })
     await page.waitForSelector('[data-submission-row]')
+    await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(outDir, 'lesson-results-list.png') })
     await page.locator('[data-submission-row]').first().click()
     await page.waitForSelector('[data-head-strip]')

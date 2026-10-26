@@ -18,6 +18,7 @@ import { gradeNumberFromLabel } from '../../../../src/shared/lib/difficultyCalib
 import type { LiveSnapshot } from '../../../../src/shared/lib/liveStatus.js'
 import { AppError } from '../../middleware/errors.js'
 import { supabaseAdmin } from '../supabase.js'
+import { thumbsFor } from '../lessonThumbStore.js'
 import {
   hasAnswersTable, hasFictitious, hasIsActive, hasMisconceptionLinks, hasMisconceptions, hasMoralChoices, hasOptionTags,
   hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag, hasAssignmentDueAt, hasAnswerLevel, hasSessionLive,
@@ -184,6 +185,8 @@ async function toLites(viewer: Viewer, asgs: AsgRow[]): Promise<Lite[]> {
    ══════════════════════════════════════════════════════════════════════════ */
 interface Bundle {
   games: Map<string, unknown>
+  /* התמונה הממוזערת השמורה לכל שיעור (חסר = כתובת המקור מתוך game_data) */
+  thumbs?: Map<string, string | null>
   studentsByClass: Map<string, CoreStudent[]>
   /* `${questId}|${studentId}` → ההרצה שנספרת (האחרונה שהושלמה; אחרת הפתוחה האחרונה) */
   latest: Map<string, CoreSession>
@@ -491,7 +494,8 @@ async function loadBundle(viewer: Viewer, lites: Lite[], opts: { detail: boolean
     tags = loaded.base
     variants = await loadVariants(variantIds, loaded.variant)
   }
-  return { games, studentsByClass, latest, activity, eventsBySession, answersBySession, tags, variants, moralRaw, detailFrom, levelFrom }
+  const thumbs = await thumbsFor([...games].map(([id, game_data]) => ({ id, game_data })))
+  return { games, thumbs, studentsByClass, latest, activity, eventsBySession, answersBySession, tags, variants, moralRaw, detailFrom, levelFrom }
 }
 
 function toCoreInput(l: Lite, b: Bundle): CoreInput {
@@ -520,7 +524,7 @@ function toCoreInput(l: Lite, b: Bundle): CoreInput {
   return {
     submission: {
       id: l.asg.id,
-      quest: { id: l.quest.id, title: l.quest.title, subject: l.quest.subject, gameData: game, thumbUrl: questThumbUrl(game) },
+      quest: { id: l.quest.id, title: l.quest.title, subject: l.quest.subject, gameData: game, thumbUrl: b.thumbs?.get(l.quest.id) ?? questThumbUrl(game) },
       classId: l.asg.class_id, className: l.cls.label, sentAt: l.asg.created_at, source: l.source, senderName: l.senderName,
       dueAt: l.asg.due_at ?? null, gradeLabel: l.cls.gradeLabel,
     },

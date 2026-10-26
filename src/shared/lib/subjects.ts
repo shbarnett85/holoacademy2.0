@@ -53,7 +53,7 @@ export const LEGACY_SUBJECT_MAP: Readonly<Record<string, SubjectCode>> = LEGACY_
    לכל מקצוע צבע וסמל קבועים, ממקור אחד — לקליינט ולשרת. שני וריאנטים: `light` (מסכי מורה, מצב בהיר)
    ו-`dark` (מסכי תלמיד, תמיד כהים; ומורה שבחר מצב כהה). הצבעים נגזרו אוטומטית כך שהמסגרת עומדת ב-3:1 לפחות
    מול הרקעים האמיתיים בשני המצבים (`SUBJECT_SURFACES`) — בפועל ≥3.6 בבהיר ו-≥6 בכהה; `subjects.test.ts` מחשב מחדש ואוכף.
-   גוונים קרובים (למשל פירוז/אדום־ורוד) מובחנים בסמל — צבע אף פעם לא לבד. "לא סווג" = אפור + סמל ניטרלי. */
+   גוונים קרובים (למשל פירוז/אדום־ורוד) מובחנים בשם המקצוע שכתוב על התגית — צבע אף פעם לא לבד. "לא סווג" = אפור + סמל ניטרלי. */
 export interface SubjectVisual { glyph: string; light: string; dark: string }
 
 export const UNCLASSIFIED_CODE = 'unclassified' as const
@@ -93,4 +93,29 @@ export function subjectVisual(code: string | null | undefined, mode: SubjectVisu
   const c: SubjectVisualCode = known ? code : UNCLASSIFIED_CODE
   const v = SUBJECT_VISUAL[c]
   return { code: c, color: v[mode], glyph: v.glyph, label: known ? subjectName(code) : UNCLASSIFIED_LABEL }
+}
+
+/* ───────── תגית מקצוע: צבע המקצוע ברקע, שם המקצוע עליו ─────────
+   צבע לעולם לא מופיע לבד — השם כתוב על התגית. הטקסט בלבן או בשחור (הטוב מבין השניים לכל צבע — שחור טהור, כי מול גוון בינוני רק הוא מבטיח 4.5:1 לכל צבע), כך שיחס הניגודיות מול רקע התגית
+   הוא לפחות 4.5:1 (AA) לכל 16 הצבעים בשני הווריאנטים (`subjects.test.ts` אוכף). אותם צבעים משמשים גם למסגרת הכרטיס. */
+export const TAG_TEXT_COLORS = { onDark: '#ffffff', onLight: '#000000' } as const
+
+function hexToRgb(hex: string): [number, number, number] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number]
+}
+export function relativeLuminance(hex: string): number {
+  const [r, g, b] = hexToRgb(hex).map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4 }) as [number, number, number]
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+export function contrastRatio(a: string, b: string): number {
+  const x = relativeLuminance(a)
+  const y = relativeLuminance(b)
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
+/* צבעי התגית של מקצוע: bg = צבע המקצוע (או אפור ל"לא סווג"), fg = הטקסט בעל הניגודיות הגבוהה יותר */
+export function subjectTagColors(code: string | null | undefined, mode: SubjectVisualMode = 'light'): { bg: string; fg: string; label: string; code: SubjectVisualCode } {
+  const v = subjectVisual(code, mode)
+  const fg = contrastRatio(v.color, TAG_TEXT_COLORS.onDark) >= contrastRatio(v.color, TAG_TEXT_COLORS.onLight) ? TAG_TEXT_COLORS.onDark : TAG_TEXT_COLORS.onLight
+  return { bg: v.color, fg, label: v.label, code: v.code }
 }

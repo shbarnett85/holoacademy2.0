@@ -11,7 +11,7 @@ import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { getGuestQuestIds, addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
-import LessonThumb from '../../shared/ui/LessonThumb'
+import LessonCard from '../../shared/ui/LessonCard'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 import { SUBJECTS, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
@@ -30,8 +30,10 @@ interface QuestSummary {
   subject?: string | null
   /* קוד המקצוע (subjects.code); null = "לא סווג" */
   subjectCode?: string | null
-  /* תמונת השיעור — אותו רכיב (LessonThumb) כמו ברשימת התלמיד */
+  /* תמונת השיעור (ממוזערת) ושכבותיו — אותו כרטיס (LessonCard) כמו ברשימת התלמיד */
   thumbUrl?: string | null
+  gradeMin?: number | null
+  gradeMax?: number | null
 }
 
 /* הדמיה בספרייה הציבורית (GET /api/library) */
@@ -74,7 +76,10 @@ function Chip({ children }: { children: React.ReactNode }) {
   return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t27)', padding: '3px 9px', borderRadius: 20, background: 'var(--t158)', border: '1px solid var(--t159)', whiteSpace: 'nowrap' }}>{children}</span>
 }
 
-const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 11px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
+/* רשת הכרטיסים בכל עמודה: כרטיס לפחות 250px ברוחב — שניים בעמודה ב-1366, אחד במסך צר */
+const cardGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: 14 }
+
+const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 9px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
 
 /* "הספרייה שלי": מה קרה ומה עושים בזרימת שיוך המקצוע.
    · אחרי שיוך — הודעה שנשארת על המסך (לא נעלמת מעצמה), שאומרת מה ייכלל באנליטיקה, עם קישור חזרה אליה;
@@ -109,18 +114,17 @@ export function MineToolbar({ assignedNote, onlyNoSubject, noSubjectCount, onDis
   )
 }
 
-/* שיוך מקצוע להדמיה "לא סווג": תווית גלויה, גופן 16px ויעד של 44px לפחות (עקרונות מסכי המורה), במסגרת רגילה ולא מקווקוות.
-   מקצוע שנבחר נשמר מיד; הכרטיס עצמו לא נפתח בלחיצה על הפקד. */
+/* שיוך מקצוע לשיעור "לא סווג": כפתור אחד "שיוך למקצוע" על הכרטיס — לוחצים, בוחרים מקצוע, וזה נשמר מיד (בלי שלב שמירה).
+   נראה ככפתור (מסגרת עבה, 16px, יעד של 44px לפחות); בפועל רשימה מובנית של הדפדפן, כך שנגישה במקלדת ובקורא מסך.
+   הכרטיס עצמו לא נפתח בלחיצה על הפקד. */
 export function SubjectAssign({ busy, onAssign }: { busy: boolean; onAssign: (code: string) => void }) {
   return (
-    <label onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 700, color: T.text }}>
-      {LIBRARY_ASSIGN_TEXT.selectLabel}
-      <select className="lib-subject-select" disabled={busy} value="" onChange={(e) => { e.stopPropagation(); if (e.target.value) onAssign(e.target.value) }}
-        style={{ minHeight: MIN_TARGET, minWidth: 200, padding: '0 12px', borderRadius: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 600, cursor: 'pointer', color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}`, opacity: busy ? 0.55 : 1 }}>
-        <option value="">{LIBRARY_ASSIGN_TEXT.selectPlaceholder}</option>
-        {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
-      </select>
-    </label>
+    <select className="lib-subject-select" data-subject-assign aria-label={LIBRARY_ASSIGN_TEXT.selectLabel} disabled={busy} value=""
+      onClick={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); if (e.target.value) onAssign(e.target.value) }}
+      style={{ minHeight: MIN_TARGET, width: '100%', boxSizing: 'border-box', padding: '0 12px', borderRadius: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 800, cursor: 'pointer', color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}`, opacity: busy ? 0.55 : 1 }}>
+      <option value="">{LIBRARY_ASSIGN_TEXT.selectPlaceholder}</option>
+      {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
+    </select>
   )
 }
 
@@ -139,34 +143,33 @@ function FilterChip({ pressed, onClick, children }: { pressed: boolean; onClick:
   )
 }
 
-/* ── כרטיס הדמיה שלי ── */
-function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete, onAssignSubject }: {
+/* ── כרטיס שיעור בספרייה שלי — הרכיב המשותף עם כרטיס השיעור של התלמיד (shared/ui/LessonCard):
+   תמונה, כותרת, תגית מקצוע, תגית שכבות. במקום "שחקו" — פעולות המורה הקיימות (אותן פעולות, בלי להוסיף ובלי להוריד) ── */
+export function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onPlay, onShare, onUnshare, onDelete, onAssignSubject }: {
   q: QuestSummary; busy: boolean; isGuest: boolean; shareBlocked: boolean; onShareBlocked: () => void
   onOpen: () => void; onPlay: () => void; onShare: () => void; onUnshare: () => void; onDelete: () => void
   onAssignSubject: (code: string) => void
 }) {
   return (
-    <div onClick={onOpen}
-      style={{ display: 'flex', gap: 14, padding: 14, borderRadius: 14, background: 'var(--t25)', border: '1px solid var(--t26)', transition: 'all .18s', cursor: 'pointer' }}
-      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--t36)'; e.currentTarget.style.background = 'var(--t40)' }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--t26)'; e.currentTarget.style.background = 'var(--t25)' }}>
-      <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} width={104} height={78} radius={12} frame={3} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--t68)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
-          {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t1)', background: 'var(--t84)', border: '1px solid var(--t2)' }}>🌐 משותף</span>}
-          {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t16)', background: 'var(--t161)', border: '1px solid var(--t162)' }}>🔄 שיעור חזרה</span>}
-          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? 'var(--t163)' : 'var(--t164)', background: q.is_published ? 'var(--t165)' : 'var(--t166)', border: '1px solid ' + (q.is_published ? 'var(--t167)' : 'var(--t168)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-          <Chip>{q.sceneCount} סצנות</Chip>
-          {(q.longSceneCount ?? 0) > 0 && <Chip>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
-          <Chip>{q.subject ?? UNCLASSIFIED_LABEL}</Chip>
-          <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
-        </div>
-        {/* הדמיה "לא סווג" — שיוך מהיר למקצוע (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */}
-        {!q.subject && <SubjectAssign busy={busy} onAssign={onAssignSubject} />}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
+    <LessonCard
+      title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl} gradeMin={q.gradeMin} gradeMax={q.gradeMax} imageAspect="16 / 9"
+      onClick={onOpen}
+      body={
+        <>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? 'var(--t163)' : 'var(--t164)', background: q.is_published ? 'var(--t165)' : 'var(--t166)', border: '1px solid ' + (q.is_published ? 'var(--t167)' : 'var(--t168)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
+            {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t1)', background: 'var(--t84)', border: '1px solid var(--t2)' }}>🌐 משותף</span>}
+            {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t16)', background: 'var(--t161)', border: '1px solid var(--t162)' }}>🔄 שיעור חזרה</span>}
+            <Chip>{q.sceneCount} סצנות</Chip>
+            {(q.longSceneCount ?? 0) > 0 && <Chip>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
+            <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
+          </div>
+          {/* שיעור "לא סווג" — כפתור "שיוך למקצוע" בלחיצה אחת (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */}
+          {!q.subject && <SubjectAssign busy={busy} onAssign={onAssignSubject} />}
+        </>
+      }
+      actions={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {/* הסר שיתוף — מופיע רק כשהדמיה משותפת, כפתור משני */}
           {q.is_public && (
             <button disabled={busy} onClick={(e) => { e.stopPropagation(); onUnshare() }}
@@ -194,35 +197,34 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
             הפעל ▶
           </button>
         </div>
-      </div>
-    </div>
+      }
+    />
   )
 }
 
-/* ── כרטיס ספרייה ציבורית ── */
-function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boolean; onCopy: () => void; onReport: () => void }) {
+/* ── כרטיס בספרייה הציבורית — אותו כרטיס; הפעולות: דיווח והעתקה ── */
+export function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boolean; onCopy: () => void; onReport: () => void }) {
   return (
-    <div style={{ display: 'flex', gap: 14, padding: 14, borderRadius: 14, background: 'var(--t25)', border: '1px solid var(--t171)' }}>
-      <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} width={104} height={78} radius={12} frame={3} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: 'var(--t68)' }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
-          {q.isOfficial && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, color: 'var(--t3)', background: 'var(--t172)', border: '1px solid var(--t173)' }}>✓ רשמי</span>}
-        </span>
-        <div style={{ fontSize: 11.5, color: 'var(--t174)', marginTop: 3 }}>נוצר במקור על ידי {q.authorName}</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-          <Chip>{q.subject ?? UNCLASSIFIED_LABEL}</Chip>
-          {q.gradeMin != null && q.gradeMax != null && <Chip>{q.gradeMin === q.gradeMax ? `כיתה ${GRADES[q.gradeMin - 1] ?? q.gradeMin}` : `כיתות ${GRADES[q.gradeMin - 1] ?? q.gradeMin}–${GRADES[q.gradeMax - 1] ?? q.gradeMax}`}</Chip>}
-          <Chip>{q.sceneCount} סצנות</Chip>
-          {q.puzzleTypes.slice(0, 3).map((t) => <Chip key={t}>{puzzleTypeLabel(t)}</Chip>)}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11, flexWrap: 'wrap' }}>
+    <LessonCard
+      title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl} gradeMin={q.gradeMin} gradeMax={q.gradeMax} imageAspect="16 / 9"
+      body={
+        <>
+          <div style={{ fontSize: 12, color: 'var(--t174)' }}>נוצר במקור על ידי {q.authorName}</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {q.isOfficial && <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, color: 'var(--t3)', background: 'var(--t172)', border: '1px solid var(--t173)' }}>✓ רשמי</span>}
+            <Chip>{q.sceneCount} סצנות</Chip>
+            {q.puzzleTypes.slice(0, 3).map((t) => <Chip key={t}>{puzzleTypeLabel(t)}</Chip>)}
+          </div>
+        </>
+      }
+      actions={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <button disabled={busy} onClick={onReport} style={{ ...cardBtn, color: 'var(--t18)', borderColor: 'var(--t169)', opacity: busy ? 0.5 : 1 }}>דווח 🚩</button>
           <div style={{ flex: 1 }} />
           <button disabled={busy} onClick={onCopy} style={{ ...cardBtn, color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t118),var(--t14))', border: 'none', fontWeight: 700, opacity: busy ? 0.6 : 1 }}>השתמש (העתק אליי) 📥</button>
         </div>
-      </div>
-    </div>
+      }
+    />
   )
 }
 
@@ -840,7 +842,7 @@ export default function Library() {
               {error && <div style={{ color: 'var(--t5)', padding: 12, borderRadius: 12, border: '1px solid var(--t102)', background: 'var(--t199)', marginBottom: 10 }}>{error}</div>}
               <MineToolbar assignedNote={assignedNote} onlyNoSubject={onlyNoSubject} noSubjectCount={noSubjectCount}
                 onDismissAssigned={() => setAssignedNote(false)} onSetNoSubject={setOnlyNoSubject} />
-              <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 11, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8 }}>
+              <div className="cf-scroll" data-lesson-grid="mine" style={{ ...cardGrid, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8, alignContent: 'start' }}>
                 {!quests && !error && emptyMsg('טוען…')}
                 {quests && mineF.length === 0 && (
                   onlyNoSubject && noSubjectCount === 0
@@ -873,7 +875,7 @@ export default function Library() {
             <div style={panel}>
               <ColHead rgb="255,69,230" title="ספרייה ציבורית" kicker="COMMUNITY" count={`${commF.length} זמינות`}
                 icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t118)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>} />
-              <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 11, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8 }}>
+              <div className="cf-scroll" data-lesson-grid="public" style={{ ...cardGrid, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8, alignContent: 'start' }}>
                 {!publicQuests && emptyMsg('טוען…')}
                 {publicQuests && commF.length === 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 16px', textAlign: 'center' }}>

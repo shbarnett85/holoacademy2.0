@@ -1,16 +1,17 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   LessonThumb — רכיב אחד לשיעור בכל רשימה: ספריית המורה, "סיכום שיעור", ורשימת השיעורים של התלמיד
-   (CLAUDE.md "שפה חזותית של מקצועות"). תמונת השיעור במסגרת בצבע המקצוע, וסמל המקצוע בפינה.
-   · הצבע והסמל ממקור אחד — `subjectVisual` (shared/lib/subjects.ts); "לא סווג" = אפור.
-   · צבע לעולם לא לבד: הסמל תמיד בפינה, והשם נגיש ל-AT (`aria-label`) ול-title.
+   LessonThumb — תמונת השיעור במסגרת בצבע המקצוע (CLAUDE.md "שפה חזותית של מקצועות"). משמשת את כרטיס השיעור
+   (`LessonCard`: תלמיד, ספריית המורה) ואת הרשימות הקטנות ("סיכום שיעור").
+   · התמונה היא התמונה הממוזערת (480×360) ולא תמונת הסצנה בגודל מלא; נטענת רק כשהיא נכנסת למסך (lazy).
+   · מסגרת בצבע המקצוע; תגית המקצוע (שם המקצוע על הצבע) בפינה — כך הצבע אף פעם לא לבד. "לא סווג" = אפור + "לא סווג".
+   · שיעור בלי תמונה (או שהתמונה לא נטענה): משטח בצבע המקצוע ועליו שם המקצוע — ואז אין תגית נפרדת (השם כבר כתוב).
+   · tag="none": רק כשהשם כתוב ליד התמונה בטקסט (למשל ראש מסך שבו שם המקצוע כבר מופיע) ובתמונה קטנה מדי לתגית.
    · mode: 'auto' = לפי ערכת המורה הפעילה (בהיר כברירת מחדל); 'dark' = מסכי תלמיד (תמיד כהים).
-   · children — שכבת תוכן מעל התמונה (כרטיס התלמיד: תגיות וכותרת).
+   · children — שכבת תוכן מעל התמונה; פונקציה מקבלת `{ hasImage }` כדי להסתיר מה שמיותר כשהמשטח הוא צבע המקצוע.
    ────────────────────────────────────────────────────────────────────────── */
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { subjectVisual, type SubjectVisualMode } from '../lib/subjects'
+import { subjectTagColors, subjectVisual, type SubjectVisualMode } from '../lib/subjects'
 import { useTheme } from '../lib/useTheme'
-
-export type LessonThumbCorner = 'top-start' | 'top-end' | 'bottom-start' | 'bottom-end'
+import SubjectTag from './SubjectTag'
 
 export interface LessonThumbProps {
   url?: string | null
@@ -19,56 +20,53 @@ export interface LessonThumbProps {
   width?: number | string
   height?: number | string
   radius?: number
-  /** עובי המסגרת בפיקסלים */
+  /** עובי המסגרת בפיקסלים (0 = בלי מסגרת — כשהמסגרת היא של הכרטיס כולו) */
   frame?: number
-  /** פינת הסמל. בכרטיס התלמיד "top-start" הוא ימין־למעלה (RTL) */
-  corner?: LessonThumbCorner
-  chipSize?: number
+  /** תגית המקצוע על התמונה; 'none' רק כשהשם כתוב ליד התמונה */
+  tag?: 'overlay' | 'none'
   /** תיאור התמונה; ריק = דקורטיבית (השם כתוב ליד) */
   alt?: string
   style?: CSSProperties
-  children?: ReactNode
+  children?: ReactNode | ((s: { hasImage: boolean }) => ReactNode)
 }
 
-/* משטח השבב: בהיר/כהה כמו הרקע הרגיל של כל מצב */
-const CHIP_SURFACE: Record<SubjectVisualMode, string> = { light: '#ffffff', dark: '#0b1220' }
+/* משטח מאחורי התמונה: כמו הרקע הרגיל של כל מצב */
+const SURFACE: Record<SubjectVisualMode, string> = { light: '#ffffff', dark: '#0b1220' }
 
-/* בשבב ובמסגרת: אותו צבע; ב-hover/focus מוסיפים הילה בלבד */
-export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 88, height = 66, radius = 12, frame = 3, corner = 'top-start', chipSize, alt = '', style, children }: LessonThumbProps) {
+export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 88, height = 66, radius = 12, frame = 3, tag = 'overlay', alt = '', style, children }: LessonThumbProps) {
   const light = useTheme()
   const resolved: SubjectVisualMode = mode === 'auto' ? (light ? 'light' : 'dark') : mode
   const v = subjectVisual(subjectCode, resolved)
-  const [failed, setFailed] = useState(false)
-  const showImg = !!url && !failed
+  const c = subjectTagColors(subjectCode, resolved)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const hasImage = !!url && failedUrl !== url
 
-  const minSide = typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) : 72
-  const chip = chipSize ?? Math.max(26, Math.min(32, Math.round(minSide * 0.36)))
-  const inset = Math.max(3, Math.round(frame))
-  const place: CSSProperties = {
-    ...(corner.startsWith('top') ? { top: inset } : { bottom: inset }),
-    ...(corner.endsWith('start') ? { insetInlineStart: inset } : { insetInlineEnd: inset }),
-  }
+  /* גודל השם על המשטח הריק: קטן בתמונות קטנות (14px לפחות), גדול בכרטיס */
+  const narrow = typeof width === 'number' && width < 120
+  const nameSize = narrow ? 14 : 20
 
   return (
-    <div data-lesson-thumb data-subject={v.code} style={{
+    <div data-lesson-thumb data-subject={v.code} data-has-image={hasImage ? 'true' : 'false'} style={{
       position: 'relative', width, height, flexShrink: 0, boxSizing: 'border-box', overflow: 'hidden', borderRadius: radius,
-      border: `${frame}px solid ${v.color}`,
-      background: showImg ? CHIP_SURFACE[resolved] : `color-mix(in srgb, ${v.color} 14%, ${CHIP_SURFACE[resolved]})`,
+      border: frame > 0 ? `${frame}px solid ${v.color}` : 'none',
+      background: hasImage ? SURFACE[resolved] : v.color,
       ...style,
     }}>
-      {showImg ? (
-        <img src={url!} alt={alt} loading="lazy" onError={() => setFailed(true)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      {hasImage ? (
+        <img src={url!} alt={alt} loading="lazy" decoding="async" onError={() => setFailedUrl(url!)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       ) : (
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke={v.color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-          style={{ position: 'absolute', inset: 0, margin: 'auto', width: '42%', height: '42%', maxWidth: 64, maxHeight: 64, opacity: 0.85 }}>
-          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-        </svg>
+        <span data-thumb-name style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: narrow ? 4 : 12, textAlign: 'center',
+          fontFamily: 'var(--font-display)', fontSize: nameSize, fontWeight: 800, lineHeight: 1.25, color: c.fg, overflowWrap: 'anywhere',
+        }}>{c.label}</span>
       )}
-      {children}
-      <span role="img" aria-label={v.label} title={v.label} style={{
-        position: 'absolute', ...place, zIndex: 2, width: chip, height: chip, borderRadius: '50%', display: 'grid', placeItems: 'center',
-        background: CHIP_SURFACE[resolved], border: `2px solid ${v.color}`, fontSize: Math.max(16, Math.round(chip * 0.56)), lineHeight: 1, boxSizing: 'border-box',
-      }}>{v.glyph}</span>
+      {hasImage && tag === 'overlay' && (
+        <span style={{ position: 'absolute', zIndex: 2, top: 8, insetInlineStart: 8, maxWidth: 'calc(100% - 16px)', display: 'inline-flex' }}>
+          <SubjectTag code={subjectCode} mode={resolved} size={narrow ? 'sm' : 'md'} />
+        </span>
+      )}
+      {typeof children === 'function' ? children({ hasImage }) : children}
     </div>
   )
 }

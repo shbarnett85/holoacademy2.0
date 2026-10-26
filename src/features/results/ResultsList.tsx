@@ -9,7 +9,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { attentionBadgeText, dateHe, howWeCalcResultsLines, narrateSubmissionsSummary, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import { subjectStyle } from '../../shared/lib/subjectStyle'
 import type { SubmissionList, SubmissionRow } from '../../shared/types/resultsV1'
-import { bySubjectOrderOf, EmptyState, FONT, Icon, MIN_TARGET, ModeToggle, ProgressBar, RADIUS, ScreenShell, Sentence, SubjectBadge, T } from '../teacherUi'
+import { bySubjectOrderOf, EmptyState, FONT, Icon, MIN_TARGET, ModeToggle, ProgressBar, RADIUS, ScreenShell, Sentence, T } from '../teacherUi'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
 import FilterButtons from './FilterButtons'
@@ -38,11 +38,11 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
   return (
     <Link to={to} data-tu-press data-submission-row={row.id}
       style={{ ...card, display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', padding: '8px 14px', textDecoration: 'none', color: T.text, border: `1.5px solid ${row.attentionCount > 0 ? T.warn : T.controlBorder}`, borderRadius: RADIUS.lg }}>
-      <Thumb url={row.thumbUrl} subjectCode={row.subject?.code ?? null} width={64} height={48} />
+      {/* כל שורה מתחילה בתמונת השיעור במסגרת בצבע המקצוע ועם תגית המקצוע — אותו סגנון כמו בספרייה */}
+      <Thumb url={row.thumbUrl} subjectCode={row.subject?.code ?? null} width={104} height={78} />
       <div style={{ flex: '1 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2px 14px', fontFamily: FONT, fontSize: 16, color: T.textSoft }}>
           <span style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.3, color: T.text, overflowWrap: 'anywhere' }}>{row.title}</span>
-          <SubjectBadge code={row.subject?.code ?? null} />
           <span>{UI.classWord(row.className)}</span>
           <span>{UI.sentOn(dateHe(row.sentAt))}</span>
           {row.state && <LessonStateChip state={row.state} dueAt={row.dueAt} />}

@@ -9,6 +9,7 @@
     "seed:analytics": "tsx src/scripts/seedAnalyticsDemo.ts",
     "seed:snapshots": "tsx src/scripts/seedProgressSnapshots.ts",
     "migrate": "tsx src/scripts/runSqlFile.ts",
+    "thumbs:backfill": "tsx src/scripts/backfillThumbs.ts",
     "create-superadmin": "tsx src/scripts/createSuperAdmin.ts",
     "start": "tsx src/index.ts",
     "seed:library": "tsx src/scripts/seedLibrary.ts",
