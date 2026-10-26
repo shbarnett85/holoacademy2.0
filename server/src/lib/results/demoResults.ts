@@ -13,11 +13,11 @@
      תוכן ההדמיות (שאלות/נרטיב) הוא נתוני דומיין ב-demoCatalog.ts.
    ────────────────────────────────────────────────────────────────────────── */
 import type { Request } from 'express'
-import type { ClassSubmissionView, StudentSubmissionView, SubmissionList, SubmissionRow } from '../../../../src/shared/types/resultsV1.js'
+import type { ClassSubmissionView, LiveView, Overview, StudentSubmissionView, SubmissionList, SubmissionRow } from '../../../../src/shared/types/resultsV1.js'
 import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
-import { ERR_DUE_DEMO, ERR_NOT_FOUND, ERR_NO_ACCESS } from '../../../../src/shared/lib/findingsNarrative.js'
-import { defaultDueAt } from '../../../../src/shared/lib/lessonState.js'
-import { SUBJECTS, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
+import { ERR_DUE_DEMO, ERR_NOT_FOUND, ERR_NO_ACCESS, ERR_OVERVIEW_ADMIN_ONLY, OVERVIEW_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
+import { defaultDueAt, israelDay, israelLocalToUtc } from '../../../../src/shared/lib/lessonState.js'
+import { type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { AppError } from '../../middleware/errors.js'
 import { canViewClassSubject, type V2Viewer } from '../analyticsV2/access.js'
 import { MISCONCEPTIONS } from '../analyticsV2/catalog.js'
@@ -25,8 +25,9 @@ import { getAnalysis } from '../analyticsV2/demoProvider.js'
 import { rngFor, skey, type WorldStudent } from '../analyticsV2/demoWorld.js'
 import type { Analysis } from '../analyticsV2/engine.js'
 import { resolveV2Viewer } from '../analyticsV2/viewer.js'
+import type { LiveSnapshot } from '../../../../src/shared/lib/liveStatus.js'
 import {
-  buildClassView, buildListRow, buildStudentView, questThumbUrl, subjectOfCode,
+  buildClassView, buildHead, buildListRowWithPeople, buildStudentView, questThumbUrl, subjectOfCode,
   type CoreAnswerRow, type CoreEventRow, type CoreInput, type CoreMoralRow, type CoreOptionTag, type CoreSession, type CoreStudent,
 } from './core.js'
 import {
@@ -34,7 +35,11 @@ import {
   optionLetter, puzzleScenes, questById, questGameData, taggedOptions,
   type DemoPuzzle, type DemoQuest, type DemoSubmissionDef,
 } from './demoCatalog.js'
-import type { ResultsListQuery, ResultsProvider } from './provider.js'
+import type { ResultsProvider } from './provider.js'
+import { activeFirst, buildWeekStrip, filtersOf, selectLessons, type LessonDesc, type ResultsListQuery, type RowWithPeople } from './listView.js'
+import { buildLiveView, type LiveSessionRow } from './live.js'
+import { clock } from './clock.js'
+import { buildOverview, type OverviewSend } from './overview.js'
 import { MSG_RESULTS_NOT_FOR_ROLE } from './realResults.js'
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -62,6 +67,8 @@ interface Profile {
   memRate: number | null
   /* ירידה מדווחת במקצוע */
   declining: boolean
+  /* הרמה הממוצעת של התלמיד במקצוע בימים האחרונים (NaN = אין נתון) — מזין את "הרמה שבה שוחק האתגר" */
+  level: number
 }
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : NaN)
@@ -83,6 +90,7 @@ function profileOf(a: Analysis, studentId: string, subject: SubjectCode): Profil
     msPerWord: Number.isFinite(msw) ? msw : 330,
     giveUpShare: afterFail + giveUps > 0 ? giveUps / (afterFail + giveUps) : 0.3,
     memRate: turns.length >= 8 ? turns.filter((t) => t.hit).length / turns.length : null,
+    level: mean((recent.length ? recent : sessions).map((s) => s.level)),
     declining: !!sa?.findings.some((f) => f.status === 'reported' && f.kind === 'level_trend' && f.evidence?.kind === 'level_trend' && f.evidence.direction === 'down'),
   }
 }
@@ -111,7 +119,7 @@ const puzzleTypeOf = (p: DemoPuzzle): string =>
 interface Run { answers: CoreAnswerRow[]; events: CoreEventRow[]; moral: CoreMoralRow[] }
 
 function simulateRun(
-  def: DemoSubmissionDef, quest: DemoQuest, st: WorldStudent, sessionId: string, prof: Profile, prone: (misconceptionId: string) => boolean,
+  def: DemoSubmissionDef, quest: DemoQuest, st: WorldStudent, sessionId: string, prof: Profile, prone: (misconceptionId: string) => boolean, classMeanLevel: number,
 ): Run {
   const sel = rngFor(`results:${def.id}:${st.id}:sel`)
   const det = rngFor(`results:${def.id}:${st.id}:det`)
@@ -122,7 +130,21 @@ function simulateRun(
   /* ── אילו אתגרים נכשלים: מספר הכישלונות נגזר מסיכוי ההצלחה, ובחירת האתגרים לפי קושי ורעש ── */
   const uK = sel()
   const draws = chs.map(() => ({ u: sel(), tagU: sel() }))
-  const p = clamp(prof.p + (def.ease ?? 0), 0.05, 0.98)
+  /* סיפור רמות: התלמיד/ה של הסיפור נכשל/ת ברמה גבוהה, והכיתה (ברמה נמוכה) מצליחה; "נמוך" = פחות מ-40% מהאתגרים */
+  const isStory = !!def.levelStory && st.cast === def.levelStory.cast
+  const isLow = !!def.lowFor && st.cast !== null && def.lowFor.includes(st.cast)
+  let p = clamp(prof.p + (def.ease ?? 0) + (def.levelStory && !isStory ? 0.25 : 0), 0.05, 0.98)
+  if (isStory) p = 0.12
+  if (isLow) p = 0.2
+  /* הרמה שבה האתגר שוחק בפועל: ברירת מחדל = רמת האתגר + הפער בין התלמיד לממוצע הכיתה במקצוע; בסיפור רמות — קבועה לפי הסיפור.
+     זרם אקראי נפרד, כדי שהוספת הרמות לא תזיז אף ערך קיים */
+  const lvlRng = rngFor(`results:${def.id}:${st.id}:lvl`)
+  const lvlJitter = Math.floor(lvlRng() * 3) - 1
+  const levelOf = (planned: number): number => {
+    if (def.levelStory) return isStory ? def.levelStory.level : clamp(def.levelStory.classLevel + lvlJitter, 1, 20)
+    return Number.isFinite(prof.level) && Number.isFinite(classMeanLevel) ? clamp(Math.round(planned + prof.level - classMeanLevel), 1, 20) : planned
+  }
+  let curLevel = 0
   let solvedTarget = clamp(Math.floor(eligible.length * p + uK), 0, eligible.length)
   if (prof.declining) solvedTarget = Math.min(solvedTarget, Math.max(0, Math.ceil(chs.length / 2) - 1 - moralCount))
   const forced = new Map<number, number | null>()
@@ -148,7 +170,7 @@ function simulateRun(
   const events: CoreEventRow[] = []
   const moral: CoreMoralRow[] = []
   const row = (sceneId: string, itemIndex: number, puzzleType: string, selectedOptionId: string | null, outcome: CoreAnswerRow['outcome'], attemptNo: number, responseMs: number): CoreAnswerRow => ({
-    sessionId, sceneId, itemIndex, puzzleType, selectedOptionId, isCorrect: outcome === 'correct', attemptNo, responseMs, outcome, seq: 1,
+    sessionId, sceneId, itemIndex, puzzleType, selectedOptionId, isCorrect: outcome === 'correct', attemptNo, responseMs, outcome, seq: 1, levelAtPlay: curLevel,
   })
   const failOutcome = (timed: boolean): CoreAnswerRow['outcome'] => {
     if (timed && det() < 0.4) return 'timeout'
@@ -165,6 +187,7 @@ function simulateRun(
   chs.forEach((c, i) => {
     const p = c.puzzle
     const type = puzzleTypeOf(p)
+    curLevel = levelOf(p.level)
     const solved = p.kind === 'moral' || !failed.has(i)
     let attempts = 1
     let solveMs = 0
@@ -257,6 +280,13 @@ function assignStatuses(def: DemoSubmissionDef, students: WorldStudent[], proneI
     status.set(roi.id, r)
     if (r === 'in_progress') inProgress--; else notStarted--
   }
+  /* דמויות סגל שמצבן נקבע בהגדרה (למשל תמר שסיימה): נספרות בתוך המספרים הכוללים */
+  for (const [key, forced] of Object.entries(def.cast ?? {})) {
+    const who = students.find((s) => s.cast === key)
+    if (!who) continue
+    status.set(who.id, forced)
+    if (forced === 'in_progress') inProgress--; else if (forced === 'not_started') notStarted--
+  }
   if (inProgress < 0 || notStarted < 0) throw new Error(`demo catalog: inconsistent counts in ${def.id}`)
   /* מי שאינו מהסגל (תרחישי העולם) ואינו מציג תפיסה שהמספרים שלה נבדקים */
   const pool = students.filter((s) => s.cast === null && !proneIds.has(s.id))
@@ -269,7 +299,13 @@ function assignStatuses(def: DemoSubmissionDef, students: WorldStudent[], proneI
 
 export interface DemoSubmissionData { def: DemoSubmissionDef; quest: DemoQuest; input: CoreInput }
 
-function buildSubmission(a: Analysis, def: DemoSubmissionDef): DemoSubmissionData {
+/* שליחה "היום": 07:30 שעון ישראל, ואם עוד מוקדם מכך (או שעבר פחות מדי זמן) — לפני 5 דקות. כך היא תמיד בשבוע הנוכחי ותמיד לפני "עכשיו" */
+function todaySentAtMs(nowMs: number): number {
+  const [y, m, d] = israelDay(new Date(nowMs)).split('-').map(Number)
+  return Math.min(nowMs - 5 * 60_000, israelLocalToUtc(y, m, d, 7, 30).getTime())
+}
+
+function buildSubmission(a: Analysis, def: DemoSubmissionDef, nowMs: number): DemoSubmissionData {
   const quest = questById(def.questId)
   if (!quest) throw new Error(`demo catalog: unknown quest ${def.questId}`)
   const w = a.world
@@ -281,6 +317,10 @@ function buildSubmission(a: Analysis, def: DemoSubmissionDef): DemoSubmissionDat
   const keep = new Set(taggedOptions(quest).flatMap((t) => [...proneOf(t.misconceptionId)]))
   const statuses = assignStatuses(def, roster, keep)
 
+  const sentMs = def.today ? todaySentAtMs(nowMs) : Date.parse(`${w.days[def.dayIndex].slice(0, 10)}T07:30:00.000Z`)
+  const classLevels = roster.map((s) => profileOf(a, s.id, quest.subject).level).filter((x) => Number.isFinite(x))
+  const classMeanLevel = classLevels.length ? classLevels.reduce((s, x) => s + x, 0) / classLevels.length : NaN
+
   const sessions: CoreSession[] = []
   const answers: CoreAnswerRow[] = []
   const events: CoreEventRow[] = []
@@ -289,22 +329,30 @@ function buildSubmission(a: Analysis, def: DemoSubmissionDef): DemoSubmissionDat
     const status = statuses.get(st.id) as Status
     if (status === 'not_started') continue
     const t = rngFor(`results:${def.id}:${st.id}:time`)
-    const startDay = w.days[Math.max(0, def.dayIndex - (t() < 0.3 ? 1 : 0))]
-    const startMin = 30 + Math.floor(t() * 260)
     const sessionId = `${def.id}:${st.id}`
-    sessions.push({
-      id: sessionId, studentId: st.id, startedAt: at(startDay, startMin),
-      completedAt: status === 'completed' ? at(startDay, startMin + 14 + Math.floor(t() * 22)) : null,
-    })
+    if (def.today) {
+      /* שליחה מהיום: הזמנים יחסיים ל"עכשיו". מי שבאמצע בשיעור פעיל התחיל/ה לפני כמה דקות */
+      const span = Math.max(60_000, nowMs - sentMs - 120_000)
+      const startMs = status === 'in_progress' && def.live ? Math.max(sentMs, nowMs - (3 + Math.floor(t() * 10)) * 60_000) : sentMs + Math.floor(span * (0.05 + 0.5 * t()))
+      const doneMs = Math.max(startMs + 60_000, Math.min(startMs + (14 + Math.floor(t() * 22)) * 60_000, nowMs - 90_000))
+      sessions.push({ id: sessionId, studentId: st.id, startedAt: new Date(startMs).toISOString(), completedAt: status === 'completed' ? new Date(doneMs).toISOString() : null })
+    } else {
+      const startDay = w.days[Math.max(0, def.dayIndex - (t() < 0.3 ? 1 : 0))]
+      const startMin = 30 + Math.floor(t() * 260)
+      sessions.push({
+        id: sessionId, studentId: st.id, startedAt: at(startDay, startMin),
+        completedAt: status === 'completed' ? at(startDay, startMin + 14 + Math.floor(t() * 22)) : null,
+      })
+    }
     /* session שלא הושלם אינו כותב events/answers (השליחה מרוכזת בסיום) */
     if (status !== 'completed') continue
-    const run = simulateRun(def, quest, st, sessionId, profileOf(a, st.id, quest.subject), (mid) => proneOf(mid).has(st.id))
+    const run = simulateRun(def, quest, st, sessionId, profileOf(a, st.id, quest.subject), (mid) => proneOf(mid).has(st.id), classMeanLevel)
     events.push(...run.events)
     if (def.answerDetail) { answers.push(...run.answers); moral.push(...run.moral) }
   }
 
   const gameData = questGameData(quest)
-  const sentAt = `${w.days[def.dayIndex].slice(0, 10)}T07:30:00.000Z`
+  const sentAt = new Date(sentMs).toISOString()
   const students: CoreStudent[] = roster.map((s) => ({ id: s.id, name: s.displayName }))
   return {
     def, quest,
@@ -318,27 +366,33 @@ function buildSubmission(a: Analysis, def: DemoSubmissionDef): DemoSubmissionDat
       },
       students, sessions, answers, events, optionTags: optionTagsOf(quest), moral,
       detailAvailableFrom: w.days[Math.min(DEMO_DETAIL_FROM_DAY_INDEX, w.days.length - 1)],
-      nowMs: w.now.getTime(),
-      lastActivityAt: sessions.reduce<string | null>((m, s) => [s.startedAt, s.completedAt].reduce<string | null>((mm, t) => (t && (!mm || t > mm) ? t : mm), m), null),
+      levelAvailableFrom: w.days[Math.min(DEMO_DETAIL_FROM_DAY_INDEX, w.days.length - 1)],
+      /* שליחה קבועה נצפית כמו בסוף יום הלימוד האחרון (לא ב"עכשיו" האמיתי): כך המצב (פתוח/הסתיים) ו"לא התחיל אחרי המועד" זהים בכל תאריך, גם בקיץ */
+      nowMs: def.today ? nowMs : Date.parse(`${w.days[0].slice(0, 10)}T18:00:00.000Z`),
+      /* שיעור פעיל: פעימות חיות עד לפני רגע, גם אצל מי שעוד לא סיים */
+      lastActivityAt: def.live ? new Date(nowMs - 40_000).toISOString() : sessions.reduce<string | null>((m, s) => [s.startedAt, s.completedAt].reduce<string | null>((mm, t) => (t && (!mm || t > mm) ? t : mm), m), null),
     },
   }
 }
 
 export interface DemoResults { submissions: DemoSubmissionData[]; byId: Map<string, DemoSubmissionData> }
 
-/* מטמון לפי יום (הנתונים זהים בכל יום; רק התאריכים זזים) */
-const CACHE = new Map<string, DemoResults>()
+/* מטמון לפי יום של השליחות הקבועות (הנתונים זהים בכל יום; רק התאריכים זזים). שליחות "היום" נבנות מחדש בכל קריאה: הן תלויות ב"עכשיו"
+   (השבוע הנוכחי, "פעיל עכשיו", התצוגה החיה) ואי אפשר לקבע אותן ליום שלם */
+const CACHE = new Map<string, DemoSubmissionData[]>()
 export function getDemoResults(now?: Date): DemoResults {
   const a = getAnalysis(now)
   const key = a.world.now.toISOString().slice(0, 10)
-  let r = CACHE.get(key)
-  if (!r) {
-    const submissions = DEMO_SUBMISSIONS.map((def) => buildSubmission(a, def))
-    r = { submissions, byId: new Map(submissions.map((s) => [s.def.id, s])) }
+  let fixed = CACHE.get(key)
+  if (!fixed) {
+    fixed = DEMO_SUBMISSIONS.filter((def) => !def.today).map((def) => buildSubmission(a, def, a.world.now.getTime()))
     CACHE.clear()
-    CACHE.set(key, r)
+    CACHE.set(key, fixed)
   }
-  return r
+  const nowMs = now ? now.getTime() : clock.now()
+  const today = DEMO_SUBMISSIONS.filter((def) => def.today).map((def) => buildSubmission(a, def, nowMs))
+  const submissions = [...fixed, ...today]
+  return { submissions, byId: new Map(submissions.map((s) => [s.def.id, s])) }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -377,35 +431,81 @@ function pick(v: V2Viewer, submissionId: string): DemoSubmissionData {
   return s
 }
 
-const subjectOrder = (code: string): number => SUBJECTS.findIndex((s) => s.code === code)
+/* ── "תצוגה חיה": שורות sessions חיות. בשיעור הפעיל כל תלמיד/ה שבאמצע מקבל/ת תפקיד קבוע, והמצב משתנה עם הזמן (בדקות) — נתקע/ה, ויתר/ה, לא פעיל/ה
+   חוזרים ונעלמים, והסצנה מתקדמת. הכול דטרמיניסטי לפי "עכשיו" (אין Math.random) ועובר דרך אותה liveStateOf כמו הספק האמיתי. ── */
+const LIVE_ROLES = ['working', 'working', 'stuck', 'working', 'gave_up', 'working', 'inactive', 'working', 'working'] as const
+export function demoLiveRows(s: DemoSubmissionData, nowMs: number): LiveSessionRow[] {
+  const sceneIds = s.quest.scenes.map((x) => x.id)
+  const open = s.input.sessions.filter((x) => !x.completedAt).sort((x, y) => (x.studentId < y.studentId ? -1 : 1))
+  const rank = new Map(open.map((x, i) => [x.studentId, i]))
+  const minute = Math.floor(nowMs / 60_000)
+  return s.input.sessions.map((ses): LiveSessionRow => {
+    const base = { studentId: ses.studentId, startedAt: ses.startedAt, completedAt: ses.completedAt }
+    if (ses.completedAt) return { ...base, lastSeenAt: ses.completedAt, live: null }
+    /* שיעור שאינו פעיל: מי שבאמצע נעלם/ה מזמן */
+    if (!s.def.live) return { ...base, lastSeenAt: ses.startedAt, live: null }
+    const i = rank.get(ses.studentId) ?? 0
+    const role = LIVE_ROLES[i % LIVE_ROLES.length]
+    const sceneId = sceneIds[1 + ((minute + i * 2) % Math.max(1, sceneIds.length - 1))] ?? sceneIds[0]
+    const ago = (sec: number): string => new Date(nowMs - sec * 1000).toISOString()
+    const snap = (o: Partial<LiveSnapshot>): LiveSnapshot => ({ sceneId, inPuzzle: false, mistakes: 0, progressAt: ago(20 + ((i * 13) % 80)), lastChallenge: null, ...o })
+    let lastSeen = ago(3 + ((i * 7) % 25))
+    let live = snap({ inPuzzle: i % 2 === 0 })
+    if (role === 'stuck' && minute % 6 < 4) { lastSeen = ago(12); live = snap({ inPuzzle: true, mistakes: 3, progressAt: ago(75) }) }
+    else if (role === 'gave_up' && minute % 5 < 2) { lastSeen = ago(9); live = snap({ progressAt: ago(25), lastChallenge: { sceneId, outcome: 'gave_up', at: ago(25) } }) }
+    else if (role === 'inactive' && minute % 8 < 5) { lastSeen = ago(215); live = snap({ progressAt: ago(240) }) }
+    return { ...base, lastSeenAt: lastSeen, live }
+  })
+}
 
 export const demoResultsProvider: ResultsProvider = {
   async list(req: Request, q: ResultsListQuery): Promise<SubmissionList> {
     const v = await viewerOf(req)
     const visible = demoVisibleSubmissions(v)
-
-    /* אפשרויות הסינון — מכל מה שהצופה רואה, לפני הסינון עצמו */
-    const classOpts = new Map<string, string>()
-    const subjOpts = new Map<string, NonNullable<SubmissionRow['subject']>>()
-    for (const s of visible) {
-      classOpts.set(s.input.submission.classId, s.input.submission.className)
-      const subj = s.input.submission.quest.subject
-      if (subj) subjOpts.set(subj.code, subj)
-    }
-
-    const needle = (q.q ?? '').trim().toLowerCase()
-    const shown = visible
-      .filter((s) => !q.classId || s.input.submission.classId === q.classId)
-      .filter((s) => !q.subject || s.input.submission.quest.subject?.code === q.subject)
-      .filter((s) => !needle || [s.input.submission.quest.title, s.input.submission.className, s.input.submission.quest.subject?.nameHe ?? ''].some((t) => t.toLowerCase().includes(needle)))
-
+    const nowMs = clock.now()
+    /* מחנך/ת: בורר [השיעורים שלי] [כל השיעורים בכיתה שלי]. "שלי" = ששלחתי; מורה מקצוע — כל מה שהוא רואה */
+    const homeroomClassIds = new Set(v.lens === 'homeroom' && v.homeroomClassId ? [v.homeroomClassId] : [])
+    const descOf = (s: DemoSubmissionData): LessonDesc => ({
+      id: s.def.id, classId: s.input.submission.classId, className: s.input.submission.className, title: s.input.submission.quest.title,
+      subject: s.input.submission.quest.subject, sentAtMs: Date.parse(s.input.submission.sentAt),
+      inMine: v.lens !== 'homeroom' || s.def.sender === 'homeroom',
+    })
+    const sel = selectLessons(visible, descOf, { query: q, nowMs, homeroomClassIds, limit: 60, olderLimit: 150 })
+    const rowsOf = (items: DemoSubmissionData[]): RowWithPeople[] => items.map((s) => buildListRowWithPeople(inputFor(v, s)))
     return {
-      submissions: shown.map((s) => buildListRow(inputFor(v, s))),
-      filters: {
-        classes: [...classOpts.entries()].map(([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name, 'he')),
-        subjects: [...subjOpts.values()].sort((x, y) => subjectOrder(x.code) - subjectOrder(y.code)),
-      },
+      submissions: activeFirst(rowsOf(sel.shown)).map((r) => r.row),
+      filters: filtersOf(sel),
+      view: sel.view,
+      canToggleView: sel.canToggleView,
+      olderCount: sel.olderCount,
+      ...(sel.view === 'class' ? { weekStrip: buildWeekStrip(rowsOf(sel.weekPool)) } : {}),
     }
+  },
+
+  async live(req: Request, submissionId: string): Promise<LiveView> {
+    const v = await viewerOf(req)
+    const s = pick(v, submissionId)
+    const nowMs = clock.now()
+    return buildLiveView({
+      head: buildHead(inputFor(v, s)), students: s.input.students, sessions: demoLiveRows(s, nowMs),
+      gameData: s.input.submission.quest.gameData, nowMs, available: true,
+    })
+  },
+
+  /* מנהל/ת (עדשת האורח): שכבה × מקצוע על שליחות 30 הימים האחרונים בכל כיתות עולם הדמו. תאים עם פחות מ-5 תלמידים או כיתה אחת — מוסתרים כמו במערכת האמיתית */
+  async overview(req: Request): Promise<Overview> {
+    const v = await resolveV2Viewer(req, { ignoreFlag: true })
+    if (!v) throw new AppError(403, ERR_NO_ACCESS)
+    if (v.lens !== 'admin') throw new AppError(403, ERR_OVERVIEW_ADMIN_ONLY)
+    const a = getAnalysis()
+    const since = clock.now() - 30 * 86_400_000
+    const sent = getDemoResults().submissions.filter((s) => Date.parse(s.input.submission.sentAt) >= since)
+    const sends: OverviewSend[] = sent.map((s) => ({
+      questId: s.quest.id, classId: s.def.classId, grade: a.classById.get(s.def.classId)?.grade ?? null, subject: s.quest.subject,
+      students: s.input.students.map((x) => x.id),
+    }))
+    const started = new Set(sent.flatMap((s) => s.input.sessions.map((x) => `${s.quest.id}|${x.studentId}`)))
+    return buildOverview({ periodLabel: OVERVIEW_TEXT.demoPeriod, sends, started })
   },
 
   async classView(req: Request, submissionId: string): Promise<ClassSubmissionView> {

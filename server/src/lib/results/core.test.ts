@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ATTENTION_RULE, COMMON_ERROR_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
+import { ATTENTION_RULE, COMMON_MISTAKE_MIN_STUDENTS, OBJECTIVE_BANDS } from '../../../../src/shared/lib/analyticsConfig.js'
 import { countNb, howWeCalcObjectivesLines, howWeCalcResultsLines, howWeCalcSuccessBandsLines, OBJECTIVE_LEVEL_TEXT, OBJECTIVE_NO_DATA_TEXT } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
@@ -126,30 +126,62 @@ describe('מספרים וסיכום: "X מתוך Y"', () => {
 })
 
 describe('תשומת לב — ATTENTION_RULE בלבד', () => {
-  it('לא התחיל / ויתר על ≥2 אתגרים שונים / סיים והצליח בפחות מחצי', () => {
+  const DUE = '2026-10-17T20:59:00.000Z'
+  const AFTER = Date.parse('2026-10-20T10:00:00Z')
+  const BEFORE = Date.parse('2026-10-15T10:00:00Z')
+  /* מועד הגשה + "עכשיו": ליבת התוצאות טהורה, ולכן מקבלת אותם בקלט */
+  const withDue = (over: Partial<CoreInput>, nowMs: number | undefined, dueAt: string | null = DUE): CoreInput => {
+    const base = input(over)
+    return { ...base, submission: { ...base.submission, dueAt }, ...(nowMs !== undefined ? { nowMs } : {}) }
+  }
+
+  it('לא התחיל / ויתר על ≥2 אתגרים שונים / סיים והצליח בפחות מ-40% (בשיעור עם 5 אתגרים)', () => {
     expect(ATTENTION_RULE.gaveUpAtLeast).toBe(2)
+    expect(ATTENTION_RULE.solvedShareBelow).toBe(0.4)
+    expect(ATTENTION_RULE.minChallengesForSuccessRule).toBe(5)
     const a1 = [ans(1, 's1', 0, null, 'gave_up'), ans(1, 's2', 0, null, 'closed', { puzzleType: 'trueFalse' }), ans(1, 's3', 0, null, 'correct', { puzzleType: 'memory' })]
     const a2 = [ans(2, 's1', 0, 'b', 'wrong'), ans(2, 's2', 0, 'f', 'wrong', { puzzleType: 'trueFalse' }), ans(2, 's3', 0, null, 'wrong', { puzzleType: 'memory' }),
       ans(2, 's4', 0, 'o1', 'wrong', { puzzleType: 'finalQuiz' }), ans(2, 's4', 1, 'o0', 'wrong', { puzzleType: 'finalQuiz' }), ans(2, 's4', 2, 'o0', 'wrong', { puzzleType: 'finalQuiz' })]
     /* תלמיד 3: ויתר על אתגר אחד בלבד — לא מספיק */
     const a3 = [ans(3, 's1', 0, null, 'gave_up'), ans(3, 's2', 0, 't', 'correct', { puzzleType: 'trueFalse' })]
-    const v = buildClassView(input({
+    const v = buildClassView(withDue({
       sessions: [sess(0, true), sess(1, true), sess(2, true), sess(3, true)],
       answers: [...perfect(0).answers, ...a1, ...a2, ...a3],
       events: [...perfect(0).events, ...['s1', 's2', 's3'].map((s) => pev(1, s, s === 's3')), ...['s1', 's2', 's3', 's4'].map((s) => pev(2, s, false)), pev(3, 's1', false), pev(3, 's2', true)],
-    }))
+    }, AFTER))
     const chip = (name: string) => [...v.roster.completed, ...v.roster.inProgress, ...v.roster.notStarted].find((c) => c.name === name)!
     expect(chip('אבי כהן').attention).toBe(false)
     expect(chip('בני לוי').attentionReasons).toContain('gave_up_often')
+    expect(chip('בני לוי').reasonText).toContain('ויתר/ה על 2 אתגרים')
     expect(chip('גלית ברק').attentionReasons).toContain('low_success')
     expect(chip('דנה רז').attentionReasons).not.toContain('gave_up_often')
     expect(chip('הדס שמש').attentionReasons).toEqual(['not_started'])
-    const row = buildListRow(input({
+    expect(chip('הדס שמש').reasonText).toBe('לא התחיל/ה אחרי מועד ההגשה')
+    const row = buildListRow(withDue({
       sessions: [sess(0, true), sess(1, true)], answers: [...perfect(0).answers, ...a1],
       events: [...perfect(0).events, ...['s1', 's2', 's3'].map((s) => pev(1, s, s === 's3'))],
-    }))
-    /* בני (ויתור) + 4 שלא התחילו */
+    }, AFTER))
+    /* בני (ויתור) + 4 שלא התחילו, אחרי המועד */
     expect(row.attentionCount).toBe(5)
+  })
+
+  it('"לא התחיל/ה" נחשב רק אחרי מועד ההגשה: לא לפניו, ולא כשאין מועד בכלל', () => {
+    const only0 = { sessions: [sess(0, true)], answers: perfect(0).answers, events: perfect(0).events }
+    expect(buildListRow(withDue(only0, AFTER)).attentionCount).toBe(5)
+    expect(buildListRow(withDue(only0, BEFORE)).attentionCount).toBe(0)
+    expect(buildListRow(withDue(only0, AFTER, null)).attentionCount).toBe(0)
+    /* בלי "עכשיו" (בדיקות ישנות / ספק בלי שעון) — לא מחשבים */
+    expect(buildListRow(withDue(only0, undefined)).attentionCount).toBe(0)
+  })
+
+  it('הצלחה נמוכה: בשיעור עם פחות מ-5 אתגרים הכלל לא חל', () => {
+    const four = gameOf4()
+    const sessions = [sess(0, true)]
+    const answers = [ans(0, 'q1', 0, 'b', 'wrong'), ans(0, 'q2', 0, 'b', 'wrong'), ans(0, 'q3', 0, 'b', 'wrong'), ans(0, 'q4', 0, 'b', 'wrong')]
+    const events = ['q1', 'q2', 'q3', 'q4'].map((s) => pev(0, s, false))
+    const v = buildClassView({ ...input({ sessions, answers, events }), submission: { ...input().submission, quest: { ...input().submission.quest, gameData: four } } })
+    expect(v.head.counts.completed).toBe(1)
+    expect(v.roster.completed[0].attention).toBe(false)
   })
 
   it('"ויתר" נספר רק כשיש שורות answers (בלי פירוט אי אפשר להבדיל מטעות)', () => {
@@ -162,7 +194,13 @@ describe('תשומת לב — ATTENTION_RULE בלבד', () => {
   })
 })
 
-describe('טעויות נפוצות — מתגיות בלבד', () => {
+/* שיעור עם 4 אתגרי בחירה (פחות מ-5) */
+function gameOf4(): unknown {
+  const mc = (n: number) => ({ id: `q${n}`, title: `אתגר ${n}`, puzzle: { type: 'multipleChoice', question: `שאלה ${n}`, choices: [{ id: 'a', text: 'נכון', isCorrect: true }, { id: 'b', text: 'שגוי', isCorrect: false }] } })
+  return { entrySceneId: 'q0', scenes: [{ id: 'q0', title: 'פתיחה', narrative: 'פתיחה' }, mc(1), mc(2), mc(3), mc(4)] }
+}
+
+describe('טעויות נפוצות — אותה תשובה שגויה אצל 3 תלמידים (תגית, או נוסח)', () => {
   const rows = (picks: string[]): CoreInput => input({
     sessions: picks.map((_, i) => sess(i, true)),
     answers: picks.map((o, i) => ans(i, 's1', 0, o, o === 'a' ? 'correct' : 'wrong')),
@@ -170,30 +208,41 @@ describe('טעויות נפוצות — מתגיות בלבד', () => {
     optionTags: [TAG],
   })
 
-  it(`לפחות ${COMMON_ERROR_MIN_STUDENTS} תלמידים בחרו במסיח המתויג → שורה בטעויות נפוצות + commonError באתגר`, () => {
-    const v = buildClassView(rows(['b', 'b', 'a', 'c']))
+  it(`לפחות ${COMMON_MISTAKE_MIN_STUDENTS} תלמידים בחרו במסיח המתויג → שורה בטעויות נפוצות + commonError באתגר`, () => {
+    const v = buildClassView(rows(['b', 'b', 'b', 'a', 'c']))
     expect(v.commonErrors).toHaveLength(1)
-    expect(v.commonErrors[0]).toMatchObject({ id: 'm-solid', title: 'בלבול בין מוצק לנוזל', studentsCount: 2, studentsExposed: 4, linkedQuest: { questId: 'q-fix', title: 'שיעור חיזוק' } })
+    expect(v.commonErrors[0]).toMatchObject({
+      misconceptionId: 'm-solid', title: 'בלבול בין מוצק לנוזל', studentsCount: 3, studentsExposed: 5, linkedQuest: { questId: 'q-fix', title: 'שיעור חיזוק' },
+      sceneId: 's1', itemIndex: 0, wrongText: 'נוזל', correctText: 'מוצק', sentence: '3 תלמידים בחרו ״נוזל״', studentIds: ['st0', 'st1', 'st2'],
+    })
     const ch = v.challenges[0]
-    expect(ch.commonError).toEqual({ title: 'בלבול בין מוצק לנוזל', count: 2, optionText: 'נוזל' })
+    expect(ch.commonError).toEqual({ title: 'בלבול בין מוצק לנוזל', count: 3, optionText: 'נוזל', sentence: '3 תלמידים בחרו ״נוזל״' })
     const optB = ch.items[0].options!.find((o) => o.optionId === 'b')!
-    expect(optB).toMatchObject({ count: 2, isCorrect: false, errorTag: { id: 'm-solid', title: 'בלבול בין מוצק לנוזל' } })
-    expect(optB.students.map((s) => s.name)).toEqual(['אבי כהן', 'בני לוי'])
+    expect(optB).toMatchObject({ count: 3, isCorrect: false, errorTag: { id: 'm-solid', title: 'בלבול בין מוצק לנוזל' } })
+    expect(optB.students.map((s) => s.name)).toEqual(['אבי כהן', 'בני לוי', 'גלית ברק'])
     expect(ch.items[0].options!.find((o) => o.optionId === 'c')!.errorTag).toBeNull()
     expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
   })
 
-  it('בחירה במסיח לא מתויג, או תלמיד אחד בלבד במתויג — אין טעות נפוצה', () => {
-    expect(buildClassView(rows(['c', 'c', 'c', 'a'])).commonErrors).toEqual([])
+  it('שני תלמידים בלבד בטעות — אין טעות נפוצה (מתחת לסף), גם עם תגית', () => {
+    const two = buildClassView(rows(['b', 'b', 'a', 'c']))
+    expect(two.commonErrors).toEqual([])
+    expect(two.challenges[0].commonError).toBeNull()
     const one = buildClassView(rows(['b', 'a', 'c']))
     expect(one.commonErrors).toEqual([])
-    expect(one.challenges[0].commonError).toBeNull()
   })
 
-  it('בלי תגיות בכלל → commonErrors ריק ו-commonError אפס', () => {
+  it('אותה תשובה שגויה גם בלי תגית (לפי הנוסח): 3 תלמידים בחרו ב"גז" → טעות נפוצה בלי שם תפיסה', () => {
+    const v = buildClassView(rows(['c', 'c', 'c', 'a']))
+    expect(v.commonErrors).toHaveLength(1)
+    expect(v.commonErrors[0]).toMatchObject({ misconceptionId: null, wrongText: 'גז', studentsCount: 3, sentence: '3 תלמידים בחרו ״גז״', title: '״גז״ — שאלת המים' })
+    expect(v.challenges[0].commonError).toMatchObject({ title: '', count: 3, optionText: 'גז' })
+  })
+
+  it('בלי תגיות בכלל, אותה בחירה אצל 3 → עדיין טעות נפוצה (לפי נוסח); אין errorTag על אף אפשרות', () => {
     const v = buildClassView({ ...rows(['b', 'b', 'b']), optionTags: [] })
-    expect(v.commonErrors).toEqual([])
-    expect(v.challenges[0].commonError).toBeNull()
+    expect(v.commonErrors).toHaveLength(1)
+    expect(v.commonErrors[0].misconceptionId).toBeNull()
     expect(v.challenges[0].items[0].options!.every((o) => o.errorTag === null)).toBe(true)
   })
 
@@ -201,6 +250,12 @@ describe('טעויות נפוצות — מתגיות בלבד', () => {
     const v = buildClassView(rows(['b', 'b', 'b', 'a']))
     expect(v.summary).toContain(`האתגר הקשה ביותר: שאלת המים. ${countNb(3, 4)} לא הצליחו`)
     expect(v.summary).toContain('ורובם בחרו ב״נוזל״')
+  })
+
+  it('מסך התלמיד: מי שבחר בטעות הנפוצה מקבל/ת את המשפט; מי שענה נכון — לא', () => {
+    const d = rows(['b', 'b', 'b', 'a'])
+    expect(buildStudentView(d, 'st0')!.challenges[0].items[0].commonMistake).toBe('3 תלמידים בחרו ״נוזל״')
+    expect(buildStudentView(d, 'st3')!.challenges[0].items[0].commonMistake ?? null).toBeNull()
   })
 })
 

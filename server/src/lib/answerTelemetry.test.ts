@@ -394,3 +394,78 @@ describe('כיול 60/80 — לא זז (לפני/אחרי על אותו סשן)'
     expect(before.profile.perPuzzleLevel.trueFalse).toBe(prev.perPuzzleLevel.trueFalse - 1)
   })
 })
+
+/* ───────── סיכום שיעור: הרמה שבה האתגר שוחק + טעויות ברצף (תצוגה חיה) ───────── */
+import { trailingMistakes, validLevel } from '../../../src/shared/lib/answerTelemetry.js'
+import { levelsFromGameData } from './answerWriter.js'
+
+describe('הרמה בפועל בכל תשובה (level_at_play / level_dimension)', () => {
+  const choices = [{ id: 'a', text: '', isCorrect: true }, { id: 'b', text: '', isCorrect: false }]
+  const play = (level?: number | null) => {
+    const { tel } = session()
+    tel.setDisplay(['a', 'b'], 0)
+    tel.act('select', { optionId: 'a', position: 0 })
+    return buildPresentation(tel, base({ puzzleType: 'multipleChoice', level, puzzle: { choices } }))
+  }
+
+  it('הרמה מה-puzzle.difficulty נרשמת בכל שורה, והממד = סוג האתגר', () => {
+    const a = play(14).answers[0]
+    expect(a).toMatchObject({ levelAtPlay: 14, levelDimension: 'multipleChoice' })
+  })
+
+  it('בלי רמה / רמה לא תקפה → השדות נעדרים (לא ממציאים רמה)', () => {
+    for (const bad of [undefined, null, 0, 21, 3.5 + 20, NaN, '7' as unknown as number]) {
+      const a = play(bad as number | null | undefined).answers[0]
+      expect(a.levelAtPlay, String(bad)).toBeUndefined()
+    }
+    expect(validLevel(7.4)).toBe(7)
+  })
+
+  it('מבחן סיכום: כל השאלות נושאות את אותה דרגה', () => {
+    const { tel } = session()
+    const quiz = { questions: [{ options: ['x', 'y'], correctIndex: 0 }, { options: ['x', 'y'], correctIndex: 1 }] }
+    tel.quizItem({ itemIndex: 0, selectedOptionId: 'o0', selectedPosition: 0, correctPosition: 0, displayedOrder: ['o0', 'o1'], isCorrect: true, shownAt: 0, answeredAt: 900 })
+    tel.quizItem({ itemIndex: 1, selectedOptionId: 'o0', selectedPosition: 0, correctPosition: 1, displayedOrder: ['o0', 'o1'], isCorrect: false, shownAt: 900, answeredAt: 2000 })
+    const rec = buildPresentation(tel, base({ puzzleType: 'finalQuiz', level: 9, puzzle: quiz }))
+    expect(rec.answers).toHaveLength(2)
+    for (const a of rec.answers) expect(a).toMatchObject({ levelAtPlay: 9, levelDimension: 'finalQuiz' })
+  })
+
+  it('toAnswerRow: העמודות נכתבות רק כשהן קיימות במסד; הרמה מהקליינט גוברת על ההשלמה מה-game_data', () => {
+    const ctx = { sessionId: 'S', studentId: 'U', classId: 'C', questId: 'Q', variantId: null, subjectId: null }
+    const wire = parseAnswers([{ clientEventId: 'S:s1:0:1', sceneId: 's1', itemIndex: 0, puzzleType: 'multipleChoice', selectedOptionId: 'a', selectedPosition: 0, correctPosition: 0, displayedOrder: ['a'], isCorrect: true, attemptNo: 1, responseMs: 900, outcome: 'correct', interaction: null, levelAtPlay: 12, levelDimension: 'multipleChoice' }])[0]
+    expect(toAnswerRow(wire, ctx)).not.toHaveProperty('level_at_play')
+    expect(toAnswerRow(wire, { ...ctx, withLevel: true, derivedLevels: new Map([['s1', 5]]) })).toMatchObject({ level_at_play: 12, level_dimension: 'multipleChoice' })
+    /* קליינט ישן בלי רמה: משלימים מה-game_data ששוחק */
+    const old = parseAnswers([{ clientEventId: 'S:s1:0:2', sceneId: 's1', itemIndex: 0, puzzleType: 'multipleChoice', selectedOptionId: 'a', selectedPosition: 0, correctPosition: 0, displayedOrder: ['a'], isCorrect: true, attemptNo: 1, responseMs: 900, outcome: 'correct', interaction: null }])[0]
+    expect(toAnswerRow(old, { ...ctx, withLevel: true, derivedLevels: new Map([['s1', 5]]) })).toMatchObject({ level_at_play: 5, level_dimension: 'multipleChoice' })
+    /* ואם אין מאיפה להשלים: NULL (לא משווים) */
+    expect(toAnswerRow(old, { ...ctx, withLevel: true, derivedLevels: new Map() })).toMatchObject({ level_at_play: null, level_dimension: null })
+  })
+
+  it('רמה לא תקפה בגוף הבקשה נזרקת בשקט (השורה נשמרת)', () => {
+    const rows = parseAnswers([{ clientEventId: 'S:s1:0:3', sceneId: 's1', itemIndex: 0, puzzleType: 'multipleChoice', selectedOptionId: 'a', selectedPosition: 0, correctPosition: 0, displayedOrder: ['a'], isCorrect: true, attemptNo: 1, responseMs: 900, outcome: 'correct', interaction: null, levelAtPlay: 99 }])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].levelAtPlay).toBeUndefined()
+  })
+
+  it('levelsFromGameData קיים כפונקציה מיוצאת (השלמה בשרת)', () => {
+    expect(typeof levelsFromGameData).toBe('function')
+  })
+})
+
+describe('trailingMistakes — טעויות ברצף באתגר הפתוח', () => {
+  it('סידור: הגשה שגויה פעמיים ואז נכונה → 0; שלוש שגויות ברצף → 3', () => {
+    expect(trailingMistakes([{ k: 'submit', correct: false }, { k: 'submit', correct: false }, { k: 'submit', correct: true }])).toBe(0)
+    expect(trailingMistakes([{ k: 'submit', correct: false }, { k: 'submit', correct: false }, { k: 'submit', correct: false }])).toBe(3)
+  })
+  it('שגיאה, פעולה נכונה, שתי שגיאות → 2 (הרצף מתאפס בפעולה נכונה)', () => {
+    expect(trailingMistakes([{ k: 'attempt', correct: false }, { k: 'letter', correct: true }, { k: 'letter', correct: false }, { k: 'attempt', correct: false }])).toBe(2)
+  })
+  it('החלפות אריחים וזיכרון: bad / match=false נספרים; מילה שנמצאה מאפסת; פעולות ניטרליות (flip, select) לא משנות', () => {
+    expect(trailingMistakes([{ k: 'swap', bad: true }, { k: 'flip' }, { k: 'pair', match: false }, { k: 'swap', bad: true }])).toBe(3)
+    expect(trailingMistakes([{ k: 'swap', bad: true }, { k: 'word_found', word: 'x' }])).toBe(0)
+    expect(trailingMistakes([{ k: 'pair', match: false }, { k: 'pair', match: true }, { k: 'flip' }])).toBe(0)
+    expect(trailingMistakes([])).toBe(0)
+  })
+})

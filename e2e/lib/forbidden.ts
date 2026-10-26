@@ -19,6 +19,7 @@ export const FORBIDDEN_RULES: readonly Rule[] = [
   { word: 'קורלציה', re: /קורלצי/g },
   { word: 'גודל אפקט', re: /גודל[י]?\s+ה?אפקט/g },
   { word: 'הסתברות', re: /הסתברו/g },
+  { word: 'אנליטיקה', re: /אנליטיק/g },
 ]
 
 const CTX = 28

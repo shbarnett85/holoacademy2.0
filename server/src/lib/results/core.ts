@@ -22,10 +22,12 @@ import type {
   SubmissionHead, SubmissionRow, SuccessBands,
 } from '../../../../src/shared/types/resultsV1.js'
 import {
-  ATTENTION_RULE, CLASS_SUMMARY_MIN_COMPLETED, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
+  ATTENTION_RULE, CLASS_SUMMARY_MIN_COMPLETED, COMMON_MISTAKE_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, OBJECTIVE_BANDS, REVIEW_MIN_COMPLETED,
 } from '../../../../src/shared/lib/analyticsConfig.js'
-import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
+import { slideWordCount, validLevel } from '../../../../src/shared/lib/answerTelemetry.js'
+import { compareToPeers, levelBandsOf, type PeerPlay } from '../../../../src/shared/lib/levelComparison.js'
 import {
+  attentionReasonsLine, commonMistakeSentence, COMPARISON_NO_LEVEL, COMPARISON_NOT_ENOUGH, comparisonSentence, levelNoticeText, openLessonNote,
   howWeCalcObjectivesLines, howWeCalcResultsLines, howWeCalcSuccessBandsLines, israelDayKey, narrateClassSummary, narrateListSummary, narrateStudentSummary,
   objectiveLevelText, SUCCESS_DONUT_BANDS,
   type ClassSummaryInput,
@@ -60,6 +62,8 @@ export interface CoreSubmissionInfo {
   senderName: string | null
   /* מועד ההגשה (ISO) — null/חסר = ללא מועד */
   dueAt?: string | null
+  /* תווית השכבה/כיתה (ו׳2) — לסינון ול"שיעור ממוקד" */
+  gradeLabel?: string | null
 }
 
 export interface CoreStudent { id: string; name: string }
@@ -96,6 +100,8 @@ export interface CoreAnswerRow {
   /* answers.variant_id: הגרסה האישית של ההדמיה ששוחקה (quest_variants.id). null/חסר = ההדמיה הבסיסית.
      בגרסה אישית החידות נוצרו מחדש, ולכן selectedOptionId מתייחס לאפשרויות הגרסה ולא לאפשרויות הבסיס. */
   variantId?: string | null
+  /* הרמה (1-20) שבה האתגר שוחק בפועל (answers.level_at_play); null/חסר = אין נתון (תשובה שנשמרה לפני השלב הזה) */
+  levelAtPlay?: number | null
 }
 
 /* שורת events מסוכמת: puzzle_solved/puzzle_failed (payload: puzzleType/difficulty/attempts/solveTimeMs/shards)
@@ -142,6 +148,8 @@ export interface CoreInput {
      חסר nowMs = לא מחושב מצב (בדיקות ישנות). */
   nowMs?: number
   lastActivityAt?: string | null
+  /* התאריך (ISO) הראשון שבו נשמרה בכלל רמה בתשובה (min answers.created_at עם level_at_play), או null אם עוד לא — להודעה "אין נתון רמה לשיעורים שנשלחו לפני…" */
+  levelAvailableFrom?: string | null
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -188,6 +196,13 @@ const objectiveIdOf = (v: unknown): string | null => (typeof v === 'string' && v
 const scenesOf = (gameData: unknown): GameScene[] => {
   const s = (gameData as GameDataLike | null)?.scenes
   return Array.isArray(s) ? s.filter((x) => x && typeof x.id === 'string') : []
+}
+
+/* מיקום הסצנה (שקף) 1..M ושמה — ל"תצוגה חיה" ("עכשיו בסצנה 4: …") */
+export function slideIndexOf(gameData: unknown): Map<string, { order: number; title: string }> {
+  const map = new Map<string, { order: number; title: string }>()
+  scenesOf(gameData).forEach((s, i) => map.set(s.id, { order: i + 1, title: s.title ?? s.id }))
+  return map
 }
 
 /* תמונת הפתיחה של ההדמיה — לכרטיס ברשימה */
@@ -289,6 +304,8 @@ interface StudentAnalysis {
   /* שורות ה-answers מצביעות על גרסה אישית (variantId). variant = נתוני הגרסה אם נטענו; null עם variantId = לא נטענו (אין לאן לתרגם) */
   variantId: string | null
   variant: StudentVariant | null
+  /* sceneId → הדרגה שבה האתגר שוחק (רק כשיש נתון) */
+  levels: Map<string, number>
 }
 interface ItemAgg {
   def: ItemDef
@@ -315,6 +332,8 @@ export interface Analysis {
   aggs: ChallengeAgg[]
   hasAnswerRows: boolean
   tagByKey: Map<string, CoreOptionTag>
+  /* האם לפחות תשובה אחת נושאת רמה */
+  hasLevelData: boolean
 }
 
 const tagKey = (sceneId: string, itemIndex: number, optionId: string): string => `${sceneId}|${itemIndex}|${optionId}`
@@ -402,6 +421,12 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
   return m
 }
 
+/* הדרגה שבה האתגר שוחק: הראשונה התקפה מבין שורות ההצגה */
+function levelOfRows(rows: CoreAnswerRow[]): number | null {
+  for (const r of rows) { const lv = validLevel(r.levelAtPlay); if (lv !== null) return lv }
+  return null
+}
+
 export function analyzeSubmission(input: CoreInput): Analysis {
   const challenges = extractChallenges(input.submission.quest.gameData)
   const seen = new Set<string>()
@@ -419,13 +444,15 @@ export function analyzeSubmission(input: CoreInput): Analysis {
   }
 
   const variantsById = new Map((input.variants ?? []).map((v) => [v.id, v]))
+  const dueMs = input.submission.dueAt ? Date.parse(input.submission.dueAt) : NaN
+  const pastDue = input.nowMs !== undefined && Number.isFinite(dueMs) && input.nowMs > dueMs
 
   const out: StudentAnalysis[] = []
   for (const stu of students) {
     const session = latest.get(stu.id) ?? null
     const status: StudentStatus = !session ? 'not_started' : session.completedAt ? 'completed' : 'in_progress'
     const an: StudentAnalysis = {
-      student: stu, status, session, hasRows: false, scenes: new Map(), solved: 0, attempted: 0, gaveUp: 0, reasons: [], variantId: null, variant: null,
+      student: stu, status, session, hasRows: false, scenes: new Map(), solved: 0, attempted: 0, gaveUp: 0, reasons: [], variantId: null, variant: null, levels: new Map(),
     }
     if (session) {
       const rows = answersBySession.get(session.id) ?? []
@@ -435,6 +462,10 @@ export function analyzeSubmission(input: CoreInput): Analysis {
       const variant = an.variantId ? variantsById.get(an.variantId) : undefined
       if (variant && variant.studentId === stu.id) an.variant = studentVariantOf(variant, challenges)
       const rowsByScene = groupBy(rows, (r) => r.sceneId)
+      for (const ch of challenges) {
+        const lv = levelOfRows(rowsByScene.get(ch.sceneId) ?? [])
+        if (lv !== null) an.levels.set(ch.sceneId, lv)
+      }
       const evByScene = puzzleEvBySession.get(session.id)
       for (const ch of challenges) {
         const played = playedOf(an, ch)
@@ -451,9 +482,11 @@ export function analyzeSubmission(input: CoreInput): Analysis {
     }
     /* "ויתר" נספר רק כשיש שורות answers (בלעדיהן אי אפשר להבדיל בין שגיאה לוויתור) */
     if (!an.hasRows) an.gaveUp = 0
-    if (ATTENTION_RULE.notStarted && status === 'not_started') an.reasons.push('not_started')
+    /* "לא התחיל/ה" — רק אחרי מועד ההגשה (בלי מועד, או לפניו: לא נחשב) */
+    if (ATTENTION_RULE.notStartedAfterDue && status === 'not_started' && pastDue) an.reasons.push('not_started')
     if (an.gaveUp >= ATTENTION_RULE.gaveUpAtLeast) an.reasons.push('gave_up_often')
-    if (status === 'completed' && challenges.length > 0 && an.solved / challenges.length < ATTENTION_RULE.solvedShareBelow) an.reasons.push('low_success')
+    /* הצלחה נמוכה — רק בשיעור עם מספיק אתגרים; חלק האתגרים ש"ברמה שלו/ה" נפתרו (הכיול מכוון כל תלמיד/ה לרמה שבה הוא/היא מצליח/ה ברוב) */
+    if (status === 'completed' && challenges.length >= ATTENTION_RULE.minChallengesForSuccessRule && an.solved / challenges.length < ATTENTION_RULE.solvedShareBelow) an.reasons.push('low_success')
     out.push(an)
   }
 
@@ -463,6 +496,7 @@ export function analyzeSubmission(input: CoreInput): Analysis {
   const analysis: Analysis = {
     input, challenges, students: out, byStudent: new Map(out.map((a) => [a.student.id, a])),
     aggs: [], hasAnswerRows: input.answers.some((a) => latestIds.has(a.sessionId)), tagByKey,
+    hasLevelData: out.some((s) => s.levels.size > 0),
   }
   analysis.aggs = challenges.map((ch) => aggregateChallenge(ch, out))
   return analysis
@@ -544,54 +578,125 @@ function aggregateChallenge(ch: ChallengeDef, students: StudentAnalysis[]): Chal
   return agg
 }
 
-/* ── טעויות נפוצות ── */
-interface TopError { title: string; count: number; optionText: string }
+/* ── טעויות נפוצות ──
+   אותה תשובה שגויה באותו פריט אצל COMMON_MISTAKE_MIN_STUDENTS תלמידים או יותר. "אותה תשובה" כשתלמידים שיחקו גרסאות שונות של השאלה:
+   לפי misconception_id אם יש (תגית התפיסה השגויה — של הבסיס או של הגרסה), אחרת לפי נוסח האפשרות אחרי נרמול; בלי התאמה אמינה (נוסח ריק) לא מאחדים.
+   בכל מקרה הקבוצה היא **בתוך אותו אתגר ואותו פריט** — לא מאחדים בין שאלות שונות. */
+interface TopError { title: string; count: number; optionText: string; sentence: string }
 
-function itemTopError(an: Analysis, sceneId: string, item: ItemAgg): TopError | null {
-  if (!item.picks || !item.def.options) return null
-  const groups = new Map<string, { title: string; count: number; best: { text: string; n: number } }>()
-  for (const o of item.def.options) {
-    const tag = an.tagByKey.get(tagKey(sceneId, item.def.itemIndex, o.id))
-    if (!tag || o.isCorrect) continue
-    const n = item.picks.get(o.id)?.length ?? 0
-    if (n === 0) continue
-    const g = groups.get(tag.misconceptionId) ?? { title: tag.title, count: 0, best: { text: o.text, n: 0 } }
-    g.count += n
-    if (n > g.best.n) g.best = { text: o.text, n }
-    groups.set(tag.misconceptionId, g)
-  }
-  let top: TopError | null = null
-  for (const g of groups.values()) {
-    if (g.count >= COMMON_ERROR_MIN_STUDENTS && (!top || g.count > top.count)) top = { title: g.title, count: g.count, optionText: g.best.text }
-  }
-  return top
+/* נרמול נוסח אפשרות להשוואה: ללא ניקוד, גרשיים ופיסוק; רווחים אחידים; אותיות לטיניות קטנות; שבר "⅖" = "2/5" */
+export function normalizeOptionText(t: string): string {
+  return t.normalize('NFKC').replace(/\u2044/g, '/').replace(/[\u0591-\u05C7]/g, '')
+    .replace(/[\s"'`´״׳“”‘’.,;:!?()[\]{}\-–—_]+/g, ' ').trim().toLowerCase()
 }
 
-function classCommonErrors(an: Analysis): CommonErrorRow[] {
-  interface Acc { tag: CoreOptionTag; chosen: Set<string>; exposed: Set<string> }
-  const acc = new Map<string, Acc>()
-  for (const agg of an.aggs) {
-    for (const item of agg.items) {
-      if (!item.picks || !item.def.options) continue
-      const answered = new Set<string>()
-      for (const ids of item.picks.values()) for (const id of ids) answered.add(id)
-      for (const o of item.def.options) {
-        const tag = an.tagByKey.get(tagKey(agg.def.sceneId, item.def.itemIndex, o.id))
-        if (!tag) continue
-        const a = acc.get(tag.misconceptionId) ?? { tag, chosen: new Set<string>(), exposed: new Set<string>() }
-        for (const id of answered) a.exposed.add(id)
-        if (!o.isCorrect) for (const id of item.picks.get(o.id) ?? []) a.chosen.add(id)
-        acc.set(tag.misconceptionId, a)
+interface Mistake {
+  id: string
+  sceneId: string
+  itemIndex: number
+  challengeOrder: number
+  challengeTitle: string
+  question: string
+  correctText: string | null
+  wrongText: string
+  studentIds: string[]
+  exposed: number
+  tag: CoreOptionTag | null
+  sentence: string
+}
+const mistakeCache = new WeakMap<Analysis, Mistake[]>()
+
+function mistakesOf(an: Analysis): Mistake[] {
+  const cached = mistakeCache.get(an)
+  if (cached) return cached
+  /* שלב 1: כל הבחירות השגויות (עם הפירוט), והחשיפה (מי ענה על כל פריט) */
+  interface Pick { sceneId: string; itemIndex: number; challengeOrder: number; challengeTitle: string; question: string; correctText: string | null; studentId: string; text: string; norm: string; tag: CoreOptionTag | null }
+  const picks: Pick[] = []
+  const exposed = new Map<string, Set<string>>()
+  for (const ch of an.challenges) {
+    if (ch.type === 'moralDilemma') continue
+    for (const s of an.students) {
+      const res = s.scenes.get(ch.sceneId)
+      if (!res || !res.detailed) continue
+      const played = playedOf(s, ch)
+      if (played.kind === 'unknown') continue
+      const defs = played.kind === 'variant' ? played.def.items : ch.items
+      const tags = played.kind === 'variant' ? (s.variant?.tagByKey ?? new Map<string, CoreOptionTag>()) : an.tagByKey
+      for (const def of defs) {
+        const ir = res.items.get(def.itemIndex)
+        if (!ir || ir.selectedOptionId === null) continue
+        const ek = `${ch.sceneId}|${def.itemIndex}`
+        const ex = exposed.get(ek) ?? new Set<string>()
+        ex.add(s.student.id)
+        exposed.set(ek, ex)
+        const sel = def.options?.find((o) => o.id === ir.selectedOptionId)
+        if (!sel || sel.isCorrect || ir.isCorrect) continue
+        const baseItem = ch.items.find((i) => i.itemIndex === def.itemIndex)
+        picks.push({
+          sceneId: ch.sceneId, itemIndex: def.itemIndex, challengeOrder: ch.order, challengeTitle: ch.title,
+          question: baseItem?.prompt ?? def.prompt, correctText: baseItem?.options?.find((o) => o.isCorrect)?.text ?? null,
+          studentId: s.student.id, text: sel.text.trim(), norm: normalizeOptionText(sel.text), tag: tags.get(tagKey(ch.sceneId, def.itemIndex, sel.id)) ?? null,
+        })
       }
     }
   }
-  return [...acc.values()]
-    .filter((a) => a.chosen.size >= COMMON_ERROR_MIN_STUDENTS)
-    .sort((a, b) => b.chosen.size - a.chosen.size || heCmp(a.tag.title, b.tag.title))
-    .map((a) => ({
-      id: a.tag.misconceptionId, title: a.tag.title, description: a.tag.description,
-      studentsCount: a.chosen.size, studentsExposed: a.exposed.size, linkedQuest: a.tag.linkedQuest,
-    }))
+  /* שלב 2: איחוד בתוך אותו פריט. לפי misconception_id אם יש; בחירה בלי תגית מצטרפת לקבוצת תגית רק אם הנוסח שלה (אחרי נרמול) זהה לנוסח
+     של בחירה מתויגת ואותו נוסח מתויג בתגית אחת בלבד (אחרת — עמום, לא מאחדים); אחרת לפי הנוסח; נוסח ריק — לא מאחדים. */
+  const tagByText = new Map<string, string | null>()
+  for (const pk of picks) {
+    if (!pk.tag || !pk.norm) continue
+    const k = `${pk.sceneId}|${pk.itemIndex}|${pk.norm}`
+    const prev = tagByText.get(k)
+    tagByText.set(k, prev === undefined || prev === pk.tag.misconceptionId ? pk.tag.misconceptionId : null)
+  }
+  interface Acc { first: Pick; texts: Map<string, number>; ids: Set<string>; tag: CoreOptionTag | null }
+  const groups = new Map<string, Acc>()
+  for (const pk of picks) {
+    const textTag = pk.tag ? undefined : tagByText.get(`${pk.sceneId}|${pk.itemIndex}|${pk.norm}`)
+    const tagId = pk.tag ? pk.tag.misconceptionId : (textTag ?? null)
+    const gk = tagId ? `m:${tagId}` : pk.norm ? `t:${pk.norm}` : null
+    if (!gk) continue
+    const id = `${pk.sceneId}:${pk.itemIndex}:${gk}`
+    const acc = groups.get(id) ?? { first: pk, texts: new Map<string, number>(), ids: new Set<string>(), tag: pk.tag }
+    if (!acc.tag && pk.tag) acc.tag = pk.tag
+    acc.ids.add(pk.studentId)
+    acc.texts.set(pk.text, (acc.texts.get(pk.text) ?? 0) + 1)
+    groups.set(id, acc)
+  }
+  /* תגית לקבוצה שאוחדה מנוסח בלבד ולא ראתה תגית ישירה (כל החברים בלי תגית) — אין */
+  const out: Mistake[] = []
+  for (const [id, acc] of groups) {
+    if (acc.ids.size < COMMON_MISTAKE_MIN_STUDENTS) continue
+    const wrongText = [...acc.texts.entries()].sort((x, y) => y[1] - x[1])[0][0]
+    out.push({
+      id, sceneId: acc.first.sceneId, itemIndex: acc.first.itemIndex, challengeOrder: acc.first.challengeOrder, challengeTitle: acc.first.challengeTitle,
+      question: acc.first.question, correctText: acc.first.correctText, wrongText, tag: acc.tag,
+      studentIds: [...acc.ids].sort(), exposed: exposed.get(`${acc.first.sceneId}|${acc.first.itemIndex}`)?.size ?? acc.ids.size,
+      sentence: commonMistakeSentence(acc.ids.size, wrongText),
+    })
+  }
+  out.sort((x, y) => y.studentIds.length - x.studentIds.length || x.challengeOrder - y.challengeOrder || x.itemIndex - y.itemIndex)
+  mistakeCache.set(an, out)
+  return out
+}
+
+function itemTopError(an: Analysis, sceneId: string, item: ItemAgg): TopError | null {
+  const top = mistakesOf(an).find((m) => m.sceneId === sceneId && m.itemIndex === item.def.itemIndex)
+  return top ? { title: top.tag?.title ?? '', count: top.studentIds.length, optionText: top.wrongText, sentence: top.sentence } : null
+}
+
+function classCommonErrors(an: Analysis): CommonErrorRow[] {
+  return mistakesOf(an).map((m) => ({
+    id: m.id,
+    title: m.tag?.title ?? `״${m.wrongText}״ — ${m.challengeTitle}`,
+    description: m.tag?.description || m.question,
+    studentsCount: m.studentIds.length,
+    studentsExposed: m.exposed,
+    linkedQuest: m.tag?.linkedQuest ?? null,
+    sceneId: m.sceneId, itemIndex: m.itemIndex, challengeTitle: m.challengeTitle, question: m.question,
+    wrongText: m.wrongText, correctText: m.correctText, studentIds: m.studentIds,
+    misconceptionId: m.tag?.misconceptionId ?? null, sentence: m.sentence,
+  }))
 }
 
 /* ── סיכום ── */
@@ -799,6 +904,7 @@ const chipOf = (an: Analysis) => (s: StudentAnalysis): StudentChip => {
   const late = lateOf(an, s)
   return {
     id: s.student.id, name: s.student.name, status: s.status, attention: s.reasons.length > 0, attentionReasons: s.reasons,
+    ...(s.reasons.length > 0 ? { reasonText: attentionReasonsLine(s.reasons, { gaveUp: s.gaveUp, solved: s.solved, total: an.challenges.length }) } : {}),
     ...(late ? { late: true } : {}),
   }
 }
@@ -812,11 +918,19 @@ function dueFields(an: Analysis): { dueAt?: string | null; state?: SubmissionRow
   return { dueAt, ...(state ? { state } : {}), ...(dueAt ? { lateCount } : {}) }
 }
 
-function headOf(an: Analysis): SubmissionHead {
+export function headOf(an: Analysis): SubmissionHead {
   const sub = an.input.submission
+  const counts = countsOf(an)
+  const { nowMs, levelAvailableFrom } = an.input
+  const dueMs = sub.dueAt ? Date.parse(sub.dueAt) : NaN
+  /* "השיעור פתוח עד 1.11. 8 תלמידים עוד לא סיימו…" — רק כל עוד המועד לא עבר */
+  const openNote = sub.dueAt && nowMs !== undefined && Number.isFinite(dueMs) && nowMs <= dueMs ? openLessonNote(sub.dueAt, counts.total - counts.completed) : null
+  /* אין נתון רמה: אם ידוע מתי התחלנו לשמור אותה והשיעור נשלח לפני כן — ההודעה "אין נתון רמה לשיעורים שנשלחו לפני…" */
+  const levelNotice = !an.hasLevelData && levelAvailableFrom && Date.parse(sub.sentAt) < Date.parse(levelAvailableFrom) ? levelNoticeText(levelAvailableFrom) : null
   return {
     id: sub.id, questId: sub.quest.id, title: sub.quest.title, thumbUrl: sub.quest.thumbUrl, subject: sub.quest.subject,
-    classId: sub.classId, className: sub.className, sentAt: sub.sentAt, counts: countsOf(an),
+    classId: sub.classId, className: sub.className, sentAt: sub.sentAt, counts,
+    gradeLabel: sub.gradeLabel ?? null, openNote, hasLevelData: an.hasLevelData, levelNotice,
     ...dueFields(an),
   }
 }
@@ -825,17 +939,28 @@ function headOf(an: Analysis): SubmissionHead {
    נקודות הכניסה
    ══════════════════════════════════════════════════════════════════════════ */
 
-export function buildListRow(input: CoreInput): SubmissionRow {
+/* שורת רשימה + מי מהתלמידים לתשומת לב (השמות — לפס השבועי של המחנך/ת; לא נכנסים לשורה עצמה) */
+export function buildListRowWithPeople(input: CoreInput): { row: SubmissionRow; attention: { id: string; name: string }[] } {
   const an = analyzeSubmission(input)
   const sub = input.submission
-  return {
+  const row: SubmissionRow = {
     id: sub.id, questId: sub.quest.id, title: sub.quest.title, thumbUrl: sub.quest.thumbUrl, subject: sub.quest.subject,
     classId: sub.classId, className: sub.className, sentAt: sub.sentAt, counts: countsOf(an),
     summary: narrateListSummary(summaryInput(an)),
     attentionCount: an.students.filter((s) => s.reasons.length > 0).length,
-    source: sub.source, senderName: sub.senderName,
+    source: sub.source, senderName: sub.senderName, gradeLabel: sub.gradeLabel ?? null,
     ...dueFields(an),
   }
+  return { row, attention: an.students.filter((s) => s.reasons.length > 0).map((s) => ({ id: s.student.id, name: s.student.name })) }
+}
+
+/* ראש המסך (שם, כיתה, מספרים, מועד, מצב) — בלי ניתוח האתגרים. ל"תצוגה חיה" ולמסכים שצריכים רק את הראש */
+export function buildHead(input: CoreInput): SubmissionHead {
+  return headOf(analyzeSubmission(input))
+}
+
+export function buildListRow(input: CoreInput): SubmissionRow {
+  return buildListRowWithPeople(input).row
 }
 
 /* התפלגות בחירות בדילמה מוסרית. ב-moral_choices אין שם/תלמיד בכוונה — לכן התפלגות על מעט תלמידים הייתה מאפשרת לזהות מי בחר מה
@@ -875,6 +1000,11 @@ function challengeResult(an: Analysis, agg: ChallengeAgg): ChallengeResult {
     itemIndex: item.def.itemIndex, prompt: item.def.prompt, attempted: item.attempted, solved: item.solved,
     options: optionCounts(an, agg, item), commonError: itemTopError(an, agg.def.sceneId, item),
   }))
+  /* פירוק לפי טווחי דרגות: רק מי שניסה את האתגר ויש לו נתון רמה */
+  const plays: PeerPlay[] = an.students.flatMap((s) => {
+    const r = s.scenes.get(agg.def.sceneId)
+    return r && r.outcome !== 'not_reached' ? [{ level: s.levels.get(agg.def.sceneId) ?? null, solved: r.outcome === 'correct' }] : []
+  })
   let commonError: TopError | null = null
   for (const item of agg.items) {
     const e = itemTopError(an, agg.def.sceneId, item)
@@ -884,7 +1014,7 @@ function challengeResult(an: Analysis, agg: ChallengeAgg): ChallengeResult {
     sceneId: agg.def.sceneId, order: agg.def.order, title: agg.def.title, type: agg.def.type, typeLabel: agg.def.typeLabel,
     attempted: agg.attempted, solved: agg.solved, gaveUp: agg.gaveUp,
     gaveUpStudents: agg.gaveUpStudentIds.map((id) => ({ id, name: an.byStudent.get(id)?.student.name ?? '' })).sort(byName),
-    items, commonError,
+    items, commonError, levelBands: levelBandsOf(plays),
   }
 }
 
@@ -956,12 +1086,14 @@ function studentItems(an: Analysis, s: StudentAnalysis, ch: ChallengeDef, res: S
     const opts = def.options
     const selected = ir.selectedOptionId !== null ? opts?.find((o) => o.id === ir.selectedOptionId) : undefined
     const tag = selected && !selected.isCorrect ? tags.get(tagKey(ch.sceneId, def.itemIndex, selected.id)) : undefined
+    /* אם התשובה השגויה של התלמיד/ה היא טעות נפוצה בכיתה — המשפט ("7 תלמידים בחרו ״⅖״") */
+    const common = mistakesOf(an).find((m) => m.sceneId === ch.sceneId && m.itemIndex === def.itemIndex && m.studentIds.includes(s.student.id))
     out.push({
       itemIndex: def.itemIndex, prompt: def.prompt,
       answerText: selected ? selected.text : null,
       correctText: opts ? (opts.find((o) => o.isCorrect)?.text ?? null) : null,
       isCorrect: ir.isCorrect, errorTag: tag ? { id: tag.misconceptionId, title: tag.title } : null,
-      attempts: ir.attempts, seconds: ir.seconds,
+      attempts: ir.attempts, seconds: ir.seconds, commonMistake: common ? common.sentence : null,
     })
   }
   return out
@@ -1007,9 +1139,24 @@ export function buildStudentView(input: CoreInput, studentId: string): StudentSu
     const res = s.scenes.get(ch.sceneId)
     const outcome: Outcome = res ? res.outcome : 'not_reached'
     const items = studentItems(an, s, ch, res, outcome)
+    const level = s.levels.get(ch.sceneId) ?? null
+    /* השוואה לתלמידים ברמה דומה (compareToPeers) — רק על אתגר שהתלמיד/ה ניסה/תה; כל השאר: לא מושווים */
+    let comparison: StudentChallenge['comparison']
+    if (outcome !== 'not_reached') {
+      const peers: PeerPlay[] = an.students.flatMap((o) => {
+        if (o.student.id === s.student.id) return []
+        const r = o.scenes.get(ch.sceneId)
+        return r && r.outcome !== 'not_reached' ? [{ level: o.levels.get(ch.sceneId) ?? null, solved: r.outcome === 'correct' }] : []
+      })
+      const c = compareToPeers(level, peers)
+      comparison = c.kind === 'compared'
+        ? { kind: 'compared', peers: c.peers, solved: c.solved, levelFrom: c.levelFrom, levelTo: c.levelTo, sentence: comparisonSentence(c.peers, c.solved, c.levelFrom, c.levelTo) }
+        : c.kind === 'not_enough' ? { kind: 'not_enough', sentence: COMPARISON_NOT_ENOUGH } : { kind: 'no_level', sentence: COMPARISON_NO_LEVEL }
+    }
     return {
       sceneId: ch.sceneId, order: ch.order, title: ch.title, type: ch.type, typeLabel: ch.typeLabel,
       outcome, attempts: res && outcome !== 'not_reached' ? res.attempts : 0, seconds: res && outcome !== 'not_reached' ? res.seconds : null, items,
+      level, ...(comparison ? { comparison } : {}),
     }
   })
   return {

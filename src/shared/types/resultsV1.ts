@@ -43,6 +43,8 @@ export const StudentChipSchema = z.object({
   attentionReasons: z.array(AttentionReasonSchema),
   /* סיים/ה את השיעור לראשונה אחרי מועד ההגשה ("באיחור"); חסר = לא באיחור או שאין מועד */
   late: z.boolean().optional(),
+  /* הסיבה (או הסיבות) לתשומת לב במילים — ליד כל סימון. חסר = אין תשומת לב */
+  reasonText: z.string().optional(),
 })
 export type StudentChip = z.infer<typeof StudentChipSchema>
 
@@ -69,6 +71,8 @@ export const SubmissionRowSchema = z.object({
   state: LessonStateSchema.optional(),
   /* כמה מהתלמידים שסיימו עשו זאת אחרי המועד */
   lateCount: NonNeg.optional(),
+  /* תווית השכבה/כיתה כפי שהיא בכיתה (ו׳2) — לכפתור "שיעור ממוקד" ולסינון */
+  gradeLabel: z.string().nullable().optional(),
 })
 export type SubmissionRow = z.infer<typeof SubmissionRowSchema>
 
@@ -81,6 +85,19 @@ export const SubmissionListSchema = z.object({
     classes: z.array(z.object({ id: Id, name: z.string() })),
     subjects: z.array(ResultsSubjectSchema),
   }),
+  /* מחנך/ת: [השיעורים שלי] [כל השיעורים בכיתה שלי]. view = מה שמוצג עכשיו; canToggleView = יש לצופה כיתת-חינוך (אחרת אין בורר) */
+  view: z.enum(['mine', 'class']).optional(),
+  canToggleView: z.boolean().optional(),
+  /* כמה שיעורים ישנים (מעבר ל-LESSON_LIST.recentDays) מחכים מאחורי "הצגת שיעורים ישנים יותר" */
+  olderCount: NonNeg.optional(),
+  /* פס שבועי — רק במצב "כל השיעורים בכיתה שלי": "השבוע: X שיעורים ב-Y מקצועות" + מי סומן לתשומת לב ביותר ממקצוע אחד השבוע */
+  weekStrip: z.object({
+    lessons: NonNeg,
+    subjects: NonNeg,
+    sentence: z.string().min(1),
+    flagged: z.array(z.object({ id: Id, name: z.string(), subjects: z.array(z.string()) })),
+    flaggedLine: z.string().nullable(),
+  }).nullable().optional(),
 })
 export type SubmissionList = z.infer<typeof SubmissionListSchema>
 
@@ -93,6 +110,12 @@ export const SubmissionHeadSchema = z.object({
   dueAt: Iso.nullable().optional(),
   state: LessonStateSchema.optional(),
   lateCount: NonNeg.optional(),
+  gradeLabel: z.string().nullable().optional(),
+  /* "השיעור פתוח עד 1.11. 8 תלמידים עוד לא סיימו, ולכן התמונה עדיין חלקית." — כל עוד השיעור פתוח ויש מי שלא סיים; אחרת null */
+  openNote: z.string().nullable().optional(),
+  /* האם יש לשיעור נתון רמה (level_at_play) לפחות באחת התשובות; false + levelNotice = "אין נתון רמה לשיעורים שנשלחו לפני [תאריך]" */
+  hasLevelData: z.boolean().optional(),
+  levelNotice: z.string().nullable().optional(),
 })
 export type SubmissionHead = z.infer<typeof SubmissionHeadSchema>
 
@@ -118,7 +141,7 @@ export const ItemResultSchema = z.object({
   solved: NonNeg,
   /* התפלגות התשובות — לשאלות בחירה/נכון-לא נכון/מבחן סיכום; null לשאר הסוגים או כשאין פירוט */
   options: z.array(OptionCountSchema).nullable(),
-  commonError: z.object({ title: z.string(), count: NonNeg, optionText: z.string() }).nullable(),
+  commonError: z.object({ title: z.string(), count: NonNeg, optionText: z.string(), sentence: z.string().optional() }).nullable(),
 })
 export type ItemResult = z.infer<typeof ItemResultSchema>
 
@@ -134,7 +157,9 @@ export const ChallengeResultSchema = z.object({
   gaveUp: NonNeg,
   gaveUpStudents: z.array(z.object({ id: Id, name: z.string() })),
   items: z.array(ItemResultSchema),
-  commonError: z.object({ title: z.string(), count: NonNeg, optionText: z.string() }).nullable(),
+  commonError: z.object({ title: z.string(), count: NonNeg, optionText: z.string(), sentence: z.string().optional() }).nullable(),
+  /* פירוק לפי טווחי דרגות (LEVEL_BANDS): "דרגות 6-10: 9 מתוך 12 הצליחו". ריק כשאין נתון רמה. מוצג רק כשיש יותר מטווח אחד */
+  levelBands: z.array(z.object({ from: z.number().int(), to: z.number().int(), attempted: NonNeg, solved: NonNeg })).optional(),
 })
 export type ChallengeResult = z.infer<typeof ChallengeResultSchema>
 
@@ -146,6 +171,19 @@ export const CommonErrorRowSchema = z.object({
   studentsCount: NonNeg,
   studentsExposed: NonNeg,
   linkedQuest: z.object({ questId: Id, title: z.string() }).nullable(),
+  /* טעות נפוצה — אותה תשובה שגויה אצל COMMON_MISTAKE_MIN_STUDENTS תלמידים או יותר (גם בלי תגית). השדות הבאים מזינים
+     "שיעור ממוקד" ו"שאלה לדיון": באיזה אתגר ושאלה, מה נבחר, מה נכון, ומי בחר (מזהים — השמות מוצגים רק במסך הכיתה) */
+  sceneId: z.string().optional(),
+  itemIndex: NonNeg.optional(),
+  challengeTitle: z.string().optional(),
+  question: z.string().optional(),
+  wrongText: z.string().optional(),
+  correctText: z.string().nullable().optional(),
+  studentIds: z.array(Id).optional(),
+  /* מזהה התפיסה השגויה המתויגת, אם יש (מזין misconception_content_links בשיעור ממוקד) */
+  misconceptionId: Id.nullable().optional(),
+  /* "7 תלמידים בחרו ״⅖״" */
+  sentence: z.string().optional(),
 })
 export type CommonErrorRow = z.infer<typeof CommonErrorRowSchema>
 
@@ -210,6 +248,15 @@ export type ClassSubmissionView = z.infer<typeof ClassSubmissionViewSchema>
 export const OutcomeSchema = z.enum(['correct', 'wrong', 'gave_up', 'timeout', 'closed', 'not_reached'])
 export type Outcome = z.infer<typeof OutcomeSchema>
 
+/* השוואה לתלמידים ברמה דומה (LEVEL_COMPARISON): רק מול מי ששיחקו את אותו אתגר באותו ממד, עד maxGap דרגות מעל/מתחת, ולפחות minPeers.
+   אחרת not_enough — והמסך אומר זאת. תלמיד/ה בדרגה גבוהה שנכשל/ה באתגר שרוב הכיתה (בדרגה נמוכה) הצליחה בו לא מוצג/ת כחלש/ה מהם. */
+export const ComparisonSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('compared'), peers: NonNeg, solved: NonNeg, levelFrom: z.number().int(), levelTo: z.number().int(), sentence: z.string().min(1) }),
+  z.object({ kind: z.literal('not_enough'), sentence: z.string().min(1) }),
+  z.object({ kind: z.literal('no_level'), sentence: z.string().min(1) }),
+])
+export type Comparison = z.infer<typeof ComparisonSchema>
+
 export const StudentItemSchema = z.object({
   itemIndex: NonNeg,
   prompt: z.string(),
@@ -220,6 +267,8 @@ export const StudentItemSchema = z.object({
   errorTag: TagRefSchema.nullable(),
   attempts: NonNeg,
   seconds: NonNeg.nullable(),
+  /* אם התשובה השגויה של התלמיד/ה היא טעות נפוצה בכיתה (3 תלמידים או יותר): המשפט ("7 תלמידים בחרו ״⅖״") */
+  commonMistake: z.string().nullable().optional(),
 })
 export type StudentItem = z.infer<typeof StudentItemSchema>
 
@@ -229,6 +278,9 @@ export const StudentChallengeSchema = z.object({
   attempts: NonNeg,
   seconds: NonNeg.nullable(),
   items: z.array(StudentItemSchema),
+  /* הדרגה (1-20) שבה שוחק האתגר; null = אין נתון רמה (שיעור שנשלח לפני שהתחלנו לשמור אותה) */
+  level: z.number().int().nullable().optional(),
+  comparison: ComparisonSchema.optional(),
 })
 export type StudentChallenge = z.infer<typeof StudentChallengeSchema>
 
@@ -252,6 +304,54 @@ export const StudentSubmissionViewSchema = z.object({
 })
 export type StudentSubmissionView = z.infer<typeof StudentSubmissionViewSchema>
 
+/* ── "תצוגה חיה" (שיעור במצב "פעיל עכשיו"): אריח לכל תלמיד/ה. רענון כל refreshMs (polling). בלי מצב הקרנה — יש כאן שמות ── */
+export const LiveStatusSchema = z.enum(['not_started', 'working', 'stuck', 'gave_up', 'inactive', 'finished'])
+export type LiveStatus = z.infer<typeof LiveStatusSchema>
+export const LiveTileSchema = z.object({
+  studentId: Id,
+  name: z.string().min(1),
+  status: LiveStatusSchema,
+  /* הסצנה שהתלמיד/ה נמצא/ת בה עכשיו (מספר בשיעור + שם); null = לא ידוע / לא התחיל / סיים */
+  sceneOrder: z.number().int().nullable(),
+  sceneTitle: z.string().nullable(),
+  /* הסיבה במילים (נתקע/ה, ויתר/ה, לא פעיל/ה); null כשאין צורך */
+  reasonText: z.string().nullable(),
+})
+export type LiveTile = z.infer<typeof LiveTileSchema>
+export const LiveViewSchema = z.object({
+  head: SubmissionHeadSchema,
+  polledAt: Iso,
+  refreshMs: NonNeg,
+  summary: z.string().min(1),
+  counts: z.record(LiveStatusSchema, NonNeg),
+  tiles: z.array(LiveTileSchema),
+  /* האם הנתונים החיים זמינים (מיגרציה/קליינט ישן); false → המסך אומר זאת במילים */
+  available: z.boolean(),
+})
+export type LiveView = z.infer<typeof LiveViewSchema>
+
+/* ── מנהל/ת: שכבה × מקצוע, החודש. בלי פירוק לכיתה/מורה; תא עם פחות מ-MIN_CELL_SIZE תלמידים (או כיתה אחת) מוסתר ── */
+export const OverviewCellSchema = z.object({
+  gradeId: Id,
+  subject: z.string(),
+  status: z.enum(['shown', 'hidden', 'empty']),
+  lessons: NonNeg.optional(),
+  participated: NonNeg.optional(),
+  total: NonNeg.optional(),
+})
+export const OverviewSchema = z.object({
+  /* התקופה שהטבלה מסכמת ("אוקטובר 2026") */
+  periodLabel: z.string().min(1),
+  sentence: z.string().min(1),
+  grades: z.array(z.object({ id: Id, label: z.string().min(1) })),
+  subjects: z.array(ResultsSubjectSchema),
+  cells: z.array(OverviewCellSchema),
+  hasHidden: z.boolean(),
+  howWeCalculated: z.array(z.string()),
+})
+export type Overview = z.infer<typeof OverviewSchema>
+export type OverviewCell = z.infer<typeof OverviewCellSchema>
+
 /* ── שינוי מועד הגשה (PATCH) ── */
 export const SetDueRequestSchema = z.object({ dueDay: z.string().regex(/^d{4}-d{2}-d{2}$/) })
 export const SetDueResponseSchema = z.object({ dueAt: Iso })
@@ -264,5 +364,7 @@ export const RESULTS_EP = {
   classView: { path: '/api/results/submission/:id', response: ResultsEnvelope(ClassSubmissionViewSchema) },
   studentView: { path: '/api/results/submission/:id/student/:studentId', response: ResultsEnvelope(StudentSubmissionViewSchema) },
   setDue: { path: '/api/results/submission/:id/due', response: ResultsEnvelope(SetDueResponseSchema) },
+  live: { path: '/api/results/submission/:id/live', response: ResultsEnvelope(LiveViewSchema) },
+  overview: { path: '/api/results/overview', response: ResultsEnvelope(OverviewSchema) },
 } as const
 export type ResultsEndpointName = keyof typeof RESULTS_EP

@@ -10,6 +10,7 @@ import { demoViewerClasses, getAnalysis } from '../analyticsV2/demoProvider.js'
 import { buildClassView } from './core.js'
 import { DEMO_QUESTS, DEMO_SUBMISSIONS, DEMO_SUBJECT_TEACHERS, DEMO_HOMEROOM_TEACHER, questById, type DemoQuest } from './demoCatalog.js'
 import { demoResultsProvider as P, demoVisibleSubmissions, getDemoResults } from './demoResults.js'
+import { clock } from './clock.js'
 import { MSG_RESULTS_NOT_FOR_ROLE } from './realResults.js'
 
 /* ── עזרים ── */
@@ -27,7 +28,11 @@ const ID = {
   science: 'demo-sub-science-v2', fractionsV2: 'demo-sub-fractions-v2', bible: 'demo-sub-bible-d2', historyV2: 'demo-sub-history-v2',
   fractionsV1: 'demo-sub-fractions-v1', hebrewV2: 'demo-sub-hebrew-v2', compareD1: 'demo-sub-compare-d1', englishV2: 'demo-sub-english-v2',
   historyV1: 'demo-sub-history-v1', englishD1: 'demo-sub-english-d1',
+  /* שלב R: שליחות מהיום — שיעור פעיל עכשיו, ושיעור פתוח שנשלח היום */
+  liveEnglish: 'demo-sub-live-english-v2', todayMath: 'demo-sub-today-math-v2',
 } as const
+/* השליחות הקבועות (לפי ימי לימוד) — ללא שליחות "היום" */
+const FIXED = DEMO_SUBMISSIONS.filter((s) => !s.today)
 
 const allChips = (v: ClassSubmissionView): StudentChip[] => [...v.roster.completed, ...v.roster.inProgress, ...v.roster.notStarted]
 const parseOk = (schema: { safeParse(v: unknown): { success: boolean; error?: { issues: unknown[] } } }, data: unknown): void => {
@@ -47,7 +52,8 @@ beforeEach(() => { delete process.env.ANALYTICS_V2; delete process.env.DEMO_ANAL
 async function lensData(name: string, q: Query): Promise<LensData> {
   const hit = DATA.get(name)
   if (hit) return hit
-  const list = await P.list(req(q), {})
+  /* ברירת המחדל של הרשימה היא "השיעורים שלי" ב-30 הימים האחרונים; הבדיקות כאן עוברות על כל השיעורים */
+  const list = await P.list(req(q), { view: 'class', older: true })
   const classViews = new Map<string, ClassSubmissionView>()
   const studentViews = new Map<string, StudentSubmissionView>()
   for (const row of list.submissions) {
@@ -62,13 +68,14 @@ async function lensData(name: string, q: Query): Promise<LensData> {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 describe('קטלוג ההדגמה: מבנה', () => {
-  it('6–10 שיעורים ו-6–10 שליחות; כמה כיתות ומקצועות; מזהים ייחודיים', () => {
+  it('6–10 שיעורים ו-8–12 שליחות (10 קבועות + 2 מהיום); כמה כיתות ומקצועות; מזהים ייחודיים', () => {
     expect(DEMO_QUESTS.length).toBeGreaterThanOrEqual(6)
     expect(DEMO_QUESTS.length).toBeLessThanOrEqual(10)
-    expect(DEMO_SUBMISSIONS.length).toBeGreaterThanOrEqual(6)
-    expect(DEMO_SUBMISSIONS.length).toBeLessThanOrEqual(10)
+    expect(DEMO_SUBMISSIONS.length).toBeGreaterThanOrEqual(8)
+    expect(DEMO_SUBMISSIONS.length).toBeLessThanOrEqual(12)
+    expect(FIXED).toHaveLength(10)
     expect(new Set(DEMO_SUBMISSIONS.map((s) => s.id)).size).toBe(DEMO_SUBMISSIONS.length)
-    expect(new Set(DEMO_SUBMISSIONS.map((s) => s.dayIndex)).size).toBe(DEMO_SUBMISSIONS.length)
+    expect(new Set(FIXED.map((s) => s.dayIndex)).size).toBe(FIXED.length)
     const r = getDemoResults()
     expect(new Set(r.submissions.map((s) => s.input.submission.classId))).toEqual(new Set(['c-v2', 'c-v1', 'c-d1', 'c-d2']))
     expect(new Set(r.submissions.map((s) => s.quest.subject))).toEqual(new Set(['math', 'hebrew', 'history', 'science', 'english', 'bible']))
@@ -91,11 +98,16 @@ describe('קטלוג ההדגמה: מבנה', () => {
   it('תאריכים: יחסית לימי הלימוד של העולם, מהחדש לישן, ועד אתמול', () => {
     const w = A.world
     const subs = getDemoResults().submissions
-    for (const s of subs) expect(s.input.submission.sentAt.slice(0, 10)).toBe(w.days[s.def.dayIndex].slice(0, 10))
+    for (const s of subs.filter((x) => !x.def.today)) expect(s.input.submission.sentAt.slice(0, 10)).toBe(w.days[s.def.dayIndex].slice(0, 10))
+    /* שליחות מהיום: לפני "עכשיו", ובאותו יום ישראלי כמו "עכשיו" */
+    for (const s of subs.filter((x) => x.def.today)) {
+      expect(Date.parse(s.input.submission.sentAt)).toBeLessThanOrEqual(Date.now() - 4 * 60_000)
+      expect(Date.now() - Date.parse(s.input.submission.sentAt)).toBeLessThan(24 * 3600_000)
+    }
     const sorted = demoVisibleSubmissions({ lens: 'homeroom', guest: true, homeroomClassId: DEMO_HOMEROOM_CLASS, teachingClassIds: [], subjectCodes: [] })
     const dates = sorted.map((s) => s.input.submission.sentAt)
     expect(dates).toEqual([...dates].sort().reverse())
-    expect(Date.parse(dates[0])).toBeLessThanOrEqual(w.now.getTime())
+    expect(Date.parse(dates[0])).toBeLessThanOrEqual(Date.now())
   })
 })
 
@@ -194,13 +206,13 @@ describe('במבט אחד: successBands בהדגמה (אותה ליבה כמו �
     expect(cv.challenges).toHaveLength(6)
   })
 
-  it('"איך חישבנו" של המסך כולל את הסבר שני הגרפים עם הספים מהתצורה (75% / 50%), ואין חזרה ל-60/85 הישנים', async () => {
+  it('"איך חישבנו" של המסך כולל את הסבר שני הגרפים עם הספים מהתצורה (75% / 40%), ואין חזרה ל-60/85 הישנים', async () => {
     const cv = (await lensData('homeroom', HOMEROOM)).classViews.get(ID.science)!
     const lines = howWeCalcSuccessBandsLines()
     for (const l of lines) expect(cv.howWeCalculated).toContain(l)
     const text = lines.join(' ')
-    expect(text).toContain('75%')
-    expect(text).toContain('50%')
+    expect(text).toContain(`${Math.round(SUCCESS_DONUT_BANDS.high * 100)}%`)
+    expect(text).toContain(`${Math.round(SUCCESS_DONUT_BANDS.low * 100)}%`)
     expect(text).not.toMatch(/85%|60%/)
   })
 })
@@ -218,12 +230,24 @@ describe('מקרה (א): שליחה שחלק מהתלמידים לא סיימו 
     expect(c.notStarted).toBeGreaterThan(0)
     expect(c.completed + c.inProgress + c.notStarted).toBe(25)
     expect(cv.summary).toContain(`עד עכשיו סיימו ${countNb(c.completed, c.total)}`)
-    /* מי שלא התחיל — תשומת לב (כלל עובדתי); מי שבאמצע — לא */
-    for (const chip of cv.roster.notStarted) expect(chip.attentionReasons).toEqual(['not_started'])
+    /* השיעור עדיין פתוח (עד שבוע מהשליחה), ולכן מי שלא התחיל עדיין לא נחשב לתשומת לב — "לא התחיל" נספר רק אחרי מועד ההגשה */
+    expect(cv.head.state).toBe('open')
+    for (const chip of cv.roster.notStarted) expect(chip.attentionReasons).not.toContain('not_started')
     for (const chip of cv.roster.inProgress) expect(chip.attentionReasons).not.toContain('not_started')
+    expect(cv.head.openNote).toContain('השיעור פתוח עד')
     /* תוצאות רק ממי שסיים */
     const maxAttempted = Math.max(...cv.challenges.map((x) => x.attempted))
     expect(maxAttempted).toBe(c.completed)
+  })
+
+  it('שיעור שהמועד שלו עבר: מי שלא התחיל — לתשומת לב, עם הסיבה במילים', async () => {
+    const cv = (await lensData('math', persona('math'))).classViews.get(ID.fractionsV1)!
+    expect(cv.head.state).toBe('ended')
+    expect(cv.roster.notStarted.length).toBeGreaterThan(0)
+    for (const chip of cv.roster.notStarted) {
+      expect(chip.attentionReasons).toEqual(['not_started'])
+      expect(chip.reasonText).toBe('לא התחיל/ה אחרי מועד ההגשה')
+    }
   })
 
   it('מי שלא סיים: סיכום התלמיד אומר שעוד אין תוצאות, ואין לו אתגרים שהגיע אליהם', async () => {
@@ -256,10 +280,13 @@ describe('מקרה (ב): ½+⅓ → ⅖ בכיתות ו׳', () => {
       const d = await lensData(lens.name, lens.q)
       const cv = d.classViews.get(subId)!
       expect(cv.head.counts.total).toBe(25)
-      const row = cv.commonErrors.find((e) => e.id === 'mc-frac-add-straight')!
+      const row = cv.commonErrors.find((e) => e.misconceptionId === 'mc-frac-add-straight')!
       expect(row.studentsCount).toBe(expected)
       expect(row.studentsCount).toBe(world(classId).showing.length)
-      expect(row.studentsExposed).toBe(cv.head.counts.completed)
+      /* "X מתוך Y": Y = מי שענו על הפריט (מי שוויתר/ה לא בחר/ה תשובה), לכל היותר מי שסיימו */
+      expect(row.studentsExposed).toBeLessThanOrEqual(cv.head.counts.completed)
+      expect(row.studentsExposed).toBeGreaterThanOrEqual(row.studentsCount)
+      expect(row.sentence).toBe(`${expected} תלמידים בחרו ״⅖״`)
       expect(row.linkedQuest?.questId).toBe('demo-q-fractions-add')
       const ch = cv.challenges[0]
       const opt = ch.items[0].options!.find((o) => o.text === '⅖')!
@@ -288,11 +315,16 @@ describe('מקרה (ב): ½+⅓ → ⅖ בכיתות ו׳', () => {
 })
 
 describe('מקרה (ג): שליחה בלי מסיחים מתויגים — אנגלית ו׳2', () => {
-  it('אין טעויות נפוצות, אין תגית על אף אפשרות', async () => {
+  it('אין תגית על אף אפשרות; טעות נפוצה (אם יש) מבוססת על אותה תשובה בלבד, בלי תפיסה מתויגת', async () => {
     const d = await lensData('homeroom', HOMEROOM)
     const cv = d.classViews.get(ID.englishV2)!
-    expect(cv.commonErrors).toEqual([])
-    expect(cv.challenges.every((c) => c.commonError === null)).toBe(true)
+    /* בלי תגיות — אך אותה תשובה שגויה אצל 3 תלמידים ומעלה היא עדיין טעות נפוצה (לפי נוסח האפשרות) */
+    for (const e of cv.commonErrors) {
+      expect(e.misconceptionId).toBeNull()
+      expect(e.linkedQuest).toBeNull()
+      expect(e.studentsCount).toBeGreaterThanOrEqual(3)
+      expect(e.sentence).toBe(`${e.studentsCount} תלמידים בחרו ״${e.wrongText}״`)
+    }
     for (const c of cv.challenges) for (const i of c.items) for (const o of i.options ?? []) expect(o.errorTag).toBeNull()
     const sent = getDemoResults().submissions.find((s) => s.def.id === ID.englishV2)!
     expect(sent.input.optionTags).toEqual([])
@@ -525,11 +557,12 @@ describe('יעדי למידה בהדגמה', () => {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 describe('הרשאות לפי עדשה', () => {
-  it('מנהל: אין תוצאות — 403 בכל נקודת קצה', async () => {
+  it('מנהל: אין רשימה ואין תוצאות — 403 בכל נקודת קצה (חוץ מהטבלה הכללית)', async () => {
     for (const run of [
       () => P.list(req(ADMIN), {}),
       () => P.classView(req(ADMIN), ID.fractionsV2),
       () => P.studentView(req(ADMIN), ID.fractionsV2, cast('alon')),
+      () => P.live(req(ADMIN), ID.liveEnglish),
     ]) {
       const e = await thrown(run)
       expect(e.status).toBe(403)
@@ -537,9 +570,10 @@ describe('הרשאות לפי עדשה', () => {
     }
   })
 
-  it('מחנך: כל השליחות של ו׳2 (כל המקצועות), החדשה ראשונה, עם "מי שלח"', async () => {
+  it('מחנך: כל השליחות של ו׳2 (כל המקצועות), פעיל עכשיו קודם ואז החדשה ראשונה, עם "מי שלח"', async () => {
     const d = await lensData('homeroom', HOMEROOM)
-    expect(d.list.submissions.map((s) => s.id)).toEqual([ID.science, ID.fractionsV2, ID.historyV2, ID.hebrewV2, ID.englishV2])
+    expect(d.list.submissions.map((s) => s.id)).toEqual([ID.liveEnglish, ID.todayMath, ID.science, ID.fractionsV2, ID.historyV2, ID.hebrewV2, ID.englishV2])
+    expect(d.list.submissions[0].state).toBe('active_now')
     expect(new Set(d.list.submissions.map((s) => s.classId))).toEqual(new Set(['c-v2']))
     expect(d.list.submissions.every((s) => s.className === 'ו׳2')).toBe(true)
     const dates = d.list.submissions.map((s) => s.sentAt)
@@ -555,11 +589,11 @@ describe('הרשאות לפי עדשה', () => {
 
   it('מורה מקצועי: רק המקצוע שלו, רק בכיתות שהוא מלמד', async () => {
     const expected: Record<string, string[]> = {
-      math: [ID.fractionsV2, ID.fractionsV1, ID.compareD1],
+      math: [ID.todayMath, ID.fractionsV2, ID.fractionsV1, ID.compareD1],
       hebrew: [ID.hebrewV2],
       history: [ID.historyV2, ID.historyV1],
       science: [ID.science],
-      english: [ID.englishV2, ID.englishD1],
+      english: [ID.liveEnglish, ID.englishV2, ID.englishD1],
     }
     for (const subject of PERSONAS) {
       const d = await lensData(subject, persona(subject))
@@ -617,16 +651,175 @@ describe('הרשאות לפי עדשה', () => {
   })
 })
 
+describe('רשימה: בורר מחנך, חלון זמן, פס שבועי', () => {
+  it('מחנך: ברירת המחדל "השיעורים שלי" (ששלח/ה בעצמו/ה), עם בורר ובלי פס שבועי', async () => {
+    const r = await P.list(req(HOMEROOM), {})
+    expect(r.view).toBe('mine')
+    expect(r.canToggleView).toBe(true)
+    expect(r.weekStrip).toBeUndefined()
+    expect(r.submissions.map((s) => s.id)).toEqual([ID.todayMath, ID.fractionsV2, ID.hebrewV2])
+    expect(r.submissions.every((s) => s.source === 'mine')).toBe(true)
+  })
+
+  it('מחנך: "כל השיעורים בכיתה שלי" — כל המקצועות, ופס שבועי עם מי שסומן/ה ביותר ממקצוע אחד השבוע', async () => {
+    const r = await P.list(req(HOMEROOM), { view: 'class' })
+    expect(r.view).toBe('class')
+    expect(r.submissions.map((s) => s.id)).toEqual(expect.arrayContaining([ID.liveEnglish, ID.todayMath, ID.science, ID.historyV2]))
+    const strip = r.weekStrip!
+    expect(strip).toBeTruthy()
+    /* שני שיעורי היום (אנגלית ומתמטיקה), לפחות; ייתכנו עוד אם ימי השבוע הנוכחי מכילים שליחות קבועות */
+    expect(strip.lessons).toBeGreaterThanOrEqual(2)
+    expect(strip.subjects).toBeGreaterThanOrEqual(2)
+    const tamar = strip.flagged.find((f) => f.id === cast('tamar'))!
+    expect(tamar.subjects).toEqual(expect.arrayContaining(['אנגלית', 'מתמטיקה']))
+    expect(strip.flaggedLine).toContain(tamar.name)
+    expect(strip.sentence).toMatch(/^השבוע: /)
+  })
+
+  it('מורה מקצועי: אין בורר ואין פס שבועי', async () => {
+    const r = await P.list(req(persona('math')), {})
+    expect(r.canToggleView).toBe(false)
+    expect(r.view).toBe('mine')
+    expect(r.weekStrip).toBeUndefined()
+  })
+
+  it('חלון זמן: שיעורים ישנים מ-30 יום מחכים מאחורי "הצגת שיעורים ישנים יותר"', async () => {
+    const recent = await P.list(req(persona('english')), {})
+    const all = await P.list(req(persona('english')), { older: true })
+    expect(recent.olderCount).toBe(all.submissions.length - recent.submissions.length)
+    expect(all.olderCount).toBe(recent.olderCount)
+    for (const s of recent.submissions) expect(Date.now() - Date.parse(s.sentAt)).toBeLessThan(30 * 86_400_000)
+  })
+
+  it('שיעור פעיל עכשיו: במצב active_now, וגם הפתוח שנשלח היום במצב open', async () => {
+    const d = await lensData('homeroom', HOMEROOM)
+    const row = (id: string) => d.list.submissions.find((s) => s.id === id)!
+    expect(row(ID.liveEnglish).state).toBe('active_now')
+    expect(row(ID.todayMath).state).toBe('open')
+    expect(row(ID.todayMath).counts.inProgress + row(ID.todayMath).counts.notStarted).toBeGreaterThan(0)
+  })
+})
+
+describe('תצוגה חיה: שיעור פעיל', () => {
+  it('אריח לכל תלמיד/ה; המצבים נגזרים מהכללים; הספירות עקביות עם הרשימה', async () => {
+    const live = await P.live(req(HOMEROOM), ID.liveEnglish)
+    parseOk(RESULTS_EP.live.response, live)
+    const row = (await lensData('homeroom', HOMEROOM)).list.submissions.find((s) => s.id === ID.liveEnglish)!
+    expect(live.tiles).toHaveLength(row.counts.total)
+    expect(live.counts.finished).toBe(row.counts.completed)
+    expect(live.counts.not_started).toBe(row.counts.notStarted)
+    expect(Object.values(live.counts).reduce((s, x) => s + x, 0)).toBe(row.counts.total)
+    /* מי שבאמצע: משחק/ת, נתקע/ה, ויתר/ה או לא פעיל/ה — עם הסצנה שהוא/היא בה */
+    const open = live.tiles.filter((t) => ['working', 'stuck', 'gave_up', 'inactive'].includes(t.status))
+    expect(open.length).toBe(row.counts.inProgress)
+    expect(open.filter((t) => t.status !== 'inactive').every((t) => t.sceneOrder !== null && t.sceneTitle)).toBe(true)
+    /* הסיבה במילים אצל מי שנתקע/ה / ויתר/ה / לא פעיל/ה */
+    for (const t of open) if (t.status !== 'working') expect(t.reasonText, t.status).toBeTruthy()
+    /* תמר סיימה */
+    expect(live.tiles.find((t) => t.studentId === cast('tamar'))!.status).toBe('finished')
+    expect(live.refreshMs).toBe(15_000)
+  })
+
+  it('המצבים משתנים עם הזמן (כל דקה): בכל הרצה אחרת של השעון מתקבלת תמונה אחרת', async () => {
+    const shot = async (at: number): Promise<string> => {
+      const saved = clock.now
+      clock.now = () => at
+      try { return JSON.stringify((await P.live(req(HOMEROOM), ID.liveEnglish)).tiles.map((t) => [t.studentId, t.status, t.sceneOrder])) } finally { clock.now = saved }
+    }
+    const t0 = Math.floor(Date.now() / 3_600_000) * 3_600_000 + 5 * 60_000
+    const seen = new Set<string>()
+    for (let m = 0; m < 12; m++) seen.add(await shot(t0 + m * 60_000))
+    expect(seen.size).toBeGreaterThan(3)
+  })
+
+  it('שיעור שאינו פעיל: מי שלא סיים מוצג/ת כלא פעיל/ה; הכול מאומת מול הסכמה', async () => {
+    const live = await P.live(req(HOMEROOM), ID.science)
+    parseOk(RESULTS_EP.live.response, live)
+    expect(live.counts.working + live.counts.stuck + live.counts.gave_up).toBe(0)
+    expect(live.counts.inactive).toBeGreaterThan(0)
+    expect(live.head.state).not.toBe('active_now')
+  })
+
+  it('הרשאה: שיעור שאינו גלוי — 403', async () => {
+    expect((await thrown(() => P.live(req(persona('math')), ID.liveEnglish))).status).toBe(403)
+    expect((await thrown(() => P.live(req(HOMEROOM), 'nope'))).status).toBe(404)
+  })
+})
+
+describe('סיפור הרמות: רמה 14 נכשל/ת איפה שהכיתה ברמה 6 הצליחה', () => {
+  it('הכיתה ברמה נמוכה מצליחה; התלמיד/ה ברמה 14 נכשל/ת ואינו/ה מוצג/ת כחלש/ה מהכיתה', async () => {
+    const d = await lensData('math', persona('math'))
+    const cv = d.classViews.get(ID.compareD1)!
+    const yahav = cast('yahav')
+    const sv = d.studentViews.get(`${ID.compareD1}|${yahav}`)!
+    expect(sv.head.hasLevelData).toBe(true)
+    const played = sv.challenges.filter((c) => c.outcome !== 'not_reached' && c.level !== null && c.level !== undefined)
+    expect(played.length).toBeGreaterThan(0)
+    expect(played.every((c) => c.level === 14)).toBe(true)
+    expect(played.filter((c) => c.outcome !== 'correct').length).toBeGreaterThan(played.length / 2)
+    /* ההשוואה: אין תלמידים ברמה דומה (12–16) — "אין מספיק תלמידים ברמה דומה להשוואה", ולא "חלש/ה מהכיתה" */
+    for (const c of played) {
+      expect(c.comparison?.kind, c.title).toBe('not_enough')
+      expect(c.comparison?.sentence).toBe('אין מספיק תלמידים ברמה דומה להשוואה')
+    }
+    /* בפירוק הכיתתי לפי רמות: הכיתה (דרגות 5–7) הצליחה ברובה, והדרגה 14 נפרדת */
+    const bands = cv.challenges.flatMap((c) => c.levelBands ?? [])
+    expect(cv.challenges.some((c) => (c.levelBands ?? []).length > 1)).toBe(true)
+    const sum = (bs: typeof bands): { solved: number; attempted: number } => bs.reduce((s, b) => ({ solved: s.solved + b.solved, attempted: s.attempted + b.attempted }), { solved: 0, attempted: 0 })
+    const high = sum(bands.filter((b) => b.from >= 11))
+    const low = sum(bands.filter((b) => b.to <= 10))
+    expect(high.attempted).toBeGreaterThan(0)
+    expect(high.solved / high.attempted).toBeLessThan(0.5)
+    expect(low.solved / low.attempted).toBeGreaterThan(0.6)
+  })
+
+  it('שיעור שנשלח לפני שנשמרה רמה: "אין נתון רמה לשיעורים שנשלחו לפני [תאריך]"', async () => {
+    const cv = (await lensData('english', persona('english'))).classViews.get(ID.englishD1)!
+    expect(cv.head.hasLevelData).toBe(false)
+    expect(cv.head.levelNotice).toMatch(/^אין נתון רמה לשיעורים שנשלחו לפני /)
+    const withLevel = (await lensData('english', persona('english'))).classViews.get(ID.englishV2)!
+    expect(withLevel.head.hasLevelData).toBe(true)
+    expect(withLevel.head.levelNotice).toBeNull()
+  })
+})
+
+describe('טבלת המנהל/ת: שכבה × מקצוע', () => {
+  it('מנהל: טבלה כללית עם תאים מוצגים ומוסתרים; בלי שמות, בלי כיתות ובלי מורים; מאומתת מול הסכמה', async () => {
+    const o = await P.overview(req(ADMIN))
+    parseOk(RESULTS_EP.overview.response, o)
+    expect(o.periodLabel).toBe('30 הימים האחרונים')
+    const shown = o.cells.filter((c) => c.status === 'shown')
+    expect(shown.length).toBeGreaterThan(0)
+    expect(o.hasHidden).toBe(true)
+    for (const c of shown) {
+      expect(c.total).toBeGreaterThanOrEqual(5)
+      expect(c.participated).toBeLessThanOrEqual(c.total as number)
+      expect(c.lessons).toBeGreaterThan(0)
+    }
+    /* תא מוסתר: בלי מספרים בכלל */
+    for (const c of o.cells.filter((x) => x.status === 'hidden')) expect([c.lessons, c.participated, c.total]).toEqual([undefined, undefined, undefined])
+    const json = JSON.stringify(o)
+    for (const secret of [...A.world.students.map((s) => s.displayName), ...Object.values(DEMO_SUBJECT_TEACHERS), DEMO_HOMEROOM_TEACHER, 'ו׳2', 'ד׳1']) expect(json.includes(secret as string), secret as string).toBe(false)
+  })
+
+  it('מורה (כל עדשה): 403 על הטבלה', async () => {
+    for (const { q } of LENSES) expect((await thrown(() => P.overview(req(q)))).status).toBe(403)
+  })
+})
+
 describe('סינון הרשימה', () => {
   it('לפי כיתה, מקצוע וחיפוש חופשי; אפשרויות הסינון נשארות מלאות', async () => {
     const full = await lensData('math', persona('math'))
-    const byClass = await P.list(req(persona('math')), { classId: 'c-v1' })
+    const byClass = await P.list(req(persona('math')), { classId: 'c-v1', older: true })
     expect(byClass.submissions.map((s) => s.id)).toEqual([ID.fractionsV1])
     expect(byClass.filters).toEqual(full.list.filters)
-    expect((await P.list(req(HOMEROOM), { subject: 'history' })).submissions.map((s) => s.id)).toEqual([ID.historyV2])
-    expect((await P.list(req(HOMEROOM), { q: 'שברים' })).submissions.map((s) => s.id)).toEqual([ID.fractionsV2])
-    expect((await P.list(req(HOMEROOM), { q: 'מדעים' })).submissions.map((s) => s.id)).toEqual([ID.science])
-    expect((await P.list(req(HOMEROOM), { q: 'אין כזה' })).submissions).toEqual([])
+    const all = { view: 'class', older: true } as const
+    expect((await P.list(req(HOMEROOM), { ...all, subject: 'history' })).submissions.map((s) => s.id)).toEqual([ID.historyV2])
+    expect((await P.list(req(HOMEROOM), { ...all, q: 'מדעים' })).submissions.map((s) => s.id)).toEqual([ID.science])
+    expect((await P.list(req(HOMEROOM), { ...all, q: 'אין כזה' })).submissions).toEqual([])
+    const fractions = (await P.list(req(HOMEROOM), { ...all, q: 'שברים' })).submissions.map((s) => s.id)
+    expect(fractions).toContain(ID.fractionsV2)
+    expect(fractions).not.toContain(ID.science)
   })
 })
 
@@ -653,7 +846,7 @@ describe('אותה ליבה כמו הספק האמיתי: שורות גולמי�
         expect(perStudent.has(ses.studentId), 'session אחד לתלמיד').toBe(false)
         perStudent.add(ses.studentId)
         expect((ses.startedAt as string) >= inp.submission.sentAt).toBe(true)
-        expect(Date.parse(ses.startedAt as string)).toBeLessThanOrEqual(w.now.getTime())
+        expect(Date.parse(ses.startedAt as string)).toBeLessThanOrEqual(Math.max(w.now.getTime(), Date.now()))
         if (ses.completedAt) expect(ses.completedAt > (ses.startedAt as string)).toBe(true)
       }
       /* session שלא הושלם אינו כותב events/answers */
@@ -703,15 +896,23 @@ describe('חיווט בנתיב: מורה אורח → ספק ההדגמה (תג
     if (!layer?.route) throw new Error(`נתיב לא רשום: ${path}`)
     let body: { data: unknown } | undefined
     let error: { status?: number } | undefined
-    await layer.route.stack[0].handle(r, { json: (b: { data: unknown }) => { body = b } }, (e) => { error = e as { status?: number } })
+    await layer.route.stack[0].handle(r, { json: (b: { data: unknown }) => { body = b }, set: () => undefined }, (e) => { error = e as { status?: number } })
     return { body, error }
   }
   const guest = (query: Query, params: Record<string, string> = {}): Request => ({ staff: { role: 'teacher', isGuest: true }, query, params } as unknown as Request)
 
   it('רשימה, מסך כיתה ומסך תלמיד', async () => {
-    const list = await call('/submissions', guest(HOMEROOM))
+    const list = await call('/submissions', guest({ ...HOMEROOM, view: 'class', older: '1' }))
     expect(list.error).toBeUndefined()
-    expect((list.body!.data as SubmissionList).submissions).toHaveLength(5)
+    expect((list.body!.data as SubmissionList).submissions).toHaveLength(7)
+    const mine = await call('/submissions', guest(HOMEROOM))
+    expect((mine.body!.data as SubmissionList).submissions).toHaveLength(3)
+    const live = await call('/submission/:id/live', guest(HOMEROOM, { id: ID.liveEnglish }))
+    expect(live.error).toBeUndefined()
+    expect((live.body!.data as { tiles: unknown[] }).tiles.length).toBeGreaterThan(0)
+    const table = await call('/overview', guest(ADMIN))
+    expect(table.error).toBeUndefined()
+    expect((await call('/overview', guest(HOMEROOM))).error?.status).toBe(403)
     const cls = await call('/submission/:id', guest(HOMEROOM, { id: ID.fractionsV2 }))
     expect(cls.error).toBeUndefined()
     expect((cls.body!.data as ClassSubmissionView).head.id).toBe(ID.fractionsV2)
@@ -727,7 +928,7 @@ describe('חיווט בנתיב: מורה אורח → ספק ההדגמה (תג
   })
 
   it('סינון דרך שאילתת הנתיב (classId / subject / q)', async () => {
-    const r = await call('/submissions', guest({ ...persona('math'), classId: 'c-d1' }))
+    const r = await call('/submissions', guest({ ...persona('math'), classId: 'c-d1', older: '1' }))
     expect((r.body!.data as SubmissionList).submissions.map((s) => s.id)).toEqual([ID.compareD1])
   })
 })

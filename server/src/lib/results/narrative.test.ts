@@ -131,7 +131,10 @@ describe('סיכום תלמיד/ה', () => {
   })
   it('סיבות תשומת לב במילים (לפי attentionReasonText), ללא "עוד לא התחיל/ה" כפול', () => {
     expect(s({ gaveUp: 2, solved: 1, attentionReasons: ['gave_up_often', 'low_success'] }))
-      .toBe(`אבי פתר/ה ${countNb(1, 4)} אתגרים. ויתר/ה על 2. לתשומת לב: ${attentionReasonText('gave_up_often')}, ${attentionReasonText('low_success')}.`)
+      .toBe(`אבי פתר/ה ${countNb(1, 4)} אתגרים. ויתר/ה על 2. לתשומת לב: ${attentionReasonText('gave_up_often', { gaveUp: 2 })}, ${attentionReasonText('low_success', { solved: 1, total: 4 })}.`)
+    expect(attentionReasonText('gave_up_often', { gaveUp: 3 })).toBe('ויתר/ה על 3 אתגרים')
+    expect(attentionReasonText('low_success', { solved: 1, total: 6 })).toBe('הצליח/ה ב-1 מתוך 6 אתגרים (פחות מ-40%)')
+    expect(attentionReasonText('not_started')).toBe('לא התחיל/ה אחרי מועד ההגשה')
     expect(s({ attentionReasons: [] })).toBe(`אבי פתר/ה ${countNb(3, 4)} אתגרים.`)
     expect(s({ status: 'not_started', attentionReasons: ['not_started'] })).toBe(`אבי עוד לא התחיל/ה את השיעור. ${NO_RESULTS_YET}`)
   })

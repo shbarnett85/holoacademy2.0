@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ACTIVE_WINDOW_MS, defaultDueAt, dueAtFromDay, formatIsraelDate, isLate, israelDay, israelLocalToUtc, lessonState } from './lessonState'
+import { ACTIVE_WINDOW_MS, defaultDueAt, dueAtFromDay, formatIsraelDate, isLate, israelDay, israelLocalToUtc, israelMonthRange, israelWeekStart, lessonState, weekGroupOf } from './lessonState'
 
 describe('תאריך יעד ברירת מחדל: +7 ימים, 23:59 שעון ישראל', () => {
   it('קיץ (UTC+3)', () => {
@@ -75,5 +75,42 @@ describe('formatIsraelDate', () => {
     expect(formatIsraelDate('2026-07-08T20:59:00.000Z')).toBe('8 ביולי')
     expect(formatIsraelDate('2026-07-08T21:30:00.000Z')).toBe('9 ביולי')
     expect(formatIsraelDate('2027-01-17T21:59:00.000Z')).toBe('17 בינואר')
+  })
+})
+
+describe('שבועות ישראליים — israelWeekStart / weekGroupOf', () => {
+  it('ראשון 00:00 שעון ישראל (קיץ UTC+3 וחורף UTC+2)', () => {
+    /* רביעי 21.10.2026 12:00 ישראל → ראשון 18.10.2026 00:00 ישראל = 17.10 21:00Z (שעון קיץ עד 25.10) */
+    expect(israelWeekStart('2026-10-21T09:00:00Z').toISOString()).toBe('2026-10-17T21:00:00.000Z')
+    /* חורף: רביעי 13.1.2027 → ראשון 10.1.2027 00:00 ישראל = 9.1 22:00Z */
+    expect(israelWeekStart('2027-01-13T09:00:00Z').toISOString()).toBe('2027-01-09T22:00:00.000Z')
+  })
+  it('ראשון עצמו הוא תחילת השבוע; שבת בערב עדיין באותו שבוע; ראשון 00:30 כבר בשבוע חדש', () => {
+    expect(israelWeekStart('2026-10-18T05:00:00Z').toISOString()).toBe('2026-10-17T21:00:00.000Z')
+    expect(israelWeekStart('2026-10-24T18:00:00Z').toISOString()).toBe('2026-10-17T21:00:00.000Z')
+    expect(israelWeekStart('2026-10-24T21:30:00Z').toISOString()).toBe('2026-10-24T21:00:00.000Z')
+  })
+  it('weekGroupOf: השבוע / שבוע שעבר / מוקדם יותר; גם מעל מעבר שעון', () => {
+    const now = '2026-10-28T10:00:00Z' /* רביעי 28.10 (אחרי מעבר לשעון חורף ב-25.10) */
+    expect(weekGroupOf('2026-10-26T08:00:00Z', now)).toBe('this')
+    expect(weekGroupOf('2026-10-21T08:00:00Z', now)).toBe('last')
+    expect(weekGroupOf('2026-10-18T05:00:00Z', now)).toBe('last')
+    expect(weekGroupOf('2026-10-14T08:00:00Z', now)).toBe('earlier')
+    expect(weekGroupOf('2026-09-01T08:00:00Z', now)).toBe('earlier')
+  })
+})
+
+describe('israelMonthRange', () => {
+  it('חודש בשעון ישראל, כולל גבול בין חודשים ושנה', () => {
+    const r = israelMonthRange('2026-10-26T10:00:00Z')
+    expect([r.year, r.month1]).toEqual([2026, 10])
+    expect(r.start.toISOString()).toBe('2026-09-30T21:00:00.000Z')
+    expect(r.end.toISOString()).toBe('2026-10-31T22:00:00.000Z') /* ב-25.10 עברו לשעון חורף */
+    /* 31.10 21:30 UTC כבר 1.11 לפי שעון חורף? לא — 23:30 ב-31.10 בישראל (UTC+2) */
+    expect(israelMonthRange('2026-10-31T21:30:00Z').month1).toBe(10)
+    expect(israelMonthRange('2026-10-31T22:00:00Z').month1).toBe(11)
+    const dec = israelMonthRange('2026-12-15T10:00:00Z')
+    expect(dec.end.toISOString()).toBe('2026-12-31T22:00:00.000Z')
+    expect([dec.year, dec.month1]).toEqual([2026, 12])
   })
 })

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Request } from 'express'
 import { MIN_CELL_SIZE } from '../authz.js'
+import { ATTENTION_RULE } from '../../../../src/shared/lib/analyticsConfig.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionListSchema } from '../../../../src/shared/types/resultsV1.js'
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -31,6 +32,8 @@ const h = vi.hoisted(() => {
     eq(k: string, v: unknown) { this.filters.push((r) => r[k] === v); return this }
     in(k: string, a: unknown[]) { this.filters.push((r) => a.includes(r[k])); return this }
     is(k: string, v: unknown) { this.filters.push((r) => (r[k] ?? null) === v); return this }
+    gte(k: string, v: string) { this.filters.push((r) => String(r[k]) >= v); return this }
+    lt(k: string, v: string) { this.filters.push((r) => String(r[k]) < v); return this }
     not(k: string, _op: string, v: unknown) { this.filters.push((r) => (r[k] ?? null) !== v); return this }
     order(col: string, o?: { ascending?: boolean }) { this.orders.push({ col, asc: o?.ascending !== false }); return this }
     limit(n: number) { this.lim = n; limits[this.t] = n; return this }
@@ -74,6 +77,7 @@ vi.mock('../activeColumn.js', () => ({
   hasMisconceptions: async () => true, hasMoralChoices: async () => true, hasOptionTags: async () => true, hasQuestSubject: async () => false,
   hasQuestSubjectId: async () => true, hasQuestVariants: async () => true, hasSyntheticFlag: async () => true,
   hasClassTeachers: async () => true, hasDataAccessLog: async () => true, hasAssignmentDueAt: async () => true,
+  hasAnswerLevel: async () => true, hasSessionLive: async () => true,
 }))
 vi.mock('../subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),
@@ -152,7 +156,9 @@ const fail = async (p: Promise<unknown>): Promise<{ status: number; message: str
 }
 const HEAVY = ['sessions', 'answers', 'events', 'option_tags', 'moral_choices', 'quest_variants']
 
-beforeEach(reset)
+const NOW = '2026-10-26T10:00:00Z'
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(NOW)); reset() })
+afterEach(() => { vi.useRealTimers() })
 
 describe('שליחה שאינה גלויה: אותו 404 כמו שליחה שאינה קיימת (אין אורקל קיום)', () => {
   it('מסך שיעור: לא קיים = לא גלוי (מורה שאינו משויך לכיתה) — אותו סטטוס ואותה הודעה', async () => {
@@ -224,7 +230,7 @@ describe('יומן גישה', () => {
   })
 
   it('רשימה: שורה אחת בלי תלמיד (results_list)', async () => {
-    await realResultsProvider.list(req(T_HOME), {})
+    await realResultsProvider.list(req(T_HOME), { view: 'class' })
     expect(h.db.data_access_log).toHaveLength(1)
     expect(h.db.data_access_log[0]).toMatchObject({ scope: 'results_list', student_id: null, viewer_id: T_HOME })
   })
@@ -251,20 +257,21 @@ describe('יומן גישה', () => {
     h.flags.insertError = true
     await expect(realResultsProvider.classView(req(T_HOME), A1)).resolves.toBeTruthy()
     await expect(realResultsProvider.studentView(req(T_HOME), A1, STU[0])).resolves.toBeTruthy()
-    await expect(realResultsProvider.list(req(T_HOME), {})).resolves.toBeTruthy()
+    await expect(realResultsProvider.list(req(T_HOME), { view: 'class' })).resolves.toBeTruthy()
   })
 })
 
 describe('רשימה: תקרת סריקה ו-truncated', () => {
-  const addAssignments = (n: number): void => {
+  /* שליחות ישנות מ-A1 (10.10), אך בתוך חלון 30 הימים: 1.10 + דקה לכל שליחה */
+  const addAssignments = (n: number, base = Date.UTC(2026, 9, 1)): void => {
     ins('assignments', Array.from({ length: n }, (_, i) => ({
-      id: uid(1000 + i), quest_id: Q1, class_id: C1, user_id: T_SCI, created_at: new Date(Date.UTC(2026, 0, 1) + i * 60_000).toISOString(),
+      id: uid(1000 + i), quest_id: Q1, class_id: C1, user_id: T_SCI, created_at: new Date(base + i * 60_000).toISOString(),
     })))
   }
 
   it('מעל התקרה: נסרקות רק החדשות ביותר, truncated=true, ומוצגות לכל היותר 60', async () => {
     addAssignments(ASSIGNMENT_SCAN_CAP + 20)
-    const res = await realResultsProvider.list(req(T_HOME), {})
+    const res = await realResultsProvider.list(req(T_HOME), { view: 'class' })
     expect(res.truncated).toBe(true)
     expect(SubmissionListSchema.safeParse(res).success).toBe(true)
     expect(res.submissions.length).toBeLessThanOrEqual(60)
@@ -275,12 +282,12 @@ describe('רשימה: תקרת סריקה ו-truncated', () => {
 
   it('יותר שליחות מכפי שמוצג (אך מתחת לתקרת הסריקה): truncated=true', async () => {
     addAssignments(70)
-    expect((await realResultsProvider.list(req(T_HOME), {})).truncated).toBe(true)
+    expect((await realResultsProvider.list(req(T_HOME), { view: 'class' })).truncated).toBe(true)
   })
 
   it('מעט שליחות: אין שדה truncated בכלל', async () => {
     addAssignments(3)
-    const res = await realResultsProvider.list(req(T_HOME), {})
+    const res = await realResultsProvider.list(req(T_HOME), { view: 'class' })
     expect('truncated' in res).toBe(false)
     expect(SubmissionListSchema.safeParse(res).success).toBe(true)
     expect(res.submissions).toHaveLength(4)
@@ -302,7 +309,7 @@ describe('ההרצה שנספרת: הרצה שהושלמה גוברת על sessi
     const v = await realResultsProvider.classView(req(T_HOME), A1)
     expect(v.head.counts).toMatchObject({ completed: 1, inProgress: 0 })
     expect(v.challenges[0]).toMatchObject({ attempted: 1, solved: 1 })
-    const list = await realResultsProvider.list(req(T_HOME), {})
+    const list = await realResultsProvider.list(req(T_HOME), { view: 'class' })
     expect(list.submissions[0].counts).toMatchObject({ completed: 1, inProgress: 0 })
   })
 })
@@ -316,9 +323,10 @@ describe('במבט אחד: successBands בספק האמיתי (אותה ליבה
     expect(v.head.counts).toMatchObject({ total: 6, completed: 3, inProgress: 1, notStarted: 2 })
     expect(v.successBands).toEqual({ basis: 3, low: 1, mid: 0, high: 2, enough: true })
     expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
-    /* הספירה הנמוכה = בדיוק מי שמסומן "לתשומת לב" בגלל הצלחה נמוכה */
+    /* כלל "לתשומת לב" בגלל הצלחה נמוכה חל רק בשיעור עם מספר מינימלי של אתגרים (minChallengesForSuccessRule); בשיעור של אתגר אחד הוא לא מסמן אף אחד, גם אם הגרף מראה מי הצליח במעט */
+    expect(v.challenges.length).toBeLessThan(ATTENTION_RULE.minChallengesForSuccessRule)
     const lowSuccess = [...v.roster.completed, ...v.roster.inProgress, ...v.roster.notStarted].filter((c) => c.attentionReasons.includes('low_success'))
-    expect(lowSuccess).toHaveLength(v.successBands.low)
+    expect(lowSuccess).toHaveLength(0)
   })
 
   it('מי שסיים אחד בלבד: enough=false (ההתפלגות לא מוצגת), אבל הספירה אמיתית ועומדת בחוזה', async () => {
@@ -361,7 +369,7 @@ describe('גרסאות אישיות (answers.variant_id → quest_variants)', ()
 
   it('הגרסאות נטענות רק במסך המפורט (לא ברשימה)', async () => {
     h.calls.length = 0
-    await realResultsProvider.list(req(T_HOME), {})
+    await realResultsProvider.list(req(T_HOME), { view: 'class' })
     expect(h.calls).not.toContain('quest_variants')
     h.calls.length = 0
     await realResultsProvider.classView(req(T_HOME), A1)
@@ -505,7 +513,7 @@ describe('מועד הגשה: dueAt, state ו"באיחור"', () => {
 
   it('שליחה בלי מועד: dueAt=null, בלי lateCount, והמצב open', async () => {
     at('2026-10-20T10:00:00Z')
-    const row = (await realResultsProvider.list(req(T_HOME), {})).submissions[0]
+    const row = (await realResultsProvider.list(req(T_HOME), { view: 'class' })).submissions[0]
     expect(row.dueAt).toBeNull()
     expect(row.state).toBe('open')
     expect(row.lateCount).toBeUndefined()
@@ -514,10 +522,10 @@ describe('מועד הגשה: dueAt, state ו"באיחור"', () => {
   it('open לפני המועד, ended אחריו — אותו מצב ברשימה ובמסך השיעור ובמסך התלמיד (פונקציה אחת)', async () => {
     setDueRow(DUE)
     at('2026-10-15T10:00:00Z')
-    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].state).toBe('open')
+    expect((await realResultsProvider.list(req(T_HOME), { view: 'class' })).submissions[0].state).toBe('open')
     expect((await realResultsProvider.classView(req(T_HOME), A1)).head.state).toBe('open')
     at('2026-10-20T10:00:00Z')
-    const list = (await realResultsProvider.list(req(T_HOME), {})).submissions[0]
+    const list = (await realResultsProvider.list(req(T_HOME), { view: 'class' })).submissions[0]
     expect(list).toMatchObject({ state: 'ended', dueAt: DUE })
     expect((await realResultsProvider.classView(req(T_HOME), A1)).head).toMatchObject({ state: 'ended', dueAt: DUE })
     expect((await realResultsProvider.studentView(req(T_HOME), A1, STU[0])).head.state).toBe('ended')
@@ -528,7 +536,7 @@ describe('מועד הגשה: dueAt, state ו"באיחור"', () => {
     ins('sessions', [session('s1', STU[0], true, '2026-10-20T09:50:00Z')])
     h.db.sessions[0].completed_at = '2026-10-20T09:58:00Z'
     at('2026-10-20T10:01:00Z')
-    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].state).toBe('active_now')
+    expect((await realResultsProvider.list(req(T_HOME), { view: 'class' })).submissions[0].state).toBe('active_now')
     at('2026-10-20T10:03:00Z')
     expect((await realResultsProvider.classView(req(T_HOME), A1)).head.state).toBe('active_now')
     at('2026-10-20T10:20:00Z')
@@ -550,10 +558,10 @@ describe('מועד הגשה: dueAt, state ו"באיחור"', () => {
     expect(chip(STU[1]).late).toBeUndefined()
     expect(chip(STU[2]).late).toBeUndefined()
     expect(view.head.lateCount).toBe(1)
-    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].lateCount).toBe(1)
+    expect((await realResultsProvider.list(req(T_HOME), { view: 'class' })).submissions[0].lateCount).toBe(1)
     expect((await realResultsProvider.studentView(req(T_HOME), A1, STU[0])).student.late).toBe(true)
     expect(ClassSubmissionViewSchema.safeParse(view).success).toBe(true)
-    expect(SubmissionListSchema.safeParse(await realResultsProvider.list(req(T_HOME), {})).success).toBe(true)
+    expect(SubmissionListSchema.safeParse(await realResultsProvider.list(req(T_HOME), { view: 'class' })).success).toBe(true)
   })
 
   it('המשחק לא ננעל: השלמה אחרי המועד נספרת (completed) ומסומנת בלבד', async () => {

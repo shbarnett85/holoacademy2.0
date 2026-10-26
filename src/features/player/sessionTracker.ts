@@ -51,6 +51,9 @@ export interface AnswerWire {
   responseMs: number | null
   outcome: 'correct' | 'wrong' | 'timeout' | 'gave_up' | 'closed'
   interaction: Record<string, unknown> | null
+  /* הרמה שבה שוחק האתגר בפועל + הממד (סוג האתגר) — לסיכום שיעור; חסר = השרת גוזר מה-game_data */
+  levelAtPlay?: number | null
+  levelDimension?: string | null
 }
 
 /* האובייקט התמציתי שנשלח פעם אחת ב-complete */
@@ -104,6 +107,20 @@ export async function startSession(questId: string, assignmentId?: string): Prom
   } catch {
     return null
   }
+}
+
+/* "תצוגה חיה" של המורה: פעימה / סוף אתגר. best-effort לגמרי — כשל, חוסר רשת או שרת ישן לא משפיעים על המשחק. keepalive כדי שיעבור גם בסגירת לשונית */
+export interface LiveReport {
+  sceneId: string
+  inPuzzle: boolean
+  mistakes: number
+  event?: 'beat' | 'challenge_end'
+  outcome?: 'correct' | 'wrong' | 'timeout' | 'gave_up' | 'closed'
+}
+export async function reportLive(sessionId: string, r: LiveReport): Promise<void> {
+  try {
+    await authFetch(`${API}/${encodeURIComponent(sessionId)}/live`, { method: 'POST', body: JSON.stringify(r), keepalive: true })
+  } catch { /* ignore */ }
 }
 
 /* שליחה מרוכזת אחת בסיום. כשל → שמירה ב-sessionStorage ל-retry. מחזיר האם הצליח. */

@@ -109,6 +109,28 @@ export interface AnswerRecord {
   responseMs: number | null
   outcome: AnswerOutcome
   interaction: { events?: InteractionEvent[]; truncated?: boolean; [key: string]: unknown } | null
+  /* הרמה (1-20) שבה האתגר שוחק בפועל = puzzle.difficulty של ה-game_data שהתלמיד/ה קיבל/ה (גרסה אישית או בסיס); null כשאין.
+     levelDimension = סוג האתגר (מפתח per_puzzle_level). השוואה בין תלמידים נעשית רק באותו ממד וברמות קרובות. */
+  levelAtPlay?: number | null
+  levelDimension?: string | null
+}
+
+/* טעויות ברצף באתגר הפתוח — לכלל "נתקע" בתצוגה החיה (LIVE_RULES.stuckMistakes). רצף = הפעולות האחרונות שהיו טעות, עד פעולה נכונה.
+   טעות: סידור/השלמה שהוגשו לא נכון, החלפת אריחים "גרועה", התאמה שגויה בזיכרון, אות שגויה בתפזורת/קוד. פעולה נכונה (כולל מילה שנמצאה) מאפסת. */
+export function trailingMistakes(events: readonly { k: string; [key: string]: unknown }[]): number {
+  let streak = 0
+  for (const e of events) {
+    if (e.k === 'submit' || e.k === 'attempt' || e.k === 'letter') streak = e.correct === true ? 0 : e.correct === false ? streak + 1 : streak
+    else if (e.k === 'swap') streak = e.bad === true ? streak + 1 : 0
+    else if (e.k === 'pair') streak = e.match === true ? 0 : e.match === false ? streak + 1 : streak
+    else if (e.k === 'word_found') streak = 0
+  }
+  return streak
+}
+
+/* רמה תקפה (שלם 1-20) או null — puzzle.difficulty מגיע מ-JSON חופשי */
+export function validLevel(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= 20 ? Math.round(v) : null
 }
 
 export interface MoralChoiceRecord { sceneId: string; optionId: string }
@@ -235,6 +257,8 @@ export interface FinishInput {
   seq: number
   /* תוצאת onResult הקיימת; null = נסגר בלי תשובה */
   result: { correct: boolean; score?: number } | null
+  /* הרמה שבה האתגר מוצג (puzzle.difficulty); חסר = לא ידוע */
+  level?: number | null
   /* מטא האתגר מהנתונים (לפי סוג) */
   puzzle: {
     choices?: ChoiceLike[]
@@ -257,6 +281,12 @@ const lastOf = (st: TelemetryState, kind: string) => [...st.events].reverse().fi
 const countOf = (st: TelemetryState, kind: string) => st.events.filter((e) => e.k === kind).length
 
 export function buildPresentation(tel: PuzzleTelemetry, input: FinishInput): PresentationRecord {
+  const rec = buildPresentationRows(tel, input)
+  const level = validLevel(input.level)
+  return level === null ? rec : { ...rec, answers: rec.answers.map((a) => ({ ...a, levelAtPlay: level, levelDimension: a.puzzleType })) }
+}
+
+function buildPresentationRows(tel: PuzzleTelemetry, input: FinishInput): PresentationRecord {
   const st = tel.state
   const { sceneId, puzzleType, seq, result } = input
   const base = { sceneId, puzzleType, seq }

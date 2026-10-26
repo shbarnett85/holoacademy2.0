@@ -452,6 +452,18 @@ export interface DemoSubmissionDef {
   answerDetail: boolean
   /* היסט (‎−0.3..+0.3) לסיכוי ההצלחה של הכיתה בשליחה הזאת — הדמיה קלה/קשה יחסית */
   ease?: number
+  /* נשלח היום (07:30 שעון ישראל, או לפני 5 דקות אם עוד מוקדם) — dayIndex אינו בשימוש. נבנה מחדש בכל בקשה, כי הוא תלוי ב"עכשיו"
+     (השבוע הנוכחי, "פעיל עכשיו" וה"תצוגה החיה" לא יכולים להיקבע ליום שלם) */
+  today?: boolean
+  /* פעיל עכשיו: חלק מהתלמידים באמצע המשחק, עם פעימות חיות שמשתנות עם הזמן (נתקע/ה, ויתר/ה, לא פעיל/ה) */
+  live?: boolean
+  /* מצב כפוי לדמויות הסגל (מפתח הדמות → מצב) */
+  cast?: Record<string, 'completed' | 'in_progress' | 'not_started'>
+  /* דמויות סגל שמצליחות בפחות מ-40% מהאתגרים — "לתשומת לב" בגלל הצלחה נמוכה */
+  lowFor?: string[]
+  /* סיפור רמות: תלמיד אחד משחק ברמה גבוהה ונכשל, בזמן שהכיתה כולה משחקת ברמה נמוכה ומצליחה.
+     ההשוואה ההוגנת (לפי רמה דומה) לא אמורה להציג אותו כחלש מהכיתה */
+  levelStory?: { cast: string; level: number; classLevel: number }
 }
 
 export const DEMO_SUBMISSIONS: DemoSubmissionDef[] = [
@@ -461,10 +473,15 @@ export const DEMO_SUBMISSIONS: DemoSubmissionDef[] = [
   { id: 'demo-sub-history-v2', questId: 'demo-q-two-temples', classId: 'c-v2', dayIndex: 6, sender: 'subject', inProgress: 1, notStarted: 2, roi: 'not_started', ease: -0.05, answerDetail: true },
   { id: 'demo-sub-fractions-v1', questId: 'demo-q-fractions-journey', classId: 'c-v1', dayIndex: 8, sender: 'subject', inProgress: 0, notStarted: 2, answerDetail: true },
   { id: 'demo-sub-hebrew-v2', questId: 'demo-q-root-tracks', classId: 'c-v2', dayIndex: 10, sender: 'homeroom', inProgress: 0, notStarted: 1, roi: 'not_started', ease: 0.1, answerDetail: true },
-  { id: 'demo-sub-compare-d1', questId: 'demo-q-fraction-compare', classId: 'c-d1', dayIndex: 12, sender: 'subject', inProgress: 1, notStarted: 1, answerDetail: true },
+  { id: 'demo-sub-compare-d1', questId: 'demo-q-fraction-compare', classId: 'c-d1', dayIndex: 12, sender: 'subject', inProgress: 1, notStarted: 1, answerDetail: true, levelStory: { cast: 'yahav', level: 14, classLevel: 6 } },
   { id: 'demo-sub-english-v2', questId: 'demo-q-words-road', classId: 'c-v2', dayIndex: 15, sender: 'subject', inProgress: 0, notStarted: 1, roi: 'not_started', ease: 0.12, answerDetail: true },
   { id: 'demo-sub-history-v1', questId: 'demo-q-two-temples', classId: 'c-v1', dayIndex: 18, sender: 'subject', inProgress: 1, notStarted: 0, ease: -0.3, answerDetail: true },
   { id: 'demo-sub-english-d1', questId: 'demo-q-big-house', classId: 'c-d1', dayIndex: 21, sender: 'subject', inProgress: 0, notStarted: 1, ease: 0.08, answerDetail: false },
+  /* ── שלב R ── */
+  /* פעיל עכשיו (אנגלית ו׳2): חלק באמצע המשחק, חלק סיימו; תמר סיימה והצליחה בפחות מ-40% */
+  { id: 'demo-sub-live-english-v2', questId: 'demo-q-words-road', classId: 'c-v2', dayIndex: 0, today: true, live: true, sender: 'subject', inProgress: 9, notStarted: 3, roi: 'not_started', cast: { tamar: 'completed' }, lowFor: ['tamar'], answerDetail: true },
+  /* נשלח היום (מתמטיקה ו׳2, פתוח עד שבוע): תמר סיימה והצליחה בפחות מ-40% — גם כאן, כך שהיא לתשומת לב ביותר ממקצוע אחד השבוע */
+  { id: 'demo-sub-today-math-v2', questId: 'demo-q-fraction-compare', classId: 'c-v2', dayIndex: 0, today: true, sender: 'homeroom', inProgress: 2, notStarted: 2, roi: 'not_started', cast: { tamar: 'completed' }, lowFor: ['tamar'], answerDetail: true },
 ]
 
 /* אינדקס יום הלימוד שממנו נאספים פירוטי תשובות (שליחות ישנות ממנו — אירועים מסוכמים בלבד) */

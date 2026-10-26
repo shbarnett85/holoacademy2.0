@@ -44,8 +44,27 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v.leng
 
 resultsRouter.get('/submissions', async (req, res, next) => {
   try {
-    const list = await providerFor(req).list(req, { classId: str(req.query.classId), subject: str(req.query.subject), q: str(req.query.q) })
+    const view = str(req.query.view)
+    const list = await providerFor(req).list(req, {
+      classId: str(req.query.classId), subject: str(req.query.subject), q: str(req.query.q),
+      view: view === 'class' ? 'class' : 'mine', older: str(req.query.older) === '1',
+    })
     res.json(validated(RESULTS_EP.list.response, list))
+  } catch (e) { next(e) }
+})
+
+/* מנהל/ת: טבלה כללית אחת, שכבה × מקצוע (מורים — 403). חייב לבוא לפני /submission/:id */
+resultsRouter.get('/overview', async (req, res, next) => {
+  try {
+    res.json(validated(RESULTS_EP.overview.response, await providerFor(req).overview(req)))
+  } catch (e) { next(e) }
+})
+
+/* "תצוגה חיה" של שיעור — הקליינט מרענן כל LIVE_RULES.refreshMs */
+resultsRouter.get('/submission/:id/live', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'private, no-store')
+    res.json(validated(RESULTS_EP.live.response, await providerFor(req).live(req, req.params.id)))
   } catch (e) { next(e) }
 })
 

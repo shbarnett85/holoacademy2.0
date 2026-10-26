@@ -62,7 +62,7 @@ export default function DemoDataPanel({ classes, onChanged }: { classes: ClassRo
         </span>
       </div>
       <p className="text-xs mt-1" style={{ opacity: 0.6 }}>
-        תלמידים פיקטיביים עם תוצאות מוכנות על השיעורים שלך, כדי לראות את האנליטיקה מלאה. מסומנים &quot;תלמיד לדוגמה&quot; ואינם נספרים בשום מקום אחר.
+        תלמידים פיקטיביים עם תוצאות מוכנות על השיעורים שלך, כדי לראות את סיכום השיעור וההתקדמות מלאים. מסומנים &quot;תלמיד לדוגמה&quot; ואינם נספרים בשום מקום אחר.
       </p>
 
       <div className="flex gap-2 flex-wrap mt-3 items-center">

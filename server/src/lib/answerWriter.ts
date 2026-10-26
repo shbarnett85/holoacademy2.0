@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { supabaseAdmin } from './supabase.js'
-import { hasQuestSubjectId, hasQuestVariants } from './activeColumn.js'
+import { hasAnswerLevel, hasQuestSubjectId, hasQuestVariants } from './activeColumn.js'
 import {
-  ANSWER_SCHEMA_VERSION, MAX_ANSWER_ROWS, MAX_GATE_EVENTS, MAX_INTERACTION_BYTES, MAX_INTERACTION_EVENTS, GATE_EVENT_TYPES, capInteraction,
+  ANSWER_SCHEMA_VERSION, validLevel, MAX_ANSWER_ROWS, MAX_GATE_EVENTS, MAX_INTERACTION_BYTES, MAX_INTERACTION_EVENTS, GATE_EVENT_TYPES, capInteraction,
 } from '../../../src/shared/lib/answerTelemetry.js'
 
 /* ── כתיבת טלמטריית תשובות (שלב 1B) ───────────────────────────────────────────
@@ -27,6 +27,9 @@ const answerWire = z.object({
   responseMs: z.number().min(0).max(6 * 3600_000).nullable(),
   outcome: z.enum(OUTCOMES),
   interaction: z.record(z.string(), z.unknown()).nullable(),
+  /* הרמה שבה שוחק האתגר (1-20) והממד. ערך לא תקין נזרק (catch → undefined) ולא מפיל את השורה */
+  levelAtPlay: z.number().int().min(1).max(20).nullable().optional().catch(undefined),
+  levelDimension: z.string().max(40).nullable().optional().catch(undefined),
 })
 export type AnswerWireParsed = z.infer<typeof answerWire>
 
@@ -63,6 +66,10 @@ export interface AnswerContext {
   questId: string
   variantId: string | null
   subjectId: string | null
+  /* עמודות הרמה קיימות במסד (lesson_summary_data.sql). בלעדיהן לא כותבים אותן — insert עם עמודה לא קיימת היה מפיל את כל האצווה */
+  withLevel?: boolean
+  /* sceneId → puzzle.difficulty מה-game_data ששוחק; משלים כשהקליינט (ישן) לא שלח רמה */
+  derivedLevels?: Map<string, number> | null
 }
 
 /* טהור: שורת insert ל-answers. outcome הוא מקור האמת ל-is_correct (עקביות). */
@@ -89,7 +96,27 @@ export function toAnswerRow(a: AnswerWireParsed, ctx: AnswerContext) {
     interaction: capJsonBytes(a.interaction),
     schema_version: ANSWER_SCHEMA_VERSION,
     is_synthetic: false,
+    ...(ctx.withLevel ? levelColumns(a, ctx) : {}),
   }
+}
+
+/* הרמה בפועל: מה שהקליינט דיווח (puzzle.difficulty שהוא ראה); אחרת מה-game_data ששוחק; אחרת NULL (לא משווים). הממד = סוג האתגר */
+function levelColumns(a: AnswerWireParsed, ctx: AnswerContext): { level_at_play: number | null; level_dimension: string | null } {
+  const level = validLevel(a.levelAtPlay) ?? validLevel(ctx.derivedLevels?.get(a.sceneId))
+  return { level_at_play: level, level_dimension: level === null ? null : (a.levelDimension ?? a.puzzleType) }
+}
+
+/* sceneId → puzzle.difficulty של ה-game_data ששוחק (גרסה אישית אם יש; אחרת הבסיס) */
+export async function levelsFromGameData(questId: string, variantId: string | null): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  try {
+    const q = variantId
+      ? await supabaseAdmin.from('quest_variants').select('game_data').eq('id', variantId).maybeSingle()
+      : await supabaseAdmin.from('quests').select('game_data').eq('id', questId).maybeSingle()
+    const scenes = ((q.data as { game_data?: { scenes?: { id?: string; puzzle?: { difficulty?: unknown } }[] } } | null)?.game_data?.scenes) ?? []
+    for (const s of scenes) { const lv = validLevel(s.puzzle?.difficulty); if (s.id && lv !== null) out.set(s.id, lv) }
+  } catch { /* best-effort */ }
+  return out
 }
 
 export function parseAnswers(raw: unknown) { return parseRows(raw, answerWire, MAX_ANSWER_ROWS) }
@@ -131,7 +158,9 @@ export async function writeAnswerTelemetry(opts: {
       const { data } = await supabaseAdmin.from('quest_variants').select('id').eq('quest_id', opts.questId).eq('student_id', opts.studentId).maybeSingle()
       variantId = (data as { id?: string } | null)?.id ?? null
     }
-    const ctx: AnswerContext = { sessionId: opts.sessionId, studentId: opts.studentId, classId: opts.classId, questId: opts.questId, variantId, subjectId }
+    const withLevel = await hasAnswerLevel()
+    const derivedLevels = withLevel && opts.answers.some((a) => validLevel(a.levelAtPlay) === null) ? await levelsFromGameData(opts.questId, variantId) : null
+    const ctx: AnswerContext = { sessionId: opts.sessionId, studentId: opts.studentId, classId: opts.classId, questId: opts.questId, variantId, subjectId, withLevel, derivedLevels }
 
     if (opts.answers.length > 0) {
       const rows = opts.answers.map((a) => toAnswerRow(a, ctx))

@@ -9,7 +9,7 @@ export const UI = {
   openResults: 'לתוצאות',
   retry: 'נסו שוב',
   backToResults: 'חזרה לתוצאות',
-  toAnalytics: 'לאנליטיקה',
+  toAnalytics: 'להתקדמות',
   finished: 'סיימו',
   /* במצב "לפי תלמיד" הסרגל העליון עדיין מראה את הכיתה כולה — מסמנים את זה במילה */
   finishedInClass: 'תלמידי הכיתה סיימו',

@@ -38,6 +38,13 @@ async function checkStrict(key: string, query: () => PromiseLike<{ error: any }>
 export async function hasSubjects(): Promise<boolean> {
   return check('__subjects', () => supabaseAdmin.from('subjects').select('id').limit(1))
 }
+/* סיכום שיעור (migrations/lesson_summary_data.sql): הרמה שבה שוחק האתגר בכל תשובה, ופעימות "תצוגה חיה" בסשן */
+export async function hasAnswerLevel(): Promise<boolean> {
+  return check('__answer_level', () => supabaseAdmin.from('answers').select('level_at_play').limit(1))
+}
+export async function hasSessionLive(): Promise<boolean> {
+  return check('__session_live', () => supabaseAdmin.from('sessions').select('last_seen_at, live').limit(1))
+}
 /* מועד הגשה על הקצאה (migrations/assignment_due_at.sql) */
 export async function hasAssignmentDueAt(): Promise<boolean> {
   return check('__assignment_due_at', () => supabaseAdmin.from('assignments').select('due_at').limit(1))

@@ -32,7 +32,7 @@ export default function Player() {
   const [quest, setQuest] = useState<QuestPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
-  const { sessionId, initialState, settled, saveResume, complete, variantGameData } = usePlaySession(questId)
+  const { sessionId, initialState, settled, saveResume, complete, variantGameData, live } = usePlaySession(questId)
 
   useEffect(() => {
     if (!isDemoSlug) return
@@ -123,6 +123,7 @@ export default function Player() {
         initialState={initialState}
         saveResume={saveResume}
         onComplete={complete}
+        live={live}
         backPath={homePathForRole()}
         visitorMode={isVisitor}
       />

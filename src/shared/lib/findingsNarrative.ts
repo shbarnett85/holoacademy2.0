@@ -13,8 +13,8 @@
 import type { Evidence, InsufficientReason } from '../types/analyticsV2'
 import type { FindingKind, Position, Trend } from './analyticsConfig'
 import {
-  AGE_NORM, AREA_MIN_DELTA, ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, CURRENT_LEVEL_SESSIONS, KIND_THRESHOLDS, LEVEL_TREND_BASIS, LIVE_TREND_RULE,
-  MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_LABEL_MIN_DELTA, TREND_WINDOWS, contentVectorLabel,
+  AGE_NORM, AREA_MIN_DELTA, ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, COMMON_MISTAKE_MIN_STUDENTS, CURRENT_LEVEL_SESSIONS, KIND_THRESHOLDS, LEVEL_COMPARISON, LEVEL_TREND_BASIS, LIVE_TREND_RULE,
+  LIVE_RULES, MIN_CELL_SIZE, MISCONCEPTION_RULE, TREND_LABEL_MIN_DELTA, TREND_WINDOWS, contentVectorLabel,
 } from './analyticsConfig'
 import { subjectName } from './subjects'
 
@@ -22,6 +22,8 @@ import { subjectName } from './subjects'
 const MONTHS = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר']
 export const monthName = (iso: string): string => MONTHS[new Date(iso).getUTCMonth()] ?? ''
 export const monthYear = (iso: string): string => `${monthName(iso)} ${new Date(iso).getUTCFullYear()}`
+/* חודש לועזי כפי שהוא בלוח הישראלי (1..12) — לתקופת הטבלה של המנהל/ת */
+export const monthYearOf = (year: number, month1: number): string => `${MONTHS[month1 - 1] ?? ''} ${year}`
 
 /* מחצית א׳ = ספטמבר–ינואר; מחצית ב׳ = פברואר–יוני. הקיץ שייך למחצית ב׳ שהסתיימה. */
 export type Term = 'half_a' | 'half_b'
@@ -696,7 +698,7 @@ export function narrateClassSummary(i: ClassSummaryInput): string {
   const h = i.hardest
   if (enough && h && h.wrong > 0) {
     let s = `האתגר הקשה ביותר: ${h.title}. ${countNb(h.wrong, h.attempted)} לא הצליחו`
-    if (h.topErrorOptionText && h.topErrorCount >= 2) {
+    if (h.topErrorOptionText && h.topErrorCount >= COMMON_MISTAKE_MIN_STUDENTS) {
       const chosen = `ב״${h.topErrorOptionText}״`
       s += h.topErrorCount * 2 > h.wrong ? `, ורובם בחרו ${chosen}.` : `, ו-${h.topErrorCount} מהם בחרו ${chosen}.`
     } else s += '.'
@@ -718,8 +720,106 @@ export function narrateListSummary(i: ClassSummaryInput): string {
 }
 
 export const attentionBadgeText = (n: number): string => (n === 1 ? 'תלמיד/ה אחד/ת לתשומת לב' : `${n} תלמידים לתשומת לב`)
-export const attentionReasonText = (r: 'not_started' | 'gave_up_often' | 'low_success'): string =>
-  r === 'not_started' ? 'עוד לא התחיל/ה' : r === 'gave_up_often' ? 'ויתר/ה על כמה אתגרים' : 'הצליח/ה בפחות מחצי מהאתגרים'
+export type AttentionReasonKey = 'not_started' | 'gave_up_often' | 'low_success'
+/* הסיבה במילים, ליד כל סימון. עם ctx — כולל המספרים ("ויתר/ה על 3 אתגרים", "הצליח/ה ב-1 מתוך 6 אתגרים") */
+export const attentionReasonText = (r: AttentionReasonKey, ctx?: { gaveUp?: number; solved?: number; total?: number }): string => {
+  if (r === 'not_started') return 'לא התחיל/ה אחרי מועד ההגשה'
+  if (r === 'gave_up_often') return ctx?.gaveUp ? `ויתר/ה על ${ctx.gaveUp} אתגרים` : 'ויתר/ה על כמה אתגרים'
+  const pct = Math.round(ATTENTION_RULE.solvedShareBelow * 100)
+  return ctx?.solved !== undefined && ctx.total ? `הצליח/ה ב-${ctx.solved} מתוך ${ctx.total} אתגרים (פחות מ-${pct}%)` : `הצליח/ה בפחות מ-${pct}% מהאתגרים`
+}
+export const attentionReasonsLine = (rs: AttentionReasonKey[], ctx?: { gaveUp?: number; solved?: number; total?: number }): string => rs.map((r) => attentionReasonText(r, ctx)).join(' · ')
+
+/* ── פס שבועי של המחנך/ת ("כל השיעורים בכיתה שלי") ── */
+export const weekStripSentence = (lessons: number, subjects: number): string =>
+  lessons === 0
+    ? 'השבוע: עוד לא נשלחו שיעורים לכיתה.'
+    : `השבוע: ${lessons === 1 ? 'שיעור אחד' : `${lessons} שיעורים`} ב${subjects === 1 ? 'מקצוע אחד' : `-${subjects} מקצועות`}`
+export const weekStripFlaggedLine = (people: { name: string; subjects: string[] }[]): string | null =>
+  people.length === 0 ? null : `לתשומת לב ביותר ממקצוע אחד השבוע: ${people.map((p) => `${p.name} (${p.subjects.join(', ')})`).join(' · ')}`
+
+/* ── "תצוגה חיה" ── */
+export type LiveStatusKey = 'not_started' | 'working' | 'stuck' | 'gave_up' | 'inactive' | 'finished'
+export const LIVE_STATUS_TEXT: Record<LiveStatusKey, string> = {
+  not_started: 'עוד לא התחיל/ה', working: 'משחק/ת', stuck: 'נתקע/ה', gave_up: 'ויתר/ה', inactive: 'לא פעיל/ה', finished: 'סיים/ה',
+}
+export const liveReasonText = (status: LiveStatusKey, d: { mistakes?: number; noProgressMin?: number; inactiveMin?: number }): string | null => {
+  if (status === 'stuck') return d.mistakes && d.mistakes >= LIVE_RULES.stuckMistakes ? `${d.mistakes} טעויות ברצף באותו אתגר` : `${d.noProgressMin ?? Math.round(LIVE_RULES.stuckNoProgressMs / 60000)} דקות בלי התקדמות`
+  if (status === 'gave_up') return 'ויתר/ה על האתגר'
+  if (status === 'inactive') return `${d.inactiveMin ?? Math.round(LIVE_RULES.inactiveMs / 60000)} דקות בלי שום פעולה`
+  return null
+}
+export const liveSummary = (c: Record<LiveStatusKey, number>, total: number): string => {
+  const parts: string[] = [`${countNb(c.working + c.stuck + c.gave_up, total)} משחקים עכשיו`]
+  if (c.stuck > 0) parts.push(c.stuck === 1 ? 'אחד נתקע' : `${c.stuck} נתקעו`)
+  if (c.gave_up > 0) parts.push(c.gave_up === 1 ? 'אחד ויתר על אתגר' : `${c.gave_up} ויתרו על אתגר`)
+  if (c.inactive > 0) parts.push(c.inactive === 1 ? 'אחד לא פעיל' : `${c.inactive} לא פעילים`)
+  if (c.finished > 0) parts.push(`${c.finished} סיימו`)
+  return `${parts.join('. ')}.`
+}
+
+/* ── שיעור ממוקד / שאלה לדיון ── */
+export const focusedLessonLabel = (n: number): string => (n === 1 ? 'שיעור ממוקד לתלמיד אחד' : `שיעור ממוקד ל-${n} התלמידים`)
+export const FOCUSED_LESSON_WHOLE_CLASS_NOTE = 'המערכת שולחת שיעור לכיתה שלמה, ולא לחלק מתלמידיה. אחרי היצירה השיעור יישלח לכל הכיתה — ההתמקדות היא בנושא, לא בתלמידים.'
+/* תיאור הטעות שנכנס לטופס "שיעור חדש" — עובדות בלבד, בלי שמות תלמידים */
+export const focusedLessonBrief = (d: { lessonTitle: string; challengeTitle: string; question: string; wrongText: string; correctText: string | null; count: number; misconceptionTitle?: string | null }): string =>
+  [
+    `בשיעור "${d.lessonTitle}", באתגר "${d.challengeTitle}", ${commonMistakeSentence(d.count, d.wrongText)}.`,
+    `השאלה: ${d.question}`,
+    d.correctText ? `התשובה הנכונה: ״${d.correctText}״.` : null,
+    d.misconceptionTitle ? `התפיסה השגויה: ${d.misconceptionTitle}.` : null,
+    'שיעור ממוקד שיעזור להבין למה התשובה הזאת אינה נכונה, וייתן הזדמנות לתרגל את הנושא מזוויות חדשות.',
+  ].filter((x): x is string => !!x).join('\n')
+export const DISCUSSION_PROMPT = 'איך לדעתכם הגיעו לתשובה הזאת? מה הייתם אומרים למי שבחר בה?'
+
+/* ── מנהל/ת: שכבה × מקצוע ── */
+export const OVERVIEW_TEXT = {
+  question: 'כמה שיעורים התקיימו החודש, ואיזה חלק מהתלמידים השתתף?',
+  empty: 'עוד לא נשלחו שיעורים החודש. הטבלה תתמלא כשמורים ישלחו שיעורים לתלמידים.',
+  /* בהדגמה אין "החודש" קבוע (העולם נע עם התאריך), ולכן הטבלה מסכמת את 30 הימים האחרונים */
+  demoPeriod: '30 הימים האחרונים',
+  hiddenCell: 'מוסתר: מעט תלמידים בתא',
+  noLessons: 'לא נשלחו שיעורים',
+  hiddenNote: `תא עם פחות מ-${MIN_CELL_SIZE} תלמידים (או עם כיתה אחת בלבד) מוסתר, כדי שלא ניתן יהיה לזהות כיתה, מורה או תלמיד/ה. אין כאן פירוט לפי כיתה או מורה.`,
+  lessonsCell: (n: number): string => (n === 1 ? 'שיעור אחד' : `${n} שיעורים`),
+  participationCell: (done: number, total: number): string => `${countNb(done, total)} תלמידים השתתפו (${Math.round((done / Math.max(1, total)) * 100)}%)`,
+  /* רק מתאים שמוצגים: נשלחו שיעורים ב-N מקצועות, ב-M שכבות */
+  sentence: (subjects: number, gradesCount: number): string =>
+    `נשלחו שיעורים ב${subjects === 1 ? 'מקצוע אחד' : `-${subjects} מקצועות`}, ב${gradesCount === 1 ? 'שכבה אחת' : `-${gradesCount} שכבות`}.`,
+  gradeWord: 'שכבה',
+  howWe: [
+    'כל שורה היא שכבה וכל עמודה מקצוע. בכל תא: כמה שיעורים שונים נשלחו החודש, וכמה מהתלמידים בכיתות שקיבלו אותם התחילו לפחות אחד מהם.',
+    'התמונה כללית בלבד — אין כאן שמות תלמידים, פירוט לפי כיתה, או השוואה בין מורים.',
+  ],
+} as const
+
+/* מי שאינו מורה: הודעות במילים. מנהל/ת רואה טבלה כללית; מורה לא רואה אותה */
+export const ERR_RESULTS_NOT_FOR_ROLE = 'רשימת השיעורים ותוצאות התלמידים אינן זמינות לתפקיד זה. מנהלים רואים טבלה כללית לפי שכבה ומקצוע.'
+export const ERR_OVERVIEW_ADMIN_ONLY = 'הטבלה הכללית מיועדת למנהלים. מורים רואים את השיעורים שלהם ברשימה.'
+
+/* "1.11" — יום.חודש לפי שעון ישראל */
+export const dayMonth = (iso: string): string => {
+  const p = israelDay(iso)
+  return p ? `${p.day}.${p.month}` : ''
+}
+
+/* "השיעור פתוח עד 1.11. 8 תלמידים עוד לא סיימו, ולכן התמונה עדיין חלקית." — כל עוד השיעור פתוח ויש מי שלא סיים */
+export const openLessonNote = (dueIso: string, notFinished: number): string | null =>
+  notFinished > 0
+    ? `השיעור פתוח עד ${dayMonth(dueIso)}. ${notFinished === 1 ? 'תלמיד אחד עוד לא סיים' : `${notFinished} תלמידים עוד לא סיימו`}, ולכן התמונה עדיין חלקית.`
+    : null
+
+/* טעות נפוצה בשפה פשוטה */
+export const commonMistakeSentence = (count: number, wrongText: string): string => `${count} תלמידים בחרו ״${wrongText}״`
+
+/* השוואה לתלמידים ברמה דומה */
+export const COMPARISON_NOT_ENOUGH = 'אין מספיק תלמידים ברמה דומה להשוואה'
+export const COMPARISON_NO_LEVEL = 'אין נתון רמה לאתגר הזה, ולכן אין השוואה'
+export const levelRangeText = (from: number, to: number): string => (from === to ? `דרגה ${from}` : `דרגות ${from}–${to}`)
+export const comparisonSentence = (peers: number, solved: number, from: number, to: number): string =>
+  `ב${levelRangeText(from, to)}: ${countNb(solved, peers)} תלמידים הצליחו באתגר הזה`
+export const levelNoticeText = (iso: string): string => `אין נתון רמה לשיעורים שנשלחו לפני ${dateHe(iso)}`
+export const levelBandText = (from: number, to: number, solved: number, attempted: number): string => `${levelRangeText(from, to)}: ${countNb(solved, attempted)} הצליחו`
 
 export interface StudentSummaryInput {
   firstName: string
@@ -742,7 +842,7 @@ export function narrateStudentSummary(i: StudentSummaryInput): string {
   let s = `${i.firstName} פתר/ה ${countNb(i.solved, i.totalChallenges)} ${challengesWord(i.totalChallenges)}.`
   if (i.gaveUp > 0) s += ` ויתר/ה על ${i.gaveUp}.`
   /* "עוד לא התחיל/ה" כבר נאמר במשפט עצמו (not_started); כאן רק סיבות למי שסיים/ה */
-  const why = (i.attentionReasons ?? []).filter((r) => r !== 'not_started').map(attentionReasonText)
+  const why = (i.attentionReasons ?? []).filter((r) => r !== 'not_started').map((r) => attentionReasonText(r, { gaveUp: i.gaveUp, solved: i.solved, total: i.totalChallenges }))
   if (why.length > 0) s += ` לתשומת לב: ${why.join(', ')}.`
   return s
 }
@@ -769,7 +869,10 @@ export const RESULTS_TEXT = {
 export function howWeCalcResultsLines(): string[] {
   return [
     `אתגר נחשב ל"הצליחו" כשהתלמיד/ה פתר/ה אותו. "ויתרו" = לחצו על "ויתור על האתגר" או סגרו את האתגר בלי לענות.`,
-    `תלמיד/ה מופיע/ה ב"תשומת לב" אם: עוד לא התחיל/ה, או ויתר/ה על ${ATTENTION_RULE.gaveUpAtLeast} אתגרים או יותר, או סיים/ה והצליח/ה בפחות מחצי מהאתגרים. זה כלל עובדתי בלבד — הוא לא מסביר למה.`,
+    `תלמיד/ה מופיע/ה ב"תשומת לב" אם: עוד לא התחיל/ה והמועד להגשה עבר, או ויתר/ה על ${ATTENTION_RULE.gaveUpAtLeast} אתגרים או יותר, או סיים/ה והצליח/ה בפחות מ-${Math.round(ATTENTION_RULE.solvedShareBelow * 100)}% מהאתגרים (בשיעור שיש בו ${ATTENTION_RULE.minChallengesForSuccessRule} אתגרים לפחות). זה כלל עובדתי בלבד — הוא לא מסביר למה.`,
+    'המערכת מכוונת כל תלמיד/ה לרמה שבה הוא/היא מצליח/ה ברוב האתגרים. לכן הצלחה נמוכה כל כך חריגה ביחס לתלמיד/ה עצמו/ה, גם כשהכיתה כולה הצליחה.',
+    `טעות נפוצה = אותה תשובה שגויה אצל ${COMMON_MISTAKE_MIN_STUDENTS} תלמידים או יותר. כשתלמידים קיבלו גרסאות שונות של אותה שאלה, התשובות נחשבות זהות לפי שם הטעות (אם יש), ואחרת לפי נוסח התשובה. בלי התאמה אמינה לא מאחדים אותן.`,
+    `השוואה בין תלמידים נעשית רק מול מי ששיחקו את אותו אתגר בדרגה דומה — עד ${LEVEL_COMPARISON.maxGap} דרגות מעל או מתחת — ורק כשיש לפחות ${LEVEL_COMPARISON.minPeers} כאלה. תלמיד/ה בדרגה גבוהה לא מושווה לתלמידים בדרגה נמוכה.`,
     'התוצאות נספרות לפי המשחק האחרון שהושלם של כל תלמיד/ה בשיעור.',
   ]
 }
@@ -1085,7 +1188,7 @@ export const aiFactObjective = (text: string, levelText: string, solved: number,
 export const aiFactAttentionCount = (n: number, total: number): string => `${countOf(n, total)} תלמידים לתשומת לב.`
 
 /* ── V2_CORE: ספק משותף (הדגמה וחי) — הודעות מצב, פרטיות מנהל וכיסוי נתונים ── */
-export const ERR_V2_DISABLED = 'האנליטיקה החדשה אינה זמינה בחשבון זה'
+export const ERR_V2_DISABLED = 'מסך ההתקדמות החדש אינו זמין בחשבון זה'
 export const ERR_V2_UNAVAILABLE = 'השירות אינו זמין לרגע — נסו שוב בעוד כמה שניות'
 export const ERR_V2_BAD_SUBJECT = 'מקצוע לא מוכר'
 export const ERR_V2_BAD_SCOPE = 'היקף לא תקין'
@@ -1156,13 +1259,13 @@ export const V2_CLIENT_TEXT = {
   previous: {
     crumb: 'התצוגה הקודמת', backToNew: 'חזרה לתצוגה החדשה',
     /* הערת הקשר בראש המסך הישן: מסבירה מה זה ושהוא זמני, בלי לשכתב אותו */
-    notice: 'זו התצוגה הקודמת של האנליטיקה, והיא תוסר בעתיד. התוצאות המלאות נמצאות בתצוגה החדשה.',
+    notice: 'זו התצוגה הקודמת של מסך ההתקדמות, והיא תוסר בעתיד. התוצאות המלאות נמצאות בתצוגה החדשה.',
   },
   briefingEmpty: { title: 'עוד אין מספיק נתונים להכנה לישיבה.', whatNext: 'ההכנה לישיבה תתמלא כשתלמידים יסיימו כמה שיעורים.' },
   feedbackEmpty: { title: 'עוד אין משוב להציג לתלמיד/ה.', whatNext: 'המשוב יופיע כאן אחרי שיהיו כמה שיעורים שהושלמו.' },
   focusedQuest: { exists: 'כבר קיים שיעור ממוקד לטעות הזאת:', none: 'עוד אין שיעור ממוקד לטעות הזאת.' },
   /* ניהול הכיתה: הסיכום הפדגוגי של הכיתה נמצא באנליטיקה (מחנך/ת הכיתה בלבד) */
-  classSummary: { title: 'סיכום פדגוגי לכיתה', sentence: 'הסיכום של ד״ר הולו על הכיתה נמצא במסך האנליטיקה של הכיתה.', open: 'פתיחת הסיכום' },
+  classSummary: { title: 'סיכום פדגוגי לכיתה', sentence: 'הסיכום של ד״ר הולו על הכיתה נמצא במסך ההתקדמות של הכיתה.', open: 'פתיחת הסיכום' },
   noStudentsInSubject: 'עוד אין תלמידים להצגה במקצוע הזה. הם יופיעו כאן כשתלמידי הכיתה יסיימו שיעורים במקצוע.',
   areasDash: 'מקף (—) אומר שהנתון עוד לא נמדד.',
   adminNoResults: ADMIN_NO_RESULTS_TEXT,
@@ -1171,11 +1274,11 @@ export const V2_CLIENT_TEXT = {
 /* ── V2_ROSTER_LINK: רוסטר הניהול — אין עמוד התקדמות / סיכום אישי באנליטיקה לתלמידים ולכיתות המוצגים. אומרים מה קורה ומה אפשר לעשות ── */
 export const V2_ROSTER_LINK_TEXT = {
   student: {
-    demo_org: 'אלה תלמידי הדגמה, ולכן אין להם עמוד התקדמות או סיכום אישי. בלשונית ״אנליטיקה״ מוצגת כיתת הדגמה נפרדת.',
+    demo_org: 'אלה תלמידי הדגמה, ולכן אין להם עמוד התקדמות או סיכום אישי. בלשונית ״התקדמות״ מוצגת כיתת הדגמה נפרדת.',
     unavailable: 'עמוד ההתקדמות והסיכום האישי של התלמידים אינם זמינים כרגע. אפשר לנסות שוב מאוחר יותר.',
   },
   cls: {
-    demo_org: 'זו כיתת הדגמה, ולכן אין לה סיכום פדגוגי. בלשונית ״אנליטיקה״ מוצגת כיתת הדגמה נפרדת.',
+    demo_org: 'זו כיתת הדגמה, ולכן אין לה סיכום פדגוגי. בלשונית ״התקדמות״ מוצגת כיתת הדגמה נפרדת.',
     unavailable: 'הסיכום הפדגוגי של הכיתה אינו זמין כרגע. אפשר לנסות שוב מאוחר יותר.',
   },
 } as const
@@ -1210,7 +1313,7 @@ export const AI_SUMMARY_PANEL_TEXT = {
    · כתיבה מחדש מוחקת את עריכת המורה, ולכן דורשת אישור במילים (שני כפתורים), וגם השרת אוכף (409) — עריכה מלשונית אחרת נתפסת שם.
    · תאריך הכתיבה מוצג בולט ומודפס במסמך הייצוא: מסמך מיוצא מתאר את מצב הנתונים ביום הכתיבה, לא ביום הייצוא. */
 export const ERR_SUMMARY_EDIT_EXISTS = 'בסיכום הזה יש עריכה שלכם, וכתיבה מחדש תמחק אותה. כדי להמשיך צריך לאשר את המחיקה.'
-export const ERR_LEGACY_SUMMARY_MOVED = 'הסיכום עבר למסך התלמיד/ה והכיתה באנליטיקה'
+export const ERR_LEGACY_SUMMARY_MOVED = 'הסיכום עבר למסך ההתקדמות של התלמיד/ה והכיתה'
 export const AI_SUMMARY_HARDENING_TEXT = {
   stale: 'ייתכן שהנתונים השתנו מאז שהסיכום נכתב. אפשר לכתוב אותו מחדש.',
   writtenOn: (date: string): string => `נכתב בתאריך ${date}`,
@@ -1221,7 +1324,7 @@ export const AI_SUMMARY_HARDENING_TEXT = {
     cancel: 'ביטול, להשאיר את העריכה שלי',
   },
   /* הפנייה מהפאנל הקודם של התלמיד/ה אל הסיכום החדש */
-  legacyMoved: { sentence: 'הסיכום של ד״ר הולו על התלמיד/ה עבר למסך התלמיד/ה באנליטיקה.', open: 'פתיחת הסיכום באנליטיקה' },
+  legacyMoved: { sentence: 'הסיכום של ד״ר הולו על התלמיד/ה עבר למסך ההתקדמות של התלמיד/ה.', open: 'פתיחת הסיכום במסך ההתקדמות' },
 } as const
 
 /* שגיאות הפאנל (כשהשרת לא החזיר הודעה בעברית) */
@@ -1287,13 +1390,13 @@ export const LIBRARY_ASSIGN_TEXT = {
   filterGroupLabel: 'סינון השיעורים שלי',
   allChip: 'כל השיעורים',
   noSubjectChip: (n: number): string => `ללא מקצוע (${n})`,
-  intro: 'אלה השיעורים שעוד לא שויכו למקצוע. בחרו מקצוע ליד כל אחד, כדי שמשחקים חדשים בשיעור ייכללו בתוצאות ובאנליטיקה.',
-  noneLeft: { title: 'כל השיעורים שלכם כבר משויכים למקצוע.', whatNext: 'התוצאות שלהם יופיעו באנליטיקה כשתלמידים ישחקו בהם.' },
+  intro: 'אלה השיעורים שעוד לא שויכו למקצוע. בחרו מקצוע ליד כל אחד, כדי שמשחקים חדשים בשיעור ייכללו בסיכום השיעור ובהתקדמות.',
+  noneLeft: { title: 'כל השיעורים שלכם כבר משויכים למקצוע.', whatNext: 'התוצאות שלהם יופיעו בסיכום השיעור כשתלמידים ישחקו בהם.' },
   selectLabel: 'שיוך למקצוע',
   selectPlaceholder: 'בחרו מקצוע…',
   /* אומר את האמת על שיוך בדיעבד: משחקים חדשים ייכללו; משחקים שכבר שוחקו לא (הרמה שלהם חושבה בלי מקצוע) — לא מבטיחים "הנתונים יופיעו" */
-  saved: 'המקצוע נשמר. משחקים חדשים בשיעור הזה ייכללו באנליטיקה; משחקים שכבר שוחקו בו לא ייכללו.',
-  backToAnalytics: 'חזרה לאנליטיקה',
+  saved: 'המקצוע נשמר. משחקים חדשים בשיעור הזה ייכללו בהתקדמות; משחקים שכבר שוחקו בו לא ייכללו.',
+  backToAnalytics: 'חזרה להתקדמות',
   dismiss: 'סגירה',
   noMatches: 'אין תוצאות לחיפוש או לסינון',
 } as const

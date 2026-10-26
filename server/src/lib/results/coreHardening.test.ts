@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, COMMON_ERROR_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, REVIEW_MIN_COMPLETED } from '../../../../src/shared/lib/analyticsConfig.js'
+import { ATTENTION_RULE, CLASS_SUCCESS_BANDS, CLASS_SUMMARY_MIN_COMPLETED, COMMON_MISTAKE_MIN_STUDENTS, MORAL_MIN_COMPLETED, MORAL_MIN_ROWS, REVIEW_MIN_COMPLETED } from '../../../../src/shared/lib/analyticsConfig.js'
 import { countNb, detailAvailableLine, howWeCalcSuccessBandsLines, SUCCESS_DONUT_BANDS } from '../../../../src/shared/lib/findingsNarrative.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionRowSchema } from '../../../../src/shared/types/resultsV1.js'
 import {
@@ -164,12 +164,14 @@ describe('תלמיד ששיחק בגרסה אישית: הפרומפט, האפש�
   it('טעות נפוצה: מחושבת רק מבחירות שניתן לשייך לבסיס, ותגית הגרסה לא נכנסת לתגיות הבסיס', () => {
     const v = buildClassView(data())
     expect(v.commonErrors).toHaveLength(1)
-    expect(v.commonErrors[0]).toMatchObject({ id: 'm-liquid', studentsCount: 3, studentsExposed: 4 })
-    expect(v.commonErrors.map((e) => e.id)).not.toContain('m-plasma')
+    /* st0, st3 (בסיס, תגית m-liquid) + st5 (גרסה, אותו נוסח "נוזל" בלי תגית — מצטרף לפי הנוסח). חשיפה = כל מי שענה על הפריט */
+    expect(v.commonErrors[0]).toMatchObject({ misconceptionId: 'm-liquid', studentsCount: 3, studentsExposed: 6 })
+    expect(v.commonErrors.map((e) => e.misconceptionId)).not.toContain('m-plasma')
     expect(v.challenges[0].items[0].options!.every((o) => o.errorTag?.id !== 'm-plasma')).toBe(true)
-    /* בלי st5: רק st0 ו-st3 בחרו ב"נוזל". st2 שענה "b" בגרסה (מוצק, נכון) אינו נספר כבוחר בטעות של הבסיס (בקוד הישן נספר: 3) */
+    /* בלי st5: רק st0 ו-st3 בחרו ב"נוזל" — פחות מ-COMMON_MISTAKE_MIN_STUDENTS, אין טעות נפוצה. st2 שענה "b" בגרסה (מוצק, נכון) אינו נספר
+       כבוחר בטעות של הבסיס (בקוד הישן נספר: 3) */
     const without5 = buildClassView(data({ sessions: [0, 1, 2, 3, 4].map((i) => sess(i, true)), answers: rows.filter((r) => r.sessionId !== 'se5') }))
-    expect(without5.commonErrors[0]).toMatchObject({ studentsCount: 2, studentsExposed: 3 })
+    expect(without5.commonErrors).toEqual([])
   })
 
   it('גרסה שלא נטענה (variantId קיים, אין תוכן): הבחירה לא נספרת בהתפלגות, ובמסך התלמיד אין טקסט תשובה — ולא מנחשים מהבסיס', () => {
@@ -364,7 +366,7 @@ describe('משפט הסיכום לא מכליל מעבר למי שסיימו', (
     const d = { ...input(game), ...merge(played(0, 3, 3), gaveUp) }
     const flagged = buildStudentView(d, 'st1')!
     expect(flagged.student.attentionReasons).toContain('gave_up_often')
-    expect(flagged.summary).toBe(`בני פתר/ה ${countNb(1, 3)} אתגרים. ויתר/ה על 2. לתשומת לב: ויתר/ה על כמה אתגרים, הצליח/ה בפחות מחצי מהאתגרים.`)
+    expect(flagged.summary).toBe(`בני פתר/ה ${countNb(1, 3)} אתגרים. ויתר/ה על 2. לתשומת לב: ויתר/ה על 2 אתגרים.`)
     const fine = buildStudentView(d, 'st0')!
     expect(fine.summary).toBe(`אבי פתר/ה ${countNb(3, 3)} אתגרים.`)
     /* מי שלא התחיל: הסיבה כבר במשפט עצמו, בלי כפילות */
@@ -493,8 +495,8 @@ describe('אתגר יחיד: ביחיד', () => {
 })
 
 describe('מספר המינימום לסיכום מתוך הקונפיג', () => {
-  it('הסף אינו נכתב בקוד: מדלגים על ההכללה מתחת ל-COMMON_ERROR_MIN_STUDENTS', () => {
-    expect(COMMON_ERROR_MIN_STUDENTS).toBe(2)
+  it('הסף אינו נכתב בקוד: מדלגים על ההכללה מתחת ל-COMMON_MISTAKE_MIN_STUDENTS', () => {
+    expect(COMMON_MISTAKE_MIN_STUDENTS).toBe(3)
   })
 })
 
@@ -503,6 +505,8 @@ describe('מספר המינימום לסיכום מתוך הקונפיג', () =>
    ══════════════════════════════════════════════════════════════════════════ */
 describe('successBands — כמה אתגרים הצליחו התלמידים שסיימו', () => {
   const FOUR = gameOf([1, 2, 3, 4].map((n) => mcScene(n)))
+  /* כלל ההצלחה הנמוכה של "תשומת לב" חל רק בשיעור עם ATTENTION_RULE.minChallengesForSuccessRule אתגרים לפחות */
+  const FIVE = gameOf([1, 2, 3, 4, 5].map((n) => mcScene(n)))
   const bandsOf = (counts: number[], over: Partial<CoreInput> = {}): ReturnType<typeof buildClassView>['successBands'] => {
     const ps = counts.map((solved, i) => played(i, 4, solved))
     return buildClassView({ ...input(FOUR), ...merge(...ps), students: STUDENTS.slice(0, counts.length), ...over }).successBands
@@ -510,7 +514,7 @@ describe('successBands — כמה אתגרים הצליחו התלמידים ש�
 
   it('הספים הם אלה של התצורה הקיימת — "לתשומת לב" ו"רוב הכיתה הצליחה" — ולא 60/85 הישנים', () => {
     expect(SUCCESS_DONUT_BANDS).toEqual({ low: ATTENTION_RULE.solvedShareBelow, high: CLASS_SUCCESS_BANDS.most })
-    expect(SUCCESS_DONUT_BANDS).toEqual({ low: 0.5, high: 0.75 })
+    expect(SUCCESS_DONUT_BANDS).toEqual({ low: 0.4, high: 0.75 })
   })
 
   it('גבולות: 0 ו-25% = במעט · בדיוק 50% = בחלק (לא במעט) · בדיוק 75% ו-100% = ברוב', () => {
@@ -525,8 +529,9 @@ describe('successBands — כמה אתגרים הצליחו התלמידים ש�
     expect(ClassSubmissionViewSchema.safeParse(view).success).toBe(true)
   })
 
-  it('הספירה הנמוכה שווה בדיוק למספר מי שמסומנים "לתשומת לב" בגלל הצלחה נמוכה (אותו כלל)', () => {
-    const view = buildClassView({ ...input(FOUR), ...merge(...[0, 1, 2, 3, 4, 1].map((s, i) => played(i, 4, s))) })
+  it('הספירה הנמוכה שווה בדיוק למספר מי שמסומנים "לתשומת לב" בגלל הצלחה נמוכה (אותו כלל, בשיעור עם 5 אתגרים)', () => {
+    expect(ATTENTION_RULE.minChallengesForSuccessRule).toBe(5)
+    const view = buildClassView({ ...input(FIVE), ...merge(...[0, 1, 2, 3, 4, 1].map((s, i) => played(i, 5, s))) })
     const chips = [...view.roster.completed, ...view.roster.inProgress, ...view.roster.notStarted]
     expect(chips.filter((c) => c.attentionReasons.includes('low_success'))).toHaveLength(view.successBands.low)
     expect(view.successBands.low).toBe(3)
@@ -539,8 +544,23 @@ describe('successBands — כמה אתגרים הצליחו התלמידים ש�
     expect(view.successBands).toEqual({ basis: 2, low: 0, mid: 0, high: 2, enough: true })
   })
 
+  it('בשיעור עם פחות מ-5 אתגרים הספירה "במעט" נשארת, אבל אין סימון "תשומת לב" על הצלחה נמוכה', () => {
+    const view = buildClassView({ ...input(FOUR), ...merge(...[0, 1, 4].map((s, i) => played(i, 4, s))), students: STUDENTS.slice(0, 3) })
+    expect(view.successBands.low).toBe(2)
+    expect([...view.roster.completed].some((c) => c.attentionReasons.includes('low_success'))).toBe(false)
+  })
+
+  it('בגבול: בדיוק 40% מהאתגרים אינו "במעט" (ואינו תשומת לב); 20% כן', () => {
+    const view = buildClassView({ ...input(FIVE), ...merge(...[2, 1].map((s, i) => played(i, 5, s))), students: STUDENTS.slice(0, 2) })
+    expect(view.successBands).toEqual({ basis: 2, low: 1, mid: 1, high: 0, enough: true })
+    const chip = (id: string) => view.roster.completed.find((c) => c.id === id)!
+    expect(chip('st0').attention).toBe(false)
+    expect(chip('st1').attentionReasons).toEqual(['low_success'])
+    expect(chip('st1').reasonText).toBe('הצליח/ה ב-1 מתוך 5 אתגרים (פחות מ-40%)')
+  })
+
   it('תלמיד/ה שסיים/ה בלי שום תוצאה רשומה נספר/ת "במעט" — כמו כלל תשומת הלב', () => {
-    const view = buildClassView({ ...input(FOUR), ...merge(played(0, 4, 4)), sessions: [sess(0, true), sess(1, true)], answers: played(0, 4, 4).answers, events: played(0, 4, 4).events, students: STUDENTS.slice(0, 2) })
+    const view = buildClassView({ ...input(FIVE), ...merge(played(0, 5, 5)), sessions: [sess(0, true), sess(1, true)], answers: played(0, 5, 5).answers, events: played(0, 5, 5).events, students: STUDENTS.slice(0, 2) })
     expect(view.successBands).toEqual({ basis: 2, low: 1, mid: 0, high: 1, enough: true })
     expect(view.roster.completed.find((c) => c.id === 'st1')!.attentionReasons).toContain('low_success')
   })
@@ -583,11 +603,11 @@ describe('successBands — כמה אתגרים הצליחו התלמידים ש�
   it('הסבר "איך חישבנו" לגרף מגיע מהספים שבתצורה (75% / 50%) ומהסף של מספר מי שסיימו', () => {
     const text = howWeCalcSuccessBandsLines().join(' ')
     expect(text).toContain('75%')
-    expect(text).toContain('50%')
+    expect(text).toContain('40%')
     expect(text).toContain(String(CLASS_SUMMARY_MIN_COMPLETED))
-    const custom = howWeCalcSuccessBandsLines({ low: 0.4, high: 0.9 }).join(' ')
+    const custom = howWeCalcSuccessBandsLines({ low: 0.3, high: 0.9 }).join(' ')
     expect(custom).toContain('90%')
-    expect(custom).toContain('40%')
+    expect(custom).toContain('30%')
     expect(custom).not.toContain('75%')
   })
 })

@@ -7,7 +7,7 @@ import { requireStudent } from '../middleware/studentAuth.js'
 import { warn } from '../lib/log.js'
 import { questSubjectOut } from '../lib/subjects.js'
 import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
-import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt } from '../lib/activeColumn.js'
+import { hasSessionLive, hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt } from '../lib/activeColumn.js'
 import { lessonThumbUrl } from '../lib/lessonThumb.js'
 import { lessonState, isLate } from '../../../src/shared/lib/lessonState.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
@@ -276,6 +276,51 @@ sessionsRouter.patch('/:id/progress', async (req, res, next) => {
     const { error } = await supabaseAdmin.from('sessions').update(patch).eq('id', session.id)
     if (error) throw new AppError(500, 'שמירת ההתקדמות נכשלה: ' + error.message)
     res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/* ── POST /api/sessions/:id/live — "תצוגה חיה" של המורה (סיכום שיעור) ──
+   הקליינט שולח פעימה כל LIVE_RULES.heartbeatMs וגם בסוף כל אתגר: באיזו סצנה התלמיד/ה, האם בתוך אתגר, וכמה טעויות ברצף בו.
+   נשמר ב-sessions.last_seen_at + sessions.live (migrations/lesson_summary_data.sql). best-effort: כשל כאן לעולם לא משפיע על המשחק.
+   progressAt = מעבר סצנה או סיום אתגר — לכלל "נתקע" (3 דקות בלי התקדמות). סשן שהושלם / מסד בלי העמודות → 204 בלי כלום. */
+const liveSchema = z.object({
+  sceneId: z.string().min(1).max(120),
+  inPuzzle: z.boolean(),
+  mistakes: z.number().int().min(0).max(100).default(0),
+  event: z.enum(['beat', 'challenge_end']).default('beat'),
+  outcome: z.enum(['correct', 'wrong', 'timeout', 'gave_up', 'closed']).optional(),
+})
+/* הגנה מפני הצפה: פעימה אחת לכל סשן בכל MIN_BEAT_GAP_MS (סיום אתגר — תמיד נכתב) */
+const MIN_BEAT_GAP_MS = 2000
+const lastBeat = new Map<string, number>()
+
+sessionsRouter.post('/:id/live', async (req, res, next) => {
+  try {
+    const session = await loadOwnSession(req, req.params.id)
+    const parsed = liveSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, 'בקשה לא תקינה')
+    if (session.completed_at || !(await hasSessionLive())) { res.status(204).end(); return }
+    const b = parsed.data
+    const now = Date.now()
+    if (b.event === 'beat') {
+      if (now - (lastBeat.get(session.id) ?? 0) < MIN_BEAT_GAP_MS) { res.status(204).end(); return }
+      lastBeat.set(session.id, now)
+      if (lastBeat.size > 5000) for (const k of [...lastBeat.keys()].slice(0, 2500)) lastBeat.delete(k)
+    }
+    const { data: cur } = await supabaseAdmin.from('sessions').select('live').eq('id', session.id).maybeSingle()
+    const prev = ((cur as { live?: Record<string, unknown> | null } | null)?.live ?? {}) as { sceneId?: string; progressAt?: string; lastChallenge?: unknown }
+    const nowIso = new Date(now).toISOString()
+    const moved = b.event === 'challenge_end' || prev.sceneId !== b.sceneId || !prev.progressAt
+    const live = {
+      sceneId: b.sceneId, inPuzzle: b.inPuzzle, mistakes: b.mistakes,
+      progressAt: moved ? nowIso : prev.progressAt,
+      lastChallenge: b.event === 'challenge_end' && b.outcome ? { sceneId: b.sceneId, outcome: b.outcome, at: nowIso } : (prev.lastChallenge ?? null),
+    }
+    const { error } = await supabaseAdmin.from('sessions').update({ last_seen_at: nowIso, live }).eq('id', session.id)
+    if (error) warn('[live] שמירת פעימה נכשלה:', error.message)
+    res.status(204).end()
   } catch (err) {
     next(err)
   }

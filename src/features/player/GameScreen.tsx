@@ -14,6 +14,7 @@ import CrystalFusion from './CrystalFusion'
 import CrystalRain from './CrystalRain'
 import CrystalCharge from './CrystalCharge'
 import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
+import type { LiveApi } from './usePlaySession'
 import { typingDelayMs } from '../../shared/lib/difficultyScaling'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
@@ -127,6 +128,8 @@ interface Props {
   saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number; challengeResults?: unknown[]; telemetry?: unknown }) => void
   /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע */
   onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
+  /* "תצוגה חיה" של המורה (פעימה + סוף כל אתגר). undefined = אין session */
+  live?: LiveApi
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
   backPath?: string
   /* משחק ללא session (מבקר קר / קישור משותף / מקרן) — מסך הסיום מקבל פוטר המרה:
@@ -136,7 +139,7 @@ interface Props {
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
 
-export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, backPath = '/creator/library', visitorMode = false }: Props) {
+export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, live, backPath = '/creator/library', visitorMode = false }: Props) {
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
   const [puzzleOpen, setPuzzleOpen] = useState(false)
@@ -309,6 +312,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull, challengeResults: engine.challengeResults, telemetry: engine.exportTelemetry() })
+    live?.setScene(sceneId)
     advancingRef.current = false /* סצנה חדשה — מאפסים את נעילת המעבר-האוטומטי */
     setAdvancing(false)
     setContentVisible(true) /* סצנה חדשה מתחילה גלויה (לא באמצע fade של החלפת אתגר) */
@@ -592,7 +596,16 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         onSolve={engine.solvePuzzle}
         sceneId={scene.id}
         presentationSeq={engine.getPresentationSeq()}
-        onTelemetry={engine.recordPresentation}
+        onTelemetry={(rec) => {
+          engine.recordPresentation(rec)
+          /* "תצוגה חיה": סוף אתגר — ויתר/ה גובר; אחרת נכון רק אם כל השורות נכונות */
+          if (live) {
+            const rows = rec.answers
+            const outcome = rows.some((a) => a.outcome === 'gave_up') ? 'gave_up' : rows.some((a) => a.outcome === 'timeout') ? 'timeout' : rows.length === 0 ? (rec.puzzleType === 'moralDilemma' ? 'correct' : 'closed') : rows.every((a) => a.outcome === 'correct') ? 'correct' : rows.some((a) => a.outcome === 'closed') ? 'closed' : 'wrong'
+            live.challengeEnd(rec.sceneId, outcome)
+          }
+        }}
+        onLiveProbe={live ? live.setProbe : undefined}
         onClose={() => fadeSwap(() => setPuzzleOpen(false))}
         onContinue={() => {
           const hasItem = !!scene.collectableItem

@@ -15,7 +15,7 @@ import { shatterToCrystals } from './challenges/successShatter'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
 import { playSound } from '../../shared/lib/sound'
 import {
-  createPuzzleTelemetry, buildPresentation, presentChoices, isTrueFalse, PUZZLE_READY_DELAY_MS,
+  createPuzzleTelemetry, buildPresentation, presentChoices, isTrueFalse, trailingMistakes, PUZZLE_READY_DELAY_MS,
   type PuzzleTelemetry, type PresentationRecord,
 } from '../../shared/lib/answerTelemetry'
 
@@ -39,6 +39,8 @@ interface Props {
   presentationSeq?: number
   /* נקרא פעם אחת בסיום ההצגה (תשובה / סגירה) עם השורות שיש לשמור */
   onTelemetry?: (rec: PresentationRecord) => void
+  /* "תצוגה חיה": רושם בדיקה חיה של הטעויות ברצף באתגר הפתוח (null בסגירה). לא משפיע על מהלך המשחק */
+  onLiveProbe?: (probe: (() => number) | null) => void
 }
 
 interface Result { correct: boolean; score: number }
@@ -61,7 +63,7 @@ function maxWidthFor(type?: string): string {
 }
 
 /* מודאל אתגר הולוגרפי — אתגר אינטראקטיבי → פאנל תוצאה/הסבר → המשך */
-export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel', sceneId = '', presentationSeq = 1, onTelemetry }: Props) {
+export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel', sceneId = '', presentationSeq = 1, onTelemetry, onLiveProbe }: Props) {
   const [result, setResult] = useState<Result | null>(null)
   /* טלמטריה להצגה הזו — נוצרת פעם אחת לכל mount (= הצגה) */
   const telRef = useRef<PuzzleTelemetry | null>(null)
@@ -88,13 +90,20 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   }, [presented, tel])
 
   /* סגירת ההצגה → שורות answers. עטוף ב-try: כשל טלמטריה לעולם לא משפיע על האתגר. */
+  useEffect(() => {
+    if (!onLiveProbe) return
+    onLiveProbe(() => { try { return trailingMistakes(tel.state.events) } catch { return 0 } })
+    return () => onLiveProbe(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function finalize(res: { correct: boolean; score?: number } | null) {
     if (finalizedRef.current) return
     finalizedRef.current = true
     try {
       if (!onTelemetry) return
       const rec = buildPresentation(tel, {
-        sceneId, puzzleType: puzzle.type ?? 'multipleChoice', seq: presentationSeq, result: res,
+        sceneId, puzzleType: puzzle.type ?? 'multipleChoice', seq: presentationSeq, result: res, level: puzzle.difficulty,
         puzzle: { choices: puzzle.choices, items: puzzle.items, correctOrder: puzzle.correctOrder, questions: puzzle.questions, moralChoices: puzzle.moralChoices },
       })
       onTelemetry(rec)

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  startSession, completeSession, retryPendingComplete,
+  startSession, completeSession, retryPendingComplete, reportLive, type LiveReport,
+  
   saveResumeLocal, loadResumeLocal, clearResumeLocal,
   type SessionStart, type CompletePayload,
 } from './sessionTracker'
 import type { CollectableItem, GameAnalytics, ChallengeResult } from './useGameEngine'
 import { ANSWER_SCHEMA_VERSION, type TelemetrySnapshot } from '../../shared/lib/answerTelemetry'
+import { LIVE_RULES } from '../../shared/lib/analyticsConfig'
 
 export interface InitialState {
   currentSceneId: string
@@ -37,6 +39,15 @@ interface PlaySession {
   saveResume: (s: ResumeState) => void
   /* שליחה מרוכזת אחת בסיום — רקעית, לא חוסמת את מסך הסיכום */
   complete: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
+  /* "תצוגה חיה" של המורה — undefined כשאין session (מבקר/מקרן/תצוגה מקדימה) */
+  live?: LiveApi
+}
+
+/* מה ש-GameScreen מדווח: הסצנה הנוכחית, בדיקה חיה של הטעויות ברצף באתגר הפתוח, וסוף כל אתגר */
+export interface LiveApi {
+  setScene: (sceneId: string) => void
+  setProbe: (probe: (() => number) | null) => void
+  challengeEnd: (sceneId: string, outcome: NonNullable<LiveReport['outcome']>) => void
 }
 
 /* מחזור חיי ה-session במודל המרוכז:
@@ -84,6 +95,28 @@ export function usePlaySession(questId: string | undefined): PlaySession {
     return () => { cancelled = true }
   }, [questId])
 
+  /* ── "תצוגה חיה": פעימה כל LIVE_RULES.heartbeatMs + סוף כל אתגר. בלי session — אין כלום ── */
+  const liveCtx = useRef<{ sceneId: string | null; probe: (() => number) | null }>({ sceneId: null, probe: null })
+  const doneRef = useRef(false)
+  const beat = useCallback((event: LiveReport['event'] = 'beat', outcome?: LiveReport['outcome']) => {
+    const sid = sessionIdRef.current
+    const c = liveCtx.current
+    if (!sid || doneRef.current || !c.sceneId) return
+    const mistakes = c.probe ? c.probe() : 0
+    void reportLive(sid, { sceneId: c.sceneId, inPuzzle: c.probe !== null, mistakes, event, ...(outcome ? { outcome } : {}) })
+  }, [])
+  useEffect(() => {
+    if (!state.sessionId) return
+    doneRef.current = false
+    const iv = window.setInterval(() => { if (document.visibilityState === 'visible') beat() }, LIVE_RULES.heartbeatMs)
+    return () => window.clearInterval(iv)
+  }, [state.sessionId, beat])
+  const live = useMemo<LiveApi>(() => ({
+    setScene: (sceneId) => { const changed = liveCtx.current.sceneId !== sceneId; liveCtx.current.sceneId = sceneId; if (changed) beat() },
+    setProbe: (probe) => { liveCtx.current.probe = probe },
+    challengeEnd: (sceneId, outcome) => { liveCtx.current.sceneId = sceneId; beat('challenge_end', outcome) },
+  }), [beat])
+
   const saveResume = useCallback((s: ResumeState) => {
     if (!questId || !sessionIdRef.current) return
     saveResumeLocal(questId, { sessionId: sessionIdRef.current, ...s })
@@ -105,6 +138,7 @@ export function usePlaySession(questId: string | undefined): PlaySession {
         selectedOptionId: a.selectedOptionId, selectedPosition: a.selectedPosition, correctPosition: a.correctPosition,
         displayedOrder: a.displayedOrder, isCorrect: a.isCorrect, attemptNo: a.attemptNo, responseMs: a.responseMs,
         outcome: a.outcome, interaction: a.interaction as Record<string, unknown> | null,
+        ...(a.levelAtPlay != null ? { levelAtPlay: a.levelAtPlay, levelDimension: a.levelDimension ?? a.puzzleType } : {}),
       })),
       moralChoices: analytics.moralChoices ?? [],
       gateEvents: (analytics.gateEvents ?? []).map((g) => ({ type: g.type, sceneId: g.sceneId, payload: g.payload, clientTs: g.clientTs })),
@@ -118,10 +152,11 @@ export function usePlaySession(questId: string | undefined): PlaySession {
         if (JSON.stringify(payload).length > 1_500_000) payload.answers = []
       }
     } catch { payload.answers = [] }
+    doneRef.current = true /* אחרי ה-complete אין עוד פעימות (והשרת ממילא מתעלם מסשן שהושלם) */
     /* רקעי — לא ממתינים, לא חוסם את מסך הסיכום */
     void completeSession(sid, payload)
     if (questId) clearResumeLocal(questId)
   }, [questId])
 
-  return { ...state, saveResume, complete }
+  return { ...state, saveResume, complete, live: state.sessionId ? live : undefined }
 }
