@@ -129,7 +129,7 @@ describe('mcExplanationMismatch', () => {
 describe('collectOpenWarnings — שער האיכות לשיתוף', () => {
   const withMeta = (gd: GameData, meta: Record<string, unknown>): GameData => Object.assign(gd as object, meta) as GameData
 
-  it('הדמיה נקייה → אין אזהרות', () => {
+  it('שיעור נקי → אין אזהרות', () => {
     expect(collectOpenWarnings(gdWith(tf(true, undefined, 'התשובה הנכונה היא נכון.')))).toHaveLength(0)
   })
   it('fact-check שעדיין רץ → אזהרת "טרם הסתיימה"', () => {
@@ -302,6 +302,15 @@ describe('lintKnownErrors — רשימת שגיאות-ידועות מצטברת'
     expect(lintKnownErrors(gdNarr2('אתם פוגשים מחשבים כמו פרידריך האייק.'))[0]?.correction).toContain('הוגים')
     expect(lintKnownErrors(gdNarr2('לפתע {DR_HOLO} מופיע מולכם.'))[0]?.problem).toContain('placeholder')
     expect(lintKnownErrors(gdNarr2('אחת אבן הספיקה לי.'))[0]?.correction).toBe('אבן אחת')
+  })
+
+  it('המינוח: "הדמיה" (כל הצורות) נתפסת; "הדמיון" ו"מרי הדמים" לא', () => {
+    for (const bad of ['ההדמיה נשלחה אליכם.', 'בשתי הדמיות כאלה', 'שיעור ההדמיית חזרה', 'ברוכים הבאים להדמיה']) {
+      const hit = lintKnownErrors(gdNarr2(bad))[0]
+      expect(hit?.problem, bad).toContain('מינוח')
+      expect(hit?.correction, bad).toContain('שיעור')
+    }
+    for (const ok of ['הדמיון של השברים דומה מאוד.', 'מרי הדמים עלתה לשלטון.', 'עולם דמיוני ומרתק']) expect(lintKnownErrors(gdNarr2(ok)), ok).toHaveLength(0)
   })
 
   it('לא מדגל שימוש לגיטימי', () => {

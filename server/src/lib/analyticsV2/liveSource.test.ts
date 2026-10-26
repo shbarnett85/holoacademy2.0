@@ -152,7 +152,7 @@ describe('liveSource — שאר חלקי הממשק', () => {
     expect(liveSource.configParts(viewer({ lens: 'homeroom', classGrants: [grant('c-a')] })).subjects).toEqual([])
   })
 
-  it('coverage: הדמיות בלי מקצוע נספרות ומדווחות; פירוט תשובות מהניתוח', async () => {
+  it('coverage: שיעורים בלי מקצוע נספרים ומדווחים; פירוט תשובות מהניתוח', async () => {
     store['c-a'] = richClass('c-a', { detailAvailableFrom: '2026-02-01T00:00:00Z' })
     const v = viewer({ classGrants: [grant('c-a'), grant('c-b')] })
     const a = await liveSource.analysis(v, NOW)

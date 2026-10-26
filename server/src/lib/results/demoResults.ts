@@ -15,7 +15,8 @@
 import type { Request } from 'express'
 import type { ClassSubmissionView, StudentSubmissionView, SubmissionList, SubmissionRow } from '../../../../src/shared/types/resultsV1.js'
 import { slideWordCount } from '../../../../src/shared/lib/answerTelemetry.js'
-import { ERR_NOT_FOUND, ERR_NO_ACCESS } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ERR_DUE_DEMO, ERR_NOT_FOUND, ERR_NO_ACCESS } from '../../../../src/shared/lib/findingsNarrative.js'
+import { defaultDueAt } from '../../../../src/shared/lib/lessonState.js'
 import { SUBJECTS, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
 import { AppError } from '../../middleware/errors.js'
 import { canViewClassSubject, type V2Viewer } from '../analyticsV2/access.js'
@@ -303,17 +304,22 @@ function buildSubmission(a: Analysis, def: DemoSubmissionDef): DemoSubmissionDat
   }
 
   const gameData = questGameData(quest)
+  const sentAt = `${w.days[def.dayIndex].slice(0, 10)}T07:30:00.000Z`
   const students: CoreStudent[] = roster.map((s) => ({ id: s.id, name: s.displayName }))
   return {
     def, quest,
     input: {
       submission: {
-        id: def.id, classId: cls.id, className: cls.name, sentAt: `${w.days[def.dayIndex].slice(0, 10)}T07:30:00.000Z`,
+        id: def.id, classId: cls.id, className: cls.name, sentAt,
+        /* מועד ההגשה בדמו = ברירת המחדל של המערכת (שבוע, 23:59 שעון ישראל) — אותה פונקציה כמו בשליחה אמיתית */
+        dueAt: defaultDueAt(sentAt).toISOString(),
         source: 'mine', senderName: null,
         quest: { id: quest.id, title: quest.title, subject: subjectOfCode(quest.subject), gameData, thumbUrl: questThumbUrl(gameData) },
       },
       students, sessions, answers, events, optionTags: optionTagsOf(quest), moral,
       detailAvailableFrom: w.days[Math.min(DEMO_DETAIL_FROM_DAY_INDEX, w.days.length - 1)],
+      nowMs: w.now.getTime(),
+      lastActivityAt: sessions.reduce<string | null>((m, s) => [s.startedAt, s.completedAt].reduce<string | null>((mm, t) => (t && (!mm || t > mm) ? t : mm), m), null),
     },
   }
 }
@@ -405,6 +411,11 @@ export const demoResultsProvider: ResultsProvider = {
   async classView(req: Request, submissionId: string): Promise<ClassSubmissionView> {
     const v = await viewerOf(req)
     return buildClassView(inputFor(v, pick(v, submissionId)))
+  },
+
+  /* הדגמה: קריאה בלבד (כמו שאר הניהול של מורה אורח) */
+  async setDue(): Promise<{ dueAt: string }> {
+    throw new AppError(403, ERR_DUE_DEMO)
   },
 
   async studentView(req: Request, submissionId: string, studentId: string): Promise<StudentSubmissionView> {

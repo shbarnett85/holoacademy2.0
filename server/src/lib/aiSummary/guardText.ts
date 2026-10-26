@@ -65,7 +65,7 @@ const TEEN_UNITS: Record<string, number> = {
   שישה: 16, שש: 16, שבעה: 17, שבע: 17, שמונה: 18, תשעה: 19, תשע: 19,
 }
 /* "אחד/אחת" הם מספר רק לצד שם עצם נספר ("תלמיד אחד") או לפני "מתוך"; אחרת זה "אחד התחומים" (ניסוח רגיל) */
-const COUNTED_NOUNS = new Set(['תלמיד', 'תלמידה', 'הדמיה', 'אתגר', 'מקצוע', 'כיתה', 'שיעור', 'פעם', 'תחום', 'נושא', 'שאלה', 'סצנה', 'משימה', 'טעות', 'שבוע', 'חודש', 'מקרה'])
+const COUNTED_NOUNS = new Set(['תלמיד', 'תלמידה', 'אתגר', 'מקצוע', 'כיתה', 'שיעור', 'פעם', 'תחום', 'נושא', 'שאלה', 'סצנה', 'משימה', 'טעות', 'שבוע', 'חודש', 'מקרה'])
 
 const lookup = <T,>(table: Record<string, T>, word: string): { value: T; prefix: string } | null => {
   for (const { base, prefix } of stripped(word)) if (Object.prototype.hasOwnProperty.call(table, base)) return { value: table[base], prefix }

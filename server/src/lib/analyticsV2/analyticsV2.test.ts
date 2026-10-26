@@ -245,7 +245,7 @@ describe('התרחישים (סעיף 2) — כל אחד מנתונים', () => {
     expect(pos.get('math')).toBe('below')
     expect(o.caveats.crossSubject.length).toBeGreaterThan(10)
   })
-  it('תפיסה ½+⅓→⅖: המורה רואה מי וכמה פריטים; יש קישור להדמיה קיימת', async () => {
+  it('תפיסה ½+⅓→⅖: המורה רואה מי וכמה פריטים; יש קישור לשיעור קיים', async () => {
     const v = teacher('math')
     const view = (await demoProvider.classSubject(v, 'c-v1', 'math')).data
     const row = view.misconceptions.find((m) => m.id === 'mc-frac-add-straight')!
@@ -625,7 +625,7 @@ describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
     expect(studentTrend(a.ss.get(skey('s0', 'math'))!)).toBe('declining')
   })
 
-  it('רמה שקפצה בלי שההצלחה ביחס לכיתה השתנתה (למשל הדמיות קלות יותר): אין ממצא ואין תווית — "יציב/ה"', () => {
+  it('רמה שקפצה בלי שההצלחה ביחס לכיתה השתנתה (למשל שיעורים קלים יותר): אין ממצא ואין תווית — "יציב/ה"', () => {
     const a = analyze(spWorld(liveClass({ recent: 0.7, prior: 0.7, levelRecent: 9, levelPrior: 5 }), { live: true }))
     expect(reportedTrend(a, 's0')).toBeUndefined()
     expect(studentTrend(a.ss.get(skey('s0', 'math'))!)).toBe('steady')
@@ -665,7 +665,7 @@ describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
     /* לעומת זאת תלמיד/ה בודד/ת שמשתנה מול כיתה יציבה — כן (ראו הבדיקה הראשונה) */
   })
 
-  it('פחות מ-5 תלמידים עם מספיק הדמיות בכל חלון: אי אפשר להעריך מהו שינוי חריג בכיתה ← אין ממצא ו"אין עדיין מספיק נתונים" גם למי שנבדק', () => {
+  it('פחות מ-5 תלמידים עם מספיק שיעורים בכל חלון: אי אפשר להעריך מהו שינוי חריג בכיתה ← אין ממצא ו"אין עדיין מספיק נתונים" גם למי שנבדק', () => {
     /* s0..s3 משלימים/ות את כל 24 ההדמיות; s4..s7 מדלגים/ות על כל הדמיה רביעית בחלון האחרון (6 מתוך 8) ← הן עמיתים (לכל הדמיה 6 עמיתים) אבל לא נבדקים. נבדקים: 4 < 5 */
     const a = analyze(spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { skip: (s, i) => s >= 4 && i < 8 && (i + s) % 4 === 3 }), { live: true }))
     for (const sa of a.ss.values()) {
@@ -687,7 +687,7 @@ describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
     expect(groupTrend([...a.ss.values()])).toBe('insufficient')
   })
 
-  it('פחות מ-MIN_CELL_SIZE תלמידים שנבדקו, או הדמיות בלי מזהה / בלי עמיתים: אין ממצא ו"אין עדיין מספיק נתונים"', () => {
+  it('פחות מ-MIN_CELL_SIZE תלמידים שנבדקו, או שיעורים בלי מזהה / בלי עמיתים: אין ממצא ו"אין עדיין מספיק נתונים"', () => {
     for (const w of [
       spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { students: 4 }), { live: true }), /* 3 עמיתים בלבד */
       spWorld(liveClass({ recent: 0.95, prior: 0.6, levelRecent: 8, levelPrior: 5 }, { withQuestIds: false }), { live: true }), /* אין מזהה הדמיה */
@@ -702,7 +702,7 @@ describe('עולם חי: term=null ובסיס בדיקה על הרמה', () => {
     }
   })
 
-  it('כפילות של אותה הדמיה אצל אותו תלמיד/ה בעולם חי נספרת פעם אחת (הגנה גם אם ה-assemble לא סינן)', () => {
+  it('כפילות של אותו שיעור אצל אותו תלמיד/ה בעולם חי נספרת פעם אחת (הגנה גם אם ה-assemble לא סינן)', () => {
     const base = liveClass({ recent: 0.7, prior: 0.7, levelRecent: 8, levelPrior: 8 })
     /* s0 "משנן" כל הדמיה בחלון האחרון עוד 5 פעמים, בהצלחה גבוהה ורמה עולה — לא אמור ליצור מגמה */
     const cheat = base[0].sessions!.flatMap((x) => (x.day < 60 ? [x, ...Array.from({ length: 5 }, (_, k) => ({ ...x, day: x.day, success: 1, level: 12 + k }))] : [x]))

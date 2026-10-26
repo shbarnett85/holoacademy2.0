@@ -358,7 +358,7 @@ describe('מקור שטועה לא מרחיב הרשאה', () => {
 })
 
 describe('כיסוי נתונים ומשוב בלי משחקים', () => {
-  it('הדמיות בלי מקצוע: unclassifiedCount ו-coverageNote מהמקור (בניסוח מ-findingsNarrative)', async () => {
+  it('שיעורים בלי מקצוע: unclassifiedCount ו-coverageNote מהמקור (בניסוח מ-findingsNarrative)', async () => {
     const p = providerOf(STANDARD, { coverage: () => ({ unclassifiedSessions: 7, detailAvailableFrom: null }) })
     const e = (await p.entry(live([grant(CA.id, { homeroom: true })]))).data
     expect(e.unclassifiedCount).toBe(7)
@@ -368,7 +368,7 @@ describe('כיסוי נתונים ומשוב בלי משחקים', () => {
     expect(one.coverageNote).toBe(narrateUnclassifiedNote(1))
     expect(one.coverageNote).not.toBe(e.coverageNote)
   })
-  it('משוב לתלמיד בלי אף משחק: צעד הבא כללי, לא "השלמת 0 הדמיות"', async () => {
+  it('משוב לתלמיד בלי אף משחק: צעד הבא כללי, לא "השלמת 0 שיעורים"', async () => {
     const fb = (await P.feedback(live([grant(CA.id, { homeroom: true })]), 'stu-A-nodata')).data
     expect(fb.items).toHaveLength(1)
     expect(fb.items[0].kind).toBe('next_step')
@@ -461,7 +461,7 @@ describe('ספק ההדגמה = createProvider(demoSource): אותה תוצאה 
     expect(r.classes[0].isHomeroom).toBe(true)
     expect(r.students.length).toBe(A.classById.get('c-v2')!.studentIds.length)
   })
-  it('מנהל הדמיה: אין יותר רשימת כיתות ב-config וב-roster', async () => {
+  it('מנהל שיעור: אין יותר רשימת כיתות ב-config וב-roster', async () => {
     const admin: V2Viewer = { lens: 'admin', guest: true, homeroomClassId: null, teachingClassIds: [], subjectCodes: [] }
     expect((await demoProvider.config(admin)).data.classes).toEqual([])
     expect((await demoProvider.roster(admin)).data.classes).toEqual([])

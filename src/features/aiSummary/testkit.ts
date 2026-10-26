@@ -3,7 +3,7 @@ import { AI_SUMMARY_TEXT, CAVEAT_TREND, aiSummaryHowWritten, aiSummaryPrivacyNot
 import type { AiSummary, SummaryScope, SummaryState } from '../../shared/types/aiSummaryV1'
 
 export const PARAS = [
-  'נראה שבמתמטיקה הרמה הנוכחית יציבה, על סמך 14 הדמיות.',
+  'נראה שבמתמטיקה הרמה הנוכחית יציבה, על סמך 14 שיעורים.',
   'הנתונים מראים שבעברית המגמה האחרונה בירידה קלה. אפשר לבדוק שוב בעוד כמה שבועות.',
 ]
 
@@ -18,7 +18,7 @@ export function aiSummary(over: Partial<AiSummary> = {}, scope: SummaryScope = '
     paragraphs: PARAS,
     generatedParagraphs: PARAS,
     edited: false,
-    basisText: 'מבוסס על 14 הדמיות',
+    basisText: 'מבוסס על 14 שיעורים',
     generatedAt: '2026-10-20T08:00:00.000Z',
     updatedAt: '2026-10-20T08:00:00.000Z',
     caveat: CAVEAT_TREND,
@@ -33,4 +33,4 @@ export function summaryState(over: Partial<SummaryState> = {}, scope: SummarySco
   }
 }
 
-export const NOT_ENOUGH = { ok: false as const, text: 'עוד אין מספיק נתונים לסיכום על התלמיד/ה.', whatNext: 'הסיכום יהיה זמין אחרי 4 הדמיות לפחות.' }
+export const NOT_ENOUGH = { ok: false as const, text: 'עוד אין מספיק נתונים לסיכום על התלמיד/ה.', whatNext: 'הסיכום יהיה זמין אחרי 4 שיעורים לפחות.' }

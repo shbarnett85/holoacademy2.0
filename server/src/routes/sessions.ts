@@ -7,7 +7,9 @@ import { requireStudent } from '../middleware/studentAuth.js'
 import { warn } from '../lib/log.js'
 import { questSubjectOut } from '../lib/subjects.js'
 import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
-import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels } from '../lib/activeColumn.js'
+import { hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt } from '../lib/activeColumn.js'
+import { lessonThumbUrl } from '../lib/lessonThumb.js'
+import { lessonState, isLate } from '../../../src/shared/lib/lessonState.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 import { parseAnswers, parseMoral, parseGateEvents, toGateEventRow, writeAnswerTelemetry } from '../lib/answerWriter.js'
 
@@ -21,18 +23,22 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     const classId = req.student!.classId
     if (!classId) return res.json({ quests: [] })
 
+    const withDue = await hasAssignmentDueAt()
     const { data: asgData, error: asgErr } = await supabaseAdmin
       .from('assignments')
-      .select('quest_id, created_at')
+      .select(withDue ? 'quest_id, created_at, due_at' : 'quest_id, created_at')
       .eq('class_id', classId)
     if (asgErr) throw new AppError(500, asgErr.message)
 
-    const asgRows = asgData ?? [] as { quest_id: string; created_at: string }[]
-    const questIds = asgRows.map((r: { quest_id: string }) => r.quest_id)
+    type AsgRow = { quest_id: string; created_at: string; due_at?: string | null }
+    const asgRows = (asgData ?? []) as unknown as AsgRow[]
+    const questIds = [...new Set(asgRows.map((r) => r.quest_id))]
     if (questIds.length === 0) { res.json({ quests: [] }); return }
 
-    /* מיפוי quest_id → assignedAt */
-    const assignedAtMap = new Map(asgRows.map((r: { quest_id: string; created_at: string }) => [r.quest_id, r.created_at]))
+    /* מיפוי quest_id → ההקצאה האחרונה (מועד השליחה ומועד ההגשה שלה) */
+    const latestAsg = new Map<string, AsgRow>()
+    for (const r of asgRows) { const cur = latestAsg.get(r.quest_id); if (!cur || r.created_at > cur.created_at) latestAsg.set(r.quest_id, r) }
+    const assignedAtMap = new Map([...latestAsg].map(([id, r]) => [id, r.created_at]))
 
     const [questResult, sessionResult] = await Promise.all([
       supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by').in('id', questIds),
@@ -58,12 +64,14 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
 
     /* subject — שאילתה נפרדת, דיפנסיבית */
     const subjectMap = new Map<string, string>()
+    const subjectCodeMap = new Map<string, string>()
     if (await hasQuestSubject()) {
       const withId = await hasQuestSubjectId()
       const { data: subjectRows } = await supabaseAdmin.from('quests').select(withId ? 'id, subject, subject_id' : 'id, subject').in('id', questIds)
       for (const r of (subjectRows ?? []) as unknown as { id: string; subject?: string | null; subject_id?: string | null }[]) {
         const out = await questSubjectOut({ subject: withId ? undefined : r.subject, subject_id: withId ? (r.subject_id ?? null) : undefined })
         if (out.subject) subjectMap.set(r.id, out.subject)
+        if (out.subjectCode) subjectCodeMap.set(r.id, out.subjectCode)
       }
     }
 
@@ -76,6 +84,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
       sessionsByQuest.set(s.quest_id, arr)
     }
 
+    const dueAtOf = (questId: string): string | null => latestAsg.get(questId)?.due_at ?? null
     const quests = (questResult.data ?? []).map((q: QuestRow) => {
       const gd = q.game_data as GameData
       const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
@@ -84,6 +93,8 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
       const completedSession = sessions
         .filter((s) => s.completed_at)
         .sort((a, b) => (b.crystals ?? 0) - (a.crystals ?? 0))[0] ?? null
+      /* "באיחור" = ההשלמה הראשונה של התלמיד הייתה אחרי מועד ההגשה (isLate — פונקציה אחת) */
+      const firstDone = sessions.filter((s) => s.completed_at).sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at)))[0] ?? null
       const sessionStatus = completedSession ? 'completed'
         : sessions.length > 0 ? 'in_progress'
         : null
@@ -95,9 +106,15 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         isReview: !!gd?.reviewOf,
         artStyle: q.art_style,
         subject: subjectMap.get(q.id) ?? null,
+        subjectCode: subjectCodeMap.get(q.id) ?? null,
         teacherName: q.created_by ? (teacherMap.get(q.created_by) ?? null) : null,
         assignedAt: assignedAtMap.get(q.id) ?? null,
         entryImageUrl: entryScene?.imageUrl ?? null,
+        thumbUrl: lessonThumbUrl(gd),
+        /* מועד ההגשה של ההקצאה האחרונה + מצב השיעור מפונקציית המצב היחידה (open/ended; אין "פעיל עכשיו" ברשימת התלמיד) */
+        dueAt: dueAtOf(q.id),
+        state: lessonState({ now: Date.now(), dueAt: dueAtOf(q.id) }),
+        late: isLate(firstDone?.completed_at, dueAtOf(q.id)),
         sessionStatus,
         crystals: completedSession?.crystals ?? null,
         maxScore: completedSession?.max_score ?? null,

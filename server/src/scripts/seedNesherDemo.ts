@@ -149,7 +149,7 @@ async function main() {
     .eq('is_official', true)
     .limit(3)
   const srcs = (sources ?? []) as { title: string; game_data: { scenes?: { id: string; puzzle?: { type?: string; difficulty?: number } }[] }; [k: string]: unknown }[]
-  if (srcs.length === 0) throw new Error('לא נמצאו הדמיות רשמיות להעתקה — הרץ seed:library קודם')
+  if (srcs.length === 0) throw new Error('לא נמצאו שיעורים רשמיים להעתקה — הרץ seed:library קודם')
 
   const quests: { id: string; scenes: { id: string; puzzle?: { type?: string; difficulty?: number } }[] }[] = []
   for (const q of srcs) {
@@ -168,7 +168,7 @@ async function main() {
       })
       .select('id')
       .single()
-    if (error || !row) throw new Error('יצירת הדמיית דמו נכשלה: ' + (error?.message ?? ''))
+    if (error || !row) throw new Error('יצירת שיעור דמו נכשלה: ' + (error?.message ?? ''))
     quests.push({ id: row.id, scenes: q.game_data.scenes ?? [] })
   }
   await register(tag, 'quests', quests.map((q) => q.id))
@@ -223,7 +223,7 @@ async function main() {
   await register(tag, 'assignments', asgIds)
   await register(tag, 'sessions', sessIds)
 
-  console.log(`✓ נזרעו: מורה דמו, כיתה "דמו ח׳1" (url_code=${urlCode}), ${studentIds.length} תלמידים בדויים, ${quests.length} הדמיות, ${sessIds.length} sessions.`)
+  console.log(`✓ נזרעו: מורה דמו, כיתה "דמו ח׳1" (url_code=${urlCode}), ${studentIds.length} תלמידים בדויים, ${quests.length} שיעורים, ${sessIds.length} sessions.`)
   console.log('להסרה: npm run seed-nesher-demo -- --org "' + orgName + '" --remove')
 }
 

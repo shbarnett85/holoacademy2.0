@@ -120,6 +120,8 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   }
 
   const active = mode === 'class' ? classQ : studentQ
+  /* שינוי מועד הגשה משפיע על המצב ועל "באיחור" בשני המסכים — טוענים מחדש את שניהם */
+  const onDueChanged = (): void => { classQ.reload(); studentQ.reload() }
   const head = (mode === 'class' ? classQ.data : studentQ.data)?.head ?? classQ.data?.head ?? studentQ.data?.head ?? null
   const studentName = studentQ.data?.student.id === studentId ? studentQ.data.student.name : classQ.data ? [...classQ.data.roster.completed, ...classQ.data.roster.inProgress, ...classQ.data.roster.notStarted].find((s) => s.id === studentId)?.name : undefined
 
@@ -145,7 +147,7 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
     const shownTab = resolveTab(tab, CLASS_TAB_IDS)
     body = (
       <Layout wide={wide} busy={classQ.loading}
-        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} />}
+        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} onDueChanged={onDueChanged} />}
         sentence={<Sentence compact>{d.summary}</Sentence>}
         people={<ClassRoster roster={d.roster} onOpen={toStudent} />}
         panel={(
@@ -175,7 +177,7 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
 const position = at >= 0 ? UI.studentPosition(at + 1, d.roster.length) : ''
     body = (
       <Layout wide={wide} busy={studentQ.loading}
-        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} />}
+        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} onDueChanged={onDueChanged} />}
         sentence={<Sentence compact aside={<PrevNext prevId={d.prevId} nextId={d.nextId} position={position} onOpen={toStudent} />}>{d.summary}</Sentence>}
         people={<StudentList roster={d.roster} currentId={d.student.id} onOpen={toStudent} />}
         panel={(

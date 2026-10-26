@@ -53,7 +53,7 @@ describe('demoAnalytics — בדיקת הזמן: הערכים זהים בעוד 
 })
 
 describe('demoAnalytics — תקינות מול המודל האמיתי', () => {
-  it('לכל תלמיד מספר דו-ספרתי של הדמיות', () => {
+  it('לכל תלמיד מספר דו-ספרתי של שיעורים', () => {
     const { students } = demoStudentsLens(NOW)
     for (const s of students) expect(s.sessionsCount).toBeGreaterThanOrEqual(10)
     expect(students).toHaveLength(8)

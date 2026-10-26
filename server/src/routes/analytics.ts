@@ -223,7 +223,7 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
     const viewer = await loadViewer(req)
     const qm = (await questMeta([asg.quest_id])).get(asg.quest_id)
     if (!assignmentVisible(viewer, asg.class_id, { subject_id: qm?.subject_id ?? null, created_by: qm?.created_by ?? null })) {
-      throw new AppError(403, 'אין לך גישה להדמיה זו — היא אינה במקצוע שלך בכיתה הזו')
+      throw new AppError(403, 'אין לך גישה לשיעור זה — הוא אינו במקצוע שלך בכיתה הזו')
     }
     const exSyn = await excludeSynthetic(req)
     const aggOnly = isAggregateOnly(viewer)
@@ -327,11 +327,11 @@ analyticsRouter.get('/assignment/:assignmentId', async (req, res, next) => {
     /* תובנות על תלמידים בודדים — למורים בלבד; מנהלים מקבלים רק תובנות ברמת הכיתה (חוק 8) */
     if (!aggOnly) {
       const strugglingStudents = perStudent.filter((s) => s.flags.includes('struggling')).length
-      if (strugglingStudents > 0) insights.push(`${strugglingStudents} תלמידים מתקשים בהדמיה — כדאי לבדוק איתם אישית.`)
+      if (strugglingStudents > 0) insights.push(`${strugglingStudents} תלמידים מתקשים בשיעור — כדאי לבדוק איתם אישית.`)
       const skips = perStudent.filter((s) => s.flags.includes('skip_suspect')).length
       if (skips > 0) insights.push(`${skips} תלמידים סיימו מהר מאוד עם הצלחה נמוכה — ייתכן שדילגו על התוכן.`)
     }
-    if (notStarted.length > 0) insights.push(`${notStarted.length} תלמידים עוד לא התחילו את ההדמיה.`)
+    if (notStarted.length > 0) insights.push(`${notStarted.length} תלמידים עוד לא התחילו את השיעור.`)
     if (avgSuccessRate !== null && avgSuccessRate >= EXCEL_RATE) insights.push('הכיתה שלטה בחומר — אחוז הצלחה ממוצע מצוין! 🎉')
 
     /* מנהלים: אגרגט בלבד + סף מינימום לתא. מתחת לסף — "אין עדיין מספיק נתונים". */

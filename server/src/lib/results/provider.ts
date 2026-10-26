@@ -14,4 +14,6 @@ export interface ResultsProvider {
   list(req: Request, q: ResultsListQuery): Promise<SubmissionList>
   classView(req: Request, submissionId: string): Promise<ClassSubmissionView>
   studentView(req: Request, submissionId: string, studentId: string): Promise<StudentSubmissionView>
+  /* שינוי מועד ההגשה של שליחה (YYYY-MM-DD, יום ישראלי → סוף היום 23:59). מחזיר את המועד החדש */
+  setDue(req: Request, submissionId: string, dueDay: string): Promise<{ dueAt: string }>
 }

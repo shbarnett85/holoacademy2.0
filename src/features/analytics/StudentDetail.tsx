@@ -161,7 +161,7 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/20</span></>} label="רמת טקסט" />
               <Stat value={duration(v2?.last_avg_scene_ms ?? null)} label="זמן אחרון/סצנה" />
-              <Stat value={v2?.sessions_count ?? 0} label="הדמיות שכוילו" />
+              <Stat value={v2?.sessions_count ?? 0} label="שיעורים שכוילו" />
             </div>
             <div>
               <div style={{ ...micro, fontSize: 8.5, marginBottom: 8 }}>◇ רמת קושי לכל סוג אתגר (1-20)</div>
@@ -207,8 +207,8 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
       {mode !== 'summary' && <Trend trend={data.trend} />}
 
       {/* היסטוריית הדמיות */}
-      {mode !== 'summary' && <Panel title="היסטוריית הדמיות">
-        {data.history.length === 0 ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>טרם שיחק בהדמיות.</p> : (
+      {mode !== 'summary' && <Panel title="היסטוריית שיעורים">
+        {data.history.length === 0 ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>טרם שיחק בשיעורים.</p> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {data.history.map((h) => (
               <div key={h.sessionId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 13px', borderRadius: 11, background: 'var(--t25)', border: '1px solid var(--t26)' }}>

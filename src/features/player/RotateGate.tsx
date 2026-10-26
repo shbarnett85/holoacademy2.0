@@ -96,7 +96,7 @@ export default function RotateGate() {
           margin: '.7rem 0 0', fontSize: 'clamp(.9rem, 3.8vw, 1.05rem)', fontWeight: 400,
           color: 'rgba(180,220,255,.72)', lineHeight: 1.6, maxWidth: '22rem',
         }}>
-          ההדמיה בנויה למסך רחב — כך התמונות ממלאות את המסך והאתגרים נוחים למשחק.
+          השיעור בנוי למסך רחב — כך התמונות ממלאות את המסך והאתגרים נוחים למשחק.
         </p>
       </div>
 

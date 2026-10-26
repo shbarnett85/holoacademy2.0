@@ -43,8 +43,8 @@ describe('AI_SUMMARY_TEXT', () => {
   })
 
   it('"מבוסס על": יחידה נכונה לכל היקף, ויחיד/רבים', () => {
-    expect(aiSummaryBasis('student', 'sessions', 14)).toBe('מבוסס על 14 הדמיות')
-    expect(aiSummaryBasis('student', 'sessions', 1)).toBe('מבוסס על הדמיה אחת')
+    expect(aiSummaryBasis('student', 'sessions', 14)).toBe('מבוסס על 14 שיעורים')
+    expect(aiSummaryBasis('student', 'sessions', 1)).toBe('מבוסס על שיעור אחד')
     expect(aiSummaryBasis('class', 'students', 22)).toBe('מבוסס על 22 תלמידים')
     expect(aiSummaryBasis('class_subject', 'students', 1)).toBe('מבוסס על תלמיד/ה אחד/ת')
     expect(aiSummaryBasis('submission', 'students', 18)).toBe('מבוסס על 18 תלמידים שסיימו')
@@ -64,7 +64,7 @@ describe('AI_SUMMARY_TEXT', () => {
   })
 
   it('פתיח התבנית כולל את גודל המדגם', () => {
-    expect(aiTemplateOpening('student', 'sessions', 14)).toBe('מבוסס על 14 הדמיות. זה מה שעולה מהנתונים:')
+    expect(aiTemplateOpening('student', 'sessions', 14)).toBe('מבוסס על 14 שיעורים. זה מה שעולה מהנתונים:')
     expect(aiTemplateOpening('submission', 'students', 9)).toContain('9 תלמידים שסיימו')
     expect(aiSummaryNotEnough('class', 3).text).toContain('הכיתה')
   })
@@ -85,8 +85,8 @@ describe('aiFact*: עובדות אנונימיות, כל אחת משפט שמס�
   })
 
   it('תוכן ספציפי: רמה מעוגלת לעשירית ומיקום מילולי; פיצולים בלי אפסים; "X מתוך Y"', () => {
-    expect(facts[0]).toBe('במתמטיקה הרמה הנוכחית היא 11.5 (בתוך הטווח המיועד לשכבה), על סמך 46 הדמיות.')
-    expect(facts[1]).toBe('בעברית הרמה הנוכחית היא 9, על סמך הדמיה אחת.')
+    expect(facts[0]).toBe('במתמטיקה הרמה הנוכחית היא 11.5 (בתוך הטווח המיועד לשכבה), על סמך 46 שיעורים.')
+    expect(facts[1]).toBe('בעברית הרמה הנוכחית היא 9, על סמך שיעור אחד.')
     expect(facts[9]).toBe('במתמטיקה מתוך 25 תלמידים: 5 מעל הטווח המיועד, 12 בתוכו ו-8 מתחתיו.')
     expect(facts[10]).toBe('במתמטיקה מתוך 3 תלמידים: 3 מתחתיו.')
     expect(facts[13]).toBe('מתוך 25 תלמידים: 14 סיימו, 6 באמצע ו-5 עוד לא התחילו.')

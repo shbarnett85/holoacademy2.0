@@ -32,6 +32,7 @@ import {
 } from '../../../../src/shared/lib/findingsNarrative.js'
 import { puzzleTypeLabel } from '../../../../src/shared/lib/labels.js'
 import { SUBJECTS, isSubjectCode } from '../../../../src/shared/lib/subjects.js'
+import { isLate, lessonState } from '../../../../src/shared/lib/lessonState.js'
 
 /* ══════════════════════════════════════════════════════════════════════════
    טיפוסי הקלט — יציבים. ספק ההדגמה מייצר שורות באותה צורה.
@@ -57,6 +58,8 @@ export interface CoreSubmissionInfo {
   sentAt: string
   source: 'mine' | 'homeroom' | 'subject'
   senderName: string | null
+  /* מועד ההגשה (ISO) — null/חסר = ללא מועד */
+  dueAt?: string | null
 }
 
 export interface CoreStudent { id: string; name: string }
@@ -68,6 +71,8 @@ export interface CoreSession {
   startedAt: string | null
   /* null = לא הושלם (באמצע) */
   completedAt: string | null
+  /* ההשלמה **הראשונה** של התלמיד בהדמיה (בכל הרצותיו) — לסימון "באיחור"; חסר = completedAt */
+  firstCompletedAt?: string | null
 }
 
 export type CoreAnswerOutcome = 'correct' | 'wrong' | 'timeout' | 'gave_up' | 'closed'
@@ -133,6 +138,10 @@ export interface CoreInput {
   moral?: CoreMoralRow[]
   /* התאריך (ISO) שממנו קיימת לכידת תשובות במערכת (min answers.created_at), או null אם אין עדיין */
   detailAvailableFrom: string | null
+  /* "עכשיו" (ms) ופעילות אחרונה של תלמידי הכיתה בהדמיה (התחלה/השלמה) — הליבה טהורה ואינה קוראת לשעון.
+     חסר nowMs = לא מחושב מצב (בדיקות ישנות). */
+  nowMs?: number
+  lastActivityAt?: string | null
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -782,15 +791,33 @@ function submissionDetail(an: Analysis): boolean {
   return sent !== null && first !== null && sent >= first
 }
 
-const chipOf = (s: StudentAnalysis): StudentChip => ({
-  id: s.student.id, name: s.student.name, status: s.status, attention: s.reasons.length > 0, attentionReasons: s.reasons,
-})
+/* "באיחור": ההשלמה הראשונה אחרי מועד ההגשה (isLate — הפונקציה היחידה) */
+const lateOf = (an: Analysis, s: StudentAnalysis): boolean =>
+  s.status === 'completed' && isLate(s.session?.firstCompletedAt ?? s.session?.completedAt, an.input.submission.dueAt)
+
+const chipOf = (an: Analysis) => (s: StudentAnalysis): StudentChip => {
+  const late = lateOf(an, s)
+  return {
+    id: s.student.id, name: s.student.name, status: s.status, attention: s.reasons.length > 0, attentionReasons: s.reasons,
+    ...(late ? { late: true } : {}),
+  }
+}
+
+/* מועד ההגשה, המצב (פונקציית המצב היחידה) ומספר המאחרים — משותף לראש המסך ולשורת הרשימה */
+function dueFields(an: Analysis): { dueAt?: string | null; state?: SubmissionRow['state']; lateCount?: number } {
+  const { submission, nowMs, lastActivityAt } = an.input
+  const dueAt = submission.dueAt ?? null
+  const state = nowMs === undefined ? undefined : lessonState({ now: nowMs, dueAt, lastActivityAt })
+  const lateCount = an.students.filter((s) => lateOf(an, s)).length
+  return { dueAt, ...(state ? { state } : {}), ...(dueAt ? { lateCount } : {}) }
+}
 
 function headOf(an: Analysis): SubmissionHead {
   const sub = an.input.submission
   return {
     id: sub.id, questId: sub.quest.id, title: sub.quest.title, thumbUrl: sub.quest.thumbUrl, subject: sub.quest.subject,
     classId: sub.classId, className: sub.className, sentAt: sub.sentAt, counts: countsOf(an),
+    ...dueFields(an),
   }
 }
 
@@ -807,6 +834,7 @@ export function buildListRow(input: CoreInput): SubmissionRow {
     summary: narrateListSummary(summaryInput(an)),
     attentionCount: an.students.filter((s) => s.reasons.length > 0).length,
     source: sub.source, senderName: sub.senderName,
+    ...dueFields(an),
   }
 }
 
@@ -880,7 +908,7 @@ function successBandsOf(an: Analysis): SuccessBands {
 export function buildClassView(input: CoreInput): ClassSubmissionView {
   const an = analyzeSubmission(input)
   const detail = submissionDetail(an)
-  const chips = an.students.map(chipOf)
+  const chips = an.students.map(chipOf(an))
   const objectives = objectiveResults(an)
   return {
     head: headOf(an),
@@ -969,7 +997,7 @@ export function buildStudentView(input: CoreInput, studentId: string): StudentSu
   const an = analyzeSubmission(input)
   const s = an.byStudent.get(studentId)
   if (!s) return null
-  const roster = an.students.map(chipOf)
+  const roster = an.students.map(chipOf(an))
   const idx = roster.findIndex((c) => c.id === studentId)
   const chip = roster[idx]
   const submissionDetailOn = submissionDetail(an)

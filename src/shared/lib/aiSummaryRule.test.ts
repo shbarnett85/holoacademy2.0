@@ -13,7 +13,7 @@ describe('aiSummaryRule: מתי מותר לכתוב סיכום', () => {
     expect(AI_SUMMARY_RULE.classSubjectMinStudentsWithData).toBe(3)
   })
 
-  it('תלמיד/ה: פחות מ-4 הדמיות → לא; 4 ומעלה → כן', () => {
+  it('תלמיד/ה: פחות מ-4 שיעורים → לא; 4 ומעלה → כן', () => {
     expect(summaryEligibility('student', { sessions: 3 }).ok).toBe(false)
     expect(summaryEligibility('student', { sessions: 4 })).toEqual({ ok: true })
     expect(summaryEligibility('student', { sessions: 120 })).toEqual({ ok: true })
@@ -54,7 +54,7 @@ describe('aiSummaryRule: מתי מותר לכתוב סיכום', () => {
   })
 
   it('ניסוח יחיד (מינימום 1) תקין דקדוקית', () => {
-    expect(aiSummaryNotEnough('student', 1).whatNext).toBe('הסיכום יהיה זמין אחרי הדמיה אחת לפחות.')
+    expect(aiSummaryNotEnough('student', 1).whatNext).toBe('הסיכום יהיה זמין אחרי שיעור אחד לפחות.')
     expect(aiSummaryNotEnough('class', 1).whatNext).toContain('תלמיד/ה אחד/ת')
     expect(aiSummaryNotEnough('submission', 1).whatNext).toContain('תלמיד/ה אחד/ת')
   })

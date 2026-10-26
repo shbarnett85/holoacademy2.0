@@ -31,8 +31,8 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
 function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: ReactNode }) {
   const { isGuest } = useStaffAuth()
   const breadcrumb = backTo
-    ? [{ label: 'אנליטיקה', to: backTo }, { label: V2_CLIENT_TEXT.previous.crumb }]
-    : [{ label: 'אנליטיקה' }]
+    ? [{ label: 'התקדמות', to: backTo }, { label: V2_CLIENT_TEXT.previous.crumb }]
+    : [{ label: 'התקדמות' }]
   return (
     <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={breadcrumb}>
       <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>

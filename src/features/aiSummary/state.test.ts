@@ -61,7 +61,7 @@ describe('derive — איזה מצב מוצג', () => {
     expect(m.phase).toBe('ready')
     expect(m.summary?.paragraphs).toEqual(PARAS)
     expect(m.summary?.writtenBy).toBe('ai')
-    expect(m.summary?.basisText).toBe('מבוסס על 14 הדמיות')
+    expect(m.summary?.basisText).toBe('מבוסס על 14 שיעורים')
   })
 
   it('טעינה שנכשלה → loadError עם ההודעה', () => {

@@ -17,6 +17,7 @@ import { card, scrollArea, secondaryButton } from './styles'
 import SuggestionBanner from './SuggestionBanner'
 import { UI } from './text'
 import Thumb from './Thumb'
+import { DueLine, LessonStateChip } from './LessonDue'
 
 function AttentionTag({ n }: { n: number }) {
   return (
@@ -38,6 +39,8 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
           <SubjectBadge code={row.subject?.code ?? null} />
           <span>{UI.classWord(row.className)}</span>
           <span>{UI.sentOn(dateHe(row.sentAt))}</span>
+          {row.state && <LessonStateChip state={row.state} />}
+          {row.dueAt !== undefined && <DueLine dueAt={row.dueAt} state={row.state} />}
           {row.source !== 'mine' && row.senderName && <span>{UI.sentBy(row.senderName)}</span>}
         </div>
         <div style={{ fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.45 }}>{row.summary}</div>

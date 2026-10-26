@@ -49,7 +49,7 @@ describe('fallback: תבנית דטרמיניסטית', () => {
     }
     const out = templateParagraphs(input)
     expect(out).toHaveLength(3)
-    expect(out[0]).toContain('מבוסס על 14 הדמיות')
+    expect(out[0]).toContain('מבוסס על 14 שיעורים')
     expect(out[0]).toContain('במתמטיקה הרמה הנוכחית היא 9.5.')
     expect(out[1].startsWith(AI_SUMMARY_TEXT.template.strengthsLead)).toBe(true)
     expect(out[2].startsWith(AI_SUMMARY_TEXT.template.attentionLead)).toBe(true)

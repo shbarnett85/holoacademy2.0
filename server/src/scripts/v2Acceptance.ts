@@ -210,7 +210,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     const c = e.classes.find((x: any) => x.id === C.rich.id)
     check('מחנך: כיתה עשירה — 14 תלמידים, hasResults=true, 5 תלמידים לתשומת לב', e.classes.length === 1 && c?.studentCount === 14 && c.hasResults === true && c.attentionCount === 5, JSON.stringify(c))
     check(`מחנך: ${ENTRY_MAX_ALERTS} התרעות מוצגות מתוך 5 (alertsTotal=5) + "ועוד" במילים; כל ההתרעות על תלמידי הכיתה`, e.alerts.length === ENTRY_MAX_ALERTS && e.alertsTotal === 5 && typeof e.alertsMore === 'string' && e.alerts.every((a: any) => attentionIds.includes(a.studentId) && a.classId === C.rich.id), `alerts=${e.alerts.length} total=${e.alertsTotal}`)
-    check('מחנך: coverageNote מסביר הדמיות בלי מקצוע (unclassifiedCount=6 — מה שה-fixture כתב)', e.unclassifiedCount === fx.expected.unclassifiedSessions && typeof e.coverageNote === 'string' && e.coverageNote.length > 10, `unclassified=${e.unclassifiedCount}`)
+    check('מחנך: coverageNote מסביר שיעורים בלי מקצוע (unclassifiedCount=6 — מה שה-fixture כתב)', e.unclassifiedCount === fx.expected.unclassifiedSessions && typeof e.coverageNote === 'string' && e.coverageNote.length > 10, `unclassified=${e.unclassifiedCount}`)
     check('מחנך: dataState=ok (יש תוצאות)', entry.homeroom.json.dataState === 'ok')
   }
   {
@@ -233,7 +233,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     const e = entry.unspecified.json.data
     const c = e.classes.find((x: any) => x.id === C.rich.id)
     check('שיוך בלי מקצוע: הכיתה מופיעה בגודלה האמיתי (14 תלמידים, בלי רשימה) ולא "0 תלמידים"; noOpenSubject=true; בלי תוצאות ובלי התרעות (אין ברירת מחדל למקצוע)', e.classes.length === 1 && c?.studentCount === 14 && c.noOpenSubject === true && c.hasResults === false && c.attentionCount === 0 && e.alerts.length === 0 && entry.unspecified.json.dataState === 'insufficient', JSON.stringify(c))
-    check('שיוך בלי מקצוע: הערת "הדמיות בלי מקצוע" לא מוצגת (אין לו מקצוע פתוח — unclassifiedCount=0), ובמקומה coverageNote שאומר שהמקצוע שלו לא הוגדר ולמי לפנות', e.unclassifiedCount === 0 && e.coverageNote === narrateNoOpenSubjectNote([c.name]), `unclassified=${e.unclassifiedCount} note=${e.coverageNote}`)
+    check('שיוך בלי מקצוע: הערת "שיעורים בלי מקצוע" לא מוצגת (אין לו מקצוע פתוח — unclassifiedCount=0), ובמקומה coverageNote שאומר שהמקצוע שלו לא הוגדר ולמי לפנות', e.unclassifiedCount === 0 && e.coverageNote === narrateNoOpenSubjectNote([c.name]), `unclassified=${e.unclassifiedCount} note=${e.coverageNote}`)
   }
   {
     const e = entry.emptyHomeroom.json.data
@@ -433,7 +433,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   }
   {
     const r = await P('homeroom', stu(R.steadyA.id))
-    check('תלמיד/ה בלי תיוג הדמיות: אין "תחומים" ואין "טעויות נפוצות" (עדיין לא תויגו) — מערכים ריקים, לא ניחוש', panelsOf(r).every((p) => p.access !== 'visible' || (p.areas.strong.length === 0 && p.areas.challenging.length === 0 && p.commonErrors.length === 0 && p.contentVectors.length === 0)))
+    check('תלמיד/ה בלי תיוג שיעורים: אין "תחומים" ואין "טעויות נפוצות" (עדיין לא תויגו) — מערכים ריקים, לא ניחוש', panelsOf(r).every((p) => p.access !== 'visible' || (p.areas.strong.length === 0 && p.areas.challenging.length === 0 && p.commonErrors.length === 0 && p.contentVectors.length === 0)))
   }
 
   /* מורה מקצועי: רק מקצועו */
@@ -562,19 +562,19 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     check('קטלוג ריק (אין תיוג בחשבון): סקירה / מקצוע / תלמידה / מנהל — catalogReady=false ו-catalogNote המשפט הכן; משפט הלשונית "טעויות נפוצות" אינו מבטיח שיופיעו', untagged(ovD) && untagged(csD) && untagged(stCross) && untagged(adm.json.data) && csD.tabSummaries.misconceptions === CATALOG_UNTAGGED_TEXT.errorsTabSummary && !/יופיעו|יצטברו/.test(`${csD.tabSummaries.misconceptions} ${csD.catalogNote}`), JSON.stringify([ovD.catalogReady, csD.catalogReady, stCross.catalogReady, adm.json.data.catalogReady]))
 
     const gapClass = narrateScopedCoverageNote({ unclassified: fx.expected.unclassifiedSessions, withoutLevel: 0 }) as string
-    check(`הערת כיסוי ממוקדת בכיתה העשירה: ${fx.expected.unclassifiedSessions} משחקים בהדמיות בלי מקצוע — בסקירה, במסך המקצוע ואצל המורה המקצועי; ההערה אומרת ששיוך בדיעבד לא מחזיר משחקים שכבר שוחקו (לא "יתווספו")`, ovD.coverageNote === gapClass && csD.coverageNote === gapClass && csSubj.coverageNote === gapClass && /לא ייכללו גם אחרי שיוך/.test(gapClass) && !/יתווספו/.test(gapClass), String(ovD.coverageNote))
+    check(`הערת כיסוי ממוקדת בכיתה העשירה: ${fx.expected.unclassifiedSessions} משחקים בשיעורים בלי מקצוע — בסקירה, במסך המקצוע ואצל המורה המקצועי; ההערה אומרת ששיוך בדיעבד לא מחזיר משחקים שכבר שוחקו (לא "יתווספו")`, ovD.coverageNote === gapClass && csD.coverageNote === gapClass && csSubj.coverageNote === gapClass && /לא ייכללו גם אחרי שיוך/.test(gapClass) && !/יתווספו/.test(gapClass), String(ovD.coverageNote))
     const withGap = fx.expected.unclassifiedStories.map((k) => R[k].id)
     const stGap = await Promise.all(withGap.map(async (id) => (await P('homeroom', stu(id))).json.data.coverageNote))
     const stNone = (await P('homeroom', stu(R.steadyA.id))).json.data
-    check(`הערת כיסוי במסך תלמיד/ה: רק למי ששיחק/ה בהדמיות בלי מקצוע (${fx.expected.unclassifiedStories.length} תלמידים, ${fx.expected.unclassifiedPlaysEach} משחקים לכל אחד/ת); לשאר — null`, stGap.every((n) => n === narrateScopedCoverageNote({ unclassified: fx.expected.unclassifiedPlaysEach, withoutLevel: 0 })) && stNone.coverageNote === null, JSON.stringify(stGap))
+    check(`הערת כיסוי במסך תלמיד/ה: רק למי ששיחק/ה בשיעורים בלי מקצוע (${fx.expected.unclassifiedStories.length} תלמידים, ${fx.expected.unclassifiedPlaysEach} משחקים לכל אחד/ת); לשאר — null`, stGap.every((n) => n === narrateScopedCoverageNote({ unclassified: fx.expected.unclassifiedPlaysEach, withoutLevel: 0 })) && stNone.coverageNote === null, JSON.stringify(stGap))
     check('כיתות בלי משחקים כאלה (הדלה אצל המחנך שלה, הריקה): coverageNote=null בסקירה ובמסך מקצוע', ovRes.get(`mixed|${C.sparse.id}`)!.json.data.coverageNote === null && ovRes.get(`emptyHomeroom|${C.empty.id}`)!.json.data.coverageNote === null && subjRes.get(`mixed|${C.sparse.id}|math`)!.json.data.coverageNote === null)
-    check('מצב ריק בכיתה בלי תוצאות (היסטוריה בעשירה): הכותרת אומרת שהמשחקים שכבר שוחקו בהדמיות בלי מקצוע לא נכללו, ולא "התמונה תופיע כשתלמידים יסיימו"', /הדמיות שעוד לא שויך להן מקצוע/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline) && !/כשתלמידים יסיימו/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline), subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline)
+    check('מצב ריק בכיתה בלי תוצאות (היסטוריה בעשירה): הכותרת אומרת שהמשחקים שכבר שוחקו בשיעורים בלי מקצוע לא נכללו, ולא "התמונה תופיע כשתלמידים יסיימו"', /שיעורים שעוד לא שויך להם מקצוע/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline) && !/כשתלמידים יסיימו/.test(subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline), subjRes.get(`homeroom|${C.rich.id}|history`)!.json.data.summary.headline)
 
     const eMixed = entry.mixed.json.data.classes.find((x: any) => x.id === C.sparse.id), eRich = entry.homeroom.json.data.classes.find((x: any) => x.id === C.rich.id)
     check('כרטיס כיתה בכניסה: בכיתה הדלה (3 תלמידים, אף אחד לא נבדק) אין "אין תלמידים לתשומת לב" אלא basisNote עם כמה נבדקו; בעשירה (יש תשומת לב) basisNote=null', eMixed?.attentionCount === 0 && eMixed.studentsAssessed === 0 && eMixed.basisNote === narrateEntryBasisNote(0, 3) && eRich?.basisNote === null, JSON.stringify(eMixed))
 
     const dAdm = adm.json.data
-    check('מנהל: coverageNote על משחקים בהדמיות בלי מקצוע (בלי שמות), hiddenNote בלי המילה "תא", ו-sizeText ביחיד / רבים נכון', dAdm.coverageNote === narrateAdminUnclassifiedNote(fx.expected.unclassifiedSessions) && dAdm.hiddenNote === narrateAdminHiddenNote(dAdm.hiddenCells) && !/תא/.test(dAdm.hiddenNote) && dAdm.grades.every((g: any) => typeof g.sizeText === 'string' && g.sizeText.includes(g.classCount === 1 ? 'כיתה אחת' : `${g.classCount} כיתות`)), `${dAdm.coverageNote} | ${dAdm.hiddenNote}`)
+    check('מנהל: coverageNote על משחקים בשיעורים בלי מקצוע (בלי שמות), hiddenNote בלי המילה "תא", ו-sizeText ביחיד / רבים נכון', dAdm.coverageNote === narrateAdminUnclassifiedNote(fx.expected.unclassifiedSessions) && dAdm.hiddenNote === narrateAdminHiddenNote(dAdm.hiddenCells) && !/תא/.test(dAdm.hiddenNote) && dAdm.grades.every((g: any) => typeof g.sizeText === 'string' && g.sizeText.includes(g.classCount === 1 ? 'כיתה אחת' : `${g.classCount} כיתות`)), `${dAdm.coverageNote} | ${dAdm.hiddenNote}`)
   }
 
   /* ───────── בידוד בין בתי ספר ───────── */
@@ -699,7 +699,7 @@ async function run(fx: AnalyticsFixture): Promise<void> {
   }
 
   /* ───────── שיוך מקצוע מבטל את המטמון (UX#4) — אחרון: משנה את מצב הפיקסצ'ר ───────── */
-  console.log('\n— שיוך מקצוע להדמיה (PATCH /api/quests/:id) מבטל את מטמון האנליטיקה —')
+  console.log('\n— שיוך מקצוע לשיעור (PATCH /api/quests/:id) מבטל את מטמון האנליטיקה —')
   {
     const total = fx.expected.unclassifiedSessions
     const idx = fx.expected.unclassifiedQuestPlays.findIndex((n) => n > 0)
@@ -707,13 +707,13 @@ async function run(fx: AnalyticsFixture): Promise<void> {
     const plays = fx.expected.unclassifiedQuestPlays[idx]
     const warm = await P('homeroom', ov(C.rich.id)) /* הניתוח של הכיתה במטמון (TTL 5 דקות) */
     const warmEntry = await P('homeroom', '/analytics-v2/entry')
-    check('לפני השיוך: הערת הכיסוי אומרת שכל המשחקים בהדמיות בלי מקצוע', warm.json.data.coverageNote === narrateScopedCoverageNote({ unclassified: total, withoutLevel: 0 }) && warmEntry.json.data.unclassifiedCount === total)
+    check('לפני השיוך: הערת הכיסוי אומרת שכל המשחקים בשיעורים בלי מקצוע', warm.json.data.coverageNote === narrateScopedCoverageNote({ unclassified: total, withoutLevel: 0 }) && warmEntry.json.data.unclassifiedCount === total)
     const r = await fetch(`${API}/quests/${qid}`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + tok('homeroom'), 'Content-Type': 'application/json' }, body: JSON.stringify({ subjectCode: 'math' }) })
-    check('המורה (יוצרת ההדמיה) משייכת מקצוע להדמיה אחת: 200', r.status === 200, `status=${r.status}`)
-    /* מיד אחרי השיוך, בלי להמתין ל-TTL: הניתוח נבנה מחדש — ההדמיה כבר אינה "בלי מקצוע", אך משחקים שכבר שוחקו לא נכנסים (הרמה שלהם חושבה בלי מקצוע) */
+    check('המורה (יוצרת השיעור) משייכת מקצוע לשיעור אחד: 200', r.status === 200, `status=${r.status}`)
+    /* מיד אחרי השיוך, בלי להמתין ל-TTL: הניתוח נבנה מחדש — השיעור כבר אינו "בלי מקצוע", אך משחקים שכבר שוחקו לא נכנסים (הרמה שלהם חושבה בלי מקצוע) */
     const after = await P('homeroom', ov(C.rich.id))
     const afterEntry = await P('homeroom', '/analytics-v2/entry')
-    check(`מיד אחרי השיוך (בלי המתנה): ${plays} המשחקים עברו מ"בהדמיות בלי מקצוע" ל"בלי רמה לפי מקצוע", ושאר המשחקים נשארו — המטמון בוטל, לא הוגש הערך הישן`,
+    check(`מיד אחרי השיוך (בלי המתנה): ${plays} המשחקים עברו מ"בשיעורים בלי מקצוע" ל"בלי רמה לפי מקצוע", ושאר המשחקים נשארו — המטמון בוטל, לא הוגש הערך הישן`,
       after.json.data.coverageNote === narrateScopedCoverageNote({ unclassified: total - plays, withoutLevel: plays }) && afterEntry.json.data.unclassifiedCount === total - plays,
       `note=${String(after.json.data.coverageNote).slice(0, 120)} entry=${afterEntry.json.data.unclassifiedCount}`)
     check('הרמות וההתרעות לא זזו בגלל השיוך (משחקים שכבר שוחקו אינם מצטרפים לסדרות)', JSON.stringify(after.json.data.rows.map((x: any) => [x.subject.code, x.level])) === JSON.stringify(warm.json.data.rows.map((x: any) => [x.subject.code, x.level])) && afterEntry.json.data.alertsTotal === warmEntry.json.data.alertsTotal)

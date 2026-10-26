@@ -109,7 +109,7 @@ export default function QuestPreview() {
       title={result.title}
       subtitle={
         <>
-          {`ההדמיה נוצרה! · ${scenes.length} סצנות · ${artStyleLabel(artStyle)}`}
+          {`השיעור נוצר! · ${scenes.length} סצנות · ${artStyleLabel(artStyle)}`}
           {factStatus === 'pending' && (
             <span style={{ display: 'block', marginTop: '0.3rem', color: 'var(--t300)' }}>
               🔍 בודק עובדות ברקע…

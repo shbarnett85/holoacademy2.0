@@ -530,7 +530,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   onClick={() => {
                     trackFunnel('cta_whatsapp')
                     const url = window.location.href
-                    const text = `🎮 "${questTitle}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
+                    const text = `🎮 "${questTitle}" — שיעור למידה אינטראקטיבי ב-HoloAcademy. שחקו:\n${url}`
                     navigator.clipboard?.writeText(url).catch(() => {})
                     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
                   }}
@@ -542,7 +542,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }}
                   onClick={() => navigate('/')}
                 >
-                  עוד הדמיות 🎮
+                  עוד שיעורים 🎮
                 </button>
               </>
             ) : (
@@ -561,10 +561,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <div className="text-start" style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(255,154,46,.09)', border: '1px solid rgba(255,154,46,.35)' }}>
               <div style={{ fontWeight: 800, fontSize: 14.5, color: '#ffcf7d' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
               <div style={{ fontSize: 12.5, opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
-                מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה הדמיה שלמה — סצנות, אתגרים ותמונות — תוך דקות.
+                מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה שיעור שלם — סצנות, אתגרים ותמונות — תוך דקות.
               </div>
               <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => { trackFunnel('cta_create'); navigate('/staff/login') }}>
-                צרו הדמיה משלכם — חינם ✨
+                צרו שיעור משלכם — חינם ✨
               </button>
             </div>
           )}

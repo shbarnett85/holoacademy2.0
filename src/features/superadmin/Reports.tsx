@@ -36,7 +36,7 @@ export default function Reports() {
   return (
     <div className="w-full">
       <div className="w-full flex justify-between items-center mt-2">
-        <h2 className="font-bold">🚩 דיווחים על הדמיות ({reports?.length ?? 0})</h2>
+        <h2 className="font-bold">🚩 דיווחים על שיעורים ({reports?.length ?? 0})</h2>
       </div>
       {error && <p className="text-sm" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
       {!reports ? <p style={{ opacity: 0.6 }}>טוען…</p> : reports.length === 0 ? (
@@ -52,7 +52,7 @@ export default function Reports() {
               <div className="text-sm" style={{ color: '#ffd0dc' }}>"{r.reason}"</div>
               <div className="text-xs" style={{ opacity: 0.6 }}>דיווח מאת: {r.reporterName}</div>
               <div className="flex gap-2 flex-wrap mt-1">
-                <button style={{ ...btn, border: '1px solid rgba(0,246,255,0.4)', color: 'var(--holo-text)' }} onClick={() => navigate(`/play/${r.questId}`)}>צפה בהדמיה ▶</button>
+                <button style={{ ...btn, border: '1px solid rgba(0,246,255,0.4)', color: 'var(--holo-text)' }} onClick={() => navigate(`/play/${r.questId}`)}>צפה בשיעור ▶</button>
                 {r.questIsPublic && <button disabled={busy === r.id} style={{ ...btn, border: '1px solid rgba(255,120,150,0.5)', color: '#ff9bb3' }} onClick={() => act(r, { unshare: true })}>בטל שיתוף 🚫</button>}
                 <button disabled={busy === r.id} style={{ ...btn, border: '1px solid rgba(0,255,150,0.4)', color: '#5fffb0' }} onClick={() => act(r, { status: 'reviewed' })}>סמן כטופל ✓</button>
                 <button disabled={busy === r.id} style={{ ...btn, border: '1px solid rgba(120,160,200,0.4)', color: '#aebfd2' }} onClick={() => act(r, { status: 'dismissed' })}>דחה דיווח</button>

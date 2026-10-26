@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../lib/supabase.js'
 import { AppError } from '../middleware/errors.js'
 import { requireStaff } from '../middleware/staffAuth.js'
 import { hasPublicQuests, hasQuestReports, hasQuestSubject, hasQuestSubjectId, hasQuestGrade } from '../lib/activeColumn.js'
+import { lessonThumbUrl } from '../lib/lessonThumb.js'
 import { subjectByCode, subjectByLegacyName, questSubjectOut, subjectFieldsOfQuest } from '../lib/subjects.js'
 
 /* ספרייה ציבורית — כל מורה במערכת רואה הדמיות משותפות, מעתיק אותן לעריכה, ומדווח. */
@@ -66,6 +67,7 @@ libraryRouter.get('/', async (req, res, next) => {
         subject: subj.subject,
         subjectCode: subj.subjectCode,
         sceneCount: r.game_data?.scenes?.length ?? 0,
+        thumbUrl: lessonThumbUrl(r.game_data as never),
         puzzleTypes: puzzleTypes(r.game_data),
         authorName: (authorId && names.get(authorId)) || 'מורה',
         publishedAt: r.published_at ?? r.created_at,
@@ -87,9 +89,9 @@ libraryRouter.post('/:id/copy', async (req, res, next) => {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה')
     const cols = 'id, title, game_data, is_public, created_by, original_author_id'
     const { data: src, error } = await supabaseAdmin.from('quests').select(cols).eq('id', req.params.id).single()
-    if (error || !src) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !src) throw new AppError(404, 'שיעור לא נמצא')
     const s = src as unknown as { id: string; title: string; game_data: unknown; is_public?: boolean; created_by: string | null; original_author_id: string | null }
-    if (!s.is_public) throw new AppError(403, 'ההדמיה אינה ציבורית')
+    if (!s.is_public) throw new AppError(403, 'השיעור אינו ציבורי')
 
     const insert: Record<string, unknown> = {
       title: s.title,
@@ -117,7 +119,7 @@ libraryRouter.post('/:id/report', async (req, res, next) => {
     const parsed = reportSchema.safeParse(req.body)
     if (!parsed.success) throw new AppError(400, 'יש לציין סיבת דיווח (3+ תווים)')
     const { data: quest } = await supabaseAdmin.from('quests').select('id').eq('id', req.params.id).single()
-    if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (!quest) throw new AppError(404, 'שיעור לא נמצא')
     const { error } = await supabaseAdmin.from('quest_reports').insert({
       quest_id: req.params.id, reporter_id: req.staff!.userId, reason: parsed.data.reason.trim(), status: 'open',
     })

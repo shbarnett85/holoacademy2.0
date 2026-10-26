@@ -188,7 +188,7 @@ describe('מנהל: ספירת תלמידים בשכבה לפי מזהים שו�
   })
 })
 
-describe('הערת "הדמיות בלי מקצוע" (coverageNote): רק למי שיש לו מקצוע פתוח', () => {
+describe('הערת "שיעורים בלי מקצוע" (coverageNote): רק למי שיש לו מקצוע פתוח', () => {
   const src = (n: number) => fakeSource(analyze(world([CA], ids('s', 3).map((id) => ({ id, classId: CA.id })))), { coverage: () => ({ unclassifiedSessions: n, detailAvailableFrom: null }) })
   const noteOf = async (v: ReturnType<typeof live>) => (await createProvider(src(6)).entry(v)).data
   it('מחנך: מקבל את ההערה (גם כשבכיתה עדיין אין שום מקצוע מסווג)', async () => {

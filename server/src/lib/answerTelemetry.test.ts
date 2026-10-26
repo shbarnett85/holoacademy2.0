@@ -324,7 +324,7 @@ describe('demoSim → answers באותה סכמה + דפוסי התנהגות', 
     expect(mc.selectedPosition).not.toBeNull()
     expect(mc.displayedOrder![mc.correctPosition!]).toBe('b')
   })
-  it('דטרמיניסטי: אותו תלמיד+הדמיה → אותן שורות', () => {
+  it('דטרמיניסטי: אותו תלמיד+שיעור → אותן שורות', () => {
     expect(JSON.stringify(sim('stu-x').answers)).toBe(JSON.stringify(sim('stu-x').answers))
   })
   it('התנהגות אינה משנה את תוצאות הליבה (challenges) — רק שורות answers וזמנים', () => {

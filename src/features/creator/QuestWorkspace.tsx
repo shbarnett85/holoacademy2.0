@@ -85,7 +85,7 @@ export function WorkspaceActions({ onSave, onRegenerate, onPlay, onUndo, undoDis
       {/* תמיד גלוי כשהעמוד תומך בביטול (QuestView) — מנוטרל (לא מוסתר) כשאין מה לבטל */}
       {onUndo && <WsButton variant="ghost" icon={WsIcons.undo} onClick={onUndo} disabled={undoDisabled}>בטל שינויים</WsButton>}
       <WsButton variant="ghost" icon={WsIcons.refresh} onClick={onRegenerate}>צור מחדש</WsButton>
-      <WsButton variant="play" icon={WsIcons.play} onClick={onPlay}>נסה הדמיה</WsButton>
+      <WsButton variant="play" icon={WsIcons.play} onClick={onPlay}>נסה שיעור</WsButton>
     </>
   )
 }
@@ -253,7 +253,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
     setSavingTitle(true)
     try {
       await onTitleSave(next)
-      flashToast('שם ההדמיה עודכן ✓')
+      flashToast('שם השיעור עודכן ✓')
     } catch (err) {
       setTitleDraft(title)
       flashToast(err instanceof Error ? err.message : 'עדכון השם נכשל')
@@ -407,7 +407,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
               onBlur={commitTitle}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
               disabled={savingTitle}
-              title="לחצו לעריכת שם ההדמיה"
+              title="לחצו לעריכת שם השיעור"
               style={{
                 margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--t13)', width: '100%',
                 background: 'transparent', border: '1px solid transparent', borderRadius: 8,
@@ -564,7 +564,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
               <button onClick={() => setStylePickerOpen(false)} className="cursor-pointer text-xl" style={{ color: 'var(--t301)', opacity: 0.6 }} title="סגור">✕</button>
             </div>
             <p className="text-sm mb-4" style={{ opacity: 0.75 }}>
-              בחרו סגנון אמנותי — כל תמונות ההדמיה ייווצרו מחדש בסגנון שנבחר.
+              בחרו סגנון אמנותי — כל תמונות השיעור ייווצרו מחדש בסגנון שנבחר.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {ART_STYLES.map((a) => (

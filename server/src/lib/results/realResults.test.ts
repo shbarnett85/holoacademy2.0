@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Request } from 'express'
 import { MIN_CELL_SIZE } from '../authz.js'
 import { ClassSubmissionViewSchema, StudentSubmissionViewSchema, SubmissionListSchema } from '../../../../src/shared/types/resultsV1.js'
@@ -22,10 +22,12 @@ const h = vi.hoisted(() => {
     private rng: [number, number] | null = null
     private one = false
     private ins: Row[] | null = null
+    private upd: Row | null = null
     private cols = ''
     constructor(private t: string) { calls.push(t) }
     select(c = '*') { this.cols = c; return this }
     insert(p: Row | Row[]) { this.ins = Array.isArray(p) ? p : [p]; return this }
+    update(p: Row) { this.upd = p; return this }
     eq(k: string, v: unknown) { this.filters.push((r) => r[k] === v); return this }
     in(k: string, a: unknown[]) { this.filters.push((r) => a.includes(r[k])); return this }
     is(k: string, v: unknown) { this.filters.push((r) => (r[k] ?? null) === v); return this }
@@ -44,6 +46,7 @@ const h = vi.hoisted(() => {
         return Promise.resolve({ data: null, error: null }).then(ok, bad)
       }
       let rows = tbl.filter((r) => this.filters.every((f) => f(r)))
+      if (this.upd) { for (const r of rows) Object.assign(r, this.upd); return Promise.resolve({ data: null, error: null }).then(ok, bad) }
       for (const { col, asc } of [...this.orders].reverse()) {
         rows = [...rows].sort((a, b) => {
           const x = a[col] as string | number | null | undefined, y = b[col] as string | number | null | undefined
@@ -70,7 +73,7 @@ vi.mock('../activeColumn.js', () => ({
   hasAnswersTable: async () => true, hasFictitious: async () => false, hasIsActive: async () => true, hasMisconceptionLinks: async () => false,
   hasMisconceptions: async () => true, hasMoralChoices: async () => true, hasOptionTags: async () => true, hasQuestSubject: async () => false,
   hasQuestSubjectId: async () => true, hasQuestVariants: async () => true, hasSyntheticFlag: async () => true,
-  hasClassTeachers: async () => true, hasDataAccessLog: async () => true,
+  hasClassTeachers: async () => true, hasDataAccessLog: async () => true, hasAssignmentDueAt: async () => true,
 }))
 vi.mock('../subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),
@@ -152,7 +155,7 @@ const HEAVY = ['sessions', 'answers', 'events', 'option_tags', 'moral_choices', 
 beforeEach(reset)
 
 describe('שליחה שאינה גלויה: אותו 404 כמו שליחה שאינה קיימת (אין אורקל קיום)', () => {
-  it('מסך הדמיה: לא קיימת = לא גלויה (מורה שאינו משויך לכיתה) — אותו סטטוס ואותה הודעה', async () => {
+  it('מסך שיעור: לא קיים = לא גלוי (מורה שאינו משויך לכיתה) — אותו סטטוס ואותה הודעה', async () => {
     const missing = await fail(realResultsProvider.classView(req(T_OUT), NIL))
     const invisible = await fail(realResultsProvider.classView(req(T_OUT), A1))
     expect(invisible).toMatchObject({ status: 404, message: missing.message })
@@ -212,7 +215,7 @@ describe('מסך תלמיד: חברות ברשימה נבדקת לפני טעי�
 })
 
 describe('יומן גישה', () => {
-  it('מסך הדמיה: שורה לכל תלמיד ברשימה (results_class)', async () => {
+  it('מסך שיעור: שורה לכל תלמיד ברשימה (results_class)', async () => {
     await realResultsProvider.classView(req(T_HOME), A1)
     const rows = h.db.data_access_log
     expect(rows).toHaveLength(STU.length)
@@ -238,7 +241,7 @@ describe('יומן גישה', () => {
     expect(h.db.data_access_log).toHaveLength(0)
   })
 
-  it('מנהל-על: אם אי אפשר לכתוב ליומן — נחסם 503 ולא מקבל נתוני תלמיד (מסך הדמיה ומסך תלמיד)', async () => {
+  it('מנהל-על: אם אי אפשר לכתוב ליומן — נחסם 503 ולא מקבל נתוני תלמיד (מסך שיעור ומסך תלמיד)', async () => {
     h.flags.insertError = true
     expect((await fail(realResultsProvider.classView(req(SUPER, 'super_admin'), A1))).status).toBe(503)
     expect((await fail(realResultsProvider.studentView(req(SUPER, 'super_admin'), A1, STU[0]))).status).toBe(503)
@@ -292,7 +295,7 @@ describe('רשימה: תקרת סריקה ו-truncated', () => {
 })
 
 describe('ההרצה שנספרת: הרצה שהושלמה גוברת על session ריק שנפתח עכשיו', () => {
-  it('מסך הדמיה ורשימה', async () => {
+  it('מסך שיעור ורשימה', async () => {
     ins('sessions', [session('old', STU[1], true, '2026-10-11T08:00:00Z'), session('new', STU[1], false, '2026-10-13T08:00:00Z')])
     ins('answers', [answer('old', STU[1], 'a', 'correct')])
     ins('events', [solvedEvent('old', STU[1], true)])
@@ -396,7 +399,7 @@ describe('דילמה מוסרית: אנונימיות מול גרסאות', () =
   })
 })
 
-describe('בסיס הדמיית חזרה (loadReviewBasis): אותה הרשאה כמו התוצאות', () => {
+describe('בסיס שיעור חזרה (loadReviewBasis): אותה הרשאה כמו התוצאות', () => {
   const finish = (n: number): void => {
     ins('sessions', STU.slice(0, n).map((s, i) => session(`r${i}`, s, true)))
     ins('answers', STU.slice(0, n).map((s, i) => answer(`r${i}`, s, 'b', 'wrong')))
@@ -408,7 +411,7 @@ describe('בסיס הדמיית חזרה (loadReviewBasis): אותה הרשאה 
     expect((await fail(loadReviewBasis(req(T_HOME), 'nope', Q1))).status).toBe(404)
   })
 
-  it('מורה שאינו משויך לכיתה (גם אם הוא בעל ההדמיה): 404 אחיד', async () => {
+  it('מורה שאינו משויך לכיתה (גם אם הוא בעל השיעור): 404 אחיד', async () => {
     finish(3)
     h.db.quests[0].created_by = T_OUT
     const invisible = await fail(loadReviewBasis(req(T_OUT), A1, Q1))
@@ -423,7 +426,7 @@ describe('בסיס הדמיית חזרה (loadReviewBasis): אותה הרשאה 
     expect((await fail(loadReviewBasis(req(ADMIN, 'municipal_admin'), A1, Q1))).status).toBe(403)
   })
 
-  it('מטלה של הדמיה אחרת: 400', async () => {
+  it('מטלה של שיעור אחר: 400', async () => {
     expect((await fail(loadReviewBasis(req(T_HOME), A1, uid(41)))).status).toBe(400)
   })
 
@@ -448,7 +451,7 @@ describe('בסיס הדמיית חזרה (loadReviewBasis): אותה הרשאה 
   })
 })
 
-describe('גישה לשירות הסיכום המילולי (openSubmissionForSummary): אותה הרשאה כמו מסך ההדמיה, בלי רישום לכל תלמיד', () => {
+describe('גישה לשירות הסיכום המילולי (openSubmissionForSummary): אותה הרשאה כמו מסך השיעור, בלי רישום לכל תלמיד', () => {
   it('אותה הרשאה בדיוק: מנהלים 403, שליחה שאינה גלויה / לא קיימת / פגומה — אותו 404 אחיד; מורה גלוי (מחנך, יוצר-ושולח, מנהל-על) — נפתח', async () => {
     for (const role of ['admin', 'municipal_admin'] as const) {
       expect((await fail(openSubmissionForSummary(req(ADMIN, role), A1))).status).toBe(403)
@@ -476,7 +479,7 @@ describe('גישה לשירות הסיכום המילולי (openSubmissionForSu
     await expect((await openSubmissionForSummary(req(SUPER, 'super_admin'), A1)).classView()).resolves.toBeTruthy()
   })
 
-  it('התוכן זהה למסך ההדמיה (אותה ליבה): אין סטייה בין מה שהמורה רואה למה שמסוכם', async () => {
+  it('התוכן זהה למסך השיעור (אותה ליבה): אין סטייה בין מה שהמורה רואה למה שמסוכם', async () => {
     ins('sessions', [session('s1', STU[0], true), session('s2', STU[1], true), session('s3', STU[2], false)])
     ins('answers', [answer('s1', STU[0], 'a', 'correct'), answer('s2', STU[1], 'b', 'wrong')])
     ins('events', [solvedEvent('s1', STU[0], true), solvedEvent('s2', STU[1], false)])
@@ -490,5 +493,102 @@ describe('גישה לשירות הסיכום המילולי (openSubmissionForSu
     h.db.users.find((u) => u.id === STU[2])!.is_active = false
     const view = await (await openSubmissionForSummary(req(T_HOME), A1)).classView()
     expect(view.head.counts.total).toBe(STU.length - 1)
+  })
+})
+
+/* ───────── מועד הגשה ומצב השיעור (CLAUDE.md "תאריך יעד ומצב שיעור") ───────── */
+describe('מועד הגשה: dueAt, state ו"באיחור"', () => {
+  const DUE = '2026-10-17T20:59:00.000Z'
+  const setDueRow = (due: string | null): void => { h.db.assignments.find((a) => a.id === A1)!.due_at = due }
+  const at = (iso: string): void => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)) }
+  afterEach(() => { vi.useRealTimers() })
+
+  it('שליחה בלי מועד: dueAt=null, בלי lateCount, והמצב open', async () => {
+    at('2026-10-20T10:00:00Z')
+    const row = (await realResultsProvider.list(req(T_HOME), {})).submissions[0]
+    expect(row.dueAt).toBeNull()
+    expect(row.state).toBe('open')
+    expect(row.lateCount).toBeUndefined()
+  })
+
+  it('open לפני המועד, ended אחריו — אותו מצב ברשימה ובמסך השיעור ובמסך התלמיד (פונקציה אחת)', async () => {
+    setDueRow(DUE)
+    at('2026-10-15T10:00:00Z')
+    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].state).toBe('open')
+    expect((await realResultsProvider.classView(req(T_HOME), A1)).head.state).toBe('open')
+    at('2026-10-20T10:00:00Z')
+    const list = (await realResultsProvider.list(req(T_HOME), {})).submissions[0]
+    expect(list).toMatchObject({ state: 'ended', dueAt: DUE })
+    expect((await realResultsProvider.classView(req(T_HOME), A1)).head).toMatchObject({ state: 'ended', dueAt: DUE })
+    expect((await realResultsProvider.studentView(req(T_HOME), A1, STU[0])).head.state).toBe('ended')
+  })
+
+  it('active_now: מישהו התחיל או סיים ב-5 הדקות האחרונות — גובר גם אחרי המועד; אחרי חלון ה-5 דקות חוזר ל-ended', async () => {
+    setDueRow(DUE)
+    ins('sessions', [session('s1', STU[0], true, '2026-10-20T09:50:00Z')])
+    h.db.sessions[0].completed_at = '2026-10-20T09:58:00Z'
+    at('2026-10-20T10:01:00Z')
+    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].state).toBe('active_now')
+    at('2026-10-20T10:03:00Z')
+    expect((await realResultsProvider.classView(req(T_HOME), A1)).head.state).toBe('active_now')
+    at('2026-10-20T10:20:00Z')
+    expect((await realResultsProvider.classView(req(T_HOME), A1)).head.state).toBe('ended')
+  })
+
+  it('"באיחור": השלמה ראשונה אחרי המועד; הרצה חוזרת אחרי המועד של מי שסיים בזמן — לא באיחור; מי שלא סיים — לא', async () => {
+    setDueRow(DUE)
+    ins('sessions', [
+      { ...session('late1', STU[0], true), started_at: '2026-10-18T08:00:00Z', completed_at: '2026-10-18T08:20:00Z' }, /* סיים אחרי המועד */
+      session('ontime', STU[1], true), /* 11.10 — לפני המועד */
+      { ...session('replay', STU[1], true), started_at: '2026-10-19T08:00:00Z', completed_at: '2026-10-19T08:20:00Z' }, /* הרצה חוזרת אחרי המועד */
+      session('open', STU[2], false, '2026-10-18T09:00:00Z'), /* התחיל אחרי המועד ולא סיים */
+    ])
+    at('2026-10-25T10:00:00Z')
+    const view = await realResultsProvider.classView(req(T_HOME), A1)
+    const chip = (id: string) => [...view.roster.completed, ...view.roster.inProgress, ...view.roster.notStarted].find((c) => c.id === id)!
+    expect(chip(STU[0]).late).toBe(true)
+    expect(chip(STU[1]).late).toBeUndefined()
+    expect(chip(STU[2]).late).toBeUndefined()
+    expect(view.head.lateCount).toBe(1)
+    expect((await realResultsProvider.list(req(T_HOME), {})).submissions[0].lateCount).toBe(1)
+    expect((await realResultsProvider.studentView(req(T_HOME), A1, STU[0])).student.late).toBe(true)
+    expect(ClassSubmissionViewSchema.safeParse(view).success).toBe(true)
+    expect(SubmissionListSchema.safeParse(await realResultsProvider.list(req(T_HOME), {})).success).toBe(true)
+  })
+
+  it('המשחק לא ננעל: השלמה אחרי המועד נספרת (completed) ומסומנת בלבד', async () => {
+    setDueRow(DUE)
+    ins('sessions', [{ ...session('late1', STU[0], true), started_at: '2026-10-18T08:00:00Z', completed_at: '2026-10-18T08:20:00Z' }])
+    at('2026-10-25T10:00:00Z')
+    const view = await realResultsProvider.classView(req(T_HOME), A1)
+    expect(view.head.counts.completed).toBe(1)
+  })
+})
+
+describe('שינוי מועד הגשה (setDue)', () => {
+  const rowDue = (): unknown => h.db.assignments.find((a) => a.id === A1)!.due_at
+
+  it('השולח (יוצר השיעור) משנה: נשמר סוף היום הישראלי 23:59, והתשובה מחזירה את הרגע', async () => {
+    const out = await realResultsProvider.setDue(req(T_SCI), A1, '2026-11-05')
+    expect(out.dueAt).toBe('2026-11-05T21:59:00.000Z') /* חורף: UTC+2 */
+    expect(rowDue()).toBe('2026-11-05T21:59:00.000Z')
+    expect((await realResultsProvider.setDue(req(T_SCI), A1, '2026-07-08')).dueAt).toBe('2026-07-08T20:59:00.000Z') /* קיץ: UTC+3 */
+  })
+
+  it('מחנך הכיתה ומנהל-על רשאים; מורה מקצוע שרק רואה את השליחה — 403 וההגשה לא משתנה', async () => {
+    await realResultsProvider.setDue(req(T_HOME), A1, '2026-11-06')
+    expect(rowDue()).toBe('2026-11-06T21:59:00.000Z')
+    await realResultsProvider.setDue(req(SUPER, 'super_admin'), A1, '2026-11-07')
+    expect(rowDue()).toBe('2026-11-07T21:59:00.000Z')
+    ins('class_teachers', [{ class_id: C1, teacher_id: T_OUT, is_homeroom: false, subject_id: SCI }])
+    expect((await fail(realResultsProvider.setDue(req(T_OUT), A1, '2026-11-20'))).status).toBe(403)
+    expect(rowDue()).toBe('2026-11-07T21:59:00.000Z')
+  })
+
+  it('מי שאינו רואה את השליחה: 404 אחיד; מנהל: 403; תאריך לא תקין: 400', async () => {
+    expect((await fail(realResultsProvider.setDue(req(T_OUT), A1, '2026-11-20'))).status).toBe(404)
+    expect((await fail(realResultsProvider.setDue(req(ADMIN, 'admin'), A1, '2026-11-20'))).status).toBe(403)
+    for (const bad of ['2026-02-30', '08/07/2026', '', 'garbage']) expect((await fail(realResultsProvider.setDue(req(T_SCI), A1, bad))).status, bad).toBe(400)
+    expect(rowDue()).toBeUndefined()
   })
 })

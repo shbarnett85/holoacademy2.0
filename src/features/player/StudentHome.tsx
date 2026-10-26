@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { useSoundSettings } from '../../shared/lib/sound'
+import LessonThumb from '../../shared/ui/LessonThumb'
+import { formatIsraelDate } from '../../shared/lib/lessonState'
+import { subjectVisual } from '../../shared/lib/subjects'
 
-
-const ART_ICONS: Record<string, string> = {
-  'digital-painting': '🎨', realistic: '📷', comic: '💥',
-  storybook: '📖', anime: '🌸', 'pixar-3d': '🧸',
-}
 
 type SortKey = 'newest' | 'oldest' | 'alpha' | 'alpha-desc' | 'score-high' | 'score-low'
 type StatusFilter = 'all' | 'completed' | 'in_progress' | 'not_started' | 'new'
@@ -19,8 +17,16 @@ interface AssignedQuest {
   sceneCount: number
   artStyle?: string
   subject?: string | null
+  /* קוד המקצוע — מזין את המסגרת והסמל; null = "לא סווג" */
+  subjectCode?: string | null
   teacherName?: string | null
   entryImageUrl?: string | null
+  /* תמונת השיעור (הסצנה השנייה); entryImageUrl נשאר לתאימות */
+  thumbUrl?: string | null
+  /* מועד ההגשה (ISO) ומצב מפונקציית המצב היחידה בשרת; late = ההשלמה הראשונה הייתה אחרי המועד */
+  dueAt?: string | null
+  state?: 'active_now' | 'open' | 'ended'
+  late?: boolean
   assignedAt?: string | null
   sessionStatus: 'completed' | 'in_progress' | null
   crystals: number | null
@@ -49,41 +55,33 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
   const [hov, setHov] = useState(false)
   const status = q.sessionStatus
   const crystals = q.crystals ?? 0
+  /* מסגרת בצבע המקצוע (וריאנט כהה — מסכי תלמיד תמיד כהים) + סמל המקצוע בפינה; "לא סווג" = אפור */
+  const frameColor = subjectVisual(q.subjectCode, 'dark').color
+  /* "להגשה עד [תאריך]" — רק לשיעור שעוד לא הושלם; אחרי המועד: "המועד עבר" (השיעור לא ננעל) */
+  const due = q.dueAt && status !== 'completed'
+    ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: '#fbbf24' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'rgba(255,255,255,.92)' })
+    : null
 
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       onClick={onPlay}
       style={{
-        position: 'relative', overflow: 'hidden', borderRadius: 16, cursor: 'pointer',
-        border: `1px solid ${hov ? 'rgba(47,243,255,.55)' : 'rgba(47,243,255,.16)'}`,
-        boxShadow: hov ? '0 0 36px rgba(47,243,255,.18),0 6px 28px rgba(0,0,0,.55)' : '0 3px 16px rgba(0,0,0,.4)',
-        transition: 'border-color .22s,box-shadow .22s,transform .18s',
+        position: 'relative', borderRadius: 16, cursor: 'pointer',
+        boxShadow: hov ? `0 0 36px color-mix(in srgb, ${frameColor} 32%, transparent),0 6px 28px rgba(0,0,0,.55)` : '0 3px 16px rgba(0,0,0,.4)',
+        transition: 'box-shadow .22s,transform .18s',
         transform: hov ? 'translateY(-3px)' : 'translateY(0)',
-        background: '#04060f', height: 'clamp(180px,17.5vw,260px)',
+        height: 'clamp(180px,17.5vw,260px)',
       }}
     >
-      {q.entryImageUrl ? (
-        <img src={q.entryImageUrl} alt={q.title} style={{
-          position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-          transform: hov ? 'scale(1.05)' : 'scale(1)', transition: 'transform .4s ease',
-        }} />
-      ) : (
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(135deg,rgba(10,22,60,.9),rgba(4,9,24,.95))',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 36, opacity: 0.35,
-        }}>{ART_ICONS[q.artStyle ?? ''] ?? '🎮'}</div>
-      )}
-
+     <LessonThumb url={q.thumbUrl ?? q.entryImageUrl} subjectCode={q.subjectCode} mode="dark" width="100%" height="100%" radius={16} frame={3} corner="top-start" chipSize={34} alt={q.title}>
       {/* overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top,rgba(2,5,15,.97) 0%,rgba(2,5,15,.5) 50%,rgba(2,5,15,.08) 100%)' }} />
 
       {/* badge: חדש */}
       {isNew && (
         <div style={{
-          position: 'absolute', top: 10, right: 10,
+          position: 'absolute', top: 12, right: 52,
           background: 'rgba(47,243,255,.15)', border: '1px solid rgba(47,243,255,.7)',
           borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
           color: '#2ff3ff', fontFamily: 'var(--font-display)', letterSpacing: '0.1em',
@@ -95,7 +93,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
       {/* badge: הדמיית חזרה (משימת חיזוק) — מוזז שמאלה כשיש גם "חדש" */}
       {q.isReview && (
         <div style={{
-          position: 'absolute', top: 10, right: isNew ? 62 : 10,
+          position: 'absolute', top: 12, right: isNew ? 114 : 52,
           background: 'rgba(155,140,255,.18)', border: '1px solid rgba(155,140,255,.65)',
           borderRadius: 7, padding: '3px 8px', fontSize: 10, fontWeight: 800,
           color: '#c9b6ff', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
@@ -109,7 +107,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           background: 'rgba(16,185,80,.18)', border: '1px solid rgba(16,185,80,.55)',
           borderRadius: 7, padding: '3px 8px', fontSize: 11, fontWeight: 800,
           color: '#22d46a', fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)',
-        }}>✓ הושלם</div>
+        }}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</div>
       )}
 
       {/* badge: בתהליך */}
@@ -129,6 +127,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           textShadow: '0 1px 6px rgba(0,0,0,.9)', marginBottom: 5,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{q.title}</div>
+        {due && <div style={{ fontSize: 12, fontWeight: 700, color: due.color, fontFamily: 'var(--font-display)', textShadow: '0 1px 6px rgba(0,0,0,.9)', marginBottom: 5 }}>{due.text}</div>}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
           <div>
             {status === 'completed'
@@ -157,6 +156,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           </button>
         </div>
       </div>
+     </LessonThumb>
     </div>
   )
 }
@@ -405,7 +405,7 @@ export default function StudentHome() {
                 }}>🔍</span>
                 <input
                   type="text"
-                  placeholder="חיפוש לפי שם הדמיה…"
+                  placeholder="חיפוש לפי שם שיעור…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   style={{
@@ -487,11 +487,11 @@ export default function StudentHome() {
             <span style={{
               fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
               color: 'rgba(47,243,255,.5)', textTransform: 'uppercase', fontFamily: 'var(--font-display)',
-            }}>ההדמיות שלכם</span>
+            }}>השיעורים שלכם</span>
             <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left,rgba(47,243,255,.18),transparent)' }} />
             {!loading && (
               <span style={{ fontSize: 11, color: 'rgba(120,160,200,.4)', fontFamily: 'var(--font-display)' }}>
-                {displayed.length}{displayed.length !== quests.length ? `/${quests.length}` : ''} הדמיות
+                {displayed.length}{displayed.length !== quests.length ? `/${quests.length}` : ''} שיעורים
               </span>
             )}
           </div>
@@ -505,7 +505,7 @@ export default function StudentHome() {
 
           {loading && <LoadingDots />}
 
-          {/* ריק — אין הדמיות כלל */}
+          {/* ריק — אין שיעורים כלל */}
           {!loading && !dbgError && quests.length === 0 && (
             <div style={{
               textAlign: 'center', padding: '3.5rem 2rem',
@@ -514,7 +514,7 @@ export default function StudentHome() {
             }}>
               <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem', filter: 'drop-shadow(0 0 12px rgba(47,243,255,.3))' }}>🚀</div>
               <p style={{ color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
-                עדיין לא הוקצו לכם הדמיות
+                עדיין לא הוקצו לכם שיעורים
               </p>
               <p style={{ color: 'rgba(120,160,200,.35)', fontSize: 12, marginTop: 4 }}>המורה יעדכן בקרוב ✨</p>
             </div>
@@ -529,7 +529,7 @@ export default function StudentHome() {
             }}>
               <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
               <p style={{ color: 'rgba(160,200,240,.5)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
-                לא נמצאו הדמיות התואמות לסינון
+                לא נמצאו שיעורים התואמים לסינון
               </p>
               <button
                 onClick={() => { setSearch(''); setStatus('all'); setSubject('all'); setTeacher('all') }}

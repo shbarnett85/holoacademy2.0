@@ -109,7 +109,7 @@ function seedQuest(owner: string) {
       : i === 4 ? { type: 'memory', difficulty: 5 }
       : { type: 'finalQuiz', difficulty: 5, questions: [{ question: 'q', options: ['x', 'y', 'z'], correctIndex: 0 }] },
   }))
-  h.db.quests.push({ id, title: 'הדמיה ' + id.slice(-4), game_data: { scenes }, created_by: owner })
+  h.db.quests.push({ id, title: 'שיעור ' + id.slice(-4), game_data: { scenes }, created_by: owner })
   return id
 }
 
@@ -166,7 +166,7 @@ describe('יצירת כיתת דוגמה', () => {
     expect(cls.is_fictitious).toBe(true)
   })
 
-  it('ההקצאות נכתבות רק לכיתה הפיקטיבית ורק להדמיות המוכנות של המורה', async () => {
+  it('ההקצאות נכתבות רק לכיתה הפיקטיבית ורק לשיעורים המוכנים של המורה', async () => {
     const mine = seedQuest('t1')
     seedQuest('t2') /* של מורה אחר — לא בהיקף */
     await createFictitiousClass(scope)
@@ -236,7 +236,7 @@ describe('idempotency', () => {
     expect({ s: h.db.sessions.length, e: h.db.events.length, a: h.db.assignments.length, u: h.db.users.length, p: h.db.progress_snapshots.length }).toEqual(snap)
   })
 
-  it('הדמיה חדשה נוספת בלבד: רענון יוצר תוצאות רק עבורה', async () => {
+  it('שיעור חדש נוסף בלבד: רענון יוצר תוצאות רק עבורו', async () => {
     seedQuest('t1')
     await createFictitiousClass(scope)
     const before = h.db.sessions.length

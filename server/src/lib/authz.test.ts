@@ -102,7 +102,7 @@ describe('מטריצת הרשאות: תפקיד × פעולה × (בכיתה/ל�
       expect(questVisible(sc, histQuest, mathTeacher.userId)).toBe(false)
       expect(questVisible(sc, unclassified, mathTeacher.userId)).toBe(false)
     })
-    it('מורה רואה הדמיה שיצר בעצמו גם אם אינה במקצועו המוגדר', () => {
+    it('מורה רואה שיעור שיצר בעצמו גם אם אינו במקצועו המוגדר', () => {
       const sc = studentScope(mathTeacher, studentClasses)
       expect(questVisible(sc, { subject_id: HIST, created_by: mathTeacher.userId }, mathTeacher.userId)).toBe(true)
     })
@@ -238,14 +238,14 @@ describe('מטריצת הרשאות: תוצאות', () => {
 
   type Case = readonly [string, Viewer, { subject_id: string | null; created_by: string | null }, string | null, boolean]
   const cases: Case[] = [
-    ['מורה ששלח, בכיתה שלו, הדמיה במקצוע אחר', sender, histQuest, SENDER_ID, true],
+    ['מורה ששלח, בכיתה שלו, שיעור במקצוע אחר', sender, histQuest, SENDER_ID, true],
     ['מורה ששלח — אך לא הוא השולח (שולח אחר)', sender, histQuest, OTHER, false],
-    ['יוצר ההדמיה (לא השולח), בכיתה שלו', creator, { subject_id: HIST, created_by: 'u-creator' }, OTHER, true],
+    ['יוצר השיעור (לא השולח), בכיתה שלו', creator, { subject_id: HIST, created_by: 'u-creator' }, OTHER, true],
     ['מחנך הכיתה — כל שליחה, גם "לא סווג"', homeroom, unclassified, OTHER, true],
     ['מחנך הכיתה — שליחה של מורה אחר במקצוע אחר', homeroom, histQuest, OTHER, true],
     ['מורה מקצוע (אותו מקצוע)', sameSubject, mathQuest, OTHER, true],
     ['מורה מקצוע (מקצוע אחר)', otherSubject, mathQuest, OTHER, false],
-    ['מורה מקצוע — הדמיה "לא סווג" שלא שלח ולא יצר', sameSubject, unclassified, OTHER, false],
+    ['מורה מקצוע — שיעור "לא סווג" שלא שלח ולא יצר', sameSubject, unclassified, OTHER, false],
     ['מורה שאינו מקושר לכיתה', unlinked, mathQuest, OTHER, false],
     ['מורה שאינו מקושר לכיתה, גם כשהוא השולח', unlinkedSender, mathQuest, SENDER_ID, false],
     ['מנהל', admin, mathQuest, OTHER, false],
@@ -253,7 +253,7 @@ describe('מטריצת הרשאות: תוצאות', () => {
     ['מנהל-על', superAdmin, unclassified, OTHER, true],
   ]
 
-  describe('מסך הדמיה (submissionVisible)', () => {
+  describe('מסך שיעור (submissionVisible)', () => {
     it.each(cases)('%s', (_n, v, quest, senderId, allowed) => {
       expect(submissionVisible(v, CLASS_A, quest, senderId)).toBe(allowed)
     })
@@ -303,7 +303,7 @@ describe('מטריצת הרשאות: הקצאה לכיתה (canAssignToClass)', 
     ['מחנך הכיתה', homeroom, cls, true],
     ['מורה מקצוע בכיתה', mathTeacher, cls, true],
     ['מורה עם שיוך כללי (בלי מקצוע)', legacyTeacher, cls, true],
-    ['מורה שאינו משויך לכיתה (גם אם יצר את ההדמיה)', outsider, cls, false],
+    ['מורה שאינו משויך לכיתה (גם אם יצר את השיעור)', outsider, cls, false],
     ['מורה בלי שום שיוך', viewer('teacher'), cls, false],
     ['מנהל של בית הספר של הכיתה', admin, cls, true],
     ['מנהל עירוני של בית הספר של הכיתה', municipal, cls, true],
@@ -334,7 +334,7 @@ describe('יומן גישה לתוצאות', () => {
     h.flags.insertThrows = false
   })
 
-  it('מסך הדמיה: שורה לכל תלמיד ברשימה, scope=results_class, עם התפקיד של הצופה', async () => {
+  it('מסך שיעור: שורה לכל תלמיד ברשימה, scope=results_class, עם התפקיד של הצופה', async () => {
     await logAccessMany(teacher, entries, { studentLevel: true })
     expect(h.db.data_access_log).toHaveLength(3)
     expect(h.db.data_access_log.map((r) => r.student_id)).toEqual(['s1', 's2', 's3'])

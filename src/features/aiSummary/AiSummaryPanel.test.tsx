@@ -130,7 +130,7 @@ describe('מוכן', () => {
     expect(html.indexOf('data-ai-label')).toBeLessThan(html.indexOf(PARAS[0]))
     expect(html.indexOf('data-ai-label')).toBeLessThan(html.indexOf('data-ai-caveat'))
     expect((html.match(/data-ai-label=/g) ?? []).length, 'התווית פעם אחת').toBe(1)
-    expect(text(html)).toContain('מבוסס על 14 הדמיות')
+    expect(text(html)).toContain('מבוסס על 14 שיעורים')
     expect(text(html)).toContain(AI_SUMMARY_HARDENING_TEXT.writtenOn('20 באוקטובר 2026'))
     expect(text(html)).toContain(CAVEAT_TREND)
     expect(text(html)).not.toContain(AI_SUMMARY_TEXT.notice.template)

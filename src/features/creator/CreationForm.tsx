@@ -239,7 +239,7 @@ function Studio() {
           {/* סיכום — chips */}
           <div style={{ ...glass, padding: '20px 24px' }}>
             <div style={{ textAlign: 'center', minWidth: 0 }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--t13)', lineHeight: 1.1, textShadow: '0 0 20px var(--t36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || 'נושא ההדמיה'}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--t13)', lineHeight: 1.1, textShadow: '0 0 20px var(--t36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || 'נושא השיעור'}</div>
               <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {s.subject && <span style={{ ...chip, color: 'var(--t105)', background: 'var(--t106)', borderColor: 'var(--t107)' }}>{subjectName(s.subject)}</span>}
                 <span style={chip}>{simLabel}</span>
@@ -256,7 +256,7 @@ function Studio() {
           <div style={{ ...glass, padding: 24, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 220px', minWidth: 180 }}>
-                <label style={fieldLabel}>נושא ההדמיה</label>
+                <label style={fieldLabel}>נושא השיעור</label>
                 <Tooltip text={TT.title} block>
                   {/* שינוי הנושא מנקה את תוכן הלימוד — כדי שתוכן (מועשר) על נושא ישן לא יישאר ויבלבל */}
                   <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value, curriculum: '' })} placeholder="למשל: מסע אל מערכת השמש" />
@@ -343,7 +343,7 @@ function Studio() {
             <Tooltip text={TT.length} block>
             <div style={{ paddingTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9 }}>
-                <label style={{ ...fieldLabel, margin: 0 }}>אורך ההדמיה</label>
+                <label style={{ ...fieldLabel, margin: 0 }}>אורך השיעור</label>
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{s.questLength} סצנות</span>
               </div>
               <NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} />
@@ -357,12 +357,12 @@ function Studio() {
           <button onClick={() => canSubmit && s.generate()} disabled={!canSubmit} style={{ width: '100%', padding: 18, borderRadius: 16, border: 'none', cursor: canSubmit ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--t17)', position: 'relative', overflow: 'hidden', background: 'linear-gradient(100deg,var(--t15),var(--t14) 55%,var(--t118))', boxShadow: '0 0 30px var(--t77), 0 12px 30px -10px var(--t119)', opacity: canSubmit ? 1 : 0.45 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, justifyContent: 'center' }}>
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t17)' }} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>
-              צור הדמיה
+              צור שיעור
             </span>
           </button>
           </Tooltip>
           {s.title.trim().length > 0 && s.subject === '' && (
-            <p role="status" style={{ margin: '8px 2px 0', fontSize: 12.5, color: 'var(--t18)' }}>בחרו מקצוע כדי ליצור את ההדמיה.</p>
+            <p role="status" style={{ margin: '8px 2px 0', fontSize: 12.5, color: 'var(--t18)' }}>בחרו מקצוע כדי ליצור את השיעור.</p>
           )}
         </div>
 
@@ -395,7 +395,7 @@ function Studio() {
             </div>
             </Tooltip>
 
-            <label style={fieldLabel}>סוג ההדמיה</label>
+            <label style={fieldLabel}>סוג השיעור</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9, marginBottom: 20 }}>
               {SIM_TYPES.map((t) => {
                 const on = s.questType === t.key

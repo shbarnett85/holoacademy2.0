@@ -296,7 +296,7 @@ describe('הצעה לתרגול חזרה (weakCount)', () => {
     expect(basis.concepts[0]).toMatchObject({ objectiveId: null, text: 'שאלה ראשונה', units: [{ sceneId: 'q', itemIndex: 0 }] })
   })
 
-  it(`מתחת ל-${REVIEW_MIN_COMPLETED} תלמידים שסיימו אין הצעה (לא בונים הדמיה מביצועי תלמיד/ה בודד/ת)`, () => {
+  it(`מתחת ל-${REVIEW_MIN_COMPLETED} תלמידים שסיימו אין הצעה (לא בונים שיעור מביצועי תלמיד/ה בודד/ת)`, () => {
     const one = { ...input(game), ...merge(played(0, 7, new Set<number>())) }
     expect(buildClassView(one).objectives.map((o) => o.level)).toEqual(['weak', 'weak'])
     expect(buildClassView(one).review.weakCount).toBe(0)
@@ -339,8 +339,8 @@ describe('משפט הסיכום לא מכליל מעבר למי שסיימו', (
     expect(buildClassView(d).summary).toBe(`עד עכשיו סיימו ${countNb(12, 30)}. רובם הצליחו.`)
     expect(buildListRow(d).summary).toBe('רוב מי שסיימו עד עכשיו הצליחו.')
     const low = withDone(12, 0)
-    expect(buildClassView(low).summary).toContain('הם התקשו בהדמיה.')
-    expect(buildListRow(low).summary).toContain('מי שסיימו עד עכשיו התקשו בהדמיה.')
+    expect(buildClassView(low).summary).toContain('הם התקשו בשיעור.')
+    expect(buildListRow(low).summary).toContain('מי שסיימו עד עכשיו התקשו בשיעור.')
   })
 
   it('כולם סיימו: הניסוח הכיתתי הרגיל', () => {
@@ -369,7 +369,7 @@ describe('משפט הסיכום לא מכליל מעבר למי שסיימו', (
     expect(fine.summary).toBe(`אבי פתר/ה ${countNb(3, 3)} אתגרים.`)
     /* מי שלא התחיל: הסיבה כבר במשפט עצמו, בלי כפילות */
     const notStarted = buildStudentView(d, 'st4')!
-    expect(notStarted.summary).toBe('הדס עוד לא התחיל/ה את ההדמיה. התוצאות יופיעו כאן כשיסיימו.')
+    expect(notStarted.summary).toBe('הדס עוד לא התחיל/ה את השיעור. התוצאות יופיעו כאן כשיסיימו.')
   })
 
   it('אותו משפט "מה יקרה" בכיתה, ברשימה ובתלמיד/ה שעוד לא התחילו', () => {
@@ -391,7 +391,7 @@ describe('"פירוט התשובות זמין" — יום ישראלי, ולא �
     return { ...base, submission: { ...base.submission, sentAt } }
   }
 
-  it('נשלחה באותו יום ישראלי כמו התשובה הראשונה שנלכדה (אך רגע מוקדם יותר): יש פירוט, והטקסט והשער מסכימים', () => {
+  it('נשלח באותו יום ישראלי כמו התשובה הראשונה שנלכדה (אך רגע מוקדם יותר): יש פירוט, והטקסט והשער מסכימים', () => {
     /* 19 באוקטובר 21:00Z = 20 באוקטובר 00:00 בישראל — לפני רגע הלכידה, אבל באותו יום */
     const sent = '2026-10-19T21:00:00.000Z'
     expect(Date.parse(sent)).toBeLessThan(Date.parse(FIRST_CAPTURE))
@@ -403,15 +403,15 @@ describe('"פירוט התשובות זמין" — יום ישראלי, ולא �
     expect(s.detailAvailableFrom).toBeNull()
   })
 
-  it('נשלחה ביום ישראלי קודם: אין פירוט, והתאריך המוצג הוא היום הישראלי של הלכידה (20 באוקטובר), לא היום ב-UTC', () => {
+  it('נשלח ביום ישראלי קודם: אין פירוט, והתאריך המוצג הוא היום הישראלי של הלכידה (20 באוקטובר), לא היום ב-UTC', () => {
     /* 19 באוקטובר 20:30Z = 19 באוקטובר 23:30 בישראל */
     const c = buildClassView(withSent('2026-10-19T20:30:00.000Z'))
     expect(c.hasAnswerDetail).toBe(false)
     expect(c.detailAvailableFrom).toBe(FIRST_CAPTURE)
-    expect(detailAvailableLine(c.detailAvailableFrom!)).toBe('פירוט התשובות זמין להדמיות שנשלחו מ-20 באוקטובר 2026')
+    expect(detailAvailableLine(c.detailAvailableFrom!)).toBe('פירוט התשובות זמין לשיעורים שנשלחו מ-20 באוקטובר 2026')
   })
 
-  it('הגבול ביום הבא: נשלחה ב-20 באוקטובר בבוקר → יש פירוט', () => {
+  it('הגבול ביום הבא: נשלח ב-20 באוקטובר בבוקר → יש פירוט', () => {
     expect(buildClassView(withSent('2026-10-20T05:00:00.000Z')).hasAnswerDetail).toBe(true)
   })
 
@@ -460,22 +460,22 @@ describe('האתגר הקשה ביותר: מי שלא הצליחו (טעו, וי
 /* ══════════════════════════════════════════════════════════════════════════
    15. הדמיות בלי אתגרים, ואתגר יחיד
    ══════════════════════════════════════════════════════════════════════════ */
-describe('הדמיה בלי סצנות עם אתגר', () => {
+describe('שיעור בלי סצנות עם אתגר', () => {
   const noPuzzles = gameOf([{ id: 'n1', title: 'סצנה', narrative: 'טקסט' }])
   const done = (n: number): CoreInput => ({ ...input(noPuzzles), sessions: Array.from({ length: n }, (_, i) => sess(i, true)) })
 
-  it('סיכום כיתה ורשימה: "X מתוך Y סיימו את ההדמיה; אין בה אתגרים שאפשר למדוד" — לא "עוד אף תלמיד לא התחיל"', () => {
+  it('סיכום כיתה ורשימה: "X מתוך Y סיימו את השיעור; אין בו אתגרים שאפשר למדוד" — לא "עוד אף תלמיד לא התחיל"', () => {
     const v = buildClassView(done(3))
-    expect(v.summary).toBe(`${countNb(3, 6)} סיימו את ההדמיה; אין בה אתגרים שאפשר למדוד.`)
+    expect(v.summary).toBe(`${countNb(3, 6)} סיימו את השיעור; אין בו אתגרים שאפשר למדוד.`)
     expect(v.summary).not.toContain('עוד אף תלמיד')
-    expect(buildListRow(done(3)).summary).toBe(`${countNb(3, 6)} סיימו את ההדמיה.`)
+    expect(buildListRow(done(3)).summary).toBe(`${countNb(3, 6)} סיימו את השיעור.`)
     expect(v.challenges).toEqual([])
     expect(ClassSubmissionViewSchema.safeParse(v).success).toBe(true)
   })
 
   it('תלמיד/ה שסיים/ה: בלי "פתר/ה 0 מתוך 0"', () => {
     const s = buildStudentView(done(1), 'st0')!
-    expect(s.summary).toBe('אבי סיים/ה את ההדמיה; אין בה אתגרים שאפשר למדוד.')
+    expect(s.summary).toBe('אבי סיים/ה את השיעור; אין בו אתגרים שאפשר למדוד.')
     expect(s.student.attentionReasons).toEqual([])
   })
 
@@ -552,7 +552,7 @@ describe('successBands — כמה אתגרים הצליחו התלמידים ש�
     expect(bandsOf([])).toEqual({ basis: 0, low: 0, mid: 0, high: 0, enough: false })
   })
 
-  it('הדמיה בלי אתגרים: basis=0 ו-enough=false גם כשכולם סיימו (אין מה למדוד)', () => {
+  it('שיעור בלי אתגרים: basis=0 ו-enough=false גם כשכולם סיימו (אין מה למדוד)', () => {
     const none = gameOf([])
     const done = { sessions: [sess(0, true), sess(1, true), sess(2, true)], answers: [], events: [] }
     const view = buildClassView({ ...input(none), ...done, students: STUDENTS.slice(0, 3) })

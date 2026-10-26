@@ -39,7 +39,7 @@ export default function FunnelPanel() {
         <span className="text-xs" style={{ opacity: 0.55 }}>{total} אירועים</span>
       </div>
       {total === 0 ? (
-        <p className="text-sm mt-2" style={{ opacity: 0.6 }}>עדיין אין תנועה — שתפו קישור הדמיה ותראו את המשפך מתמלא.</p>
+        <p className="text-sm mt-2" style={{ opacity: 0.6 }}>עדיין אין תנועה — שתפו קישור שיעור ותראו את המשפך מתמלא.</p>
       ) : (
         <div className="flex flex-col gap-2 mt-3">
           {STEPS.map((s) => {

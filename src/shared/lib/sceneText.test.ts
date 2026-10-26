@@ -12,7 +12,7 @@ describe('שכבות', () => {
     expect(gradeBandOfGrade(2)).toBe('g1_2')
     expect(gradeBandOfGrade(9)).toBe('g7_9')
   })
-  it('הדמיה ישנה בלי רמה: לפי טווח השכבות; בלי כלום — ה׳–ו׳', () => {
+  it('שיעור ישן בלי רמה: לפי טווח השכבות; בלי כלום — ה׳–ו׳', () => {
     expect(gradeBandOfQuest({ readingScale: 13 })).toBe('g7_9')
     expect(gradeBandOfQuest({ gradeMin: 1, gradeMax: 2 })).toBe('g1_2')
     expect(gradeBandOfQuest({})).toBe('g5_6')

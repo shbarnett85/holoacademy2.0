@@ -36,7 +36,7 @@ export default function QuestView() {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? 'הדמיה לא נמצאה')
+          throw new Error(body?.error ?? 'שיעור לא נמצא')
         }
         return res.json()
       })
@@ -52,7 +52,7 @@ export default function QuestView() {
   /* בטל שינויים — משחזר את ה-game_data המקורי (מרגע טעינת העמוד) גם בשרת וגם ב-state המקומי */
   async function undoChanges() {
     if (!quest || !originalRef.current || undoing) return
-    if (!(await holoConfirm('לבטל את כל השינויים שנעשו בהדמיה זו מאז פתיחת העמוד? הפעולה תשחזר את הגרסה המקורית ותדרוס כל עריכה (כולל תמונות שנוצרו מחדש).', 'בטל שינויים', 'השאר'))) return
+    if (!(await holoConfirm('לבטל את כל השינויים שנעשו בשיעור זה מאז פתיחת העמוד? הפעולה תשחזר את הגרסה המקורית ותדרוס כל עריכה (כולל תמונות שנוצרו מחדש).', 'בטל שינויים', 'השאר'))) return
     setUndoing(true)
     try {
       const res = await apiFetch(`/api/quests/${quest.id}/restore`, {

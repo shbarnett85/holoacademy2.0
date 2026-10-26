@@ -278,7 +278,7 @@ function DifficultyModal({
 
   const currentRow = subject ? resp?.subjectLevels?.find((l) => l.subjectCode === subject) : undefined
   const subjectOptions = [
-    ...(resp?.editable?.global ? [{ code: '', name: 'גלובלי — הדמיות "לא סווג"' }] : []),
+    ...(resp?.editable?.global ? [{ code: '', name: 'גלובלי — שיעורים "לא סווג"' }] : []),
     ...(resp?.editable?.subjects ?? []).map((s) => ({ code: s.code, name: s.name })),
   ]
   async function unlockLevels() {
@@ -310,7 +310,7 @@ function DifficultyModal({
         <div style={{ ...micro, color: 'var(--t273)', marginBottom: 6 }}>◇ הגדרות קושי</div>
         <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--t13)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>{student.name}<DemoStudentBadge show={student.isFictitious} /></div>
         <div style={{ fontSize: 12, color: 'var(--t274)', marginBottom: 4 }}>
-          כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} הדמיות שכוילו` : ''}
+          כיתה {student.class}{loaded ? ` · ${profile?.sessions_count ?? 0} שיעורים שכוילו` : ''}
         </div>
 
         {/* ── בורר מקצוע: מורה מקצועי — רק מקצועותיו; מחנך — כל מקצוע או גלובלי ── */}
@@ -330,7 +330,7 @@ function DifficultyModal({
                 ? (currentRow
                   ? <span>רמת טקסט נוכחית במקצוע: <b style={{ color: 'var(--t15)' }}>{Math.round(currentRow.textLevel)}</b>/20</span>
                   : <span>עוד אין פרופיל במקצוע זה — יוצג רמת פתיחה לפי שכבת הכיתה ({gradeDefault}).</span>)
-                : <span>הפרופיל הגלובלי משמש הדמיות שלא סווגו למקצוע.</span>}
+                : <span>הפרופיל הגלובלי משמש שיעורים שלא סווגו למקצוע.</span>}
               {currentRow?.teacherLocked && (
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <b style={{ color: 'var(--t264)' }}>🔒 נעול על ידי מורה</b>
@@ -348,7 +348,7 @@ function DifficultyModal({
         )}
 
         {!loaded && !err && <p style={{ color: 'var(--t274)', fontSize: 13 }}>טוען…</p>}
-        {loaded && !profile && !subject && <p style={{ color: 'var(--t265)', fontSize: 12 }}>אין עדיין פרופיל אישי — הסליידרים יציגו ברירת מחדל; הכיול יתחיל אחרי הדמיה ראשונה.</p>}
+        {loaded && !profile && !subject && <p style={{ color: 'var(--t265)', fontSize: 12 }}>אין עדיין פרופיל אישי — הסליידרים יציגו ברירת מחדל; הכיול יתחיל אחרי שיעור ראשון.</p>}
         {err && <p style={{ color: 'var(--t263)', fontSize: 13 }}>⚠️ {err}</p>}
 
         {/* ── רמת טקסט ── */}

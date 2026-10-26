@@ -156,7 +156,7 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
       .eq('id', req.params.id)
       .single()
 
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
@@ -225,7 +225,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
       .eq('id', req.params.id)
       .single()
 
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
@@ -234,7 +234,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
     if (style && style !== quest.art_style) {
       await supabaseAdmin.from('quests').update({ art_style: style }).eq('id', quest.id)
     }
-    /* בהדמיה היסטורית — negative נוסף נגד הריסות מודרניות */
+    /* בשיעור היסטורי — negative נוסף נגד הריסות מודרניות */
     const extraNegative = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
 
     /* regenerateAll → path ייחודי לכל תמונה (URL חדש, לא מוגש מהמטמון); אחרת path קבוע */
@@ -303,7 +303,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
     send({ started: true, total })
 
     if (total === 0) {
-      send({ done: true, completed: 0, total: 0, warnings: ['אין תמונות ליצירה בהדמיה זו'] })
+      send({ done: true, completed: 0, total: 0, warnings: ['אין תמונות ליצירה בשיעור זה'] })
       res.end()
       return
     }

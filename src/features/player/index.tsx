@@ -54,7 +54,7 @@ export default function Player() {
       .then(async (res) => {
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.error ?? 'הדמיה לא נמצאה')
+          throw new Error(body?.error ?? 'שיעור לא נמצא')
         }
         return res.json()
       })
@@ -101,7 +101,7 @@ export default function Player() {
     return (
       <div className="flex items-center justify-center min-h-screen p-6">
         <div className="holo-panel text-center">
-          <p>להדמיה זו אין עדיין תוכן משחק</p>
+          <p>לשיעור זה אין עדיין תוכן משחק</p>
         </div>
       </div>
     )

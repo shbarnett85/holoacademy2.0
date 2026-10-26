@@ -7,7 +7,8 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { Router } from 'express'
 import type { Request } from 'express'
-import { RESULTS_EP } from '../../../src/shared/types/resultsV1.js'
+import { RESULTS_EP, SetDueRequestSchema } from '../../../src/shared/types/resultsV1.js'
+import { ERR_DUE_INVALID } from '../../../src/shared/lib/findingsNarrative.js'
 import { demoResultsProvider } from '../lib/results/demoResults.js'
 import type { ResultsProvider } from '../lib/results/provider.js'
 import { realResultsProvider } from '../lib/results/realResults.js'
@@ -51,6 +52,15 @@ resultsRouter.get('/submissions', async (req, res, next) => {
 resultsRouter.get('/submission/:id', async (req, res, next) => {
   try {
     res.json(validated(RESULTS_EP.classView.response, await providerFor(req).classView(req, req.params.id)))
+  } catch (e) { next(e) }
+})
+
+/* שינוי מועד הגשה — הכתיבה היחידה בנתיב הזה. הגוף מאומת בחוזה (SetDueRequestSchema); מורה אורח נחסם בספק ההדגמה (403) */
+resultsRouter.patch('/submission/:id/due', async (req, res, next) => {
+  try {
+    const parsed = SetDueRequestSchema.safeParse(req.body)
+    if (!parsed.success) throw new AppError(400, ERR_DUE_INVALID)
+    res.json(validated(RESULTS_EP.setDue.response, await providerFor(req).setDue(req, req.params.id, parsed.data.dueDay)))
   } catch (e) { next(e) }
 })
 

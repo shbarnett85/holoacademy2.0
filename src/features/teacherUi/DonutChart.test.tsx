@@ -10,7 +10,7 @@ const SLICES: DonutSlice[] = [
   { key: 'inProgress', label: 'באמצע', count: 6, tone: 'accent', icon: 'half' },
   { key: 'notStarted', label: 'עוד לא התחילו', count: 5, tone: 'neutral', icon: 'circle' },
 ]
-const ARIA = 'מי סיים את ההדמיה? 14 מתוך 25 סיימו'
+const ARIA = 'מי סיים את השיעור? 14 מתוך 25 סיימו'
 const render = (over: Partial<Parameters<typeof DonutChart>[0]> = {}): string =>
   renderToStaticMarkup(<DonutChart ariaLabel={ARIA} slices={SLICES} total={25} centerNumber="25" centerLabel="תלמידים" {...over} />)
 

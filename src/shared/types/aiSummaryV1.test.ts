@@ -6,7 +6,7 @@ import {
 const ISO = '2026-10-19T09:00:00.000Z'
 const summary = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   id: null, target: { scope: 'student', id: 's-1' }, writtenBy: 'ai', label: 'x', notice: null, paragraphs: ['א'], generatedParagraphs: ['א'], edited: false,
-  basisText: 'מבוסס על 4 הדמיות', generatedAt: ISO, updatedAt: ISO, caveat: 'c', howWritten: [], ...over,
+  basisText: 'מבוסס על 4 שיעורים', generatedAt: ISO, updatedAt: ISO, caveat: 'c', howWritten: [], ...over,
 })
 
 describe('aiSummaryV1: החוזה', () => {

@@ -130,7 +130,7 @@ async function main(): Promise<void> {
       for (const a of authIds) await supabaseAdmin.auth.admin.deleteUser(a).catch(() => {})
       if (schoolId) await supabaseAdmin.from('schools').delete().eq('id', schoolId)
       const { count } = await supabaseAdmin.from('quests').select('id', { count: 'exact', head: true }).like('title', `${PREFIX}${tag}-%`)
-      console.log(`ניקוי הושלם. שאריות הדמיות zz-textfit: ${count ?? 0}`)
+      console.log(`ניקוי הושלם. שאריות שיעורים zz-textfit: ${count ?? 0}`)
     } catch (e) { console.error('ניקוי נכשל:', e instanceof Error ? e.message : e) }
   }
 }

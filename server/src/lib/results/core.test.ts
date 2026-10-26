@@ -47,7 +47,7 @@ const enter = (i: number, scene: string, p: Record<string, unknown>): CoreEventR
 
 const TAG: CoreOptionTag = {
   sceneId: 's1', itemIndex: 0, optionId: 'b', misconceptionId: 'm-solid', title: 'בלבול בין מוצק לנוזל', description: 'תיאור הטעות',
-  linkedQuest: { questId: 'q-fix', title: 'הדמיית חיזוק' },
+  linkedQuest: { questId: 'q-fix', title: 'שיעור חיזוק' },
 }
 
 function input(over: Partial<CoreInput> = {}): CoreInput {
@@ -173,7 +173,7 @@ describe('טעויות נפוצות — מתגיות בלבד', () => {
   it(`לפחות ${COMMON_ERROR_MIN_STUDENTS} תלמידים בחרו במסיח המתויג → שורה בטעויות נפוצות + commonError באתגר`, () => {
     const v = buildClassView(rows(['b', 'b', 'a', 'c']))
     expect(v.commonErrors).toHaveLength(1)
-    expect(v.commonErrors[0]).toMatchObject({ id: 'm-solid', title: 'בלבול בין מוצק לנוזל', studentsCount: 2, studentsExposed: 4, linkedQuest: { questId: 'q-fix', title: 'הדמיית חיזוק' } })
+    expect(v.commonErrors[0]).toMatchObject({ id: 'm-solid', title: 'בלבול בין מוצק לנוזל', studentsCount: 2, studentsExposed: 4, linkedQuest: { questId: 'q-fix', title: 'שיעור חיזוק' } })
     const ch = v.challenges[0]
     expect(ch.commonError).toEqual({ title: 'בלבול בין מוצק לנוזל', count: 2, optionText: 'נוזל' })
     const optB = ch.items[0].options!.find((o) => o.optionId === 'b')!
@@ -204,7 +204,7 @@ describe('טעויות נפוצות — מתגיות בלבד', () => {
   })
 })
 
-describe('הדמיות ישנות (לפני לכידת התשובות): fallback ל-events', () => {
+describe('שיעורים ישנים (לפני לכידת התשובות): fallback ל-events', () => {
   const old = input({
     sessions: [sess(0, true), sess(1, true)],
     events: [...['s1', 's2', 's3', 's4', 's5'].map((s) => pev(0, s, true)), ...['s1', 's2', 's3', 's4', 's5'].map((s) => pev(1, s, s === 's1', { solveTimeMs: 12000 }))],
@@ -384,7 +384,7 @@ describe('תלמיד: רשימה א-ב, הקודם/הבא, סיכום ושקפי
 
   it('סיכום תלמיד מ-findingsNarrative: סיים / באמצע / לא התחיל', () => {
     expect(buildStudentView(data, 'st0')!.summary).toBe(`אבי פתר/ה ${countNb(5, 5)} אתגרים.`)
-    expect(buildStudentView(data, 'st2')!.summary).toContain('באמצע ההדמיה')
+    expect(buildStudentView(data, 'st2')!.summary).toContain('באמצע השיעור')
     expect(buildStudentView(data, 'st4')!.summary).toContain('עוד לא התחיל/ה')
   })
 
@@ -518,7 +518,7 @@ describe('יעדי למידה', () => {
   }
   const byId = (v: ReturnType<typeof buildClassView>, id: string) => v.objectives.find((o) => o.id === id)!
 
-  it('אין יעדים בהדמיה → מערך ריק; יעדים בלי אף אתגר מתויג → מערך ריק; ובלי שורות "יעדים" ב"איך חישבנו"', () => {
+  it('אין יעדים בשיעור → מערך ריק; יעדים בלי אף אתגר מתויג → מערך ריק; ובלי שורות "יעדים" ב"איך חישבנו"', () => {
     const one = run(0, ALL_OK)
     const done = { sessions: [sess(0, true)], answers: one.answers, events: one.events }
     const none = buildClassView(withGame(clone(GAME), done))
@@ -613,7 +613,7 @@ describe('יעדי למידה', () => {
     expect(byId(v, 'obj_1').weakStudents.map((s) => s.id)).toEqual(['st3'])
   })
 
-  it('בלי answers (הדמיה ישנה): אתגר שלם לפי events; שאלות מבחן מתויגות בלי פירוט אינן נספרות, אבל תיוג של המבחן כולו כן', () => {
+  it('בלי answers (שיעור ישן): אתגר שלם לפי events; שאלות מבחן מתויגות בלי פירוט אינן נספרות, אבל תיוג של המבחן כולו כן', () => {
     const rs = SPECS.map((s, i) => run(i, s))
     const events = rs.flatMap((r) => r.events)
     const sessions = SPECS.map((_, i) => sess(i, true))

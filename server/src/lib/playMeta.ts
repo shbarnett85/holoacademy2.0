@@ -23,7 +23,7 @@ export function escapeHtml(s: string): string {
    ההדמיה במקומם + מחליף את ה-<title>. תג כפול = ה-crawler בוחר שרירותית, לכן ההסרה. */
 export function injectPlayMeta(html: string, meta: PlayMeta): string {
   const title = `${escapeHtml(meta.title)} · HoloAcademy`
-  const desc = escapeHtml((meta.description ?? 'הדמיית למידה אינטראקטיבית — שחקו עכשיו, בלי התקנה ובלי הרשמה.').slice(0, 160))
+  const desc = escapeHtml((meta.description ?? 'שיעור למידה אינטראקטיבי — שחקו עכשיו, בלי התקנה ובלי הרשמה.').slice(0, 160))
   const tags = [
     `<meta name="description" content="${desc}" />`,
     `<meta property="og:title" content="${title}" />`,

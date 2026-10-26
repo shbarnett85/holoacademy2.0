@@ -19,6 +19,11 @@ const PATHS = {
   /* משוב לתלמיד/ה: צמיחה (חץ עולה) · התמדה (חזרה במעגל) · הצעד הבא (דגל) — תמיד לצד מילים */
   growth: <><path d="M4 17l5.5-5.5 4 4L21 8" /><path d="M15 8h6v6" /></>,
   streak: <><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5" /><path d="M20 4v4.5h-4.5" /><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5" /><path d="M4 20v-4.5h4.5" /></>,
+  /* מצב שיעור: פעיל עכשיו · פתוח · הסתיים · תאריך */
+  pulse: <><circle cx="12" cy="12" r="3" fill="currentColor" /><circle cx="12" cy="12" r="8.5" /></>,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
+  ended: <><circle cx="12" cy="12" r="8.5" /><path d="M8 12h8" /></>,
+  calendar: <><rect x="4" y="5.5" width="16" height="14.5" rx="2" /><path d="M4 10h16" /><path d="M9 3.5v4" /><path d="M15 3.5v4" /></>,
   step: <><path d="M6 21V4" /><path d="M6 5h11l-2.5 4 2.5 4H6" /></>,
 } satisfies Record<string, ReactElement>
 

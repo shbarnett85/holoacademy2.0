@@ -151,7 +151,7 @@ async function main(): Promise<void> {
       check('התפלגות: מסיח b = 2 תלמידים עם שמות ותגית "בלבול בין מוצק לנוזל"', optB?.count === 2 && optB.students.length === 2 && /בלבול בין מוצק לנוזל/.test(optB.errorTag?.title ?? ''))
       check('מסיח c ללא תגית; התשובה הנכונה מסומנת', opts?.find((o: any) => o.optionId === 'c')?.errorTag === null && opts?.find((o: any) => o.optionId === 'a')?.isCorrect === true && opts?.find((o: any) => o.optionId === 'a')?.count === 1)
       check('טעות נפוצה באתגר: 2 תלמידים', mc.commonError?.count === 2 && /נוזל/.test(mc.commonError?.optionText ?? ''))
-      check('טעויות נפוצות בהדמיה: שורה אחת — 2 מתוך 4, עם הדמיה ממוקדת מקושרת', c.commonErrors.length === 1 && c.commonErrors[0].studentsCount === 2 && c.commonErrors[0].studentsExposed === 4 && c.commonErrors[0].linkedQuest?.questId === fx.quests.old, JSON.stringify(c.commonErrors))
+      check('טעויות נפוצות בשיעור: שורה אחת — 2 מתוך 4, עם שיעור ממוקד מקושר', c.commonErrors.length === 1 && c.commonErrors[0].studentsCount === 2 && c.commonErrors[0].studentsExposed === 4 && c.commonErrors[0].linkedQuest?.questId === fx.quests.old, JSON.stringify(c.commonErrors))
       check('הצעה לחזרה: תחום חלש אחד (רב-ברירה 1 מתוך 4)', c.review.weakCount === 1, `weakCount=${c.review.weakCount}`)
       check('"איך חישבנו?" כולל שורות', Array.isArray(c.howWeCalculated) && c.howWeCalculated.length >= 3)
       check('ראש המסך: כיתה, מקצוע, ספירות', c.head.className === `${FX_PREFIX}main` && c.head.subject?.code === 'science' && c.head.counts.total === 6)
@@ -229,8 +229,8 @@ async function main(): Promise<void> {
       const r = await get(who?.token ?? null, `/submission/${sub}/student/${stu}`)
       check(label, r.status === expected, `status=${r.status}`)
     }
-    await sv('מורה היסטוריה על תלמיד בהדמיית מדעים: 404', T.subjectOther, fx.submissions.sci, S.avi.id, 404)
-    await sv('שולח בלבד על תלמיד בהדמיית מדעים: 404', T.senderOnly, fx.submissions.sci, S.avi.id, 404)
+    await sv('מורה היסטוריה על תלמיד בשיעור מדעים: 404', T.subjectOther, fx.submissions.sci, S.avi.id, 404)
+    await sv('שולח בלבד על תלמיד בשיעור מדעים: 404', T.senderOnly, fx.submissions.sci, S.avi.id, 404)
     await sv('מורה לא מקושר: 404', T.unlinked, fx.submissions.sci, S.avi.id, 404)
     await sv('מנהל: 403', T.admin, fx.submissions.sci, S.avi.id, 403)
     await sv('מנהל עירוני: 403', T.municipal, fx.submissions.sci, S.avi.id, 403)
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
       check('תלמיד מכיתה אחרת ותלמיד שאינו קיים: אותה תשובה בדיוק (בלי לחשוף מי קיים)', foreign.status === 404 && JSON.stringify(foreign.json) === JSON.stringify(missing.json))
     }
     await sv('מורה לא מקושר על התלמיד בכיתה שלו: 200', T.unlinked, fx.submissions.other, S.otherClass.id, 200)
-    await sv('שולח בלבד על תלמיד בהדמיית hist שלו: 200', T.senderOnly, fx.submissions.hist, S.avi.id, 200)
+    await sv('שולח בלבד על תלמיד בשיעור hist שלו: 200', T.senderOnly, fx.submissions.hist, S.avi.id, 200)
 
     /* ───────── הקצאה לכיתות: POST /api/quests/:id/assign ───────── */
     console.log('\n— POST /quests/:id/assign —')
@@ -261,7 +261,7 @@ async function main(): Promise<void> {
     const asg = (token: string | null, quest: string, classIds: unknown) => call('POST', token, `/quests/${quest}/assign`, { classIds })
 
     const atkCross = await asg(T.unlinked.token, qAttacker, [fx.classId])
-    check('הקצאה לכיתה זרה (בעל ההדמיה אינו משויך לכיתה הראשית): 403, ושום שורה לא נוצרה', atkCross.status === 403 && (await countAsg(qAttacker)) === 0, `status=${atkCross.status}`)
+    check('הקצאה לכיתה זרה (בעל השיעור אינו משויך לכיתה הראשית): 403, ושום שורה לא נוצרה', atkCross.status === 403 && (await countAsg(qAttacker)) === 0, `status=${atkCross.status}`)
     const mixed = await asg(T.unlinked.token, qAttacker, [fx.otherClassId, fx.classId])
     check('בקשה מעורבת (כיתה שלי + כיתה זרה): נדחית כולה — גם הכיתה שלי לא קיבלה', mixed.status === 403 && (await countAsg(qAttacker)) === 0, `status=${mixed.status}`)
     const unknownCls = await asg(T.unlinked.token, qAttacker, [fx.otherClassId, NIL])
@@ -280,18 +280,18 @@ async function main(): Promise<void> {
     check('הקצאה חוזרת לאותה כיתה: אין כפילות', again.status === 201 && again.json.assignments?.length === 0 && (await countAsg(qAttacker, [fx.otherClassId])) === 1)
 
     const byAdmin = await asg(T.admin.token, qMine, [fx.classId])
-    check('מנהל בית הספר מקצה הדמיה של מורה לכיתה בבית ספרו: 201', byAdmin.status === 201 && byAdmin.json.assignments?.length === 1, `status=${byAdmin.status}`)
+    check('מנהל בית הספר מקצה שיעור של מורה לכיתה בבית ספרו: 201', byAdmin.status === 201 && byAdmin.json.assignments?.length === 1, `status=${byAdmin.status}`)
     {
       const { data } = await supabaseAdmin.from('assignments').select('id, user_id').eq('quest_id', qMine).eq('class_id', fx.classId)
       const row = ((data ?? []) as { id: string; user_id: string | null }[])[0]
-      check('השולח (user_id) הוא המנהל, לא יוצר ההדמיה — השולח והיוצר נפרדים', row?.user_id === T.admin.userId && row.user_id !== T.subjectSame.userId)
+      check('השולח (user_id) הוא המנהל, לא יוצר השיעור — השולח והיוצר נפרדים', row?.user_id === T.admin.userId && row.user_id !== T.subjectSame.userId)
       const homeList = await get(T.homeroom.token, '/submissions')
       const sent = (homeList.json.data?.submissions ?? []).find((x: any) => x.id === row?.id)
       check('המחנך רואה את השליחה כ"מחנך" עם שם השולח (המנהל) — לא שם היוצר', sent?.source === 'homeroom' && sent?.senderName === T.admin.name, `${sent?.source}/${sent?.senderName}`)
     }
-    /* חריג הבעלות הקיים של מנהל (ensureQuestAccess): מנהל רשאי להקצות גם הדמיה של מורה אחר — אך רק לכיתות בבית ספרו (בדיקת הכיתה למעלה) */
+    /* חריג הבעלות הקיים של מנהל (ensureQuestAccess): מנהל רשאי להקצות גם שיעור של מורה אחר — אך רק לכיתות בבית ספרו (בדיקת הכיתה למעלה) */
     const adminOther = await asg(T.admin.token, qAttacker, [fx.classId])
-    check('מנהל בית הספר מקצה הדמיה של מורה אחר לכיתה בבית ספרו: 201 (חריג הבעלות של מנהל, נשמר)', adminOther.status === 201, `status=${adminOther.status}`)
+    check('מנהל בית הספר מקצה שיעור של מורה אחר לכיתה בבית ספרו: 201 (חריג הבעלות של מנהל, נשמר)', adminOther.status === 201, `status=${adminOther.status}`)
 
     /* ───────── תרגול חזרה: POST /api/quests/:id/review-quest — בדיקות סירוב וחסימה בלבד (הנתיב המוצלח מפעיל מודל שפה) ───────── */
     console.log('\n— POST /quests/:id/review-quest —')
@@ -306,9 +306,9 @@ async function main(): Promise<void> {
     check('מנהל עירוני: 403', (await review(T.municipal.token, fx.quests.sci, fx.submissions.sci)).status === 403)
     check('בלי טוקן: 401', (await review(null, fx.quests.sci, fx.submissions.sci)).status === 401)
     check('assignmentId פגום: 400', (await review(T.subjectSame.token, fx.quests.sci, 'x')).status === 400)
-    check('מטלה של הדמיה אחרת: 400', (await review(T.homeroom.token, fx.quests.hist, fx.submissions.sci)).status === 400)
+    check('מטלה של שיעור אחר: 400', (await review(T.homeroom.token, fx.quests.hist, fx.submissions.sci)).status === 400)
     const rvNotOwner = await review(T.homeroom.token, fx.quests.sci, fx.submissions.sci)
-    check('מחנך שרואה את התוצאות אך אינו יוצר ההדמיה: 403 (בעלות), ולא נוצרה הדמיה', rvNotOwner.status === 403, `status=${rvNotOwner.status}`)
+    check('מחנך שרואה את התוצאות אך אינו יוצר השיעור: 403 (בעלות), ולא נוצר שיעור', rvNotOwner.status === 403, `status=${rvNotOwner.status}`)
     const rvFew = await review(T.subjectOther.token, fx.quests.hist, fx.submissions.hist)
     check('שליחה שעוד אף תלמיד לא סיים: 400 "אין מספיק נתונים", בלי יצירה', rvFew.status === 400 && /מספיק נתונים/.test(rvFew.json.error ?? ''), JSON.stringify(rvFew.json))
     const rvNone = await review(T.subjectSame.token, fx.quests.old, fx.submissions.old)
@@ -316,7 +316,7 @@ async function main(): Promise<void> {
     {
       const { count } = await supabaseAdmin.from('quests').select('*', { count: 'exact', head: true }).like('title', `${FX_PREFIX}חזרה%`)
       const { count: count2 } = await supabaseAdmin.from('quests').select('*', { count: 'exact', head: true }).like('title', 'חזרה:%').eq('created_by', T.subjectSame.userId)
-      check('לא נוצרה אף הדמיית חזרה בבדיקות הסירוב', (count ?? 0) === 0 && (count2 ?? 0) === 0)
+      check('לא נוצר אף שיעור חזרה בבדיקות הסירוב', (count ?? 0) === 0 && (count2 ?? 0) === 0)
     }
 
     /* ───────── יומן גישה ───────── */
@@ -328,7 +328,7 @@ async function main(): Promise<void> {
     {
       const classRows = rows.filter((l) => l.viewer_id === T.homeroom.userId && l.scope === 'results_class')
       const rosterIds = [S.avi, S.beni, S.galit, S.dana, S.hadas, S.viktor].map((x) => x.id).sort()
-      check('מסך הדמיה נרשם כ-results_class: שורה לכל תלמיד ברשימה (6), בלי שורה בלי תלמיד', rosterIds.every((id) => classRows.some((l) => l.student_id === id)) && classRows.every((l) => l.student_id !== null) && !classRows.some((l) => l.student_id === S.otherClass.id))
+      check('מסך שיעור נרשם כ-results_class: שורה לכל תלמיד ברשימה (6), בלי שורה בלי תלמיד', rosterIds.every((id) => classRows.some((l) => l.student_id === id)) && classRows.every((l) => l.student_id !== null) && !classRows.some((l) => l.student_id === S.otherClass.id))
       check('הרשימה נרשמה כשורה אחת-לבקשה בלי תלמיד (results_list)', rows.some((l) => l.viewer_id === T.homeroom.userId && l.student_id === null && l.scope === 'results_list'))
       check('בסיס חזרה נרשם (results_review, בלי תלמיד) — רק כשהגישה אושרה', rows.some((l) => l.viewer_id === T.homeroom.userId && l.student_id === null && l.scope === 'results_review') && rows.some((l) => l.viewer_id === T.subjectSame.userId && l.scope === 'results_review') && !rows.some((l) => l.viewer_id === T.admin.userId))
     }

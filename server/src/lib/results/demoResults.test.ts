@@ -62,7 +62,7 @@ async function lensData(name: string, q: Query): Promise<LensData> {
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 describe('קטלוג ההדגמה: מבנה', () => {
-  it('6–10 הדמיות ו-6–10 שליחות; כמה כיתות ומקצועות; מזהים ייחודיים', () => {
+  it('6–10 שיעורים ו-6–10 שליחות; כמה כיתות ומקצועות; מזהים ייחודיים', () => {
     expect(DEMO_QUESTS.length).toBeGreaterThanOrEqual(6)
     expect(DEMO_QUESTS.length).toBeLessThanOrEqual(10)
     expect(DEMO_SUBMISSIONS.length).toBeGreaterThanOrEqual(6)
@@ -231,7 +231,7 @@ describe('מקרה (א): שליחה שחלק מהתלמידים לא סיימו 
     const cv = d.classViews.get(ID.science)!
     const mid = cv.roster.inProgress[0]
     const sv = d.studentViews.get(`${ID.science}|${mid.id}`)!
-    expect(sv.summary).toContain('באמצע ההדמיה')
+    expect(sv.summary).toContain('באמצע השיעור')
     expect(sv.challenges.every((x) => x.outcome === 'not_reached' && x.items.length === 0)).toBe(true)
     expect(sv.slides).toEqual([])
     const ns = d.studentViews.get(`${ID.science}|${cv.roster.notStarted[0].id}`)!
@@ -453,7 +453,7 @@ describe('יעדי למידה בהדגמה', () => {
     return { attempted, weak }
   }
 
-  it('להדמיות עם יעדים — הם מוצגים לפי הסדר שהוגדר; לשאר — מערך ריק (אין טאב)', async () => {
+  it('לשיעורים עם יעדים — הם מוצגים לפי הסדר שהוגדר; לשאר — מערך ריק (אין טאב)', async () => {
     const expected: Record<string, string[]> = {
       [ID.fractionsV2]: ['obj_1', 'obj_2'], [ID.fractionsV1]: ['obj_1', 'obj_2'],
       [ID.science]: ['obj_1', 'obj_2'],
@@ -505,7 +505,7 @@ describe('יעדי למידה בהדגמה', () => {
     }
   })
 
-  it('האורח רואה את שלוש הרמות (למדו, למדו חלקית, עדיין קשה) לפחות פעם אחת, וגם הדמיה בלי יעדים', async () => {
+  it('האורח רואה את שלוש הרמות (למדו, למדו חלקית, עדיין קשה) לפחות פעם אחת, וגם שיעור בלי יעדים', async () => {
     const d = await lensData('homeroom', HOMEROOM)
     const levels = new Set([...d.classViews.values()].flatMap((cv) => cv.objectives.map((o) => o.level)))
     expect(levels).toEqual(new Set(['strong', 'partial', 'weak']))
@@ -677,7 +677,7 @@ describe('אותה ליבה כמו הספק האמיתי: שורות גולמי�
     }
   })
 
-  it('סצנות: מזהי תגיות קיימים בהדמיה ובאפשרויות; דילמה מוסרית עם m<אינדקס>', () => {
+  it('סצנות: מזהי תגיות קיימים בשיעור ובאפשרויות; דילמה מוסרית עם m<אינדקס>', () => {
     for (const s of getDemoResults().submissions) {
       const gd = s.input.submission.quest.gameData as { scenes: { id: string; puzzle?: { choices?: { id: string }[] } }[] }
       for (const t of s.input.optionTags) {

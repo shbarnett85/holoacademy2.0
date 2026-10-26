@@ -170,7 +170,7 @@ describe('סט הטאבים הקבוע', () => {
       expect(title.length).toBeGreaterThan(10)
       expect(next.length).toBeGreaterThan(20)
     }
-    expect(UI.objectivesEmpty).toBe('אין עדיין יעדים להדמיה הזאת.')
+    expect(UI.objectivesEmpty).toBe('אין עדיין יעדים לשיעור הזה.')
   })
 })
 
@@ -193,24 +193,24 @@ describe('טקסטי הגרפים של "במבט אחד"', () => {
   })
   it('תיאור לקוראי מסך: כל הספירות במילים, כולל אפס', () => {
     expect(donutAriaLabel(DONUT_TEXT.completionTitle, [{ label: 'סיימו', count: 14 }, { label: 'באמצע', count: 6 }, { label: 'עוד לא התחילו', count: 5 }], 25))
-      .toBe(`מי סיים את ההדמיה? ${countNb(14, 25)} סיימו, ${countNb(6, 25)} באמצע, ${countNb(5, 25)} עוד לא התחילו`)
+      .toBe(`מי סיים את השיעור? ${countNb(14, 25)} סיימו, ${countNb(6, 25)} באמצע, ${countNb(5, 25)} עוד לא התחילו`)
     expect(donutAriaLabel('כותרת', [{ label: 'במעט', count: 0 }], 3)).toContain(countNb(0, 3))
   })
 })
 
 describe('narrateSubmissionsSummary — משפט מעל רשימת השליחות', () => {
-  it('"5 הדמיות נשלחו; ב-4 מהן יש תלמידים לתשומת לב."', () => {
-    expect(narrateSubmissionsSummary(5, 4)).toBe('5 הדמיות נשלחו; ב-4 מהן יש תלמידים לתשומת לב.')
+  it('"5 שיעורים נשלחו; ב-4 מהם יש תלמידים לתשומת לב."', () => {
+    expect(narrateSubmissionsSummary(5, 4)).toBe('5 שיעורים נשלחו; ב-4 מהם יש תלמידים לתשומת לב.')
   })
-  it('כולן / אחת / אף אחת / שליחה בודדת', () => {
-    expect(narrateSubmissionsSummary(3, 3)).toBe('3 הדמיות נשלחו; בכולן יש תלמידים לתשומת לב.')
-    expect(narrateSubmissionsSummary(5, 1)).toBe('5 הדמיות נשלחו; באחת מהן יש תלמידים לתשומת לב.')
-    expect(narrateSubmissionsSummary(4, 0)).toBe('4 הדמיות נשלחו; אין בהן תלמידים לתשומת לב.')
-    expect(narrateSubmissionsSummary(1, 1)).toBe('הדמיה אחת נשלחה; יש בה תלמידים לתשומת לב.')
-    expect(narrateSubmissionsSummary(1, 0)).toBe('הדמיה אחת נשלחה; אין בה תלמידים לתשומת לב.')
+  it('כולם / אחד / אף אחד / שליחה בודדת', () => {
+    expect(narrateSubmissionsSummary(3, 3)).toBe('3 שיעורים נשלחו; בכולם יש תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(5, 1)).toBe('5 שיעורים נשלחו; באחד מהם יש תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(4, 0)).toBe('4 שיעורים נשלחו; אין בהם תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(1, 1)).toBe('שיעור אחד נשלח; יש בו תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(1, 0)).toBe('שיעור אחד נשלח; אין בו תלמידים לתשומת לב.')
   })
   it('אין שליחות → ריק; ספירה גדולה מהסך נחתכת לסך', () => {
     expect(narrateSubmissionsSummary(0, 0)).toBe('')
-    expect(narrateSubmissionsSummary(2, 9)).toBe('2 הדמיות נשלחו; בכולן יש תלמידים לתשומת לב.')
+    expect(narrateSubmissionsSummary(2, 9)).toBe('2 שיעורים נשלחו; בכולם יש תלמידים לתשומת לב.')
   })
 })

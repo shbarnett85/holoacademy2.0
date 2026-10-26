@@ -10,7 +10,7 @@ export { LOCKED_SUBJECT_TEXT }
 export const LOCKED_OVERVIEW_TEXT = 'זמין למחנך/ת הכיתה'
 
 export const L = {
-  analytics: 'אנליטיקה',
+  analytics: 'התקדמות',
   entryTitle: ANALYTICS_TEXT.entryTitle,
   alertsTitle: ANALYTICS_TEXT.alertsTitle,
   overviewTab: ANALYTICS_TEXT.classTabs.overview,
@@ -50,7 +50,7 @@ export const L = {
   chartNumbersNote: 'המספרים על הקו הם הרמה בכל חודש.',
   schoolFallback: 'בית הספר',
   noStudentData: 'עוד אין נתונים על התלמיד/ה.',
-  noStudentDataNext: 'הם יופיעו כאן כשיסיימו כמה הדמיות.',
+  noStudentDataNext: 'הם יופיעו כאן כשיסיימו כמה שיעורים.',
   studentNotFound: 'לא מצאנו את התלמיד/ה הזה/זו.',
   backToEntry: 'חזרה לבחירת כיתה',
   tableSubject: 'מקצוע',

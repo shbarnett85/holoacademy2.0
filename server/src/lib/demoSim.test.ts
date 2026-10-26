@@ -43,7 +43,7 @@ describe('חלוקת כיתה של 12', () => {
 })
 
 describe('simulateSession — דטרמיניזם', () => {
-  it('אותו תלמיד + אותה הדמיה ⇒ תוצאה זהה בדיוק', () => {
+  it('אותו תלמיד + אותו שיעור ⇒ תוצאה זהה בדיוק', () => {
     const gd = makeQuest()
     const a = simulateSession({ studentId: 'u1', questId: 'q1', tier: 'medium', gameData: gd, questIndex: 0 })
     const b = simulateSession({ studentId: 'u1', questId: 'q1', tier: 'medium', gameData: gd, questIndex: 0 })
@@ -64,7 +64,7 @@ describe('simulateSession — פרופילי הצלחה', () => {
     expect(avg).toBeGreaterThanOrEqual(lo - 0.08)
     expect(avg).toBeLessThanOrEqual(hi + 0.08)
   })
-  it.each(['strong', 'good', 'medium', 'struggling'] as Tier[])('%s: כל סשן בודד נופל בתוך הטווח (גם בהדמיות קצרות)', (tier) => {
+  it.each(['strong', 'good', 'medium', 'struggling'] as Tier[])('%s: כל סשן בודד נופל בתוך הטווח (גם בשיעורים קצרים)', (tier) => {
     const [lo, hi] = TIER_BAND[tier]
     for (const n of [5, 6, 8, 10]) {
       for (let s = 0; s < 12; s++) {
@@ -90,7 +90,7 @@ describe('simulateSession — פרופילי הצלחה', () => {
     const means = [...byType.values()].map((v) => v.reduce((a, b) => a + b, 0) / v.length)
     expect(Math.max(...means) - Math.min(...means)).toBeGreaterThan(0.3)
   })
-  it('חלקי: מסיים רק חלק מההדמיות — האחרות באמצע/לא-התחיל', () => {
+  it('חלקי: מסיים רק חלק מהשיעורים — האחרים באמצע/לא-התחיל', () => {
     const statuses = [0, 1, 2, 3, 4, 5].map((i) => simulateSession({ studentId: 'p1', questId: 'q' + i, tier: 'partial', gameData: makeQuest(), questIndex: i }).status)
     expect(statuses.filter((s) => s === 'completed').length).toBe(3)
     expect(statuses).toContain('in_progress')
@@ -127,7 +127,7 @@ describe('simulateSession — תשובות בפועל ומסיחים', () => {
 })
 
 describe('simulateSession — התאמה אישית של קושי', () => {
-  it('חזק מקבל קושי גבוה יותר ממתקשה על אותה הדמיה', () => {
+  it('חזק מקבל קושי גבוה יותר ממתקשה על אותו שיעור', () => {
     const avg = (tier: Tier) => {
       const r = simulateSession({ studentId: 'd', questId: 'q', tier, gameData: makeQuest(), questIndex: 0 })
       return r.challenges.reduce((a, c) => a + c.difficulty, 0) / r.challenges.length

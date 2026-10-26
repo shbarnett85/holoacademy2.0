@@ -114,7 +114,7 @@ export function scaleMultipleChoice(level: number): ChoiceScale {
 
 export function scaleFinalQuiz(level: number): ChoiceScale {
   const base = scaleMultipleChoice(level)
-  return { optionCount: base.optionCount, guidance: base.guidance + ' השאלות אינטגרטיביות ומחברות בין נושאים שונים בהדמיה.' }
+  return { optionCount: base.optionCount, guidance: base.guidance + ' השאלות אינטגרטיביות ומחברות בין נושאים שונים בשיעור.' }
 }
 
 /* ── נכון / לא נכון ── */

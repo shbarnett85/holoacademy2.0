@@ -199,7 +199,7 @@ async function main() {
 
   console.log('\n── סיכום ──')
   for (const r of results) console.log(`${r.status.padEnd(22)} ${r.secs.padStart(4)}ש׳  ${r.title}`)
-  console.log(`\nסה"כ נוצרו: ${produced}. זכרו: QA אנושי לכל הדמיה לפני שיתוף/שימוש בכיתה.`)
+  console.log(`\nסה"כ נוצרו: ${produced}. זכרו: QA אנושי לכל שיעור לפני שיתוף/שימוש בכיתה.`)
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error('✗', e); process.exit(1) })

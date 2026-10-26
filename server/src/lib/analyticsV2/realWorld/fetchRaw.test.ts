@@ -309,13 +309,13 @@ describe('fetchCatalogRows', () => {
       { id: 'm2', code: 'math.b', title_he: 'טיוטה', description_he: null, subject_id: 'sub-math', concept_id: 'c1', status: 'draft' },
     ]
     h.db.tables.misconception_content_links = [{ misconception_id: 'm1', quest_id: quest(1) }]
-    h.db.tables.quests[0].title = 'הדמיה לדוגמה'
+    h.db.tables.quests[0].title = 'שיעור לדוגמה'
     const rows = await fetchCatalogRows()
     expect(rows.concepts.map((c) => c.id)).toEqual(['c1'])
     expect(rows.conceptLinks).toEqual([{ conceptId: 'c1', nodeId: 'n1' }])
     expect(rows.nodes.map((n) => n.id)).toEqual(['n1'])
     expect(rows.misconceptions.map((m) => m.id)).toEqual(['m1'])
     expect(rows.misconceptionLinks).toEqual([{ misconceptionId: 'm1', questId: quest(1) }])
-    expect(rows.questTitles.get(quest(1))).toBe('הדמיה לדוגמה')
+    expect(rows.questTitles.get(quest(1))).toBe('שיעור לדוגמה')
   })
 })

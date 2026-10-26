@@ -129,8 +129,8 @@ export const SCENARIOS: Scenario[] = [
     expect: { present: ['[data-class-id]'] },
     expectBy: {
       ...forAll(GUEST_TEACHERS, { absent: [PREV_VIEW] }),
-      /* מורה אמיתי: "התצוגה הקודמת" גלויה; למחנך העשיר גם הערת הכיסוי (6 משחקים בהדמיות בלי מקצוע) עם כפתור שיוך */
-      'real-v2-homeroom': { present: [PREV_VIEW, { role: 'link', name: 'שייכו מקצוע להדמיות' }] },
+      /* מורה אמיתי: "התצוגה הקודמת" גלויה; למחנך העשיר גם הערת הכיסוי (6 משחקים בשיעורים בלי מקצוע) עם כפתור שיוך */
+      'real-v2-homeroom': { present: [PREV_VIEW, { role: 'link', name: 'שייכו מקצוע לשיעורים' }] },
       'real-v2-subject': { present: [PREV_VIEW] }, 'real-v2-mixed': { present: [PREV_VIEW] }, 'real-v2-cross': { present: [PREV_VIEW] },
     },
     note: 'כניסה — "איזו כיתה תרצו לראות?". הכרטיסים (כולל קיצורי המקצועות) מופיעים רק אחרי ששתי הקריאות חזרו. מחנך עשיר: רצועת התרעות + הערת כיסוי; מעורב: שתי כיתות; צולב: כיתה דלה + כיתה עשירה',
@@ -405,7 +405,7 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'existing-library', group: 'existing', who: 'guest-homeroom',
-    url: '/creator/library', clicksFromMainTab: 0, note: 'ספריית ההדמיות הקיימת (smoke)',
+    url: '/creator/library', clicksFromMainTab: 0, note: 'ספריית השיעורים הקיימת (smoke)',
   },
 ]
 

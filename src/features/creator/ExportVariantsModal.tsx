@@ -176,7 +176,7 @@ export default function ExportVariantsModal({ questId, questTitle, onClose }: Pr
                     ? errorCount > 0
                       ? `${doneCount} מוכנים ✓  •  ${errorCount} נכשל${errorCount > 1 ? 'ו' : ''} ✗`
                       : `✓ כל ${doneCount} הגרסאות מוכנות`
-                    : `מכין הדמיות מותאמות… ${processed + 1}/${total}`}
+                    : `מכין שיעורים מותאמים… ${processed + 1}/${total}`}
                 </span>
                 <span style={{ fontSize: 12, color: 'var(--t145)' }}>{pct}%</span>
               </div>

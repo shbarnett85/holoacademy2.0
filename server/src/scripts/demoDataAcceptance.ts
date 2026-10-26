@@ -112,7 +112,7 @@ async function main() {
   const { data: srcs } = await supabaseAdmin
     .from('quests').select('title, game_data, quest_type, art_style, include_dr_holo, curriculum, quest_length, status')
     .eq('is_public', true).eq('is_official', true).limit(3)
-  if (!srcs || srcs.length === 0) throw new Error('אין הדמיות רשמיות להעתקה')
+  if (!srcs || srcs.length === 0) throw new Error('אין שיעורים רשמיים להעתקה')
 
   /* ארגון אחר */
   let { data: other } = await supabaseAdmin.from('schools').select('id').neq('id', nesher.id).eq('demo_data_enabled', false).limit(1).maybeSingle()
@@ -151,7 +151,7 @@ async function main() {
 
     /* ── יצירת כיתה ── */
     const st0 = await api(A.token, 'GET', '/staff/demo/status')
-    check('Nesher: status enabled עם 3 הדמיות מוכנות', st0.json.enabled === true && st0.json.readyQuests === 3, JSON.stringify(st0.json))
+    check('Nesher: status enabled עם 3 שיעורים מוכנים', st0.json.enabled === true && st0.json.readyQuests === 3, JSON.stringify(st0.json))
     const created = await api(A.token, 'POST', '/staff/demo/class', {})
     check('POST /class → 201 + 12 תלמידים', created.status === 201 && created.json.students === 12, `status=${created.status} created=${created.json.results?.created}`)
     const classId = created.json.classId as string
@@ -188,7 +188,7 @@ async function main() {
     const band = (lo: number, hi: number) => rows.filter((r) => r.avg !== null && r.avg >= lo && r.avg < hi).length
     check('יש תלמידים בכל טווחי ההצלחה (≥85 / 70-85 / 55-70 / <55)', band(0.85, 1.01) >= 1 && band(0.7, 0.85) >= 1 && band(0.55, 0.7) >= 1 && band(0, 0.55) >= 1,
       `${band(0.85, 1.01)}/${band(0.7, 0.85)}/${band(0.55, 0.7)}/${band(0, 0.55)}`)
-    check('יש תלמיד חלקי (לא סיים את כל ההדמיות)', rows.some((r) => r.completed < 3))
+    check('יש תלמיד חלקי (לא סיים את כל השיעורים)', rows.some((r) => r.completed < 3))
     check('הפרופיל החזק מקבל קושי אישי גבוה מהמתקשה', await (async () => {
       const top = [...perStudent.entries()].sort((x, y) => (avg(y[1].rates) || 0) - (avg(x[1].rates) || 0))
       const best = top[0][0]; const worst = top.filter(([, v]) => v.rates.length)[top.filter(([, v]) => v.rates.length).length - 1][0]
@@ -250,7 +250,7 @@ async function main() {
     if (MODE === 'full') {
       await cleanup(state)
       fs.rmSync(STATE, { force: true })
-      console.log('(נוקו המשתמשים/ההדמיות הזמניים)')
+      console.log('(נוקו המשתמשים/השיעורים הזמניים)')
     }
   }
   console.log(failed === 0 ? '\nכל הבדיקות עברו' : `\n${failed} בדיקות נכשלו`)

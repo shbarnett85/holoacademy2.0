@@ -75,11 +75,16 @@ export function formOfAddressRule(_form: FormOfAddress = 'plural'): string { // 
   return STUDENT_ADDRESS_RULE
 }
 
+/* מינוח (CLAUDE.md "מינוח"): היחידה נקראת "שיעור". "הדמיה" נקבה ויוצרת בעיות התאמה, והיא כבר לא המינוח של המוצר — לא כותבים אותה בטקסט לתלמיד.
+   עולם מדומה בתוך הסיפור, כותרת מעבר והמחשה חזותית מקבלים מילה משלהם. נאכף בבדיקות (lintKnownErrors) ובהמרת התוכן הקיים. */
+export const LESSON_TERM_RULE = `**מינוח: "שיעור" — לא "הדמיה".** הפעילות שהתלמידים משחקים בה נקראת "שיעור" (זכר: "השיעור הזה", "בשיעור"). **אל תכתבו את המילה "הדמיה"** (לא "בהדמיה", לא "הדמיות") בשום טקסט לתלמיד. עולם מדומה בתוך הסיפור — "סימולציה"; מעבר בין שלבים — "שלב חדש"; המחשה חזותית שד"ר הולו מציג — "המחשה".`
+
 /* בלוק הפנייה לפרומפט המלא */
 function formOfAddressInstructions(form: FormOfAddress): string {
   return `
 ## צורת הפנייה לתלמיד (קריטי — עקביות מוחלטת!)
 ${formOfAddressRule(form)}
+${LESSON_TERM_RULE}
 הכלל חל על **כל** הטקסט הפונה לתלמיד: נרטיב, שאלות חידה, הסברים, דיאלוג ד"ר הולו, טקסטי בחירה, ההשלכות וסצנות הסיום. אין לערבב צורות.`
 }
 
@@ -143,7 +148,7 @@ export function puzzleDataSpec(type: string, level: number): string {
     }
     case 'moralDilemma': {
       const { choiceCount, guidance } = scaleMoralDilemma(level)
-      return `"type":"moralDilemma" — דילמה ערכית **ללא תשובה נכונה** (אין correctIndex). "situation": תיאור הדילמה בנרטיב, **רלוונטי לחומר הלימוד ולתקופה/הקשר ההדמיה** (למשל בספרטה: לתת אוכל לילד רעב בידיעה שאם ייתפס ייענש). "moralChoices": מערך של **${choiceCount} אפשרויות**, כל אחת { "text": הבחירה, "consequence": טקסט ההשלכות שיוצג אחרי הבחירה }. **כל בחירה מתקבלת ומזכה בקריסטלים — אין כישלון.** ההשלכות יכולות להיות מורכבות: לפעמים הבחירה ה"מוסרית" מובילה דווקא לתוצאה גרועה יותר — זה **מכוון ורצוי** (ללמד שלהחלטות ערכיות יש מחיר ואין בחירה בטוחה). **עומק הדילמה: ${guidance}**`
+      return `"type":"moralDilemma" — דילמה ערכית **ללא תשובה נכונה** (אין correctIndex). "situation": תיאור הדילמה בנרטיב, **רלוונטי לחומר הלימוד ולתקופה/הקשר השיעור** (למשל בספרטה: לתת אוכל לילד רעב בידיעה שאם ייתפס ייענש). "moralChoices": מערך של **${choiceCount} אפשרויות**, כל אחת { "text": הבחירה, "consequence": טקסט ההשלכות שיוצג אחרי הבחירה }. **כל בחירה מתקבלת ומזכה בקריסטלים — אין כישלון.** ההשלכות יכולות להיות מורכבות: לפעמים הבחירה ה"מוסרית" מובילה דווקא לתוצאה גרועה יותר — זה **מכוון ורצוי** (ללמד שלהחלטות ערכיות יש מחיר ואין בחירה בטוחה). **עומק הדילמה: ${guidance}**`
     }
     default:
       return ''
@@ -252,9 +257,9 @@ function finalQuizInstructions(prefs: PuzzlePreferences | undefined, level: numb
   const { optionCount, guidance } = scaleFinalQuiz(level)
   return `
 ## מבחן סיכום (finalQuiz) — חובה!
-הוסף **אתגר אחד** מסוג "finalQuiz" ב-puzzle של **סצנת השיא** (הסצנה האחרונה לפני הסיום, ראו ADVENTURE NARRATIVE STRUCTURE). זהו המבחן המסכם של ההדמיה:
+הוסף **אתגר אחד** מסוג "finalQuiz" ב-puzzle של **סצנת השיא** (הסצנה האחרונה לפני הסיום, ראו ADVENTURE NARRATIVE STRUCTURE). זהו המבחן המסכם של השיעור:
 - "type":"finalQuiz", "question": כותרת/הוראה קצרה (למשל "מבחן הסיכום של המסע").
-- "questions": מערך של **בדיוק ${n}** שאלות רב-ברירה **אינטגרטיביות** הבוחנות הבנה כוללת של כל מה שנלמד בהדמיה — לא חזרה מילולית על שאלות קודמות! כל שאלה: { "question", "options": [**בדיוק ${optionCount} מחרוזות**], "correctIndex": אינדקס התשובה הנכונה (0-based), "explanationCorrect", "explanationIncorrect" }.
+- "questions": מערך של **בדיוק ${n}** שאלות רב-ברירה **אינטגרטיביות** הבוחנות הבנה כוללת של כל מה שנלמד בשיעור — לא חזרה מילולית על שאלות קודמות! כל שאלה: { "question", "options": [**בדיוק ${optionCount} מחרוזות**], "correctIndex": אינדקס התשובה הנכונה (0-based), "explanationCorrect", "explanationIncorrect" }.
 - **קושי המבחן (${difficultyLabel(level)}): ${guidance}**
 - מבחן הסיכום שוקל נתח משמעותי מהקריסטלים — ודא שהוא מקיף ומאתגר.`
 }
@@ -271,7 +276,7 @@ function labStructureInstructions(): string {
 1. **הסצנה הראשונה (entrySceneId) היא תמיד מעבדת ד"ר הולו**:
    - הדוקטור מסביר אך ורק: לאן יוצאים, מה נלמד, ומה המשימה.
    - **אסור** לו להסביר את מנגנון הקריסטלים או חוקים של המערכת — התלמידים מכירים אותם. מותר אזכור אגבי אחד לכל היותר ("מכשיר הקריסטלים שלי מוכן — צא לדרך!").
-   - ה-imagePrompt של סצנת המעבדה חייב להיות בדיוק התבנית הבאה, כשאת {quest world} מחליפים ב-2-6 מילים באנגלית שמתארות את עולם ההדמיה:
+   - ה-imagePrompt של סצנת המעבדה חייב להיות בדיוק התבנית הבאה, כשאת {quest world} מחליפים ב-2-6 מילים באנגלית שמתארות את עולם השיעור:
      "${LAB_IMAGE_PROMPT_TEMPLATE}"
    - הוסף לסצנת המעבדה גם "drHoloExpression" התואם לטון הבריפינג (למשל "a worried, urgent expression" אם המשימה דחופה, או "a warm, encouraging smile" אם הפתיחה רגועה).
    - **קריטי: לסצנת המעבדה חייב להיות "nextSceneId" שמצביע לסצנת התוכן הראשונה** (או choices במבנה Hub). אסור שתישאר ללא קישור קדימה — אחרת המשחק ידלג ישר לסיום. כל סצנה חייבת להיות נגישה מסצנת הכניסה.
@@ -293,9 +298,9 @@ function drHoloVoiceInstructions(form: FormOfAddress): string {
   const ex = { imagine: 'דמיינו ש…', act: 'מה אתם הייתם עושים?', retell: 'איך תסבירו את זה לכיתה?' }
   return `
 ## קולו של ד"ר הולו — מהלכים פדגוגיים (חשוב לאפקטיביות!)
-בכל הדמיה צריכים להתקיים המהלכים הפדגוגיים הבאים ב-"drHoloDialog", אבל **בלי ניסוח קבוע** — נסח כל מהלך מחדש בכל הדמיה, במילים של הסצנה, משולב בזרימת הסיפור ולא כהכרזה נפרדת:
+בכל שיעור צריכים להתקיים המהלכים הפדגוגיים הבאים ב-"drHoloDialog", אבל **בלי ניסוח קבוע** — נסח כל מהלך מחדש בכל שיעור, במילים של הסצנה, משולב בזרימת הסיפור ולא כהכרזה נפרדת:
 - **פישוט** — מיד אחרי מונח חדש/קשה: הסבר אותו ישירות במילים פשוטות, **בלי להכריז שאתה מפשט**.
-- **הדמיה** — לפני מושג מופשט: תמונה מילולית קונקרטית (למשל "${ex.imagine}" — או כל פתיח אחר).
+- **המחשה** — לפני מושג מופשט: תמונה מילולית קונקרטית (למשל "${ex.imagine}" — או כל פתיח אחר).
 - **ניסוח-מחדש** — אחרי תובנה מרכזית: הזמנה לומר את זה במילים של התלמיד (למשל "${ex.retell}").
 - **רלוונטיות** — קישור לחיי התלמיד דרך דוגמה מעולמו, **בלי להכריז** שזה רלוונטי.
 - **הזדהות** — לפני דילמה/הכרעה: שאלה אמיתית (למשל "${ex.act}").
@@ -303,7 +308,7 @@ function drHoloVoiceInstructions(form: FormOfAddress): string {
 
 כללים (קריטי):
 - **כלל האצבע**: ניסוח שמכריז על המהלך — **אסור**; עשה את המהלך עצמו. אסורים במיוחד (קלישאות שחוקות): "תן/תני/תנו לי להסביר את זה בעברית פשוטה", "השורה התחתונה היא", "הנה למה זה חשוב לך/לכם", "הנה מה שאני רוצה שתזכור/שתזכרו". פנייה טבעית שמזמינה תגובה — מותרת, אך **גוון את ניסוחה**.
-- אותו ניסוח-מעבר לא מופיע יותר מפעם אחת בהדמיה, והניסוחים משתנים גם בין הדמיות.
+- אותו ניסוח-מעבר לא מופיע יותר מפעם אחת בשיעור, והניסוחים משתנים גם בין שיעורים.
 - מהלך אחד לסצנה (שניים לכל היותר אם הם נכנסים במשפט הקצר), בנקודה שבה הם באמת משרתים את ההסבר; כל מהלך הוא חלק ממשפט בעל תוכן, לא סיסמה.
 - הכל **בדיוק בצורת הפנייה** שנקבעה למעלה.`
 }
@@ -340,11 +345,11 @@ function narrativeStructureInstructions(questType?: string): string {
   if (questType === 'tour') {
     return `
 ## TOUR MODE — מבנה סיור (לא הרפתקה)
-סוג ההדמיה הוא "tour": הנרטיב הוא **תירוץ לחשיפת תוכן, לא בעיה לפתרון**. אין צורך ב-mission statement או במשימה מרכזית — הסיור לגיטימי כמסע גילוי. ד"ר הולו מזמין את התלמיד לחקור ולהתפעל, והסצנות חושפות את התוכן בזו אחר זו בצורה זורמת ומעניינת.`
+סוג השיעור הוא "tour": הנרטיב הוא **תירוץ לחשיפת תוכן, לא בעיה לפתרון**. אין צורך ב-mission statement או במשימה מרכזית — הסיור לגיטימי כמסע גילוי. ד"ר הולו מזמין את התלמיד לחקור ולהתפעל, והסצנות חושפות את התוכן בזו אחר זו בצורה זורמת ומעניינת.`
   }
   return `
 ## ADVENTURE NARRATIVE STRUCTURE (קריטי — חובה מוחלטת כש-type=adventure!)
-ההדמיה היא **סיפור הרפתקה עם משימה מרכזית**, לא סדרת תחנות לימוד. אסור בתכלית האיסור לבנות "הגענו ל-X, ועכשיו ל-Y". חובה עלילה שלמה עם משימה, מתח ושיא:
+השיעור הוא **סיפור הרפתקה עם משימה מרכזית**, לא סדרת תחנות לימוד. אסור בתכלית האיסור לבנות "הגענו ל-X, ועכשיו ל-Y". חובה עלילה שלמה עם משימה, מתח ושיא:
 
 1. CENTRAL MISSION — משימה מרכזית (בפתיחה!): הסצנה הראשונה (מעבדת ד"ר הולו) חייבת לפתוח עם משימה ספציפית, מוחשית ודחופה — בעיה שדורשת פתרון עם סיבה לפעול **עכשיו**. **אסור** לפתוח ב"נלמד על X" / "היום נבקר ב-X" / "הגענו ל-X". הדוקטור מטיל משימה. דוגמאות:
    - היסטוריה: "אחד מחברי הבולה עומד להצביע נגד הרפורמה — עליך לגלות מי הוא ולמנוע את זה לפני פנות ערב"
@@ -424,7 +429,7 @@ function narrativeStructureInstructions(questType?: string): string {
   "endingBad": { "title": "כמעט שם", "narrative": "חזרתם למעבדה עם חלק מהראיות, אך לא הספקתם לחשוף את המזייף בזמן.", "drHoloDialog": "התקדמתם יפה! חסרו עוד כמה רסיסים כדי להרכיב את התמונה — בואו ננסה שוב.", "imagePrompt": "Dim, cold and somber holographic laboratory, faint flickering blue light, faded dull crystals, long shadows, a melancholic gray atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a tired, dejected and disappointed expression, looking weary" }
 }
 
-(בהדמיה עם מפתחות/מנעולים המבנה דומה אך מסועף — ראו HUB STRUCTURE; גם שם הבחירה הנעולה מובילה אל סצנת שיא נפרדת.)`
+(בשיעור עם מפתחות/מנעולים המבנה דומה אך מסועף — ראו HUB STRUCTURE; גם שם הבחירה הנעולה מובילה אל סצנת שיא נפרדת.)`
 }
 
 /* ── הבלוק הקבוע של פרומפט היצירה (זהה בין כל ההדמיות — אין אינטרפולציה) ──
@@ -435,7 +440,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 
 ## HISTORICAL & FACTUAL ACCURACY (CRITICAL — לפני כל דבר אחר!)
 זהו כלי חינוכי — דיוק עובדתי הוא דרישת על:
-- כל עובדה, דמות, מקום, תאריך, אירוע, טכנולוגיה ומבנה חייבים להיות **מדויקים היסטורית ועובדתית** ותואמים לתקופה שבה מתרחשת ההדמיה.
+- כל עובדה, דמות, מקום, תאריך, אירוע, טכנולוגיה ומבנה חייבים להיות **מדויקים היסטורית ועובדתית** ותואמים לתקופה שבה מתרחש השיעור.
 - **אסור אנכרוניזמים**: אל תשבץ דמות, מבנה, חפץ או מושג בתקופה שבה לא היו קיימים. ודא שכל דמות חיה בתקופה הנכונה, שכל מבנה כבר נבנה ועדיין קיים באותה תקופה, ושכל טכנולוגיה כבר הומצאה. (דוגמה לשגיאה אסורה: שיוך יוליוס קיסר לקולוסיאום — הקולוסיאום נבנה כ-100 שנה אחרי מותו.)
 - כשהדמות או האתר מפורסמים — ודא **עקביות מלאה** בין כל הפרטים: תקופה, מקום, ובני התקופה הסובבים.
 - **אם אינך בטוח בעובדה — בחר זווית אחרת שאתה בטוח בה. לעולם אל תמציא** תאריך, שם, או קשר היסטורי.
@@ -450,13 +455,13 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 דוגמה — שאלה "כמה אבנים בפירמידה הגדולה?" → ההסבר מוסיף: "כ-2.3 מיליון אבנים, כשהכבדות שבהן שוקלות עד 80 טון — כמשקל של 16 פילים!"
 
 ## דיוק היסטורי ב-imagePrompt (קריטי!)
-1. כשההדמיה מתרחשת בעבר, כל imagePrompt חייב לתאר מבנים ואתרים **כפי שנראו בתקופת ההתרחשות — חדשים, שלמים ופעילים**. לעולם לא במצבם המודרני ההרוס.
+1. כשהשיעור מתרחש בעבר, כל imagePrompt חייב לתאר מבנים ואתרים **כפי שנראו בתקופת ההתרחשות — חדשים, שלמים ופעילים**. לעולם לא במצבם המודרני ההרוס.
 2. אסור להסתמך על שם האתר לבד (השם מושך את מודל התמונות לצילומי ההריסות המודרניות). חובה לתאר את המבנה ארכיטקטונית במצבו המקורי. דוגמאות:
    - לא: "the Parthenon in Athens" → כן: "a majestic newly-built Greek temple atop a hill, pristine white marble columns, colorful painted sculptures and friezes in red blue and gold, 5th century BC"
    - לא: "the Colosseum" → כן: "a colossal newly-completed Roman amphitheater, intact outer walls with marble facing, colorful awnings, crowds in togas, 80 AD"
 3. הוסף סביבה חיה מתאימה לתקופה: אנשים בלבוש תקופתי, שווקים, כלי תחבורה של הזמן.
-4. לכל imagePrompt של הדמיה היסטורית צרף בסוף: ", historically accurate, in its original pristine state"
-5. בשדה "isHistorical" (ברמת ה-JSON העליונה, ליד scenes) קבע true אם ההדמיה מתרחשת בעבר, אחרת false.
+4. לכל imagePrompt של שיעור היסטורי צרף בסוף: ", historically accurate, in its original pristine state"
+5. בשדה "isHistorical" (ברמת ה-JSON העליונה, ליד scenes) קבע true אם השיעור מתרחש בעבר, אחרת false.
 
 ## דמות ד"ר הולו ב-imagePrompt (קריטי!)
 כשד"ר הולו מופיע ויזואלית בתוך סצנה, ה-imagePrompt חייב להכיל את ה-placeholder המדויק {DR_HOLO} במקום שבו הדוקטור אמור להופיע — **אסור לתאר את הדוקטור במילים שלך** (לא מראה, לא בגדים, לא גיל, **ולא הבעת פנים**). פשוט שלב את {DR_HOLO} בתיאור הסצנה. לדוגמה: "{DR_HOLO} pointing at an ancient scroll in a sunlit library". אם הדוקטור לא מופיע בתמונה — אל תכלול את ה-placeholder.
@@ -517,7 +522,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 - **אסור לכלול ב-imagePrompt שמות סגנון אמנותי** (pixar / anime / comic / storybook / watercolor וכו') או הוראות סגנון — הסגנון שבחר המורה מוזרק אוטומטית בשרת. מודל התמונות מצייר שמות מותג כטקסט בתוך התמונה.
 - **אסור לבקש טקסט בתמונות**: אל תכלול ב-imagePrompt שלטים, תוויות, כיתובים, כרזות עם מלל, לוחות כתובים, אותיות או מילים ("a sign reading...", "name label", "text saying..."). מודל התמונות מג'בר טקסט. תאר סצנות ויזואליות בלבד — המידע המילולי חי בנרטיב, לא בתמונה.
 - "collectableItem" רק בסצנות מפתח (אם הוגדרו), אחרת השמט את השדה.
-- **"drHoloDialog" בכל סצנה** (כשד"ר הולו פעיל) — קולו המלווה של הדוקטור: **משפט אחד קצר** (עד כ-10 מילים, בתוך תקציב המילים של הסצנה — ראו "אורך הטקסט") שמפשט, ממקד או מעודד, **בנוסף** לנרטיב ולא במקומו. שם מתממשים המהלכים הפדגוגיים (ראו "קולו של ד"ר הולו") — בניסוח חופשי, בלי נוסחאות קבועות. זהו הערוץ הפדגוגי החזק ביותר בהדמיה — אל תשמיט אותו.
+- **"drHoloDialog" בכל סצנה** (כשד"ר הולו פעיל) — קולו המלווה של הדוקטור: **משפט אחד קצר** (עד כ-10 מילים, בתוך תקציב המילים של הסצנה — ראו "אורך הטקסט") שמפשט, ממקד או מעודד, **בנוסף** לנרטיב ולא במקומו. שם מתממשים המהלכים הפדגוגיים (ראו "קולו של ד"ר הולו") — בניסוח חופשי, בלי נוסחאות קבועות. זהו הערוץ הפדגוגי החזק ביותר בשיעור — אל תשמיט אותו.
 - בסצנה עם "choices" אין צורך ב-"nextSceneId".
 - **כל "puzzle" — בכל סוג ובכל סצנה, כולל הסצנות האחרונות בקווסט ארוך — חייב לכלול שדה "question" לא-ריק. זו שגיאה נפוצה בסצנות מאוחרות; אל תשמיט אותו.**
 - החזר JSON תקין בלבד.`
@@ -529,7 +534,7 @@ function objectivesInstructions(objectives?: LearningObjective[]): string {
   const list = objectives.map((o) => `- "${o.id}": ${o.text}`).join('\n')
   return `
 ## יעדי למידה (דרישה מחייבת!)
-ההדמיה בוחנת את יעדי הלמידה הבאים:
+השיעור בוחן את יעדי הלמידה הבאים:
 ${list}
 
 כללים:
@@ -583,7 +588,7 @@ export function buildQuestPrompt(params: QuestGenerationParams): { system: strin
 ## מבנה הקווסט — לינארי
 - צור מבנה לינארי לחלוטין: סצנה אחרי סצנה, ללא הסתעפויות וללא חפצים.
 - אין לכלול collectableItem, מפתחות, מנעולים או choices ברמת הסצנה כלל — רק nextSceneId.
-- **הסצנה האחרונה היא סצנת השיא** לפי כללי CLIMAX SCENE שלמעלה — היחידה **ללא nextSceneId**. אסור שההדמיה תיגמר ב"הגענו ליעד" בלי רגע הכרעה.`
+- **הסצנה האחרונה היא סצנת השיא** לפי כללי CLIMAX SCENE שלמעלה — היחידה **ללא nextSceneId**. אסור שהשיעור ייגמר ב"הגענו ליעד" בלי רגע הכרעה.`
 
   /* user = החלק המשתנה בלבד (פרטים + form + מבנה + רמה + חידות). הכללים הקבועים
      (דיוק עובדתי, הסברים, תמונות, שפה, פורמט JSON) חיים ב-GENERATION_SYSTEM המקושש. */
@@ -599,7 +604,7 @@ ${params.difficultySettings ? `- הגדרות קושי: ${JSON.stringify(params.
 ${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
 ${narrativeStructureInstructions(params.questType)}
 ${params.questType === 'tour' ? '' : openingFlavorBlock()}
-${params.reviewContext ? `\n## הדמיית חזרה (דרישות ייעודיות!)\n${params.reviewContext}\n` : ''}
+${params.reviewContext ? `\n## שיעור חזרה (דרישות ייעודיות!)\n${params.reviewContext}\n` : ''}
 ${objectivesInstructions(params.objectives)}
 ${structureInstructions}
 ${params.includeDrHolo ? labStructureInstructions() : ''}
@@ -609,7 +614,7 @@ ${niqqudBlock(level)}
 ${puzzleListText(params.puzzlePreferences, level)}
 ${finalQuizInstructions(params.puzzlePreferences, level)}
 
-צור עכשיו את ה-JSON המלא של ההדמיה, לפי כל הכללים שב-system (דיוק עובדתי, הסברים, תמונות, שפה ופורמט הפלט) ולפי פרטי הקווסט שלמעלה.${params.questType === 'tour' ? '' : ' זכור: סצנת הפתיחה בנויה על המסגור שהוגרל עבורך בסעיף "מסגור הפתיחה" — אסור לפתוח ב"קריאת חירום".'} החזר JSON תקין בלבד.`
+צור עכשיו את ה-JSON המלא של השיעור, לפי כל הכללים שב-system (דיוק עובדתי, הסברים, תמונות, שפה ופורמט הפלט) ולפי פרטי הקווסט שלמעלה.${params.questType === 'tour' ? '' : ' זכור: סצנת הפתיחה בנויה על המסגור שהוגרל עבורך בסעיף "מסגור הפתיחה" — אסור לפתוח ב"קריאת חירום".'} החזר JSON תקין בלבד.`
   return { system: GENERATION_SYSTEM, user }
 }
 
@@ -645,7 +650,7 @@ export function buildSkeletonPrompt(params: QuestGenerationParams): string {
         .map(([t]) => `${prefs.counts?.[t] ?? 1}× ${t}`)
     : []
   const finalQuiz = !!prefs?.types?.finalQuiz
-  return `אתה מתכנן **שלד עלילה** להדמיה חינוכית לינארית בעברית. החזר **JSON שלד בלבד** — בלי טקסט נרטיב מלא, רק תכנון.
+  return `אתה מתכנן **שלד עלילה** לשיעור חינוכי לינארי בעברית. החזר **JSON שלד בלבד** — בלי טקסט נרטיב מלא, רק תכנון.
 
 ## פרטים
 - כותרת: ${params.title}
@@ -679,7 +684,7 @@ ${params.subjectName ? `- מקצוע: ${params.subjectName}\n` : ''}- נושא �
 function sceneImageRules(): string {
   return `## תמונה (imagePrompt)
 - imagePrompt באנגלית בלבד, תיאור הסביבה. אם ד"ר הולו מופיע בסצנה — שלב את ה-placeholder המדויק {DR_HOLO} (אל תתאר אותו במילים) + הוסף שדה "drHoloExpression" באנגלית קצרה שתואמת לטון הסצנה. אם לא מופיע — בלי {DR_HOLO} ובלי drHoloExpression.
-- בהדמיה היסטורית: תאר מבנים/אתרים **כפי שנראו בתקופה — חדשים ושלמים**, לא הריסות מודרניות, וצרף ", historically accurate, in its original pristine state".`
+- בשיעור היסטורי: תאר מבנים/אתרים **כפי שנראו בתקופה — חדשים ושלמים**, לא הריסות מודרניות, וצרף ", historically accurate, in its original pristine state".`
 }
 
 /* מילוי סצנה בודדת (פתיחה/ביניים) — מקבל את השלד המלא כהקשר + הסצנה שלו. מקבילי. */
@@ -690,7 +695,7 @@ export function buildScenePrompt(params: QuestGenerationParams, skeleton: QuestS
   const prev = skeleton.scenes[idx - 1]
   const ptype = scene.puzzleType && scene.puzzleType !== 'none' ? scene.puzzleType : ''
   const puzzleSpec = ptype ? puzzleDataSpec(ptype, level) : ''
-  return `אתה כותב **סצנה אחת** בהדמיה חינוכית בעברית, לפי שלד עלילה נתון. החזר **JSON של הסצנה בלבד**, נאמן לשלד.
+  return `אתה כותב **סצנה אחת** בשיעור חינוכי בעברית, לפי שלד עלילה נתון. החזר **JSON של הסצנה בלבד**, נאמן לשלד.
 
 ## השלד (הקשר — אל תכתוב אותו מחדש)
 משימה מרכזית: ${skeleton.mission}
@@ -720,9 +725,9 @@ export function buildClimaxPrompt(params: QuestGenerationParams, skeleton: Quest
   const ptype = climax.puzzleType && climax.puzzleType !== 'none' ? climax.puzzleType : ''
   const fqCount = Math.min(10, Math.max(3, params.puzzlePreferences?.counts?.finalQuiz ?? 5))
   const puzzleSpec = ptype === 'finalQuiz'
-    ? `"type":"finalQuiz", "question": כותרת, "questions": מערך של **בדיוק ${fqCount}** שאלות אינטגרטיביות (כל שאלה {question, options[${scaleFinalQuiz(level).optionCount}], correctIndex, explanationCorrect, explanationIncorrect}) הבוחנות הבנה כוללת של **כל** ההדמיה. ${scaleFinalQuiz(level).guidance}`
+    ? `"type":"finalQuiz", "question": כותרת, "questions": מערך של **בדיוק ${fqCount}** שאלות אינטגרטיביות (כל שאלה {question, options[${scaleFinalQuiz(level).optionCount}], correctIndex, explanationCorrect, explanationIncorrect}) הבוחנות הבנה כוללת של **כל** השיעור. ${scaleFinalQuiz(level).guidance}`
     : ptype ? puzzleDataSpec(ptype, level) : ''
-  return `אתה כותב את **סצנת השיא** (הסצנה האחרונה) + שני הסיומים בהדמיה חינוכית בעברית. החזר **JSON בלבד**.
+  return `אתה כותב את **סצנת השיא** (הסצנה האחרונה) + שני הסיומים בשיעור חינוכי בעברית. החזר **JSON בלבד**.
 
 ## המשימה המרכזית: ${skeleton.mission}
 ## מה קרה בסצנות (לסיכום אינטגרטיבי):

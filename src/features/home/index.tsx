@@ -120,7 +120,7 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
       onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) }}
-      aria-label="הדמיות מוכנות להתנסות"
+      aria-label="שיעורים מוכנים להתנסות"
       style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
     >
       <SideHead
@@ -175,7 +175,7 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
 
       {/* חצים ידניים — גלויים תמיד (וגם היחידים ב-reduced-motion) */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 10, height: SIDE.footH }}>
-        {rotate && ([['chevUp', -1, 'ההדמיה הקודמת'], ['chevDown', 1, 'ההדמיה הבאה']] as const).map(([name, dir, label]) => (
+        {rotate && ([['chevUp', -1, 'השיעור הקודם'], ['chevDown', 1, 'השיעור הבא']] as const).map(([name, dir, label]) => (
           <button key={name} onClick={() => go(dir)} aria-label={label}
             style={{ width: 34, height: SIDE.footH, borderRadius: 8, cursor: 'pointer', lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(10,22,46,.8)', border: '1px solid rgba(120,180,220,.28)', color: '#2ff3ff' }}>
@@ -243,7 +243,7 @@ export default function Home() {
     {
       id: 'teacher',
       label: 'מצב מורה',
-      sub: 'צרו הדמיות, נהלו כיתות ועקבו אחר התקדמות',
+      sub: 'צרו שיעורים, נהלו כיתות ועקבו אחר התקדמות',
       icon: (
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
@@ -255,7 +255,7 @@ export default function Home() {
     {
       id: 'student',
       label: 'מצב תלמיד/ה',
-      sub: 'היכנסו להדמיות, פתרו אתגרים ואספו רסיסי ידע',
+      sub: 'היכנסו לשיעורים, פתרו אתגרים ואספו רסיסי ידע',
       icon: (
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
@@ -282,7 +282,7 @@ export default function Home() {
           <SideHead
             icon={<BrandIcon name="compass" size={19} style={{ color: '#2ff3ff' }} />} glow="rgba(47,243,255,.55)"
             title="איך זה עובד?"
-            sub="הדמיות למידה אינטראקטיביות — לכל מקצוע, שכבה ורמה"
+            sub="שיעורים אינטראקטיביים בהדמיה — לכל מקצוע, שכבה ורמה"
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: stackHFor(rows) }}>
             {[
@@ -399,7 +399,7 @@ export default function Home() {
                 }}
               >
                 <BrandIcon name="playGem" size={18} style={{ color: '#f241da' }} />
-                הדמיית דמו — לאונרדו דה וינצ׳י
+                שיעור דמו — לאונרדו דה וינצ׳י
               </button>
             </div>
           )}

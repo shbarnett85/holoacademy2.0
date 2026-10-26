@@ -19,43 +19,43 @@ export const UI = {
   noValue: 'אין נתון',
 
   /* נתיב */
-  crumbResults: 'תוצאות',
-  crumbQuest: 'ההדמיה',
+  crumbResults: 'סיכום שיעור',
+  crumbQuest: 'השיעור',
   crumbClass: 'הכיתה',
   crumbStudent: 'התלמיד/ה',
   crumbError: (status: number): string => (status === 404 ? 'לא נמצא' : status === 403 ? 'אין הרשאה' : 'משהו השתבש'),
 
   /* רשימה */
-  emptyWhatNext: 'אחרי ששולחים הדמיה לכיתה, התוצאות של התלמידים יופיעו כאן.',
+  emptyWhatNext: 'אחרי ששולחים שיעור לכיתה, התוצאות של התלמידים יופיעו כאן.',
   filterTitle: 'סינון הרשימה',
   searchLabel: 'חיפוש',
-  searchPlaceholder: 'שם ההדמיה',
+  searchPlaceholder: 'שם השיעור',
   filterClass: 'כיתה',
   allClasses: 'כל הכיתות',
   filterSubject: 'מקצוע',
   allSubjects: 'כל המקצועות',
   clearFilter: 'ניקוי הסינון',
   countLine: (shown: number, total: number): string =>
-    shown === total ? (total === 1 ? 'הדמיה אחת' : `${total} הדמיות`) : `מוצגות ${countNb(shown, total)} הדמיות`,
+    shown === total ? (total === 1 ? 'שיעור אחד' : `${total} שיעורים`) : `מוצגים ${countNb(shown, total)} שיעורים` ,
   classWord: (name: string): string => `כיתה ${name}`,
-  sentOn: (date: string): string => `נשלחה ב-${date}`,
-  sentBy: (name: string): string => `נשלחה על ידי ${name}`,
+  sentOn: (date: string): string => `נשלח ב-${date}`,
+  sentBy: (name: string): string => `נשלח על ידי ${name}`,
 
   /* "ד״ר הולו מציע" */
   suggestTitle: 'ד״ר הולו מציע',
   suggestText: (title: string, className: string, weakCount: number): string =>
-    `ב"${title}" (כיתה ${className}) הכיתה התקשתה ${inTopics(weakCount)}. זה הזמן להדמיית חזרה.`,
+    `ב"${title}" (כיתה ${className}) הכיתה התקשתה ${inTopics(weakCount)}. זה הזמן לשיעור חזרה.`,
   suggestOpen: 'לתרגול חזרה',
   suggestOpenFor: (title: string, className: string): string => `לתרגול חזרה: ${title}, כיתה ${className}`,
   notNow: 'לא עכשיו',
 
   /* שגיאות */
-  errNotFound: 'לא מצאנו את התוצאות האלה. ייתכן שהקישור ישן או שההדמיה נמחקה.',
-  errForbidden: 'אין לך הרשאה לראות את התוצאות האלה. אפשר לראות רק הדמיות שנשלחו לכיתות שלך.',
+  errNotFound: 'לא מצאנו את התוצאות האלה. ייתכן שהקישור ישן או שהשיעור נמחק.',
+  errForbidden: 'אין לך הרשאה לראות את התוצאות האלה. אפשר לראות רק שיעורים שנשלחו לכיתות שלך.',
   errGeneric: 'משהו השתבש בטעינת התוצאות. אפשר לנסות שוב.',
 
   /* ראש המסך */
-  headLabel: 'פרטי ההדמיה',
+  headLabel: 'פרטי השיעור',
   modeLabel: 'אופן הצפייה',
   modeClass: 'כל הכיתה',
   modeStudent: 'לפי תלמיד',
@@ -85,11 +85,11 @@ export const UI = {
   tabErrors: 'טעויות נפוצות',
   tabReview: 'תרגול חזרה',
   tabSlides: 'זמן בשקפים',
-  challengesTitle: 'האתגרים בהדמיה',
+  challengesTitle: 'האתגרים בשיעור',
   challengeWord: 'אתגר',
-  noChallenges: 'בהדמיה הזאת אין אתגרים להצגה.',
-  noAttemptsYet: 'עדיין אין תוצאות בהדמיה הזאת.',
-  noAttemptsYetNext: 'הן יופיעו כאן כשתלמידים יסיימו.',
+  noChallenges: 'בשיעור הזה אין אתגרים להצגה.',
+  noAttemptsYet: 'עדיין אין תוצאות בשיעור הזה.',
+  noAttemptsYetNext: 'הם יופיעו כאן כשתלמידים יסיימו.',
   detail: 'פירוט',
   optCorrect: 'נכונה',
   optWrong: 'שגויה',
@@ -106,8 +106,8 @@ export const UI = {
   totalTime: 'סך הכול באתגר',
   moralStudentNote: 'בשאלת מוסר אין תשובה נכונה, והבחירה לא נשמרת עם שם התלמיד/ה.',
   studentNoResults: 'עוד אין תוצאות להצגה.',
-  studentNoResultsNext: 'הן יופיעו כאן אחרי שהתלמיד/ה יתחיל/תתחיל את ההדמיה.',
-  studentNoResultsMiddle: 'הן יופיעו כאן אחרי שהתלמיד/ה יסיים/תסיים את האתגר הראשון.',
+  studentNoResultsNext: 'הם יופיעו כאן אחרי שהתלמיד/ה יתחיל/תתחיל את השיעור.',
+  studentNoResultsMiddle: 'הם יופיעו כאן אחרי שהתלמיד/ה יסיים/תסיים את האתגר הראשון.',
 
   /* שקפים */
   slidesTitle: 'זמן בשקפים',
@@ -115,24 +115,24 @@ export const UI = {
   slide: 'שקף',
   words: 'מילים',
   seconds: 'שניות',
-  noSlides: 'עוד אין נתונים על זמן בשקפים. הם יופיעו כאן אחרי שהתלמיד/ה יפתח/תפתח את ההדמיה.',
+  noSlides: 'עוד אין נתונים על זמן בשקפים. הם יופיעו כאן אחרי שהתלמיד/ה יפתח/תפתח את השיעור.',
 
   /* טעויות נפוצות */
   errorsEmptyNext: 'טעות נפוצה מופיעה כאן כשכמה תלמידים בוחרים באותה תשובה שגויה.',
   /* משפט הסיכום של הטאב (במקום כותרת שחוזרת על שם הטאב) */
   commonErrorsSummary: (n: number): string =>
-    n === 1 ? 'יש בהדמיה הזאת טעות אחת שכמה תלמידים בחרו בה.' : `יש בהדמיה הזאת ${n} טעויות שכמה תלמידים בחרו בהן.`,
+    n === 1 ? 'יש בשיעור הזה טעות אחת שכמה תלמידים בחרו בה.' : `יש בשיעור הזה ${n} טעויות שכמה תלמידים בחרו בהן.`,
   errorCount: (countText: string): string => `${countText} בחרו בטעות הזאת`,
-  focusedQuest: 'צור הדמיה ממוקדת',
-  focusedOpen: 'פתיחת ההדמיה הממוקדת',
-  focusedExists: (title: string): string => `יש הדמיה ממוקדת לטעות הזאת: «${title}».`,
-  focusedNone: 'עדיין אין הדמיה ממוקדת לטעות הזאת, ולכן הכפתור לא פעיל.',
+  focusedQuest: 'צור שיעור ממוקד',
+  focusedOpen: 'פתיחת השיעור הממוקד',
+  focusedExists: (title: string): string => `יש שיעור ממוקד לטעות הזאת: «${title}».`,
+  focusedNone: 'עדיין אין שיעור ממוקד לטעות הזאת, ולכן הכפתור לא פעיל.',
 
   /* יעדי הלמידה */
   tabObjectives: 'יעדי הלמידה',
-  objectivesEmpty: 'אין עדיין יעדים להדמיה הזאת.',
-  objectivesEmptyNext: 'יעדי למידה נקבעים כשיוצרים את ההדמיה. כשיהיו יעדים, תראו כאן כמה תלמידים הצליחו בכל אחד מהם.',
-  objectivesLabel: 'יעדי הלמידה של ההדמיה',
+  objectivesEmpty: 'אין עדיין יעדים לשיעור הזה.',
+  objectivesEmptyNext: 'יעדי למידה נקבעים כשיוצרים את השיעור. כשיהיו יעדים, תראו כאן כמה תלמידים הצליחו בכל אחד מהם.',
+  objectivesLabel: 'יעדי הלמידה של השיעור',
   objectiveNoData: 'התוצאות ביעד הזה יופיעו כאן כשתלמידים יסיימו.',
   objectiveNobodyWeak: 'אף תלמיד/ה לא מתקשה ביעד הזה.',
   /* "מתקשים ביעד הזה: 6 מתוך 22" */
@@ -145,13 +145,13 @@ export const UI = {
   /* תרגול חזרה */
   reviewTitle: 'תרגול חזרה',
   reviewEmpty: 'אין כרגע מה לתרגל.',
-  reviewEmptyNext: 'כשהכיתה תתקשה בתחום מסוים בהדמיה הזאת, אפשר יהיה ליצור כאן הדמיית חזרה קצרה.',
+  reviewEmptyNext: 'כשהכיתה תתקשה בתחום מסוים בשיעור הזה, אפשר יהיה ליצור כאן שיעור חזרה קצר.',
   reviewIntro: (weakCount: number): string =>
-    `הכיתה התקשתה ${inTopics(weakCount)} בהדמיה הזאת. אפשר ליצור הדמיית חזרה קצרה שתחזק את החומר מזווית חדשה.`,
-  reviewCreate: 'צור הדמיית חזרה',
-  reviewWorking: 'ד״ר הולו בונה הדמיית חזרה… זה לוקח בערך דקה או שתיים. אפשר להישאר בעמוד.',
-  reviewReady: (title: string): string => (title ? `ההדמיה «${title}» מוכנה. עברו עליה ואז שלחו אותה לכיתה.` : 'הדמיית החזרה מוכנה. עברו עליה ואז שלחו אותה לכיתה.'),
-  reviewOpen: 'פתיחת הדמיית החזרה',
-  reviewFailed: 'לא הצלחנו ליצור את הדמיית החזרה. אפשר לנסות שוב.',
-  reviewSlow: 'היצירה לוקחת יותר זמן מהרגיל. הדמיית החזרה תופיע בספריית ההדמיות כשתהיה מוכנה.',
+    `הכיתה התקשתה ${inTopics(weakCount)} בשיעור הזה. אפשר ליצור שיעור חזרה קצר שיחזק את החומר מזווית חדשה.`,
+  reviewCreate: 'צור שיעור חזרה',
+  reviewWorking: 'ד״ר הולו בונה שיעור חזרה… זה לוקח בערך דקה או שתיים. אפשר להישאר בעמוד.',
+  reviewReady: (title: string): string => (title ? `השיעור «${title}» מוכן. עברו עליו ואז שלחו אותו לכיתה.` : 'שיעור החזרה מוכן. עברו עליו ואז שלחו אותו לכיתה.'),
+  reviewOpen: 'פתיחת שיעור החזרה',
+  reviewFailed: 'לא הצלחנו ליצור את שיעור החזרה. אפשר לנסות שוב.',
+  reviewSlow: 'היצירה לוקחת יותר זמן מהרגיל. שיעור החזרה יופיע בספריית השיעורים כשיהיה מוכן.',
 } as const

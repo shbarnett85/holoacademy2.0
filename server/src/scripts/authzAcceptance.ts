@@ -150,7 +150,7 @@ async function main() {
     /* ── 1) פריט ברמת תלמיד: GET /analytics/student/:id ── */
     console.log('\n— GET /analytics/student/:id —')
     const rHome = await api(tHome.token, 'GET', `/analytics/student/${s1}`)
-    check('מחנך: 200, רואה את כל 3 ההדמיות (כולל "לא סווג")', rHome.status === 200 && rHome.json.history?.length === 3 && rHome.json.visibility?.full === true, `status=${rHome.status} history=${rHome.json.history?.length}`)
+    check('מחנך: 200, רואה את כל 3 השיעורים (כולל "לא סווג")', rHome.status === 200 && rHome.json.history?.length === 3 && rHome.json.visibility?.full === true, `status=${rHome.status} history=${rHome.json.history?.length}`)
     const rMath = await api(tMath.token, 'GET', `/analytics/student/${s1}`)
     const mathTitles: string[] = (rMath.json.history ?? []).map((h: any) => h.questTitle) // eslint-disable-line
     check('מורה מתמטיקה: 200, רק היסטוריית מתמטיקה', rMath.status === 200 && mathTitles.length === 1 && /math/.test(mathTitles[0]), JSON.stringify(mathTitles))
@@ -281,9 +281,9 @@ async function main() {
       (await api(admin.token, 'POST', `/staff/classes/${clsA}/teachers`, { teacherId: tOut.userId, subjectCode: 'physics' })).status === 400)
 
     const g0 = await api(tHome.token, 'POST', '/quests/generate', { title: 'zz', questLength: 5 })
-    check('יצירת הדמיה בלי מקצוע: 400', g0.status === 400 && /מקצוע/.test(JSON.stringify(g0.json)), `status=${g0.status}`)
+    check('יצירת שיעור בלי מקצוע: 400', g0.status === 400 && /מקצוע/.test(JSON.stringify(g0.json)), `status=${g0.status}`)
     const g1 = await api(tHome.token, 'POST', '/quests/generate', { title: 'zz', questLength: 5, subjectCode: 'physics' })
-    check('יצירת הדמיה עם מקצוע לא מוכר: 400', g1.status === 400)
+    check('יצירת שיעור עם מקצוע לא מוכר: 400', g1.status === 400)
     const ps = await api(tHome.token, 'PATCH', `/quests/${qNone}`, { subjectCode: 'math' })
     const { data: qrow } = await supabaseAdmin.from('quests').select('subject_id, subject').eq('id', qNone).single()
     check('שיוך מהיר של "לא סווג" למקצוע', ps.status === 200 && qrow?.subject_id === MATH && qrow?.subject === 'מתמטיקה')
@@ -462,7 +462,7 @@ async function main() {
     for (const a of cleanup.auths) await supabaseAdmin.auth.admin.deleteUser(a).catch(() => {})
     if (cleanup.school) await supabaseAdmin.from('schools').delete().eq('id', cleanup.school)
     if (selfSchool) await supabaseAdmin.from('schools').delete().eq('id', selfSchool)
-    console.log('\n(נוקו הארגון, המשתמשים, הכיתות וההדמיות הזמניים)')
+    console.log('\n(נוקו הארגון, המשתמשים, הכיתות והשיעורים הזמניים)')
   }
   console.log(failed === 0 ? `\nכל ${total} הבדיקות עברו` : `\n${failed} מתוך ${total} בדיקות נכשלו`)
   if (failed) process.exitCode = 1

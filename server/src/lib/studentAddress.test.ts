@@ -77,7 +77,7 @@ describe('בדיקת הפנייה לתלמיד — אסור לסמן (אפס fal
   })
 })
 
-describe('מבנה ההדמיה — כל שדות הטקסט', () => {
+describe('מבנה השיעור — כל שדות הטקסט', () => {
   const gd = (): GameData => ({
     entrySceneId: 'a',
     scenes: [
@@ -156,7 +156,7 @@ describe('מבנה ההדמיה — כל שדות הטקסט', () => {
     expect(r2.remaining.length).toBe(1)
   })
 
-  it('הדמיה נקייה: אין קריאת מודל', async () => {
+  it('שיעור נקי: אין קריאת מודל', async () => {
     const clean = { entrySceneId: 'a', scenes: [{ id: 'a', title: 'השער', narrative: 'אתם נכנסים.' }] } as unknown as GameData
     let called = false
     const r = await fixStudentAddress(clean, { call: async () => { called = true; return '{}' } })

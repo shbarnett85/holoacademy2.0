@@ -75,7 +75,7 @@ describe('מסך הכניסה', () => {
     expect(html).toContain('התוצאות יופיעו כאן')
   })
 
-  it('הדמיות בלי מקצוע: המשפט מהחוזה + כפתור אל הספרייה', () => {
+  it('שיעורים בלי מקצוע: המשפט מהחוזה + כפתור אל הספרייה', () => {
     h.responses['/entry'] = ok<Entry>({ ...ENTRY_BASE, unclassifiedCount: 3, coverageNote: 'משפט הסבר מהשרת' })
     const html = render(<EntryScreen />, env())
     expect(html).toContain('משפט הסבר מהשרת')
@@ -85,7 +85,7 @@ describe('מסך הכניסה', () => {
     expect(html).toContain(V2_CLIENT_TEXT.entry.assignSubjects)
   })
 
-  it('הערת כיסוי שאינה על הדמיות בלי מקצוע (unclassifiedCount=0): המשפט מוצג, בלי כפתור לספרייה (הוא היה מטעה)', () => {
+  it('הערת כיסוי שאינה על שיעורים בלי מקצוע (unclassifiedCount=0): המשפט מוצג, בלי כפתור לספרייה (הוא היה מטעה)', () => {
     h.responses['/entry'] = ok<Entry>({ ...ENTRY_BASE, unclassifiedCount: 0, coverageNote: 'לכיתה אחת לא הוגדרה שכבה.' })
     const html = render(<EntryScreen />, env())
     expect(html).toContain('לכיתה אחת לא הוגדרה שכבה.')
@@ -268,7 +268,7 @@ describe('מסך הכניסה — "גרף ההתקדמות הכללי (התצו�
 })
 
 describe('הערת כיסוי במסכי כיתה / מקצוע / תלמיד/ה', () => {
-  const NOTE = 'שני משחקים בהדמיות שעוד לא שויך להן מקצוע לא נכללו כאן.'
+  const NOTE = 'שני משחקים בשיעורים שעוד לא שויך להם מקצוע לא נכללו כאן.'
   const withNote = <T,>(d: T, note: string | null | undefined): T => ({ ...d, coverageNote: note })
   const overview = (rows: ClassOverview['rows']): ClassOverview => ({
     class: { id: 'c1', name: 'ה׳2', gradeLabel: 'ה׳', studentCount: 20 }, summary: 'משפט סיכום.', rows,
@@ -310,7 +310,7 @@ describe('הערת כיסוי במסכי כיתה / מקצוע / תלמיד/ה',
     expect(html).toContain(V2_COVERAGE_TEXT.emptyHint)
   })
 
-  it('תלמיד/ה בלי פאנלים: ההערה מעל המצב הריק (שמזכיר שייתכן שההדמיות לא היו משויכות למקצוע)', () => {
+  it('תלמיד/ה בלי פאנלים: ההערה מעל המצב הריק (שמזכיר שייתכן שהשיעורים לא היו משויכים למקצוע)', () => {
     const st = { student: { id: 's1', displayName: 'נועה כהן', classId: 'c1', className: 'ה׳2', grade: 5, gradeLabel: 'ה׳' }, summary: 'ס', access: 'full', panels: [], crossSubject: [], caveats: { ageNorm: 'א', crossSubject: 'ב', trend: 'ג' } } as StudentOverview
     h.responses['/student/s1'] = ok(withNote(st, NOTE), 'insufficient')
     const html = render(<StudentScreen studentId="s1" />, env(), '/analytics/student/s1?class=c1')

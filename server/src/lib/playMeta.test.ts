@@ -23,7 +23,7 @@ describe('escapeHtml', () => {
 describe('injectPlayMeta', () => {
   const meta = { title: 'מסע טיפת המים', description: 'הרפתקה במחזור המים', imageUrl: 'https://img.example/scene.png', url: 'https://holoacademy.ai/play/abc' }
 
-  it('מחליף title ומזריק og:title/og:image/og:url של ההדמיה', () => {
+  it('מחליף title ומזריק og:title/og:image/og:url של השיעור', () => {
     const out = injectPlayMeta(BASE_HTML, meta)
     expect(out).toContain('<title>מסע טיפת המים · HoloAcademy</title>')
     expect(out).toContain('og:title" content="מסע טיפת המים · HoloAcademy"')

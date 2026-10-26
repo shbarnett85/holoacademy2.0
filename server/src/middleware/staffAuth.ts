@@ -129,7 +129,7 @@ export async function tryStaff(req: Request): Promise<StaffContext | null> {
    מורה מוגבל (users.can_share=false) → 403 עם code=SHARING_DISABLED. נאכף בשרת
    על כל נתיב שמעביר הדמיה לתלמידים; הדגל נקרא מה-DB ב-requireStaff (לא מהלקוח).
    חייב לרוץ אחרי requireStaff. */
-export const SHARING_DISABLED_MESSAGE = 'שיתוף הדמיות עם תלמידים אינו זמין בחשבון זה (גרסת הדגמה).'
+export const SHARING_DISABLED_MESSAGE = 'שיתוף שיעורים עם תלמידים אינו זמין בחשבון זה (גרסת הדגמה).'
 export function requireCanShare(req: Request, _res: Response, next: NextFunction) {
   if (!req.staff) return next(new AppError(401, 'נדרשת התחברות צוות'))
   if (req.staff.canShare === false) return next(new AppError(403, SHARING_DISABLED_MESSAGE, 'SHARING_DISABLED'))
@@ -172,5 +172,5 @@ export async function ensureOwner(req: Request, createdBy: string | null | undef
     const { data } = await supabaseAdmin.from('users').select('school_id').eq('id', createdBy).maybeSingle()
     if (adminMayManageCreator(s.schoolId, (data as { school_id?: string | null } | null)?.school_id)) return
   }
-  throw new AppError(403, 'אין לך הרשאה לערוך הדמיה זו')
+  throw new AppError(403, 'אין לך הרשאה לערוך שיעור זה')
 }

@@ -87,11 +87,11 @@ describe('הערת כיסוי ממוקדת (כיתה / תלמיד/ה)', () => {
   })
   const withGap = (g: ScopedGap) => createProvider(fakeSource(empty, { scopedGap: gapOfIds(g) as never }))
 
-  it('כיתה: משחקים בהדמיות בלי מקצוע — הסיכום והמצב הריק אומרים זאת, ואין "התמונה תופיע כשתלמידים יסיימו"', async () => {
+  it('כיתה: משחקים בשיעורים בלי מקצוע — הסיכום והמצב הריק אומרים זאת, ואין "התמונה תופיע כשתלמידים יסיימו"', async () => {
     const out = (await withGap({ unclassified: 2, withoutLevel: 0 }).classOverview(homeroom(), CA.id)).data
     expect(EP.classOverview.response.safeParse({ dataState: 'insufficient', data: out }).success).toBe(true)
     expect(out.coverageNote).toBe(narrateScopedCoverageNote({ unclassified: 10, withoutLevel: 0 }))
-    expect(out.coverageNote).toContain('10 משחקים בהדמיות שעוד לא שויך להן מקצוע')
+    expect(out.coverageNote).toContain('10 משחקים בשיעורים שעוד לא שויך להם מקצוע')
     expect(out.summary).toContain(gapReason({ unclassified: 10, withoutLevel: 0 })!)
     expect(out.summary).not.toContain('התמונה תופיע כשתלמידים יסיימו')
   })
@@ -110,7 +110,7 @@ describe('הערת כיסוי ממוקדת (כיתה / תלמיד/ה)', () => {
     expect(out.summary).not.toContain('אין כרגע דבר חריג')
   })
 
-  it('משחקים בהדמיות עם מקצוע שלא חושבה להם רמה: ההערה והסיבה מנוסחות בהתאם', async () => {
+  it('משחקים בשיעורים עם מקצוע שלא חושבה להם רמה: ההערה והסיבה מנוסחות בהתאם', async () => {
     const out = (await withGap({ unclassified: 0, withoutLevel: 2 }).classOverview(homeroom(), CA.id)).data
     expect(out.coverageNote).toBe(playsWithoutLevelSentence(10))
     expect(out.summary).toContain('לא חושבה להם רמה לפי מקצוע')
@@ -262,7 +262,7 @@ describe('מנהל', () => {
     expect(ADMIN_MIN_CELL_CLASSES).toBe(MIN_CELL_CLASSES)
   })
 
-  it('שתי כיתות בשכבה: התא מוצג, ללא הסבר "אין תוצאות"; "נתונים לא מוצגים" ביחיד/רבים נכונים; sizeText ב"כיתה אחת" / "N כיתות"', async () => {
+  it('שני כיתות בשכבה: התא מוצג, ללא הסבר "אין תוצאות"; "נתונים לא מוצגים" ביחיד/רבים נכונים; sizeText ב"כיתה אחת" / "N כיתות"', async () => {
     const a = analyze(world([CA, CB], [...withData('a', 6, CA.id), ...withData('b', 6, CB.id)]))
     const out = (await createProvider(fakeSource(a)).admin(adminViewer)).data
     expect(out.cells.some((c) => c.status === 'shown')).toBe(true)
@@ -283,7 +283,7 @@ describe('מנהל', () => {
     expect(narrateGradeSize(3, 80)).toBe('3 כיתות · 80 תלמידים')
   })
 
-  it('משחקים בהדמיות בלי מקצוע: ההערה למנהל לא חושפת מספר קטן מהסף ולא אומרת שהתוצאות "יתווספו"', async () => {
+  it('משחקים בשיעורים בלי מקצוע: ההערה למנהל לא חושפת מספר קטן מהסף ולא אומרת שהתוצאות "יתווספו"', async () => {
     const a = analyze(world([CA, CB], [...withData('a', 6, CA.id), ...withData('b', 6, CB.id)]))
     const big = (await createProvider(fakeSource(a, { coverage: () => ({ unclassifiedSessions: 9, detailAvailableFrom: null }) })).admin(adminViewer)).data
     expect(big.coverageNote).toBe(narrateAdminUnclassifiedNote(9))
@@ -348,10 +348,10 @@ describe('ממצאים קצרים: תצפית ולא תווית (UX#26)', () => 
   })
 })
 
-describe('אחידות מונחים: משחקים (פעמים ששיחקו) מול הדמיות (תוכן)', () => {
+describe('אחידות מונחים: משחקים (פעמים ששיחקו) מול שיעורים (תוכן)', () => {
   it('הערות הכיסוי והתדריך סופרים משחקים', () => {
-    expect(narrateUnclassifiedNote(1)).toContain('משחק אחד בהדמיה')
-    expect(narrateUnclassifiedNote(6)).toContain('6 משחקים בהדמיות')
-    expect(narrateAdminUnclassifiedNote(8)).toContain('8 משחקים בהדמיות')
+    expect(narrateUnclassifiedNote(1)).toContain('משחק אחד בשיעור')
+    expect(narrateUnclassifiedNote(6)).toContain('6 משחקים בשיעורים')
+    expect(narrateAdminUnclassifiedNote(8)).toContain('8 משחקים בשיעורים')
   })
 })

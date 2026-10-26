@@ -38,6 +38,10 @@ async function checkStrict(key: string, query: () => PromiseLike<{ error: any }>
 export async function hasSubjects(): Promise<boolean> {
   return check('__subjects', () => supabaseAdmin.from('subjects').select('id').limit(1))
 }
+/* מועד הגשה על הקצאה (migrations/assignment_due_at.sql) */
+export async function hasAssignmentDueAt(): Promise<boolean> {
+  return check('__assignment_due_at', () => supabaseAdmin.from('assignments').select('due_at').limit(1))
+}
 export async function hasQuestSubjectId(): Promise<boolean> {
   return check('__quest_subject_id', () => supabaseAdmin.from('quests').select('subject_id').limit(1))
 }

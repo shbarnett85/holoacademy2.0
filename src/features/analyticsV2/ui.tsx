@@ -5,7 +5,7 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { Link } from 'react-router-dom'
 import type { CSSProperties, ReactNode } from 'react'
-import { subjectStyle } from '../../shared/lib/subjectStyle'
+import { useSubjectStyle } from '../../shared/lib/subjectStyle'
 import type { Position, Trend } from '../../shared/lib/analyticsConfig'
 import type { SubjectRef } from '../../shared/types/analyticsV2'
 import { FONT, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
@@ -135,7 +135,7 @@ export function PositionWord({ position, text, size = 16 }: { position: Position
 
 /* ── כדור מקצוע (צבע + אייקון קבועים; השם תמיד לידו) ── */
 export function SubjectOrb({ code, size = 26 }: { code: string | null | undefined; size?: number }) {
-  const s = subjectStyle(code)
+  const s = useSubjectStyle(code)
   return (
     <span aria-hidden="true" style={{
       display: 'inline-grid', placeItems: 'center', width: size, height: size, borderRadius: '50%', flexShrink: 0,

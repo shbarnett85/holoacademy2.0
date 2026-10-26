@@ -23,7 +23,7 @@ import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAcc
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
 import jwt from 'jsonwebtoken'
-import { hasQuestSubject, hasQuestSubjectId, hasPublicQuests, hasQuestVariants, hasQuestGrade, isSchemaMissingError } from '../lib/activeColumn.js'
+import { hasQuestSubject, hasQuestSubjectId, hasPublicQuests, hasQuestVariants, hasQuestGrade, hasAssignmentDueAt, isSchemaMissingError } from '../lib/activeColumn.js'
 import { loadViewer, canAssignToClass } from '../lib/authz.js'
 import { loadReviewBasis } from '../lib/results/realResults.js'
 import { REVIEW_MIN_COMPLETED } from '../../../src/shared/lib/analyticsConfig.js'
@@ -46,6 +46,9 @@ import { weakConceptsFromReview, reviewContextBlock } from '../lib/weakConcepts.
 import { groundCurriculum } from '../lib/factBrief.js'
 import { callGeminiText, callGeminiJSON } from '../lib/gemini.js'
 import { engineFor } from '../lib/modelRouter.js'
+import { lessonThumbUrl } from '../lib/lessonThumb.js'
+import { dueAtFromDay, defaultDueAt } from '../../../src/shared/lib/lessonState.js'
+import { ERR_DUE_INVALID, ERR_DUE_PAST } from '../../../src/shared/lib/findingsNarrative.js'
 
 export const questsRouter = Router()
 
@@ -117,12 +120,12 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
         query = query.eq('created_by', req.staff.userId)
       }
     } else {
-      /* מבקר אנונימי — רק ההדמיות שנוצרו בדפדפן הזה */
+      /* מבקר אנונימי — רק השיעורים שנוצרו בדפדפן הזה */
       query = query.eq('anon_id', req.anonId!)
     }
     const { data, error } = await query
 
-    if (error) throw new AppError(500, 'שגיאה בשליפת הדמיות: ' + error.message)
+    if (error) throw new AppError(500, 'שגיאה בשליפת שיעורים: ' + error.message)
 
     const rows = (data ?? []) as unknown as { id: string; title: string; created_at: string; status: string; game_data?: { scenes?: unknown[]; reviewOf?: unknown }; is_public?: boolean; subject?: string | null; subject_id?: string | null }[]
     const quests = await Promise.all(rows.map(async (q) => ({
@@ -133,6 +136,8 @@ questsRouter.get('/', requireCreator, async (req, res, next) => {
       is_public: pub ? q.is_public === true : false,
       is_review: !!q.game_data?.reviewOf,
       sceneCount: q.game_data?.scenes?.length ?? 0,
+      /* תמונת השיעור ברשימה — אותו רכיב (LessonThumb) כמו ברשימת התלמיד */
+      thumbUrl: lessonThumbUrl(q.game_data as never),
       /* כלל "אורך טקסט לתלמיד": כמה סצנות ארוכות מדי למסך אחד (לפי fitsScreen המכוילת; למורה בלבד) */
       longSceneCount: q.game_data?.scenes ? analyzeQuest({ scenes: q.game_data.scenes as never }, bandOfGameData(q.game_data as { readingScale?: number })).long : 0,
       /* subject = שם לתצוגה; subjectCode = המזהה היציב; שניהם null = "לא סווג" */
@@ -162,7 +167,7 @@ questsRouter.get('/demo', async (_req, res, next) => {
     const pick = rows.find((r) => r.is_official && r.is_public && isLeonardo(r.title))
       ?? rows.find((r) => r.is_public && isLeonardo(r.title))
       ?? rows.find((r) => isLeonardo(r.title))
-    if (!pick) throw new AppError(404, 'הדמיית הדמו (לאונרדו דה וינצ׳י) לא נמצאה בספרייה הציבורית')
+    if (!pick) throw new AppError(404, 'שיעור הדמו (לאונרדו דה וינצ׳י) לא נמצא בספרייה הציבורית')
     res.json({ id: pick.id, title: pick.title })
   } catch (err) {
     next(err)
@@ -198,10 +203,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
     const mapped = pool.map((r) => {
       const gd = r.game_data as { scenes?: { id: string; imageUrl?: string }[]; entrySceneId?: string } | null
       const scenes = gd?.scenes ?? []
-      const entry = scenes.find((s) => s.id === gd?.entrySceneId) ?? scenes[0]
-      /* התמונה הממוזערת — הסצנה **השנייה** (עולם התוכן), לא הפתיחה: סצנת הפתיחה
-         היא תמיד מעבדת ד"ר הולו, וכל הכרטיסים נראו זהים. fallback: פתיחה → כל תמונה. */
-      const second = scenes.find((s) => s.id === (entry as { nextSceneId?: string })?.nextSceneId) ?? scenes[scenes.indexOf(entry) + 1]
+      /* התמונה הממוזערת — lib/lessonThumb (הסצנה השנייה, לא מעבדת הפתיחה) */
       return {
         id: r.id,
         title: r.title,
@@ -209,7 +211,7 @@ questsRouter.get('/showcase', async (_req, res, next) => {
         gradeMin: r.grade_min ?? null,
         gradeMax: r.grade_max ?? null,
         sceneCount: scenes.length,
-        thumbUrl: second?.imageUrl ?? entry?.imageUrl ?? scenes.find((s) => s.imageUrl)?.imageUrl ?? null,
+        thumbUrl: lessonThumbUrl(gd),
       }
     }).filter((q) => q.sceneCount > 0)
     /* גיוון מקצועות במדף: קודם החדשה-ביותר מכל מקצוע (כל מורה רואה את המקצוע שלו),
@@ -239,9 +241,9 @@ questsRouter.get('/:id', async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
 
-    if (error || !data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !data) throw new AppError(404, 'שיעור לא נמצא')
 
-    /* הדמיה של יוצר מוגבל-שיתוף (can_share=false) אינה נגישה לציבור/תלמידים — רק לבעלים,
+    /* שיעור של יוצר מוגבל-שיתוף (can_share=false) אינו נגיש לציבור/תלמידים — רק לבעלים,
        למנהל הארגון (אותו בית ספר) ולמנהל-על. מונע עקיפה דרך קישור /play ישיר. */
     const creatorId = (data as { created_by?: string | null }).created_by
     if (creatorId && (await hasCanShare())) {
@@ -305,7 +307,7 @@ questsRouter.post('/:id/personalize', requireStaff, requireCanShare, async (req,
       .select('id, title, game_data, created_by')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const form: FormOfAddress = 'plural'
@@ -341,7 +343,7 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
     const questId = req.params.id
 
     const { data: quest } = await supabaseAdmin.from('quests').select('*').eq('id', questId).single()
-    if (!quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (!quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureOwner(req, (quest as { created_by?: string | null }).created_by ?? null)
 
     /* ── שלוף כיתת התלמיד (class_members, לא users.class_id). מגדר התלמיד לא נקרא ולא משפיע (לשון רבים אחידה). ── */
@@ -353,7 +355,7 @@ questsRouter.post('/:id/variant', requireStaff, requireCanShare, async (req, res
       gradeLabel = (classRow as Record<string, unknown> | null)?.grade_label as string | null ?? null
     }
 
-    /* רמות: לפי שורת המקצוע של התלמיד (מקצוע חדש = רמת פתיחה), או הגלובלי להדמיה "לא סווג" */
+    /* רמות: לפי שורת המקצוע של התלמיד (מקצוע חדש = רמת פתיחה), או הגלובלי לשיעור "לא סווג" */
     const questSubjectId = (quest as { subject_id?: string | null }).subject_id ?? null
     const eff = await loadEffectiveProfile(studentId, classId, questSubjectId)
     const textLevel = eff.profile.textLevel
@@ -416,21 +418,21 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
       .select('id, title, curriculum, art_style, difficulty_settings, game_data, created_by')
       .eq('id', req.params.id)
       .single()
-    if (baseErr || !base?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (baseErr || !base?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureOwner(req, base.created_by)
 
     if (basis.completed < REVIEW_MIN_COMPLETED) {
-      throw new AppError(400, `אפשר ליצור הדמיית חזרה אחרי ש-${REVIEW_MIN_COMPLETED} תלמידים לפחות סיימו את ההדמיה — עד אז אין מספיק נתונים`)
+      throw new AppError(400, `אפשר ליצור שיעור חזרה אחרי ש-${REVIEW_MIN_COMPLETED} תלמידים לפחות סיימו את השיעור — עד אז אין מספיק נתונים`)
     }
     const concepts = weakConceptsFromReview(basis.concepts, base.game_data)
     if (concepts.length === 0) {
       throw new AppError(400, 'אין מושגים חלשים לחיזוק — הכיתה שלטה בחומר או שאין עדיין מספיק נתונים')
     }
 
-    /* יעדי הדמיית החזרה = המושגים החלשים (עד 8) */
+    /* יעדי שיעור החזרה = המושגים החלשים (עד 8) */
     const objectives = concepts.slice(0, 8).map((c, i) => ({ id: `obj_${i + 1}`, text: c.text }))
 
-    /* מאגר תמונות למיחזור מההדמיה המקורית */
+    /* מאגר תמונות למיחזור מהשיעור המקורי */
     const baseGd = base.game_data as { scenes?: { imageUrl?: string }[]; endingGood?: { imageUrl?: string }; endingBad?: { imageUrl?: string } }
     const imagePool = {
       scenes: (baseGd.scenes ?? []).map((s) => s.imageUrl).filter((u): u is string => !!u),
@@ -439,7 +441,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
     }
 
     const reviewTitle = `חזרה: ${base.title}`.slice(0, 120)
-    /* הדמיית חזרה יורשת את מקצוע ההדמיה המקורית */
+    /* שיעור חזרה יורש את מקצוע השיעור המקורי */
     const inheritedSubject = await subjectFieldsOfQuest(base.id)
     const params: QuestGenerationParams = {
       title: reviewTitle,
@@ -473,7 +475,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
       ...inheritedSubject.fields,
     }
     const { data: created, error: insErr } = await supabaseAdmin.from('quests').insert(stub).select('id').single()
-    if (insErr || !created) throw new AppError(500, 'יצירת הדמיית החזרה נכשלה: ' + (insErr?.message ?? ''))
+    if (insErr || !created) throw new AppError(500, 'יצירת שיעור החזרה נכשלה: ' + (insErr?.message ?? ''))
 
     /* מחזירים מיד — היצירה רצה ברקע (הקליינט עושה polling ל-GET /:id) */
     res.status(201).json({ questId: created.id, title: reviewTitle, weakConcepts: concepts.length })
@@ -483,7 +485,7 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
   }
 })
 
-/* POST /api/quests/:id/share — שיתוף ההדמיה לספרייה הציבורית (היוצר בלבד, ללא אישור מראש) */
+/* POST /api/quests/:id/share — שיתוף השיעור לספרייה הציבורית (היוצר בלבד, ללא אישור מראש) */
 questsRouter.post('/:id/share', requireStaff, requireCanShare, async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה (נדרשת מיגרציה)')
@@ -492,7 +494,7 @@ questsRouter.post('/:id/share', requireStaff, requireCanShare, async (req, res, 
       .select('id, created_by, original_author_id, game_data')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* שער איכות (תיקון 3): תוכן פגום לא נכנס לספרייה שכל המורים מעתיקים ממנה.
@@ -507,7 +509,7 @@ questsRouter.post('/:id/share', requireStaff, requireCanShare, async (req, res, 
       const open = collectOpenWarnings(gd)
       if (open.length > 0 && req.body?.acknowledgeWarnings !== true) {
         res.status(409).json({
-          error: 'להדמיה יש אזהרות פתוחות — יש לעבור עליהן ולאשר לפני השיתוף.',
+          error: 'לשיעור יש אזהרות פתוחות — יש לעבור עליהן ולאשר לפני השיתוף.',
           warnings: open,
           needsAck: true,
         })
@@ -533,7 +535,7 @@ questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
   try {
     if (!(await hasPublicQuests())) throw new AppError(503, 'הספרייה הציבורית עדיין לא זמינה')
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
     const { error: upErr } = await supabaseAdmin.from('quests').update({ is_public: false }).eq('id', quest.id)
     if (upErr) throw new AppError(500, 'שגיאה בהסרה: ' + upErr.message)
@@ -550,6 +552,7 @@ questsRouter.post('/:id/unshare', requireStaff, async (req, res, next) => {
    כדי שלא לחשוף אילו כיתות קיימות) ושום הקצאה לא נוצרת.
    assignments.user_id = השולח (המשתמש המחובר), נפרד מ-quests.created_by — כך מסך התוצאות מבדיל בין "מי שלח" ל"מי יצר". */
 const MAX_ASSIGN_CLASSES = 100
+/* dueDay (YYYY-MM-DD, יום ישראלי) → סוף היום 23:59; חסר → ברירת המחדל (שבוע מהיום). יום שכבר עבר — נדחה (400) */
 const ASSIGN_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export const ASSIGN_DENIED_MESSAGE = 'אין לך הרשאה להקצות לאחת הכיתות שנבחרו'
 questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res, next) => {
@@ -557,6 +560,17 @@ questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res,
     const rawIds = (req.body as { classIds?: unknown } | undefined)?.classIds
     if (!Array.isArray(rawIds) || rawIds.length === 0 || !rawIds.every((id) => typeof id === 'string')) throw new AppError(400, 'חסר classIds')
     const classIds = [...new Set(rawIds as string[])]
+
+    /* מועד הגשה: dueDay מהשדה בטופס השליחה, או ברירת מחדל. הפונקציות ב-shared/lib/lessonState (מקור יחיד גם לקליינט) */
+    const rawDue = (req.body as { dueDay?: unknown } | undefined)?.dueDay
+    let dueAt: Date
+    if (rawDue === undefined || rawDue === null || rawDue === '') dueAt = defaultDueAt(new Date())
+    else {
+      const parsedDue = typeof rawDue === 'string' ? dueAtFromDay(rawDue) : null
+      if (!parsedDue) throw new AppError(400, ERR_DUE_INVALID)
+      if (parsedDue.getTime() < Date.now()) throw new AppError(400, ERR_DUE_PAST)
+      dueAt = parsedDue
+    }
 
     /* מורה אורח: הכיתה וירטואלית (demo-class-1) — אין שורות DB בדמו */
     if (isDemoGuest(req) && classIds.every((id) => id.startsWith('demo-'))) {
@@ -567,7 +581,7 @@ questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res,
     if (!classIds.every((id) => ASSIGN_UUID_RE.test(id))) throw new AppError(400, 'מזהה כיתה לא תקין')
 
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, created_by, anon_id').eq('id', req.params.id).single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     /* הרשאה פר-כיתה (לפני כל כתיבה): כיתה לא קיימת או בלי גישה — דוחים את הכול */
@@ -589,16 +603,17 @@ questsRouter.post('/:id/assign', requireStaff, requireCanShare, async (req, res,
     if (fresh.length > 0) {
       /* user_id = השולח. מנהל-על מזוהה לפי אימייל וייתכן שאין לו שורה ב-users (FK) — אצלו נשאר ריק. סביבה בלי העמודה — מכניסים בלעדיה */
       const sender = req.staff!.role === 'super_admin' ? {} : { user_id: req.staff!.userId }
-      const rows = fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId, ...sender }))
+      const due = (await hasAssignmentDueAt()) ? { due_at: dueAt.toISOString() } : {}
+      const rows = fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId, ...sender, ...due }))
       let ins = await supabaseAdmin.from('assignments').insert(rows).select('id, class_id')
       if (ins.error && isSchemaMissingError(ins.error)) {
-        ins = await supabaseAdmin.from('assignments').insert(fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId }))).select('id, class_id')
+        ins = await supabaseAdmin.from('assignments').insert(fresh.map((classId: string) => ({ quest_id: quest.id, class_id: classId, ...due }))).select('id, class_id')
       }
       if (ins.error) throw new AppError(500, 'שגיאה ביצירת הקצאות: ' + ins.error.message)
       if (ins.data) inserted.push(...ins.data)
     }
 
-    res.status(201).json({ assignments: inserted })
+    res.status(201).json({ assignments: inserted, dueAt: dueAt.toISOString() })
   } catch (err) {
     next(err)
   }
@@ -612,7 +627,7 @@ questsRouter.delete('/:id', requireCreator, async (req, res, next) => {
       .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: delError } = await supabaseAdmin.from('quests').delete().eq('id', quest.id)
@@ -721,7 +736,7 @@ questsRouter.post('/:id/scene/:sceneId/shorten', requireCreator, rateLimitByUser
     const body = shortenBodySchema.safeParse(req.body ?? {})
     if (!body.success) throw new AppError(400, 'בקשה לא תקינה')
     const { data: quest, error } = await supabaseAdmin.from('quests').select('id, game_data, created_by, anon_id').eq('id', req.params.id).single()
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
     const gd = quest.game_data as GameData & { readingScale?: number }
     const scene = gd.scenes?.find((s) => s.id === req.params.sceneId)
@@ -749,7 +764,7 @@ questsRouter.patch('/:id/scene', requireCreator, async (req, res, next) => {
       .eq('id', req.params.id)
       .single()
 
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as { scenes: EditableScene[]; endingGood?: EditableEnding; endingBad?: EditableEnding }
@@ -831,7 +846,7 @@ questsRouter.patch('/:id/restore', requireCreator, async (req, res, next) => {
       .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const { error: updateError } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', quest.id)
@@ -847,7 +862,7 @@ questsRouter.patch('/:id/restore', requireCreator, async (req, res, next) => {
 questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
   try {
     const title = typeof req.body?.title === 'string' ? req.body.title.trim() : undefined
-    if (title !== undefined && title.length === 0) throw new AppError(400, 'שם ההדמיה לא יכול להיות ריק')
+    if (title !== undefined && title.length === 0) throw new AppError(400, 'שם השיעור לא יכול להיות ריק')
     const subjectCode = typeof req.body?.subjectCode === 'string' ? req.body.subjectCode : undefined
     if (subjectCode !== undefined && !isSubjectCode(subjectCode)) throw new AppError(400, 'מקצוע לא מוכר')
 
@@ -856,7 +871,7 @@ questsRouter.patch('/:id', requireCreator, async (req, res, next) => {
       .select('id, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const patch: Record<string, unknown> = {}
@@ -893,7 +908,7 @@ questsRouter.post('/:id/refine', requireCreator, async (req, res, next) => {
       .select('id, game_data, created_by, anon_id')
       .eq('id', req.params.id)
       .single()
-    if (error || !quest?.game_data) throw new AppError(404, 'הדמיה לא נמצאה')
+    if (error || !quest?.game_data) throw new AppError(404, 'שיעור לא נמצא')
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameData
@@ -1044,7 +1059,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       const retryText = await genModelCall([
         { role: 'user', content: prompt },
         { role: 'assistant', content: firstText.slice(-4000) },
-        { role: 'user', content: 'הפלט שהחזרת אינו JSON תקין (שבור או קטוע). החזר עכשיו את ה-JSON המלא והתקין של ההדמיה, מההתחלה ועד הסוף, ללא שום טקסט נוסף.' },
+        { role: 'user', content: 'הפלט שהחזרת אינו JSON תקין (שבור או קטוע). החזר עכשיו את ה-JSON המלא והתקין של השיעור, מההתחלה ועד הסוף, ללא שום טקסט נוסף.' },
       ], genSystem)
       info(`[gen] retry-parse (sonnet): ${secs(tRetry)} שניות · פלט ${retryText.length} תווים`)
       try {
@@ -1160,7 +1175,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     }
     } /* ── סוף הנתיב הסדרתי ── */
 
-    if (!gameData) throw new AppError(502, 'יצירת ההדמיה נכשלה')
+    if (!gameData) throw new AppError(502, 'יצירת השיעור נכשלה')
 
     /* כלל "פנייה לתלמיד" (CLAUDE.md): בדיקה דטרמיניסטית להפרות (אתה/את, ציווי ביחיד, לוכסן מגדרי…) ובקשת תיקון אחת.
        **לפני** קיצור האורך ובדיקת הבטיחות — הטקסט הסופי הוא שנבדק; העובדות/הדקדוק הרקעיים רצים עליו אחרי. best-effort. */
@@ -1244,14 +1259,14 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
 
     /* עדכון השורה (שכבר נוצרה כ-stub) עם ה-game_data המוכן */
     const { error } = await supabaseAdmin.from('quests').update({ game_data: gameData }).eq('id', questId)
-    if (error) throw new AppError(500, 'שגיאה בשמירת ההדמיה: ' + error.message)
+    if (error) throw new AppError(500, 'שגיאה בשמירת השיעור: ' + error.message)
 
-    info(`[gen] ━━ ההדמיה מוכנה: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
+    info(`[gen] ━━ השיעור מוכן: ${secs(tStart)} שניות · retries=${retryCount} ━━`)
 
     /* שכבה 2: בדיקת עובדות + תיקון ממוקד + ולידציית ניסוח — ברקע (best-effort, לא חוסם) */
     void factCheckInBackground(questId, gameData, warnings, level, params.formOfAddress ?? 'plural', gparams.factBrief)
   } catch (err) {
-    const msg = err instanceof AppError ? err.message : err instanceof Error ? err.message : 'יצירת ההדמיה נכשלה'
+    const msg = err instanceof AppError ? err.message : err instanceof Error ? err.message : 'יצירת השיעור נכשלה'
     logError('[gen] יצירה ברקע נכשלה:', msg)
     await supabaseAdmin.from('quests')
       .update({ game_data: { genError: msg } })
@@ -1260,7 +1275,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
   }
 }
 
-/* POST /api/quests/generate — רושם הדמיה "בעיצומה של יצירה" ומחזיר מיד; היצירה רצה
+/* POST /api/quests/generate — רושם שיעור "בעיצומו של יצירה" ומחזיר מיד; היצירה רצה
    ברקע (מנתק את היצירה הארוכה מ-timeout של ה-proxy). הקליינט עושה polling ל-GET /:id. */
 questsRouter.post('/generate', requireCreator, async (req, res, next) => {
   /* מפתח הזהות לשומרים: מורה לפי userId, מבקר לפי עוגיית anon */
@@ -1314,7 +1329,7 @@ questsRouter.post('/generate', requireCreator, async (req, res, next) => {
     if (subjectRow && (await hasQuestSubjectId())) stub.subject_id = subjectRow.id
 
     const { data: quest, error } = await supabaseAdmin.from('quests').insert(stub).select().single()
-    if (error || !quest) throw new AppError(500, 'שגיאה ביצירת ההדמיה: ' + (error?.message ?? ''))
+    if (error || !quest) throw new AppError(500, 'שגיאה ביצירת השיעור: ' + (error?.message ?? ''))
 
     /* ניטור עלויות — כל יצירה נרשמת (אנונימי/צוות/אורח-דמו) */
     void logGeneration({
@@ -1347,7 +1362,7 @@ questsRouter.post('/claim-anon', requireStaff, async (req, res, next) => {
       .update({ created_by: req.staff!.userId, anon_id: null })
       .eq('anon_id', anonId)
       .select('id')
-    if (error) throw new AppError(500, 'העברת ההדמיות נכשלה: ' + error.message)
+    if (error) throw new AppError(500, 'העברת השיעורים נכשלה: ' + error.message)
     const claimed = data?.length ?? 0
     if (claimed > 0) void logGeneration({ event: 'claim', actorType: 'anon', actorId: anonId, costAgorot: 0 })
     res.json({ claimed })

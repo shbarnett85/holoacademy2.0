@@ -230,7 +230,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
 
       if (!res.ok) {
         const body = await res.json().catch(() => null)
-        throw new Error(body?.error ?? 'יצירת ההדמיה נכשלה')
+        throw new Error(body?.error ?? 'יצירת השיעור נכשלה')
       }
 
       /* השרת מחזיר מיד stub עם id; היצירה רצה ברקע. עושים polling ל-GET /:id
@@ -241,7 +241,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
       /* בוטל בזמן שה-POST רץ (טרם ידענו id, אז לא ניתן היה לבטל דרך cancelGeneration) —
          עכשיו כשה-id בידינו: מוחקים את ה-stub ויוצאים בשקט. המסך כבר חזר לטופס. */
       if (genCancelled) { void discardCancelledQuest(questId); return }
-      /* מורה אורח: רושמים את ההדמיה ל-cache הדפדפן (בידוד per-browser — ראו guestLibrary) */
+      /* מורה אורח: רושמים את השיעור ל-cache הדפדפן (בידוד per-browser — ראו guestLibrary) */
       if (getSession()?.staff.isGuest === true) addGuestQuestId(questId)
       const deadline = Date.now() + 600_000
       let lastErr = ''

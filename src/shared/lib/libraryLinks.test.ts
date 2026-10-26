@@ -32,7 +32,7 @@ describe('הכתובת של הספרייה המסוננת', () => {
 })
 
 describe('"הספרייה שלי": ספירה וסינון', () => {
-  it('countNoSubject: כמה הדמיות עוד לא שויכו למקצוע (null וחסר נספרים; מקצוע בעברית — לא)', () => {
+  it('countNoSubject: כמה שיעורים עוד לא שויכו למקצוע (null וחסר נספרים; מקצוע בעברית — לא)', () => {
     expect(countNoSubject(Q)).toBe(2)
     expect(countNoSubject([])).toBe(0)
   })
@@ -41,11 +41,11 @@ describe('"הספרייה שלי": ספירה וסינון', () => {
     expect(filterMine(Q, F).map((q) => q.id)).toEqual(['a', 'b', 'c', 'd'])
   })
 
-  it('ללא מקצוע: רק הדמיות בלי מקצוע', () => {
+  it('ללא מקצוע: רק שיעורים בלי מקצוע', () => {
     expect(filterMine(Q, { ...F, onlyNoSubject: true }).map((q) => q.id)).toEqual(['c', 'd'])
   })
 
-  it('מקצוע שנבחר בסרגל הסינון מסנן גם את "הספרייה שלי"; "לא סווג" מתאים להדמיות בלי מקצוע', () => {
+  it('מקצוע שנבחר בסרגל הסינון מסנן גם את "הספרייה שלי"; "לא סווג" מתאים לשיעורים בלי מקצוע', () => {
     expect(filterMine(Q, { ...F, subjects: { מדעים: true } }).map((q) => q.id)).toEqual(['a'])
     expect(filterMine(Q, { ...F, subjects: { מדעים: true, היסטוריה: true } }).map((q) => q.id)).toEqual(['a', 'b'])
     expect(filterMine(Q, { ...F, subjects: { 'לא סווג': true } }).map((q) => q.id)).toEqual(['c', 'd'])

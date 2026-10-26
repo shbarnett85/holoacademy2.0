@@ -5,7 +5,7 @@ import type { SummaryDocInput } from './exportWord'
 import { PARAS } from './testkit'
 
 const BASE: SummaryDocInput = {
-  scope: 'student', name: 'נועה כהן', paragraphs: PARAS, writtenBy: 'ai', edited: false, demo: false, basisText: 'מבוסס על 14 הדמיות', caveat: CAVEAT_TREND,
+  scope: 'student', name: 'נועה כהן', paragraphs: PARAS, writtenBy: 'ai', edited: false, demo: false, basisText: 'מבוסס על 14 שיעורים', caveat: CAVEAT_TREND,
   writtenAt: '2026-10-05T08:00:00.000Z', date: new Date('2026-10-21T09:00:00Z'),
 }
 
@@ -38,7 +38,7 @@ describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
     expect(html).not.toContain('הופק בתאריך')
     for (const p of PARAS) expect(html).toContain(`<p>${p}</p>`)
     expect(html).toContain(AI_SUMMARY_TEXT.exportLine.ai)
-    expect(html).toContain('מבוסס על 14 הדמיות')
+    expect(html).toContain('מבוסס על 14 שיעורים')
     expect(html).toContain(CAVEAT_TREND)
   })
 
@@ -84,7 +84,7 @@ describe('buildSummaryDocument — מסמך ל-Word ולהדפסה', () => {
 
   it('כותרת לפי ההיקף (כיתה / הגשה)', () => {
     expect(buildSummaryDocument({ ...BASE, scope: 'class', name: 'כיתה ו׳2' })).toContain('<h1>סיכום מד״ר הולו על הכיתה: כיתה ו׳2</h1>')
-    expect(buildSummaryDocument({ ...BASE, scope: 'submission', name: 'צף או שוקע?' })).toContain('<h1>סיכום מד״ר הולו על ההדמיה: צף או שוקע?</h1>')
+    expect(buildSummaryDocument({ ...BASE, scope: 'submission', name: 'צף או שוקע?' })).toContain('<h1>סיכום מד״ר הולו על השיעור: צף או שוקע?</h1>')
   })
 })
 

@@ -12,13 +12,14 @@
    ────────────────────────────────────────────────────────────────────────── */
 import type { Request } from 'express'
 import type { ClassSubmissionView, ResultsSubject, StudentSubmissionView, SubmissionList, SubmissionRow } from '../../../../src/shared/types/resultsV1.js'
-import { ERR_NOT_FOUND, ERR_REVIEW_WRONG_QUEST } from '../../../../src/shared/lib/findingsNarrative.js'
+import { ERR_DUE_INVALID, ERR_DUE_NOT_ALLOWED, ERR_DUE_UNAVAILABLE, ERR_NOT_FOUND, ERR_REVIEW_WRONG_QUEST } from '../../../../src/shared/lib/findingsNarrative.js'
+import { dueAtFromDay } from '../../../../src/shared/lib/lessonState.js'
 import { SUBJECTS } from '../../../../src/shared/lib/subjects.js'
 import { AppError } from '../../middleware/errors.js'
 import { supabaseAdmin } from '../supabase.js'
 import {
   hasAnswersTable, hasFictitious, hasIsActive, hasMisconceptionLinks, hasMisconceptions, hasMoralChoices, hasOptionTags,
-  hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag,
+  hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag, hasAssignmentDueAt,
 } from '../activeColumn.js'
 import { loadViewer, logAccess, logAccessMany, submissionVisible, canUseResults, type Viewer } from '../authz.js'
 import { questSubjectOut } from '../subjects.js'
@@ -72,7 +73,7 @@ async function inChunks<T>(ids: string[], run: (part: string[]) => Promise<T[]>)
 /* ══════════════════════════════════════════════════════════════════════════
    שליחות (assignments) + הרשאה
    ══════════════════════════════════════════════════════════════════════════ */
-interface AsgRow { id: string; quest_id: string; class_id: string; user_id?: string | null; created_at: string }
+interface AsgRow { id: string; quest_id: string; class_id: string; user_id?: string | null; created_at: string; due_at?: string | null }
 interface QuestLite { id: string; title: string; created_by: string | null; subject_id: string | null; subject: ResultsSubject | null }
 interface ClassLite { id: string; label: string; fictitious: boolean }
 
@@ -172,6 +173,8 @@ interface Bundle {
   studentsByClass: Map<string, CoreStudent[]>
   /* `${questId}|${studentId}` → ההרצה שנספרת (האחרונה שהושלמה; אחרת הפתוחה האחרונה) */
   latest: Map<string, CoreSession>
+  /* `${questId}|${studentId}` → הפעילות האחרונה (התחלה/השלמה, ISO) בכל הרצותיו — מזין את "פעיל עכשיו" */
+  activity: Map<string, string>
   eventsBySession: Map<string, CoreEventRow[]>
   answersBySession: Map<string, CoreAnswerRow[]>
   /* תגיות הבסיס לפי הדמיה (לא כולל תגיות גרסאות אישיות) */
@@ -240,7 +243,7 @@ async function studentInRoster(viewer: Viewer, classId: string, studentId: strin
   return !!row && rosterStudent(viewer, row) !== null
 }
 
-async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds: string[]): Promise<Map<string, CoreSession>> {
+async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds: string[]): Promise<{ latest: Map<string, CoreSession>; activity: Map<string, string> }> {
   const excludeSyn = !viewer.seesSynthetic && (await hasSyntheticFlag())
   const qids = [...new Set(questIds)]
   type S = { id: string; user_id: string; quest_id: string; started_at: string | null; completed_at: string | null }
@@ -252,14 +255,20 @@ async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds
     }),
   ))).flat()
   const map = new Map<string, CoreSession>()
+  const firstDone = new Map<string, string>()
+  const activity = new Map<string, string>()
   for (const s of rows) {
     const key = `${s.quest_id}|${s.user_id}`
     const cand: CoreSession = { id: s.id, studentId: s.user_id, startedAt: s.started_at, completedAt: s.completed_at }
     const cur = map.get(key)
     /* ההרצה האחרונה שהושלמה גוברת על session פתוח חדש (preferSession — אותו כלל כמו בליבה) */
     map.set(key, cur ? preferSession(cur, cand) : cand)
+    /* ההשלמה הראשונה (ל"באיחור") והפעילות האחרונה (ל"פעיל עכשיו") — מכל ההרצות של התלמיד/ה */
+    if (s.completed_at && (!firstDone.get(key) || s.completed_at < firstDone.get(key)!)) firstDone.set(key, s.completed_at)
+    for (const t of [s.started_at, s.completed_at]) if (t && (!activity.get(key) || t > activity.get(key)!)) activity.set(key, t)
   }
-  return map
+  for (const [key, ses] of map) ses.firstCompletedAt = firstDone.get(key) ?? null
+  return { latest: map, activity }
 }
 
 async function loadEvents(sessionIds: string[], withSlides: boolean): Promise<Map<string, CoreEventRow[]>> {
@@ -418,7 +427,7 @@ async function loadBundle(viewer: Viewer, lites: Lite[], opts: { detail: boolean
     detailAvailableFrom(viewer.seesSynthetic),
   ])
   const studentIds = [...studentsByClass.values()].flat().map((s) => s.id)
-  const latest = studentIds.length > 0 ? await loadLatestSessions(viewer, questIds, studentIds) : new Map<string, CoreSession>()
+  const { latest, activity } = studentIds.length > 0 ? await loadLatestSessions(viewer, questIds, studentIds) : { latest: new Map<string, CoreSession>(), activity: new Map<string, string>() }
   /* רק ה-sessions שנספרים (אחרונים לכל זוג הדמיה×תלמיד של הכיתות הנבחרות) */
   const wanted = new Set<string>()
   for (const l of lites) for (const s of studentsByClass.get(l.asg.class_id) ?? []) {
@@ -440,7 +449,7 @@ async function loadBundle(viewer: Viewer, lites: Lite[], opts: { detail: boolean
     tags = loaded.base
     variants = await loadVariants(variantIds, loaded.variant)
   }
-  return { games, studentsByClass, latest, eventsBySession, answersBySession, tags, variants, moralRaw, detailFrom }
+  return { games, studentsByClass, latest, activity, eventsBySession, answersBySession, tags, variants, moralRaw, detailFrom }
 }
 
 function toCoreInput(l: Lite, b: Bundle): CoreInput {
@@ -457,6 +466,9 @@ function toCoreInput(l: Lite, b: Bundle): CoreInput {
     events.push(...(b.eventsBySession.get(ses.id) ?? []))
   }
   const game = b.games.get(l.asg.quest_id) ?? null
+  /* הפעילות האחרונה של תלמידי הכיתה בהדמיה (מכל ההרצות) */
+  let lastActivityAt: string | null = null
+  for (const s of students) { const t = b.activity.get(`${l.asg.quest_id}|${s.id}`); if (t && (!lastActivityAt || t > lastActivityAt)) lastActivityAt = t }
   const sentMs = Date.parse(l.asg.created_at)
   const moral: CoreMoralRow[] = b.moralRaw
     .filter((m) => m.questId === l.asg.quest_id && m.classId === l.asg.class_id && (Number.isNaN(sentMs) || Date.parse(m.createdAt) >= sentMs))
@@ -468,12 +480,15 @@ function toCoreInput(l: Lite, b: Bundle): CoreInput {
       id: l.asg.id,
       quest: { id: l.quest.id, title: l.quest.title, subject: l.quest.subject, gameData: game, thumbUrl: questThumbUrl(game) },
       classId: l.asg.class_id, className: l.cls.label, sentAt: l.asg.created_at, source: l.source, senderName: l.senderName,
+      dueAt: l.asg.due_at ?? null,
     },
     students, sessions, answers, events,
     optionTags: b.tags.get(l.asg.quest_id) ?? [],
     variants,
     moral,
     detailAvailableFrom: b.detailFrom,
+    nowMs: Date.now(),
+    lastActivityAt,
   }
 }
 
@@ -596,6 +611,19 @@ export const realResultsProvider: ResultsProvider = {
       { studentLevel: true },
     )
     return buildClassView(toCoreInput(lite, bundle))
+  },
+
+  /* שינוי מועד הגשה: מי ששלח, מחנך הכיתה, או מנהל-על. מורה מקצוע שרק רואה את השליחה — לא (403). השיעור לא ננעל אחרי המועד */
+  async setDue(req: Request, submissionId: string, dueDay: string): Promise<{ dueAt: string }> {
+    const viewer = await needViewer(req)
+    const lite = await loadOne(viewer, submissionId)
+    if (!(lite.source === 'mine' || lite.source === 'homeroom' || viewer.role === 'super_admin')) throw new AppError(403, ERR_DUE_NOT_ALLOWED)
+    const dueAt = dueAtFromDay(dueDay)
+    if (!dueAt) throw new AppError(400, ERR_DUE_INVALID)
+    if (!(await hasAssignmentDueAt())) throw new AppError(503, ERR_DUE_UNAVAILABLE)
+    const { error } = await supabaseAdmin.from('assignments').update({ due_at: dueAt.toISOString() }).eq('id', lite.asg.id)
+    if (error) throw new Error(error.message)
+    return { dueAt: dueAt.toISOString() }
   },
 
   async studentView(req: Request, submissionId: string, studentId: string): Promise<StudentSubmissionView> {

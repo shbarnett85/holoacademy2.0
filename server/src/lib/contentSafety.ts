@@ -23,7 +23,7 @@ interface SafetyVerdict { blocked: boolean; category?: SafetyCategory; technical
    היסטורית, נזקי סמים כבעיה חברתית, דילמות מוסריות) לבין *ייצור בפועל* של תוכן
    מזיק (חסום), גם אם "עטוף" כתוכן לימודי. חסימה לפי "נושא נשמע רגיש" תפגע בתוכן
    חינוכי לגיטימי — האיסור על "האם נוצר כאן מידע מזיק שימושי", לא "האם זה נעים". */
-const SAFETY_PRINCIPLE = `אתה שכבת בטיחות תוכן בפלטפורמה חינוכית (K-12, "הדמיות" לימודיות אינטראקטיביות). תפקידך להבחין בין **דיון לגיטימי בנושא קשה** (מותר) לבין **ייצור בפועל של תוכן מזיק** (אסור) — גם אם התוכן המזיק "עטוף" כחומר לימודי לגיטימי למראה.
+const SAFETY_PRINCIPLE = `אתה שכבת בטיחות תוכן בפלטפורמה חינוכית (K-12, "שיעורים" לימודיים אינטראקטיביים). תפקידך להבחין בין **דיון לגיטימי בנושא קשה** (מותר) לבין **ייצור בפועל של תוכן מזיק** (אסור) — גם אם התוכן המזיק "עטוף" כחומר לימודי לגיטימי למראה.
 
 דוגמאות לגיטימיות מובהקות (אל תחסום): שיעור על השואה, מלחמות, גזענות היסטורית, נזקי סמים/עישון כבעיה חברתית-בריאותית, דילמות מוסריות קשות, אירועים אלימים בהיסטוריה (ברמת תיאור עובדתי, לא גרפי-מפורט).
 
@@ -56,9 +56,9 @@ function extractSafetyJson(text: string): unknown {
 
 /* בדיקת קלט — על הנושא/התוכן שהמורה הזין, לפני שהוא מגיע ל-Sonnet ליצירה */
 export async function runInputSafetyCheck(title: string, curriculum: string): Promise<SafetyVerdict> {
-  const system = `${SAFETY_PRINCIPLE}\n\nהמשימה: קיבלת נושא/בקשה של מורה ליצירת הדמיה לימודית, *לפני* שנוצר ממנה תוכן. שפוט על סמך הבקשה עצמה — האם היא *מכוונת* לייצור תוכן מאחת הקטגוריות (גם אם מנוסחת כ"שיעור על..."), או שהיא בקשה לגיטימית (גם אם בנושא קשה).
+  const system = `${SAFETY_PRINCIPLE}\n\nהמשימה: קיבלת נושא/בקשה של מורה ליצירת שיעור לימודי, *לפני* שנוצר ממנו תוכן. שפוט על סמך הבקשה עצמה — האם היא *מכוונת* לייצור תוכן מאחת הקטגוריות (גם אם מנוסחת כ"שיעור על..."), או שהיא בקשה לגיטימית (גם אם בנושא קשה).
 החזר JSON תקין בלבד: { "blocked": boolean, "category"?: "אחת מ: weapons|drugs|suicide_method|self_harm_nonlethal|sexual_content|csam|graphic_violence|hateful_extremism|terrorism_radicalization|fraud_instructions|manipulative_persona" }`
-  const user = `נושא ההדמיה: ${title}\n\nתוכן הלימוד שהמורה תיאר:\n${curriculum || '(לא סופק)'}`
+  const user = `נושא השיעור: ${title}\n\nתוכן הלימוד שהמורה תיאר:\n${curriculum || '(לא סופק)'}`
   try {
     const text = engineFor('safety') === 'gemini' ? await callGeminiSafety(system, user) : await callHaiku([{ role: 'user', content: user }], 200, system)
     const json = extractSafetyJson(text) as { blocked?: boolean; category?: string }
@@ -101,7 +101,7 @@ function safetyCheckContent(gameData: GameData): string {
 export async function runOutputSafetyCheck(gameData: GameData): Promise<SafetyVerdict & { excerpt?: string }> {
   const content = safetyCheckContent(gameData)
   if (!content.trim()) return { blocked: false }
-  const system = `${SAFETY_PRINCIPLE}\n\nהמשימה: קיבלת תוכן הדמיה לימודית שכבר *נוצר בפועל*. בדוק אם התוכן עצמו (לא הכוונה מאחוריו) מכיל מידע מאחת הקטגוריות.
+  const system = `${SAFETY_PRINCIPLE}\n\nהמשימה: קיבלת תוכן שיעור לימודי שכבר *נוצר בפועל*. בדוק אם התוכן עצמו (לא הכוונה מאחוריו) מכיל מידע מאחת הקטגוריות.
 החזר JSON תקין בלבד: { "blocked": boolean, "category"?: "<קטגוריה>", "excerpt"?: "ציטוט קצר (עד 200 תווים) מהקטע הבעייתי, לצורך ביקורת אנושית בלבד" }
 
 חשוב מאוד: השורה הראשונה בתשובתך היא ה-JSON, ותו לא — ללא הסבר/הנמקה לפני או אחרי.`
@@ -146,6 +146,6 @@ export async function logContentSafety(entry: {
 }
 
 /* הודעה כללית למורה — לא טכנית, לא חושפת את מנגנון הבדיקה או הקטגוריה שזוהתה */
-export const SAFETY_BLOCK_MESSAGE = 'לא ניתן היה ליצור הדמיה עבור הבקשה הזו. נסו לנסח את נושא ההדמיה או תוכן הלימוד באופן אחר.'
+export const SAFETY_BLOCK_MESSAGE = 'לא ניתן היה ליצור שיעור עבור הבקשה הזו. נסו לנסח את נושא השיעור או תוכן הלימוד באופן אחר.'
 /* הודעת כשל טכני (fail-closed) — שונה מהודעת החסימה, כדי שהמורה יבין שזו תקלה זמנית ולא חסימת-תוכן. */
 export const SAFETY_TECH_MESSAGE = 'אירעה תקלה זמנית בבדיקת התוכן. נסו שוב בעוד רגע.'

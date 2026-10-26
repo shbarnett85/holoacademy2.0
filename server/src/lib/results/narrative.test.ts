@@ -34,7 +34,7 @@ describe('תאריכים בלוח השנה של ישראל', () => {
     expect(israelDayKey('לא תאריך')).toBeNull()
   })
   it('"פירוט התשובות זמין" משתמש באותו יום', () => {
-    expect(detailAvailableLine('2026-10-19T22:30:00.000Z')).toBe('פירוט התשובות זמין להדמיות שנשלחו מ-20 באוקטובר 2026')
+    expect(detailAvailableLine('2026-10-19T22:30:00.000Z')).toBe('פירוט התשובות זמין לשיעורים שנשלחו מ-20 באוקטובר 2026')
   })
 })
 
@@ -49,7 +49,7 @@ describe('סיכום כיתה: כולם סיימו', () => {
   it('הניסוח הכיתתי לפי החלק', () => {
     expect(narrateClassSummary(base({ avgSolvedShare: 0.75 }))).toBe('רוב הכיתה הצליחה.')
     expect(narrateClassSummary(base({ avgSolvedShare: 0.5 }))).toBe('חלק מהכיתה התקשה.')
-    expect(narrateClassSummary(base({ avgSolvedShare: 0.49 }))).toBe('הכיתה התקשתה בהדמיה.')
+    expect(narrateClassSummary(base({ avgSolvedShare: 0.49 }))).toBe('הכיתה התקשתה בשיעור.')
   })
   it('האתגר הקשה: "לא הצליחו", והאפשרות הנבחרת במרכאות', () => {
     const s = narrateClassSummary(base({ hardest: hardest() }))
@@ -69,7 +69,7 @@ describe('סיכום כיתה: לא כולם סיימו — לא מכליל מע
   it('מספיק מי שסיימו: "עד עכשיו סיימו X מתוך Y." ואז משפט רק עליהם', () => {
     expect(narrateClassSummary(base({ completed: 12, avgSolvedShare: 0.8 }))).toBe(`עד עכשיו סיימו ${countNb(12, 30)}. רובם הצליחו.`)
     expect(narrateClassSummary(base({ completed: 12, avgSolvedShare: 0.6 }))).toBe(`עד עכשיו סיימו ${countNb(12, 30)}. חלקם התקשו.`)
-    expect(narrateClassSummary(base({ completed: 12, avgSolvedShare: 0.2 }))).toBe(`עד עכשיו סיימו ${countNb(12, 30)}. הם התקשו בהדמיה.`)
+    expect(narrateClassSummary(base({ completed: 12, avgSolvedShare: 0.2 }))).toBe(`עד עכשיו סיימו ${countNb(12, 30)}. הם התקשו בשיעור.`)
   })
   it(`פחות מ-${CLASS_SUMMARY_MIN_COMPLETED} שסיימו: רק כמה סיימו, בלי "רוב", ובלי "האתגר הקשה ביותר"`, () => {
     const s = narrateClassSummary(base({ completed: 1, avgSolvedShare: 1, hardest: hardest() }))
@@ -82,7 +82,7 @@ describe('סיכום כיתה: לא כולם סיימו — לא מכליל מע
   it('שורת הרשימה נושאת את אותו סייג', () => {
     expect(narrateListSummary(base({ completed: 12, avgSolvedShare: 0.8 }))).toBe('רוב מי שסיימו עד עכשיו הצליחו.')
     expect(narrateListSummary(base({ completed: 12, avgSolvedShare: 0.6 }))).toBe('חלק ממי שסיימו עד עכשיו התקשו.')
-    expect(narrateListSummary(base({ completed: 12, avgSolvedShare: 0.2 }))).toBe('מי שסיימו עד עכשיו התקשו בהדמיה.')
+    expect(narrateListSummary(base({ completed: 12, avgSolvedShare: 0.2 }))).toBe('מי שסיימו עד עכשיו התקשו בשיעור.')
     expect(narrateListSummary(base({ completed: 12, avgSolvedShare: 0.8, hardest: hardest() }))).toBe('רוב מי שסיימו עד עכשיו הצליחו. הקשה ביותר: סדר האירועים.')
     expect(narrateListSummary(base({ completed: 1, avgSolvedShare: 1 }))).toBe(`עד עכשיו סיימו ${countNb(1, 30)}.`)
     expect(narrateListSummary(base({ avgSolvedShare: 0.9 }))).toBe('רוב הכיתה הצליחה.')
@@ -92,28 +92,28 @@ describe('סיכום כיתה: לא כולם סיימו — לא מכליל מע
 describe('אף אחד לא סיים', () => {
   it('אותו משפט "מה יקרה" בכיתה, ברשימה ובתלמיד/ה', () => {
     expect(NO_RESULTS_YET).toBe('התוצאות יופיעו כאן כשיסיימו.')
-    expect(narrateClassSummary(base({ completed: 0, avgSolvedShare: null }))).toBe(`עוד אף תלמיד לא התחיל את ההדמיה. ${NO_RESULTS_YET}`)
-    expect(narrateClassSummary(base({ completed: 0, inProgress: 3, avgSolvedShare: null }))).toBe(`3 תלמידים באמצע ההדמיה. ${NO_RESULTS_YET}`)
-    expect(narrateClassSummary(base({ completed: 0, inProgress: 1, avgSolvedShare: null }))).toBe(`אחד התלמידים באמצע ההדמיה. ${NO_RESULTS_YET}`)
+    expect(narrateClassSummary(base({ completed: 0, avgSolvedShare: null }))).toBe(`עוד אף תלמיד לא התחיל את השיעור. ${NO_RESULTS_YET}`)
+    expect(narrateClassSummary(base({ completed: 0, inProgress: 3, avgSolvedShare: null }))).toBe(`3 תלמידים באמצע השיעור. ${NO_RESULTS_YET}`)
+    expect(narrateClassSummary(base({ completed: 0, inProgress: 1, avgSolvedShare: null }))).toBe(`אחד התלמידים באמצע השיעור. ${NO_RESULTS_YET}`)
     expect(narrateListSummary(base({ completed: 0, avgSolvedShare: null }))).toBe(`עוד לא התחילו. ${NO_RESULTS_YET}`)
-    expect(narrateStudentSummary({ firstName: 'דנה', status: 'not_started', totalChallenges: 4, attempted: 0, solved: 0, gaveUp: 0 })).toBe(`דנה עוד לא התחיל/ה את ההדמיה. ${NO_RESULTS_YET}`)
-    expect(narrateStudentSummary({ firstName: 'דנה', status: 'in_progress', totalChallenges: 4, attempted: 0, solved: 0, gaveUp: 0 })).toBe(`דנה באמצע ההדמיה. ${NO_RESULTS_YET}`)
+    expect(narrateStudentSummary({ firstName: 'דנה', status: 'not_started', totalChallenges: 4, attempted: 0, solved: 0, gaveUp: 0 })).toBe(`דנה עוד לא התחיל/ה את השיעור. ${NO_RESULTS_YET}`)
+    expect(narrateStudentSummary({ firstName: 'דנה', status: 'in_progress', totalChallenges: 4, attempted: 0, solved: 0, gaveUp: 0 })).toBe(`דנה באמצע השיעור. ${NO_RESULTS_YET}`)
   })
 })
 
-describe('הדמיה בלי אתגרים שאפשר למדוד', () => {
-  it('כיתה: "X מתוך Y סיימו את ההדמיה; אין בה אתגרים שאפשר למדוד" — גם כש-avgSolvedShare ריק', () => {
+describe('שיעור בלי אתגרים שאפשר למדוד', () => {
+  it('כיתה: "X מתוך Y סיימו את השיעור; אין בו אתגרים שאפשר למדוד" — גם כש-avgSolvedShare ריק', () => {
     const s = narrateClassSummary(base({ completed: 4, total: 30, avgSolvedShare: null, totalChallenges: 0 }))
-    expect(s).toBe(`${countNb(4, 30)} סיימו את ההדמיה; אין בה אתגרים שאפשר למדוד.`)
+    expect(s).toBe(`${countNb(4, 30)} סיימו את השיעור; אין בו אתגרים שאפשר למדוד.`)
   })
   it('רשימה', () => {
-    expect(narrateListSummary(base({ completed: 4, avgSolvedShare: null, totalChallenges: 0 }))).toBe(`${countNb(4, 30)} סיימו את ההדמיה.`)
+    expect(narrateListSummary(base({ completed: 4, avgSolvedShare: null, totalChallenges: 0 }))).toBe(`${countNb(4, 30)} סיימו את השיעור.`)
   })
-  it('אף אחד לא סיים → ההודעה הרגילה (גם בהדמיה בלי אתגרים)', () => {
+  it('אף אחד לא סיים → ההודעה הרגילה (גם בשיעור בלי אתגרים)', () => {
     expect(narrateClassSummary(base({ completed: 0, avgSolvedShare: null, totalChallenges: 0 }))).toContain('עוד אף תלמיד לא התחיל')
   })
   it('תלמיד/ה: בלא סעיף "פתר/ה"', () => {
-    expect(narrateStudentSummary({ firstName: 'דנה', status: 'completed', totalChallenges: 0, attempted: 0, solved: 0, gaveUp: 0 })).toBe('דנה סיים/ה את ההדמיה; אין בה אתגרים שאפשר למדוד.')
+    expect(narrateStudentSummary({ firstName: 'דנה', status: 'completed', totalChallenges: 0, attempted: 0, solved: 0, gaveUp: 0 })).toBe('דנה סיים/ה את השיעור; אין בו אתגרים שאפשר למדוד.')
   })
   it('totalChallenges לא ידוע (חסר) → ההתנהגות הרגילה', () => {
     expect(narrateClassSummary(base({ totalChallenges: undefined, avgSolvedShare: 0.8 }))).toBe('רוב הכיתה הצליחה.')
@@ -126,13 +126,13 @@ describe('סיכום תלמיד/ה', () => {
   it('יחיד / רבים', () => {
     expect(s({ totalChallenges: 1, solved: 1 })).toBe(`אבי פתר/ה ${countNb(1, 1)} אתגר.`)
     expect(s({ totalChallenges: 4 })).toBe(`אבי פתר/ה ${countNb(3, 4)} אתגרים.`)
-    expect(s({ status: 'in_progress', attempted: 1, solved: 1 })).toBe(`אבי באמצע ההדמיה: פתר/ה ${countNb(1, 1)} אתגר עד עכשיו.`)
-    expect(s({ status: 'in_progress', attempted: 2, solved: 1 })).toBe(`אבי באמצע ההדמיה: פתר/ה ${countNb(1, 2)} אתגרים עד עכשיו.`)
+    expect(s({ status: 'in_progress', attempted: 1, solved: 1 })).toBe(`אבי באמצע השיעור: פתר/ה ${countNb(1, 1)} אתגר עד עכשיו.`)
+    expect(s({ status: 'in_progress', attempted: 2, solved: 1 })).toBe(`אבי באמצע השיעור: פתר/ה ${countNb(1, 2)} אתגרים עד עכשיו.`)
   })
   it('סיבות תשומת לב במילים (לפי attentionReasonText), ללא "עוד לא התחיל/ה" כפול', () => {
     expect(s({ gaveUp: 2, solved: 1, attentionReasons: ['gave_up_often', 'low_success'] }))
       .toBe(`אבי פתר/ה ${countNb(1, 4)} אתגרים. ויתר/ה על 2. לתשומת לב: ${attentionReasonText('gave_up_often')}, ${attentionReasonText('low_success')}.`)
     expect(s({ attentionReasons: [] })).toBe(`אבי פתר/ה ${countNb(3, 4)} אתגרים.`)
-    expect(s({ status: 'not_started', attentionReasons: ['not_started'] })).toBe(`אבי עוד לא התחיל/ה את ההדמיה. ${NO_RESULTS_YET}`)
+    expect(s({ status: 'not_started', attentionReasons: ['not_started'] })).toBe(`אבי עוד לא התחיל/ה את השיעור. ${NO_RESULTS_YET}`)
   })
 })

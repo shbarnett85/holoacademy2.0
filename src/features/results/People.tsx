@@ -5,7 +5,7 @@
    כל שם הוא כפתור ≥44px עם אייקון מצב; "לתשומת לב" מסומן באייקון התראה ובמילים (בכותרת החלונית ובקריאת מסך), לא בצבע בלבד. */
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { attentionBadgeText, countNb } from '../../shared/lib/findingsNarrative'
+import { LESSON_DUE_TEXT, attentionBadgeText, countNb } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, StudentChip } from '../../shared/types/resultsV1'
 import { FONT, Icon, MIN_TARGET, RADIUS, STATUS_META, T, VisuallyHidden } from '../teacherUi'
 import type { StudentStatus } from '../teacherUi'
@@ -30,6 +30,16 @@ function AttentionLegend({ n }: { n: number }) {
   )
 }
 
+/* "באיחור": אייקון שעון + מילה (הצבע משני). מוצג בכותרת הרשימה ובכל שם של מי שסיים אחרי המועד */
+function LateLegend({ n, total }: { n: number; total: number }) {
+  return (
+    <span data-late-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: `1.5px solid ${T.muted}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+      <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="clock" size={18} /></span>
+      {LESSON_DUE_TEXT.lateCount(n, total)}
+    </span>
+  )
+}
+
 /* ── שם-כפתור: אייקון מצב, שם (עד 2-3 שורות בתוך 44px), סימן "לתשומת לב" ── */
 function NameChip({ s, onOpen, current = false, showStatus = true }: { s: StudentChip; onOpen: (id: string) => void; current?: boolean; showStatus?: boolean }) {
   const m = STATUS_META[s.status]
@@ -46,7 +56,8 @@ function NameChip({ s, onOpen, current = false, showStatus = true }: { s: Studen
       {showStatus && <StatusIcon status={s.status} />}
       <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{s.name}</span>
       {s.attention && <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>}
-      <VisuallyHidden>{`, ${m.word}${s.attention ? `, ${UI.attentionWord}` : ''}`}</VisuallyHidden>
+      {s.late && <span data-late-mark title={LESSON_DUE_TEXT.late} style={{ color: T.muted, display: 'inline-flex' }}><Icon name="clock" size={18} /></span>}
+      <VisuallyHidden>{`, ${m.word}${s.attention ? `, ${UI.attentionWord}` : ''}${s.late ? `, ${LESSON_DUE_TEXT.late}` : ''}`}</VisuallyHidden>
     </button>
   )
 }
@@ -71,11 +82,13 @@ function GroupHeading({ status, word, count, total, id }: { status: StudentStatu
 export function ClassRoster({ roster, onOpen }: { roster: ClassSubmissionView['roster']; onOpen: (studentId: string) => void }) {
   const total = roster.completed.length + roster.inProgress.length + roster.notStarted.length
   const attention = attentionTotal(roster)
+  const late = roster.completed.filter((s) => s.late).length
   return (
     <section aria-label={UI.rosterTitle} data-people-panel="class" style={{ ...card, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '6px 14px 0', display: 'flex', alignItems: 'center', gap: '2px 10px', flexWrap: 'wrap', flex: '0 0 auto' }}>
         <h2 style={panelTitle}>{UI.rosterTitle}</h2>
         {attention > 0 && <AttentionLegend n={attention} />}
+        {late > 0 && <LateLegend n={late} total={roster.completed.length} />}
       </div>
       <div style={{ ...scrollArea, padding: '2px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {total === 0 && <p style={soft}>{UI.rosterEmpty}</p>}

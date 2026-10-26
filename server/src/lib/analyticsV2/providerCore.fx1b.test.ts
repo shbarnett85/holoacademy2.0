@@ -79,7 +79,7 @@ describe('טענת רמה כיתתית: לפחות 3 תלמידים שלכל א�
     expect(out.data.classLevel.mean).toBeNull()
     expect(out.data.summary.headline).toBe(narrateSubjectHeadline({ className: CA.name, subject: 'מתמטיקה', position: null, trend: 'insufficient', attentionStudents: 0 }))
     expect(out.data.summary.headline).toContain(NO_DATA_YET)
-    expect(out.data.summary.headline).toContain('התמונה תופיע כשתלמידים יסיימו הדמיות')
+    expect(out.data.summary.headline).toContain('התמונה תופיע כשתלמידים יסיימו שיעורים')
     expect(out.data.summary.headline).not.toContain('מתחת לטווח')
     const ov = await P.classOverview(v, CA.id)
     expect(ov.dataState).toBe('insufficient')

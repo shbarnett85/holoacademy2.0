@@ -18,7 +18,7 @@ const buttons = (html: string): string[] => [...html.matchAll(/<button\b[^>]*>[\
 const links = (html: string): string[] => [...html.matchAll(/<a\b[^>]*>[\s\S]*?<\/a>/g)].map((m) => m[0])
 
 describe('צ׳יפ הסינון "ללא מקצוע (N)"', () => {
-  it('יש הדמיות בלי מקצוע: שני צ׳יפים — "כל ההדמיות" (נבחר) ו"ללא מקצוע (3)"', () => {
+  it('יש שיעורים בלי מקצוע: שני צ׳יפים — "כל השיעורים" (נבחר) ו"ללא מקצוע (3)"', () => {
     const html = toolbar({ noSubjectCount: 3 })
     const labels = buttons(html).map(text)
     expect(labels).toEqual([LIBRARY_ASSIGN_TEXT.allChip, LIBRARY_ASSIGN_TEXT.noSubjectChip(3)])
@@ -31,7 +31,7 @@ describe('צ׳יפ הסינון "ללא מקצוע (N)"', () => {
     expect(html).not.toContain('data-library-assigned')
   })
 
-  it('אין הדמיות בלי מקצוע: הצ׳יפים לא מופיעים', () => {
+  it('אין שיעורים בלי מקצוע: הצ׳יפים לא מופיעים', () => {
     expect(toolbar({ noSubjectCount: 0 })).toBe('')
   })
 
@@ -41,14 +41,14 @@ describe('צ׳יפ הסינון "ללא מקצוע (N)"', () => {
     expect(buttons(html)[1]).toContain('<svg aria-hidden="true"')
     expect(buttons(html)[0]).not.toContain('<svg')
     expect(text(html)).toContain(LIBRARY_ASSIGN_TEXT.intro)
-    expect(LIBRARY_ASSIGN_TEXT.intro).toContain('בחרו מקצוע ליד כל אחת')
+    expect(LIBRARY_ASSIGN_TEXT.intro).toContain('בחרו מקצוע ליד כל אחד')
     const back = links(html)
     expect(back).toHaveLength(1)
     expect(back[0]).toContain('href="/analytics"')
     expect(text(back[0])).toBe(LIBRARY_ASSIGN_TEXT.backToAnalytics)
   })
 
-  it('הסינון פעיל וכבר שויכו כולן (N=0): הצ׳יפים נשארים, כדי שאפשר יהיה לחזור ל"כל ההדמיות"', () => {
+  it('הסינון פעיל וכבר שויכו כולם (N=0): הצ׳יפים נשארים, כדי שאפשר יהיה לחזור ל"כל השיעורים"', () => {
     const html = toolbar({ onlyNoSubject: true, noSubjectCount: 0 })
     expect(buttons(html).map(text)).toEqual([LIBRARY_ASSIGN_TEXT.allChip, 'ללא מקצוע (0)'])
   })
@@ -62,8 +62,8 @@ describe('אחרי שיוך מקצוע', () => {
     expect(text(html)).toContain(LIBRARY_ASSIGN_TEXT.saved)
     /* אומר את האמת על שיוך בדיעבד: משחקים חדשים כן, משחקים שכבר שוחקו — לא */
     expect(LIBRARY_ASSIGN_TEXT.saved).toContain('המקצוע נשמר')
-    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים חדשים בהדמיה הזאת ייכללו באנליטיקה')
-    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים שכבר שוחקו בה לא ייכללו')
+    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים חדשים בשיעור הזה ייכללו באנליטיקה')
+    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים שכבר שוחקו בו לא ייכללו')
     expect(links(html).map(text)).toEqual([LIBRARY_ASSIGN_TEXT.backToAnalytics])
     expect(links(html)[0]).toContain('href="/analytics"')
     expect(buttons(html).map(text)).toContain(LIBRARY_ASSIGN_TEXT.dismiss)
@@ -78,7 +78,7 @@ describe('אחרי שיוך מקצוע', () => {
   })
 })
 
-describe('פקד שיוך המקצוע בכרטיס הדמיה', () => {
+describe('פקד שיוך המקצוע בכרטיס שיעור', () => {
   const html = render(<SubjectAssign busy={false} onAssign={NOOP} />)
   const select = /<select\b[^>]*>/.exec(html)?.[0] ?? ''
 

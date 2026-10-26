@@ -49,5 +49,5 @@ export async function ensureQuestAccess(req: Request, quest: { created_by?: stri
     return
   }
   if (req.anonId && quest.anon_id && quest.anon_id === req.anonId) return
-  throw new AppError(403, 'ההדמיה הזו לא נוצרה בדפדפן הזה — התחברו כדי לערוך אותה')
+  throw new AppError(403, 'השיעור הזה לא נוצר בדפדפן הזה — התחברו כדי לערוך אותו')
 }

@@ -69,7 +69,7 @@ describe('demoCatalog.ts: תוכן דומיין בלבד — אין ממצאים
     for (const t of texts()) for (const phrase of NARRATIVE_PHRASES) expect(t.includes(phrase), `${phrase} ⊂ ${t}`).toBe(false)
   })
 
-  it('אין מונחים טכניים/סטטיסטיים בתוכן ההדמיות', () => {
+  it('אין מונחים טכניים/סטטיסטיים בתוכן השיעורים', () => {
     const FORBIDDEN = [/וקטור/, /מובהק/, /BH/, /אינדקס/, /קורלציה/, /הסתברות/, /אפקט/, /סטטיסט/, /מתוקן/, /מסיח/, /\bN\s*=/]
     for (const t of texts()) for (const re of FORBIDDEN) expect(re.test(t), t).toBe(false)
   })

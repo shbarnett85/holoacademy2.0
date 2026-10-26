@@ -2,7 +2,8 @@ import { SHARING_DISABLED_UI_MESSAGE } from '../../shared/lib/contact'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch, apiJson } from '../../shared/lib/api'
-import { LIBRARY_ASSIGN_TEXT } from '../../shared/lib/findingsNarrative'
+import { LESSON_DUE_TEXT, LIBRARY_ASSIGN_TEXT } from '../../shared/lib/findingsNarrative'
+import { defaultDueAt, israelDay } from '../../shared/lib/lessonState'
 import { countNoSubject, filterMine, wantsNoSubjectFilter, withNoSubjectFilter } from '../../shared/lib/libraryLinks'
 import { FONT as TU_FONT, MIN_TARGET, T } from '../teacherUi/tokens'
 import { trackFunnel } from '../../shared/lib/funnel'
@@ -10,6 +11,7 @@ import { holoConfirm } from '../../shared/ui/dialog'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { getGuestQuestIds, addGuestQuestId, removeGuestQuestId } from '../../shared/lib/guestLibrary'
+import LessonThumb from '../../shared/ui/LessonThumb'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 import { SUBJECTS, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
@@ -28,6 +30,8 @@ interface QuestSummary {
   subject?: string | null
   /* קוד המקצוע (subjects.code); null = "לא סווג" */
   subjectCode?: string | null
+  /* תמונת השיעור — אותו רכיב (LessonThumb) כמו ברשימת התלמיד */
+  thumbUrl?: string | null
 }
 
 /* הדמיה בספרייה הציבורית (GET /api/library) */
@@ -36,6 +40,7 @@ interface PublicQuest {
   title: string
   subject: string | null
   subjectCode?: string | null
+  thumbUrl?: string | null
   sceneCount: number
   puzzleTypes: string[]
   authorName: string
@@ -60,20 +65,10 @@ const GRADES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 
 /* רשימת המקצועות — מקור יחיד משותף (shared/lib/subjects.ts); אין עוד רשימה מקומית */
 const SUBJECT_NAMES: string[] = SUBJECTS.map((s) => s.nameHe)
 const CYAN = '47,243,255'
-const MAGENTA = '255,69,230'
 const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
 
 /* שכבה = gradeLabel ללא ספרת הכיתה */
 const layerOf = (g: string) => g.replace(/\s*\d+$/, '').trim() || g
-
-function Thumb({ rgb }: { rgb: string }) {
-  return (
-    <div style={{ width: 56, height: 56, borderRadius: 13, flex: '0 0 auto', position: 'relative', overflow: 'hidden', display: 'grid', placeItems: 'center', background: `linear-gradient(140deg, ${window.HoloTint(rgb, .22)}, var(--t157))`, border: `1px solid ${window.HoloTint(rgb, .32)}`, boxShadow: `inset 0 0 18px ${window.HoloTint(rgb, .12)}` }}>
-      <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(${window.HoloTint(rgb, .12)} 1px,transparent 1px),linear-gradient(90deg,${window.HoloTint(rgb, .12)} 1px,transparent 1px)`, backgroundSize: '12px 12px' }} />
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={`${window.HoloTint(rgb, 1)}`} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
-    </div>
-  )
-}
 
 function Chip({ children }: { children: React.ReactNode }) {
   return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t27)', padding: '3px 9px', borderRadius: 20, background: 'var(--t158)', border: '1px solid var(--t159)', whiteSpace: 'nowrap' }}>{children}</span>
@@ -155,18 +150,18 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
       style={{ display: 'flex', gap: 14, padding: 14, borderRadius: 14, background: 'var(--t25)', border: '1px solid var(--t26)', transition: 'all .18s', cursor: 'pointer' }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--t36)'; e.currentTarget.style.background = 'var(--t40)' }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--t26)'; e.currentTarget.style.background = 'var(--t25)' }}>
-      <Thumb rgb={CYAN} />
+      <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} width={104} height={78} radius={12} frame={3} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ flex: 1, fontSize: 15, fontWeight: 700, color: 'var(--t68)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
-          {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t1)', background: 'var(--t84)', border: '1px solid var(--t2)' }}>🌐 משותפת</span>}
-          {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t16)', background: 'var(--t161)', border: '1px solid var(--t162)' }}>🔄 הדמיית חזרה</span>}
+          {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t1)', background: 'var(--t84)', border: '1px solid var(--t2)' }}>🌐 משותף</span>}
+          {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t16)', background: 'var(--t161)', border: '1px solid var(--t162)' }}>🔄 שיעור חזרה</span>}
           <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? 'var(--t163)' : 'var(--t164)', background: q.is_published ? 'var(--t165)' : 'var(--t166)', border: '1px solid ' + (q.is_published ? 'var(--t167)' : 'var(--t168)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
           <Chip>{q.sceneCount} סצנות</Chip>
           {(q.longSceneCount ?? 0) > 0 && <Chip>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
-          {q.subject && <Chip>{q.subject}</Chip>}
+          <Chip>{q.subject ?? UNCLASSIFIED_LABEL}</Chip>
           <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
         </div>
         {/* הדמיה "לא סווג" — שיוך מהיר למקצוע (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */}
@@ -181,7 +176,7 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
           )}
           <div style={{ flex: 1 }} />
           {/* מחיקה — כפתור משני אדום (עם אישור בהורה) */}
-          <button disabled={busy} title="מחק הדמיה" onClick={(e) => { e.stopPropagation(); onDelete() }}
+          <button disabled={busy} title="מחק שיעור" onClick={(e) => { e.stopPropagation(); onDelete() }}
             style={{ ...cardBtn, color: 'var(--t18)', borderColor: 'var(--t169)', opacity: busy ? 0.5 : 1 }}>
             מחק 🗑️
           </button>
@@ -208,7 +203,7 @@ function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOpen, onP
 function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy: boolean; onCopy: () => void; onReport: () => void }) {
   return (
     <div style={{ display: 'flex', gap: 14, padding: 14, borderRadius: 14, background: 'var(--t25)', border: '1px solid var(--t171)' }}>
-      <Thumb rgb={MAGENTA} />
+      <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} width={104} height={78} radius={12} frame={3} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 15, fontWeight: 700, color: 'var(--t68)' }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.title}</span>
@@ -249,6 +244,8 @@ function ShareModal({ quest, onClose, onDone }: {
   const [classFilter, setClassFilter] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /* מועד הגשה: יום ישראלי (YYYY-MM-DD); ברירת מחדל = שבוע מהיום, נגמר ב-23:59 (השרת מחשב את הרגע המדויק) */
+  const [dueDay, setDueDay] = useState(() => israelDay(defaultDueAt(new Date())))
   /* אזהרות פתוחות שהשרת החזיר בניסיון שיתוף (409) — דורשות אישור מורה מפורש */
   const [shareWarnings, setShareWarnings] = useState<string[] | null>(null)
 
@@ -315,9 +312,11 @@ function ShareModal({ quest, onClose, onDone }: {
     const selectedList = (students ?? []).filter(s => selected.has(s.id))
     const classIds = [...new Set(selectedList.map(s => s.classId))]
     if (!classIds.length) return
+    if (dueDay && dueDay < israelDay(new Date())) { setError(LESSON_DUE_TEXT.pastDay); return }
+    setError(null)
 
     /* assign — best-effort, לא חוסם את הייצוא */
-    apiJson(`/api/quests/${quest.id}/assign`, { method: 'POST', body: JSON.stringify({ classIds }) })
+    apiJson(`/api/quests/${quest.id}/assign`, { method: 'POST', body: JSON.stringify({ classIds, ...(dueDay ? { dueDay } : {}) }) })
       .catch(() => {})
 
     setGenStudents(selectedList)
@@ -365,7 +364,7 @@ function ShareModal({ quest, onClose, onDone }: {
   function shareWhatsApp() {
     trackFunnel('teacher_whatsapp', quest.id)
     const url = `${window.location.origin}/play/${quest.id}`
-    const text = `🎮 "${quest.title}" — הדמיית למידה אינטראקטיבית ב-HoloAcademy. שחקו:\n${url}`
+    const text = `🎮 "${quest.title}" — שיעור למידה אינטראקטיבי ב-HoloAcademy. שחקו:\n${url}`
     navigator.clipboard?.writeText(url).catch(() => { /* clipboard לא זמין — הוואטסאפ עדיין נפתח */ })
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
     onDone('🔗 הקישור הועתק ונפתח חלון וואטסאפ לשיתוף')
@@ -383,7 +382,7 @@ function ShareModal({ quest, onClose, onDone }: {
       /* שער האיכות: אזהרות פתוחות — מציגים אותן והמורה מאשר במפורש לפני שיתוף */
       if (res.status === 409 && body?.needsAck) { setShareWarnings(body.warnings ?? []); return }
       if (!res.ok) throw new Error(body?.error ?? 'שגיאה')
-      onDone('🌐 ההדמיה שותפה לספרייה הציבורית')
+      onDone('🌐 השיעור שותף לספרייה הציבורית')
       onClose()
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
   }
@@ -413,7 +412,7 @@ function ShareModal({ quest, onClose, onDone }: {
             <button onClick={() => { setStep('pick'); setError(null) }} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← חזרה</button>
           )}
           <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: 'var(--t13)' }}>
-            {step === 'pick' && 'שתף הדמיה'}
+            {step === 'pick' && 'שתף שיעור'}
             {step === 'students' && 'שלח לתלמידים'}
             {step === 'community' && 'שתף לספרייה הציבורית'}
             {step === 'generating' && 'מכין גרסאות אישיות…'}
@@ -492,6 +491,13 @@ function ShareModal({ quest, onClose, onDone }: {
               )}
             </div>
 
+            {/* מועד הגשה — ברירת מחדל שבוע; השיעור לא ננעל אחריו */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--t68)' }}>
+              {LESSON_DUE_TEXT.sendFieldLabel}
+              <input type="date" data-send-due value={dueDay} min={israelDay(new Date())} onChange={(e) => setDueDay(e.target.value)} style={{ ...inp, minHeight: 36 }} />
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--t176)', flexShrink: 0, marginTop: -4 }}>{LESSON_DUE_TEXT.sendFieldHint}</div>
+
             {error && <div style={{ color: 'var(--t5)', fontSize: 12, flexShrink: 0 }}>⚠️ {error}</div>}
 
             {/* כפתור שלח */}
@@ -567,7 +573,7 @@ function ShareModal({ quest, onClose, onDone }: {
                 </button>
               )}
               {step === 'generated' && (
-                <button onClick={() => { onDone(`✅ ההדמיה הוקצתה ל-${genStudents.length} תלמידים`); onClose() }}
+                <button onClick={() => { onDone(`✅ השיעור הוקצה ל-${genStudents.length} תלמידים`); onClose() }}
                   style={{ ...cardBtn, padding: '8px 22px', color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', fontWeight: 700 }}>
                   סגור
                 </button>
@@ -588,16 +594,16 @@ function ShareModal({ quest, onClose, onDone }: {
               </div>
             </div>
             <p style={{ fontSize: 13, color: 'var(--t27)', lineHeight: 1.7, margin: 0 }}>
-              ההדמיה תהיה גלויה לכל המורים במערכת. הם יוכלו להעתיק אותה לעצמם לעריכה. תוכל להסיר אותה בכל עת מהספרייה.
+              השיעור יהיה גלוי לכל המורים במערכת. הם יוכלו להעתיק אותו לעצמם לעריכה. תוכל להסיר אותו בכל עת מהספרייה.
             </p>
             {quest.is_public && (
               <div style={{ fontSize: 12.5, color: 'var(--t1)', background: 'var(--t20)', border: '1px solid var(--t41)', borderRadius: 9, padding: '8px 13px' }}>
-                ✓ ההדמיה כבר משותפת בספרייה הציבורית
+                ✓ השיעור כבר משותף בספרייה הציבורית
               </div>
             )}
             {shareWarnings && (
               <div style={{ background: 'var(--t190)', border: '1px solid var(--t191)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t192)' }}>⚠ להדמיה יש אזהרות פתוחות — עברו עליהן לפני השיתוף:</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t192)' }}>⚠ לשיעור יש אזהרות פתוחות — עברו עליהן לפני השיתוף:</div>
                 <ul style={{ margin: 0, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
                   {shareWarnings.map((w, i) => <li key={i} style={{ fontSize: 12, color: 'var(--t193)', lineHeight: 1.6 }}>{w}</li>)}
                 </ul>
@@ -609,7 +615,7 @@ function ShareModal({ quest, onClose, onDone }: {
               <button onClick={onClose} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
               <button disabled={busy || quest.is_public} onClick={() => shareCommunity(shareWarnings !== null)}
                 style={{ ...cardBtn, padding: '8px 20px', color: 'var(--t17)', background: quest.is_public ? 'var(--t195)' : shareWarnings ? 'linear-gradient(120deg,var(--t196),var(--t118))' : 'linear-gradient(120deg,var(--t118),var(--t14))', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
-                {busy ? 'משתף…' : quest.is_public ? 'כבר משותפת' : shareWarnings ? 'בדקתי — שתף בכל זאת' : 'שתף 🌐'}
+                {busy ? 'משתף…' : quest.is_public ? 'כבר משותף' : shareWarnings ? 'בדקתי — שתף בכל זאת' : 'שתף 🌐'}
               </button>
             </div>
           </div>
@@ -712,7 +718,7 @@ export default function Library() {
 
   async function doUnshare(q: QuestSummary) {
     setBusyId(q.id); setError(null)
-    try { await apiJson(`/api/quests/${q.id}/unshare`, { method: 'POST' }); flash('ההדמיה הוסרה מהספרייה'); loadMine(); loadPublic() }
+    try { await apiJson(`/api/quests/${q.id}/unshare`, { method: 'POST' }); flash('השיעור הוסר מהספרייה'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusyId(null) }
   }
   async function doAssignSubject(q: QuestSummary, code: string) {
@@ -724,9 +730,9 @@ export default function Library() {
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה בשיוך המקצוע') } finally { setBusyId(null) }
   }
   async function doDelete(q: QuestSummary) {
-    if (!(await holoConfirm(`למחוק לצמיתות את ההדמיה "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
+    if (!(await holoConfirm(`למחוק לצמיתות את השיעור "${q.title}"? לא ניתן לשחזר.`, 'מחק לצמיתות', 'ביטול'))) return
     setBusyId(q.id); setError(null)
-    try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); if (isGuest) removeGuestQuestId(q.id); flash('🗑️ ההדמיה נמחקה'); loadMine(); loadPublic() }
+    try { await apiJson(`/api/quests/${q.id}`, { method: 'DELETE' }); if (isGuest) removeGuestQuestId(q.id); flash('🗑️ השיעור נמחק'); loadMine(); loadPublic() }
     catch (e) { setError(e instanceof Error ? e.message : 'שגיאה במחיקה') } finally { setBusyId(null) }
   }
   async function doCopy(q: PublicQuest) {
@@ -829,7 +835,7 @@ export default function Library() {
           {/* הספרייה שלי */}
           <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={panel}>
-              <ColHead rgb={CYAN} title="הספרייה שלי" kicker="MY LIBRARY" count={`${mineF.length} הדמיות`}
+              <ColHead rgb={CYAN} title="הספרייה שלי" kicker="MY LIBRARY" count={`${mineF.length} שיעורים`}
                 icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t15)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>} />
               {error && <div style={{ color: 'var(--t5)', padding: 12, borderRadius: 12, border: '1px solid var(--t102)', background: 'var(--t199)', marginBottom: 10 }}>{error}</div>}
               <MineToolbar assignedNote={assignedNote} onlyNoSubject={onlyNoSubject} noSubjectCount={noSubjectCount}
@@ -845,7 +851,7 @@ export default function Library() {
                         <p style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: T.textSoft }}>{LIBRARY_ASSIGN_TEXT.noneLeft.whatNext}</p>
                       </div>
                     )
-                    : emptyMsg((isGuest ? getGuestQuestIds().length === 0 : quests.length === 0) ? 'עדיין אין הדמיות — צרו את הראשונה!' : LIBRARY_ASSIGN_TEXT.noMatches)
+                    : emptyMsg((isGuest ? getGuestQuestIds().length === 0 : quests.length === 0) ? 'עדיין אין שיעורים — צרו את הראשון!' : LIBRARY_ASSIGN_TEXT.noMatches)
                 )}
                 {mineF.map((q) => (
                   <QuestCard key={q.id} q={q} busy={busyId === q.id} isGuest={isGuest}
@@ -874,8 +880,8 @@ export default function Library() {
                     <div style={{ width: 56, height: 56, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'var(--t189)', border: '1px dashed var(--t200)' }}>
                       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t34)' }} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
                     </div>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--t201)' }}>{(publicQuests?.length ?? 0) === 0 ? 'אין עדיין הדמיות משותפות' : 'אין תוצאות לסינון'}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--t121)', maxWidth: 280, lineHeight: 1.6 }}>שתפו הדמיה שיצרתם (כפתור "שתף") כדי שתופיע כאן לכל המורים.</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--t201)' }}>{(publicQuests?.length ?? 0) === 0 ? 'אין עדיין שיעורים משותפים' : 'אין תוצאות לסינון'}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--t121)', maxWidth: 280, lineHeight: 1.6 }}>שתפו שיעור שיצרתם (כפתור "שתף") כדי שיופיע כאן לכל המורים.</div>
                   </div>
                 )}
                 {commF.map((q) => <PublicCard key={q.id} q={q} busy={busyId === q.id} onCopy={() => doCopy(q)} onReport={() => { setReportFor(q); setReportReason('') }} />)}
@@ -898,7 +904,7 @@ export default function Library() {
       {reportFor && (
         <div onClick={() => setReportFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t202)', backdropFilter: 'blur(6px)' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...glass, padding: '28px 34px', maxWidth: 420, width: '90%' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t13)', marginBottom: 4 }}>דיווח על הדמיה</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t13)', marginBottom: 4 }}>דיווח על שיעור</div>
             <div style={{ fontSize: 13, color: 'var(--t27)', marginBottom: 14 }}>"{reportFor.title}" · {reportFor.authorName}</div>
             <textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} rows={4} placeholder="סיבת הדיווח (תוכן לא הולם, שגיאה חמורה, וכו׳)…"
               style={{ width: '100%', background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 10, color: 'var(--t68)', padding: '10px 12px', fontFamily: 'var(--font-display)', fontSize: 13.5, resize: 'vertical', outline: 'none' }} />

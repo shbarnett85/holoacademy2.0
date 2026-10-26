@@ -1,7 +1,7 @@
 /* תג/נקודת מקצוע (עיקרון 11): לכל מקצוע צבע ואייקון קבועים בכל המערכת (shared/lib/subjectStyle.ts).
    הצבע לעולם לא לבד — תמיד אייקון + שם המקצוע, יחד. code=null → "לא סווג". */
 import { Link } from 'react-router-dom'
-import { subjectStyle } from '../../shared/lib/subjectStyle'
+import { useSubjectStyle } from '../../shared/lib/subjectStyle'
 import { Icon } from './icons'
 import { FONT, MIN_TARGET, RADIUS, T } from './tokens'
 
@@ -22,7 +22,7 @@ function Orb({ color, icon, size }: { color: string; icon: string; size: number 
 
 /** תג מקצוע ממוסגר: [אייקון] שם. לכותרות, כרטיסים ורשימות. */
 export function SubjectBadge({ code }: SubjectProps) {
-  const s = subjectStyle(code)
+  const s = useSubjectStyle(code)
   return (
     <span data-subject={code ?? 'unclassified'} style={{
       display: 'inline-flex', alignItems: 'center', gap: 8, padding: '3px 12px 3px 4px', borderRadius: 20,
@@ -36,7 +36,7 @@ export function SubjectBadge({ code }: SubjectProps) {
 
 /** נקודת מקצוע לא-ממוסגרת: [אייקון] שם. לטבלאות ולמקרא גרפים — השם תמיד מוצג לידה. */
 export function SubjectDot({ code }: SubjectProps) {
-  const s = subjectStyle(code)
+  const s = useSubjectStyle(code)
   return (
     <span data-subject={code ?? 'unclassified'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 600, color: T.text, whiteSpace: 'nowrap' }}>
       <Orb color={s.color} icon={s.icon} size={26} />
@@ -56,7 +56,7 @@ interface SubjectLinkButtonProps extends SubjectProps {
 
 /** כפתור מקצוע: [אייקון] שם — קישור אמיתי, תג מקצוע בגובה 44px לפחות (קיצור דרך אל המקצוע, או שם מקצוע בטבלה). */
 export function SubjectLinkButton({ code, to, label, chevron = true }: SubjectLinkButtonProps) {
-  const s = subjectStyle(code)
+  const s = useSubjectStyle(code)
   return (
     <Link to={to} data-tu-press data-subject={code ?? 'unclassified'}
       style={{

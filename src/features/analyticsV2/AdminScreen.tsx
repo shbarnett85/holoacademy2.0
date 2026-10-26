@@ -60,7 +60,7 @@ function OverviewTab({ d }: { d: AdminOverview }) {
       <Sentence tone="neutral">{first ?? V2_CLIENT_TEXT.adminNoResults}</Sentence>
       <Card label="מה בולט">
         <CardTitle>מה בולט</CardTitle>
-        {rest.length === 0 ? <Note style={{ fontSize: 16 }}>עוד אין מספיק נתונים כדי להדגיש משהו. הם יופיעו כאן כשתלמידים ישחקו בהדמיות.</Note> : (
+        {rest.length === 0 ? <Note style={{ fontSize: 16 }}>עוד אין מספיק נתונים כדי להדגיש משהו. הם יופיעו כאן כשתלמידים ישחקו בשיעורים.</Note> : (
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {rest.map((t, i) => (
               <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 17, lineHeight: 1.55, color: T.text }}>
@@ -91,7 +91,7 @@ function OverviewTab({ d }: { d: AdminOverview }) {
 }
 
 function GradesTab({ d }: { d: AdminOverview }) {
-  if (d.gradeRows.length === 0) return <EmptyState title="עוד אין נתונים על השכבות." whatNext="הם יופיעו כאן כשתלמידים ישחקו בהדמיות." />
+  if (d.gradeRows.length === 0) return <EmptyState title="עוד אין נתונים על השכבות." whatNext="הם יופיעו כאן כשתלמידים ישחקו בשיעורים." />
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 560px), 1fr))', gap: 12, alignItems: 'start' }}>
@@ -112,7 +112,7 @@ function GradesTab({ d }: { d: AdminOverview }) {
 
 function SubjectsTab({ d }: { d: AdminOverview }) {
   const [picked, setPicked] = useState<string | null>(null)
-  if (d.subjectRows.length === 0) return <EmptyState title="עוד אין נתונים על המקצועות." whatNext="הם יופיעו כאן כשתלמידים ישחקו בהדמיות." />
+  if (d.subjectRows.length === 0) return <EmptyState title="עוד אין נתונים על המקצועות." whatNext="הם יופיעו כאן כשתלמידים ישחקו בשיעורים." />
   const subjectRows = bySubjectOrderOf(d.subjectRows, (r) => r.subject.code)
   const row = subjectRows.find((r) => r.subject.code === picked) ?? subjectRows[0]
   const lines = d.progress.filter((p) => p.subject.code === row.subject.code && p.series.length > 0)
@@ -132,7 +132,7 @@ function SubjectsTab({ d }: { d: AdminOverview }) {
         </Card>
         <Card label="התקדמות לאורך השנה">
           <CardTitle>התקדמות לאורך השנה</CardTitle>
-          {lines.length === 0 ? <Note style={{ fontSize: 16 }}>עוד אין מספיק נתונים להצגת התקדמות. הגרף יופיע כאן כשיצטברו מספיק הדמיות.</Note> : (
+          {lines.length === 0 ? <Note style={{ fontSize: 16 }}>עוד אין מספיק נתונים להצגת התקדמות. הגרף יופיע כאן כשיצטברו מספיק שיעורים.</Note> : (
             <>
               <MultiLineChart lines={lines} height={230} label={`התקדמות ממוצעת ב${row.subject.nameHe} לפי שכבה`} />
               <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 4 }}>

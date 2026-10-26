@@ -28,7 +28,7 @@ export type FindingKind = (typeof FINDING_KINDS)[number]
    (היחידה נקבעת בסוג: d של Cohen / עודף חלק / פער שיעורים / יחס). */
 export interface KindThreshold { minN: number; minEffect: number; effectUnit: string }
 export const KIND_THRESHOLDS: Record<FindingKind, KindThreshold> = {
-  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בהדמיות: חלון אחרון מול קודם; בחשבון אמיתי — ההצלחה ביחס לשאר הכיתה באותה הדמיה, ראו LIVE_TREND_RULE)' },
+  level_trend: { minN: 8, minEffect: 0.8, effectUnit: 'Cohen d (הצלחה בשיעורים: חלון אחרון מול קודם; בחשבון אמיתי — ההצלחה ביחס לשאר הכיתה באותו שיעור, ראו LIVE_TREND_RULE)' },
   class_concept_improvement: { minN: 15, minEffect: 0.8, effectUnit: 'dz (שינוי זוגי פר-תלמיד)' },
   memory_random_pattern: { minN: 6, minEffect: 0.25, effectUnit: 'פער בשיעור איתור זוג מוכר מול הצפוי בקשב (N = משחקים)' },
   position_bias: { minN: 25, minEffect: 0.15, effectUnit: 'עודף חלק האפשרות הראשונה מעל הצפוי (פריטים)' },
@@ -81,7 +81,7 @@ export type ContentVectorKey = (typeof CONTENT_VECTOR_KINDS)[number]['key']
 export const BEHAVIOR_VECTOR_KINDS = [
   { key: 'persistence', labelHe: 'התמדה', hintHe: 'ניסיונות חוזרים מול ויתור' },
   { key: 'reading_attention', labelHe: 'קשב לקריאה', hintHe: 'זמן קריאה ביחס לאורך הטקסט' },
-  { key: 'consistency', labelHe: 'עקביות', hintHe: 'יציבות ההצלחה בין הדמיות' },
+  { key: 'consistency', labelHe: 'עקביות', hintHe: 'יציבות ההצלחה בין שיעורים' },
 ] as const
 export type BehaviorVectorKey = (typeof BEHAVIOR_VECTOR_KINDS)[number]['key']
 

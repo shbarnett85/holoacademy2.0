@@ -58,11 +58,11 @@ export default function DemoDataPanel({ classes, onChanged }: { classes: ClassRo
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="font-bold">🧪 נתוני דוגמה</h2>
         <span className="text-xs" style={{ opacity: 0.65 }}>
-          {status.classes ?? 0} כיתות · {status.students ?? 0} תלמידים לדוגמה · {status.readyQuests ?? 0} הדמיות מוכנות
+          {status.classes ?? 0} כיתות · {status.students ?? 0} תלמידים לדוגמה · {status.readyQuests ?? 0} שיעורים מוכנים
         </span>
       </div>
       <p className="text-xs mt-1" style={{ opacity: 0.6 }}>
-        תלמידים פיקטיביים עם תוצאות מוכנות על ההדמיות שלך, כדי לראות את האנליטיקה מלאה. מסומנים &quot;תלמיד לדוגמה&quot; ואינם נספרים בשום מקום אחר.
+        תלמידים פיקטיביים עם תוצאות מוכנות על השיעורים שלך, כדי לראות את האנליטיקה מלאה. מסומנים &quot;תלמיד לדוגמה&quot; ואינם נספרים בשום מקום אחר.
       </p>
 
       <div className="flex gap-2 flex-wrap mt-3 items-center">
@@ -100,7 +100,7 @@ export default function DemoDataPanel({ classes, onChanged }: { classes: ClassRo
       {confirmDelete && (
         <ConfirmModal
           title="מחיקת נתוני דוגמה"
-          message="יימחקו כיתות ותלמידי הדוגמה והתוצאות שלהם בלבד. תלמידים, כיתות והדמיות אמיתיים לא ייגעו."
+          message="יימחקו כיתות ותלמידי הדוגמה והתוצאות שלהם בלבד. תלמידים, כיתות ושיעורים אמיתיים לא ייגעו."
           confirmLabel="מחק" danger
           onConfirm={() => {
             setConfirmDelete(false)

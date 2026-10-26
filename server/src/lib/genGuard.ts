@@ -54,7 +54,7 @@ export function checkRateLimit(key: string): void {
   const arr = (rateMap.get(key) ?? []).filter((t) => now - t < 3600_000)
   if (arr.length >= GEN_RATE_LIMIT) {
     rateMap.set(key, arr)
-    throw new AppError(429, 'יצרתם הרבה הדמיות ברצף — נסו שוב בעוד כמה דקות ⏳')
+    throw new AppError(429, 'יצרתם הרבה שיעורים ברצף — נסו שוב בעוד כמה דקות ⏳')
   }
   arr.push(now)
   rateMap.set(key, arr)

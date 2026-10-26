@@ -19,7 +19,7 @@ const rich: SummaryInput = {
     { id: 'f3', kind: 'trend', tone: 'positive', text: 'בעברית המגמה האחרונה: בעלייה.', numbers: [] },
     { id: 'f4', kind: 'trend', tone: 'neutral', text: 'בהיסטוריה המגמה האחרונה: יציבה.', numbers: [] },
     { id: 'f5', kind: 'challenge', tone: 'attention', text: 'אתגר 2 (חידת סדר, "השוואה בין שני אירועים"): 5 מתוך 20 הצליחו.', numbers: [2, 5, 20] },
-    { id: 'f6', kind: 'level', tone: 'neutral', text: 'בהיסטוריה הרמה הנוכחית היא 8.5, על סמך 11 הדמיות.', numbers: [8.5, 11] },
+    { id: 'f6', kind: 'level', tone: 'neutral', text: 'בהיסטוריה הרמה הנוכחית היא 8.5, על סמך 11 שיעורים.', numbers: [8.5, 11] },
   ],
 }
 const codesFor = (input: SummaryInput, text: string, facts: string[], names: string[] = []): ViolationCode[] =>

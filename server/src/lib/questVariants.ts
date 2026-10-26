@@ -266,7 +266,7 @@ async function regeneratePuzzles(
   const originalsBlock = jobs
     .map((j, n) => `### אתגר ${n} (type="${j.type}")\n${JSON.stringify(scenes[j.idx].puzzle, null, 0)}`)
     .join('\n\n')
-  const cachedSystem = `אתה מתאים אתגרים בהדמיה חינוכית בעברית לרמת הקושי של תלמיד ספציפי, לפי הכללים והאתגרים המקוריים הבאים.
+  const cachedSystem = `אתה מתאים אתגרים בשיעור חינוכי בעברית לרמת הקושי של תלמיד ספציפי, לפי הכללים והאתגרים המקוריים הבאים.
 
 ## כללי הזהב (קבועים)
 • **שמור על אותו נושא/תחום לימוד** (למשל: השקעות, מלחמת סיני, מחזור המים) — אך **שנה את עומק השאלה עצמה לפי הרמה**, לא רק את המסיחים. אל תמציא נושא חדש, אבל כן שנה איזו שאלה בתוך הנושא נשאלת.
@@ -383,7 +383,7 @@ export async function buildStudentVariant(
   /* ── /DIAG ── */
   if (Object.keys(texts).length > 0) {
     const genderLine = `\n${STUDENT_ADDRESS_RULE}`
-    const header = `אתה מתאים את הנרטיב של הדמיה חינוכית בעברית לתלמיד ספציפי.
+    const header = `אתה מתאים את הנרטיב של שיעור חינוכי בעברית לתלמיד ספציפי.
 
 **רמת הקריאה: ${readingLevelDescriptor(textLevel)}**${genderLine}
 

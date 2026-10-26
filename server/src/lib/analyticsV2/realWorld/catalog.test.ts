@@ -58,11 +58,11 @@ describe('buildCatalog (חי)', () => {
         m({ id: 'm3', code: 'math.c', status: 'draft' }), m({ id: 'm4', code: 'math.d', conceptId: null }), m({ id: 'm5', code: 'math.e', conceptId: 'ghost' }),
       ],
       misconceptionLinks: [{ misconceptionId: 'm1', questId: 'q-1' }],
-      questTitles: new Map([['q-1', 'הדמיית שברים']]),
+      questTitles: new Map([['q-1', 'שיעור שברים']]),
     }))
     expect(cat.misconceptions.map((x) => x.id)).toEqual(['m1', 'm2'])
     const [m1, m2] = cat.misconceptions
-    expect(m1).toMatchObject({ conceptKey: 'math.fractions.add', grades: { from: 5, to: 6 }, linkedQuest: { questId: 'q-1', title: 'הדמיית שברים' }, prevalence: {} })
+    expect(m1).toMatchObject({ conceptKey: 'math.fractions.add', grades: { from: 5, to: 6 }, linkedQuest: { questId: 'q-1', title: 'שיעור שברים' }, prevalence: {} })
     expect(m2).toMatchObject({ grades: null, linkedQuest: null, descriptionHe: '' })
     expect(cat.misconceptionAppliesTo(m1, 6)).toBe(true)
     expect(cat.misconceptionAppliesTo(m1, 7)).toBe(false)

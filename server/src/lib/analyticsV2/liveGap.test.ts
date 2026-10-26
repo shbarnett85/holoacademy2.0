@@ -39,7 +39,7 @@ describe('assemble / sumCoverage: משחקים שהוחרגו לפי תלמיד/
   const a = analyzeRaw(raw('c-a'), NOW, EMPTY_CATALOG)
   const b = analyzeRaw(raw('c-b'), NOW, EMPTY_CATALOG)
 
-  it('כל כיתה סופרת לכל תלמיד/ה את המשחקים שהוחרגו: בהדמיות בלי מקצוע, ובהדמיות עם מקצוע בלי רמה לפי מקצוע', () => {
+  it('כל כיתה סופרת לכל תלמיד/ה את המשחקים שהוחרגו: בשיעורים בלי מקצוע, ובשיעורים עם מקצוע בלי רמה לפי מקצוע', () => {
     expect(a.coverage.unclassifiedByStudent).toEqual({ shared: 2, 'only-c-a': 1 })
     expect(a.coverage.unleveledByStudent).toEqual({ 'only-c-a': 1 })
   })
@@ -88,7 +88,7 @@ describe('הספק החי: הפער בהיקף כיתה / תלמיד/ה', () => 
     expect(liveSource.scopedGap!(homeroom, a, ['nobody'])).toEqual({ unclassified: 0, withoutLevel: 0 })
   })
 
-  it('מסך הכיתה: העובדה האמיתית (4 משחקים בהדמיות בלי מקצוע), הקטלוג הריק, והסיכום אינו אומר "כשיסיימו"', async () => {
+  it('מסך הכיתה: העובדה האמיתית (4 משחקים בשיעורים בלי מקצוע), הקטלוג הריק, והסיכום אינו אומר "כשיסיימו"', async () => {
     const out = (await liveProvider.classOverview(homeroom, 'c-a')).data
     expect(out.coverageNote).toBe(narrateScopedCoverageNote({ unclassified: 4, withoutLevel: 0 }))
     expect(out.summary).toContain(gapReason({ unclassified: 4, withoutLevel: 0 })!)

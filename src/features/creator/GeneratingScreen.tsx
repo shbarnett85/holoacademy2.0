@@ -248,8 +248,8 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
 
       {/* תוכן */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', width: 420, maxWidth: '90vw' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.28em', textTransform: 'uppercase', color: 'rgba(47,243,255,.55)', marginBottom: 14 }}>◇ יוצר הדמיה</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 36, textAlign: 'center', textShadow: '0 0 20px rgba(47,243,255,.3)' }}>{title?.trim() || 'ההדמיה שלך'}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.28em', textTransform: 'uppercase', color: 'rgba(47,243,255,.55)', marginBottom: 14 }}>◇ יוצר שיעור</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 36, textAlign: 'center', textShadow: '0 0 20px rgba(47,243,255,.3)' }}>{title?.trim() || 'השיעור שלך'}</div>
 
         {/* מרווח לליבת ההולוגרמה (מצוירת בקנבס שמאחור) */}
         <div style={{ width: 240, height: 240, marginBottom: 36 }} />

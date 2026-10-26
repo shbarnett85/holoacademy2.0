@@ -21,7 +21,7 @@ const check = (name: string, ok: boolean, extra = ''): void => {
 
 const BAD_PAGE = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>bad</title>
 <style>body{margin:0;font:16px sans-serif} .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style></head><body>
-<nav data-breadcrumb><a href="#a" style="display:inline-block;min-height:44px;min-width:44px">תוצאות</a> › הדמיה › ו2</nav>
+<nav data-breadcrumb><a href="#a" style="display:inline-block;min-height:44px;min-width:44px">תוצאות</a> › שיעור › ו2</nav>
 <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="50" height="50">
 <p>הממצא מובהק סטטיסטית.</p>
 <div data-how-we-calc>וקטור p-value BH Benjamini אינדקס</div>
@@ -41,7 +41,7 @@ const GOOD_PAGE = `<!doctype html><html lang="he" dir="rtl"><head><meta charset=
 <button style="min-width:80px;min-height:48px">פתיחה</button></main></body></html>`
 
 /* ── צ'קליסט: תוצאות סינתטיות (בלי דפדפן) ── */
-function mkLayout(over: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בהדמיה?'): LayoutMetrics {
+function mkLayout(over: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בשיעור?'): LayoutMetrics {
   return {
     innerWidth: 1366, innerHeight: 768, scrollHeight: 768, scrollWidth: 1366, fitsOneScreen: true, overflowPx: 0, horizontalOverflow: false,
     overflowers: [], innerScrollers: [], tallestOverflowPx: 0,
@@ -53,7 +53,7 @@ function mkLayout(over: Partial<LayoutMetrics> = {}, h1: string | null = 'איך
     ...over,
   }
 }
-function mkResult(name: string, who: Who, o: Partial<ScreenResult> = {}, layout: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בהדמיה?'): ScreenResult {
+function mkResult(name: string, who: Who, o: Partial<ScreenResult> = {}, layout: Partial<LayoutMetrics> = {}, h1: string | null = 'איך הכיתה הצליחה בשיעור?'): ScreenResult {
   const vp = o.viewport ?? '1366x768'
   return {
     id: `${name}.${who}`, name, who, group: 'results', viewport: vp, theme: 'light', urlPattern: `/results/${name}`, requestedUrl: `/results/${name}`, finalUrl: `/results/${name}`,
@@ -76,7 +76,7 @@ function checklistUnit(): void {
   check('איחוד: 2 מסכים מובחנים', merged.length === 2 && merged[0].name === 's1' && merged[1].name === 's2', merged.map((m) => m.name).join(','))
   check('איחוד: 1366×768 נבחר, 1920 לא משפיע', merged[0].viewport === '1366x768' && merged[0].measured.length === 2 && merged[0].all.length === 3 && fitsCell(merged[0]) === '✓')
   check('תפקידים: שני תוויות', rolesCell(merged[0]).includes('מחנך/ת · הדגמה') && rolesCell(merged[0]).includes('מחנך/ת · אמיתי'))
-  check('שאלה אחת משותפת → ציטוט יחיד', questionCell(merged[0]) === '"איך הכיתה הצליחה בהדמיה?"', questionCell(merged[0]))
+  check('שאלה אחת משותפת → ציטוט יחיד', questionCell(merged[0]) === '"איך הכיתה הצליחה בשיעור?"', questionCell(merged[0]))
 
   /* h1 שונה בין תפקידים → שניהם מופיעים עם התפקיד */
   const diff = distinctScreens([mkResult('d', 'guest-homeroom', {}, {}, 'שאלה א'), mkResult('d', 'real-unlinked', {}, {}, 'שאלה ב')])[0]
@@ -119,7 +119,7 @@ function checklistUnit(): void {
 
   /* הרשומה ב-report.json */
   const c = screenChecklist(mkResult('c', 'guest-homeroom'))
-  check('screenChecklist: h1/נתיב/לחיצות/מסך-אחד/צילום', c.h1 === 'איך הכיתה הצליחה בהדמיה?' && c.breadcrumb === 'תוצאות › מדעים › ו2' && c.clicksFromMainTab === 1 && c.fitsAt1366x768 === true && c.screenshot === 'c.guest-homeroom-1366x768.png', JSON.stringify(c))
+  check('screenChecklist: h1/נתיב/לחיצות/מסך-אחד/צילום', c.h1 === 'איך הכיתה הצליחה בשיעור?' && c.breadcrumb === 'תוצאות › מדעים › ו2' && c.clicksFromMainTab === 1 && c.fitsAt1366x768 === true && c.screenshot === 'c.guest-homeroom-1366x768.png', JSON.stringify(c))
   const c19 = screenChecklist(mkResult('c', 'guest-homeroom', { viewport: '1920x1080' }))
   check('screenChecklist: fitsAt1366x768=null מחוץ ל-1366', c19.fitsAt1366x768 === null && c19.fitsOneScreen === true)
   const cm = screenChecklist(miss.all[0])
@@ -163,7 +163,7 @@ async function main(): Promise<number> {
   const words = new Set(hits.map((h) => h.word))
   for (const w of ['וקטור', 'p-value', 'p מתוקן', 'מובהק', 'BH', 'Benjamini', 'אינדקס', 'קורלציה', 'גודל אפקט', 'הסתברות']) check(`תופס "${w}"`, words.has(w))
   check('לא תופס BH בתוך מילה לטינית', scanForbidden('bhajan ABHA').length === 0)
-  check('טקסט נקי → 0', scanForbidden('11 מתוך 24 תלמידים סיימו את ההדמיה').length === 0)
+  check('טקסט נקי → 0', scanForbidden('11 מתוך 24 תלמידים סיימו את השיעור').length === 0)
 
   console.log('— דפדפן: דף סינתטי עם פגמים —')
   const browser = await launchBrowser(false)
@@ -185,7 +185,7 @@ async function main(): Promise<number> {
     check('hover-only: span עם title בלבד', l.hoverOnly.info >= 1, JSON.stringify(l.hoverOnly))
     check('breadcrumb (data-breadcrumb) זוהה', l.breadcrumb.present && l.breadcrumb.via === 'attr')
     check('אין h1 → h1=0', l.headings.h1 === 0)
-    check('breadcrumb.fullText מלא (data-breadcrumb)', (l.breadcrumb.fullText ?? '').includes('תוצאות') && (l.breadcrumb.fullText ?? '').includes('הדמיה'), JSON.stringify(l.breadcrumb))
+    check('breadcrumb.fullText מלא (data-breadcrumb)', (l.breadcrumb.fullText ?? '').includes('תוצאות') && (l.breadcrumb.fullText ?? '').includes('שיעור'), JSON.stringify(l.breadcrumb))
     const v = judge({ axe: a.axe, forbidden: a.forbidden, layout: l, inner: true, clicksFromMainTab: 3 })
     check('judge: כשלים קשיחים (axe + מילים)', v.hard.length === 2, JSON.stringify(v.hard))
     check('judge: כשלי strict (פריסה/יעדים/גופן/hover/לחיצות/h1)', v.strict.length >= 5, JSON.stringify(v.strict))

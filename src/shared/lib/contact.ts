@@ -4,4 +4,4 @@
 export const FULL_VERSION_CONTACT = ''
 
 export const SHARING_DISABLED_UI_MESSAGE =
-  'שיתוף הדמיות עם תלמידים זמין בגרסה המלאה.' + (FULL_VERSION_CONTACT ? ` לפרטים: ${FULL_VERSION_CONTACT}` : '')
+  'שיתוף שיעורים עם תלמידים זמין בגרסה המלאה.' + (FULL_VERSION_CONTACT ? ` לפרטים: ${FULL_VERSION_CONTACT}` : '')

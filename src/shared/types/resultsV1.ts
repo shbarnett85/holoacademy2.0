@@ -21,6 +21,10 @@ export const ResultsSubjectSchema = z.object({
 })
 export type ResultsSubject = z.infer<typeof ResultsSubjectSchema>
 
+/* מצב השיעור שנשלח — פונקציה אחת (shared/lib/lessonState.ts) שהשרת קורא לה לכל המסכים */
+export const LessonStateSchema = z.enum(['active_now', 'open', 'ended'])
+export type LessonStateValue = z.infer<typeof LessonStateSchema>
+
 export const StudentStatusSchema = z.enum(['completed', 'in_progress', 'not_started'])
 export type StudentStatus = z.infer<typeof StudentStatusSchema>
 
@@ -37,6 +41,8 @@ export const StudentChipSchema = z.object({
   status: StudentStatusSchema,
   attention: z.boolean(),
   attentionReasons: z.array(AttentionReasonSchema),
+  /* סיים/ה את השיעור לראשונה אחרי מועד ההגשה ("באיחור"); חסר = לא באיחור או שאין מועד */
+  late: z.boolean().optional(),
 })
 export type StudentChip = z.infer<typeof StudentChipSchema>
 
@@ -58,6 +64,11 @@ export const SubmissionRowSchema = z.object({
   /* מי שלח: 'mine' = אני; 'homeroom' = מורה אחר שלח לכיתת-החינוך שלי; 'subject' = מורה מקצוע בכיתה שלי */
   source: z.enum(['mine', 'homeroom', 'subject']),
   senderName: z.string().nullable(),
+  /* מועד ההגשה (ISO; לא ננעל אחריו) ומצב השיעור מפונקציית המצב היחידה */
+  dueAt: Iso.nullable().optional(),
+  state: LessonStateSchema.optional(),
+  /* כמה מהתלמידים שסיימו עשו זאת אחרי המועד */
+  lateCount: NonNeg.optional(),
 })
 export type SubmissionRow = z.infer<typeof SubmissionRowSchema>
 
@@ -79,6 +90,9 @@ export const SubmissionHeadSchema = z.object({
   subject: ResultsSubjectSchema.nullable(),
   classId: Id, className: z.string(), sentAt: Iso,
   counts: CountsSchema,
+  dueAt: Iso.nullable().optional(),
+  state: LessonStateSchema.optional(),
+  lateCount: NonNeg.optional(),
 })
 export type SubmissionHead = z.infer<typeof SubmissionHeadSchema>
 
@@ -238,6 +252,10 @@ export const StudentSubmissionViewSchema = z.object({
 })
 export type StudentSubmissionView = z.infer<typeof StudentSubmissionViewSchema>
 
+/* ── שינוי מועד הגשה (PATCH) ── */
+export const SetDueRequestSchema = z.object({ dueDay: z.string().regex(/^d{4}-d{2}-d{2}$/) })
+export const SetDueResponseSchema = z.object({ dueAt: Iso })
+
 /* ── מעטפת + רישום נקודות הקצה ── */
 export const ResultsEnvelope = <T extends z.ZodTypeAny>(data: T) => z.object({ data })
 
@@ -245,5 +263,6 @@ export const RESULTS_EP = {
   list: { path: '/api/results/submissions', response: ResultsEnvelope(SubmissionListSchema) },
   classView: { path: '/api/results/submission/:id', response: ResultsEnvelope(ClassSubmissionViewSchema) },
   studentView: { path: '/api/results/submission/:id/student/:studentId', response: ResultsEnvelope(StudentSubmissionViewSchema) },
+  setDue: { path: '/api/results/submission/:id/due', response: ResultsEnvelope(SetDueResponseSchema) },
 } as const
 export type ResultsEndpointName = keyof typeof RESULTS_EP

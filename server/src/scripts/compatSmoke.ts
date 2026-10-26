@@ -25,7 +25,7 @@ async function call(api: string, token: string, method: string, p: string, body?
 const GAME = {
   entrySceneId: 's0',
   scenes: [
-    { id: 's0', title: 'פתיחה', narrative: 'שלום עולם הדמיה', nextSceneId: 's1' },
+    { id: 's0', title: 'פתיחה', narrative: 'שלום עולם שיעור', nextSceneId: 's1' },
     { id: 's1', title: 'א', narrative: 'ראשונה שנייה שלישית רביעית', nextSceneId: 's2', puzzle: { type: 'multipleChoice', question: 'q', difficulty: 8, choices: [{ id: 'a', text: 'א', isCorrect: true }, { id: 'b', text: 'ב', isCorrect: false }] } },
     { id: 's2', title: 'ב', narrative: 'עוד טקסט כאן', nextSceneId: 's3', puzzle: { type: 'trueFalse', question: 'q', difficulty: 8, choices: [{ id: 't', text: 'נכון', isCorrect: true }, { id: 'f', text: 'לא נכון', isCorrect: false }] } },
     { id: 's3', title: 'ג', narrative: 'סוף', puzzle: { type: 'multipleChoice', question: 'q', difficulty: 8, choices: [{ id: 'a', text: 'א', isCorrect: false }, { id: 'b', text: 'ב', isCorrect: true }] } },

@@ -31,12 +31,12 @@ export default function ChallengeTypesPanel() {
   return (
     <section aria-label="ביצועים לפי סוג אתגר" data-challenge-types style={{ ...card, display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px' }}>
       <h2 style={panelTitle}>איך הלך לתלמידים בכל סוג אתגר?</h2>
-      <p style={{ ...soft, margin: 0 }}>כל שורה היא סוג אתגר, מכל ההדמיות: בכמה מהפעמים שתלמידים ניסו אותו הם הצליחו. הקשה ביותר למעלה.</p>
+      <p style={{ ...soft, margin: 0 }}>כל שורה היא סוג אתגר, מכל השיעורים: בכמה מהפעמים שתלמידים ניסו אותו הם הצליחו. הקשה ביותר למעלה.</p>
       {subjects.length > 1 && (
         <FilterButtons label="מקצוע" allLabel="כל המקצועות" options={bySubjectOrderOf(subjects, (s) => legacySubjectToCode(s) ?? s).map((s) => ({ id: s, label: s }))} value={subject} onChange={setSubject} />
       )}
       {rows.length === 0 ? (
-        <p style={{ ...soft, margin: 0 }}>אין עדיין נתונים למקצוע הזה. הם יופיעו כאן כשתלמידים יסיימו הדמיות.</p>
+        <p style={{ ...soft, margin: 0 }}>אין עדיין נתונים למקצוע הזה. הם יופיעו כאן כשתלמידים יסיימו שיעורים.</p>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {rows.map((r) => (

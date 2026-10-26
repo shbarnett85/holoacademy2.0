@@ -65,7 +65,7 @@ describe('יצירה: פלט נקי נשמר', () => {
     expect(s.label).toBe(AI_SUMMARY_TEXT.label.ai)
     expect(s.notice).toBeNull()
     expect(s.caveat).toBe(CAVEAT_TREND)
-    expect(s.basisText).toMatch(/^מבוסס על \d+ הדמיות$/)
+    expect(s.basisText).toMatch(/^מבוסס על \d+ שיעורים$/)
     expect(s.id).not.toBeNull()
     expect(s.edited).toBe(false)
     expect(res.data.persisted).toBe(true)
@@ -311,7 +311,7 @@ describe('זכאות, תקרה יומית ואחסון חסר', () => {
     expect(res.data.eligibility.ok).toBe(false)
     if (!res.data.eligibility.ok) {
       expect(res.data.eligibility.text).toContain('אין מספיק נתונים')
-      expect(res.data.eligibility.whatNext).toMatch(/יהיה זמין אחרי 4 הדמיות/)
+      expect(res.data.eligibility.whatNext).toMatch(/יהיה זמין אחרי 4 שיעורים/)
     }
     expect(llm.calls).toHaveLength(0)
     expect(store.rows.size).toBe(0)

@@ -178,7 +178,7 @@ async function dryRun(): Promise<void> {
     rows = rows.filter((r) => redo.has(keyOf(r.target, r.questId, r.studentId)))
   } else rows = rows.filter((r) => { const st = records.get(keyOf(r.target, r.questId, r.studentId)); return !st || st === 'restored' || (st === 'review' && retry) })
   const limit = Number(opt('limit') ?? 0)
-  console.log(`שורות לבדיקה: ${rows.length} (הדמיות ${rows.filter((r) => r.target === 'quest').length}, וריאציות ${rows.filter((r) => r.target === 'variant').length})`)
+  console.log(`שורות לבדיקה: ${rows.length} (שיעורים ${rows.filter((r) => r.target === 'quest').length}, וריאציות ${rows.filter((r) => r.target === 'variant').length})`)
   const entries: Entry[] = []
   let idx = 0
   let processed = 0

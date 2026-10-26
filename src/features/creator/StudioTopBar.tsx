@@ -11,20 +11,20 @@ import { withGuestLens } from '../teacherUi/guestLens'
 export type TabId = 'create' | 'library' | 'results' | 'analytics' | 'students'
 
 const TABS: { id: TabId; label: string; to: string }[] = [
-  { id: 'create', label: 'צור הדמיה', to: '/creator' },
-  { id: 'library', label: 'ספריית הדמיות', to: '/creator/library' },
-  { id: 'results', label: 'תוצאות', to: '/results' },
-  { id: 'analytics', label: 'אנליטיקה', to: '/analytics' },
-  { id: 'students', label: 'תלמידים', to: '/manage/students' },
+  { id: 'create', label: 'שיעור חדש', to: '/creator' },
+  { id: 'library', label: 'ספריית שיעורים', to: '/creator/library' },
+  { id: 'results', label: 'סיכום שיעור', to: '/results' },
+  { id: 'analytics', label: 'התקדמות', to: '/analytics' },
+  { id: 'students', label: 'כיתות ותלמידים', to: '/manage/students' },
 ]
 
 /* כותרת הסרגל העליון לפי הטאב הפעיל */
 const TITLES: Record<TabId, string> = {
-  create: 'יוצר ההדמיות',
-  library: 'ספריית הדמיות',
-  results: 'תוצאות',
-  analytics: 'אנליטיקה',
-  students: 'תלמידים',
+  create: 'יוצר השיעורים',
+  library: 'ספריית שיעורים',
+  results: 'סיכום שיעור',
+  analytics: 'התקדמות',
+  students: 'כיתות ותלמידים',
 }
 
 /* מורה אורח: העדשה שבחר (מחנך/ת | מורה מקצועי/ת | מנהל/ת + מקצוע) נשמרת במעבר בין תוצאות ↔ אנליטיקה — מצרפים אותה לכתובת.
