@@ -1,7 +1,7 @@
 /* מצב שיעור שנשלח ומועד ההגשה שלו (CLAUDE.md "תאריך יעד ומצב שיעור"): תג מצב (אייקון + מילה), שורת "להגשה עד …", וכפתור
    "שינוי מועד הגשה". המצב מגיע מהשרת (פונקציית lessonState היחידה) — כאן רק תצוגה. הצבע משני: תמיד יש אייקון ומילה. */
 import { useEffect, useId, useRef, useState } from 'react'
-import { LESSON_DUE_TEXT, LESSON_STATE_TEXT } from '../../shared/lib/findingsNarrative'
+import { LESSON_DUE_TEXT, LESSON_STATE_TEXT, lessonStateLabel } from '../../shared/lib/findingsNarrative'
 import { israelDay } from '../../shared/lib/lessonState'
 import { apiFetch } from '../../shared/lib/api'
 import type { LessonStateValue } from '../../shared/types/resultsV1'
@@ -16,16 +16,16 @@ const STATE_META: Record<LessonStateValue, { icon: IconName; color: string }> = 
 }
 
 /* תג המצב: אייקון + מילה (הצבע משני). title מסביר במילים מה זה אומר */
-export function LessonStateChip({ state }: { state: LessonStateValue }) {
+export function LessonStateChip({ state, dueAt }: { state: LessonStateValue; dueAt?: string | null }) {
   const m = STATE_META[state]
   const t = LESSON_STATE_TEXT[state]
   return (
-    <span data-lesson-state={state} title={t.hint} style={{
+    <span data-lesson-state={state} data-state-hint={t.hint} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20,
       border: `1.5px solid ${m.color}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.5,
     }}>
       <span style={{ color: m.color, display: 'inline-flex' }}><Icon name={m.icon} size={16} /></span>
-      {t.label}
+      {lessonStateLabel(state, dueAt)}
     </span>
   )
 }

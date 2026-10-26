@@ -236,6 +236,13 @@ function Studio() {
             </div>
           )}
 
+          {/* שיעור ממוקד שנפתח מסיכום שיעור: ההערה גלויה לפני היצירה (המערכת שולחת שיעור לכיתה שלמה) */}
+          {s.focusedNote && (
+            <div role="note" data-focused-banner style={{ ...glass, padding: '12px 18px', borderColor: 'var(--t77)', fontSize: 14.5, lineHeight: 1.6, color: 'var(--t13)' }}>
+              <strong>שיעור ממוקד.</strong> {s.focusedNote}
+            </div>
+          )}
+
           {/* סיכום — chips */}
           <div style={{ ...glass, padding: '20px 24px' }}>
             <div style={{ textAlign: 'center', minWidth: 0 }}>
@@ -259,7 +266,7 @@ function Studio() {
                 <label style={fieldLabel}>נושא השיעור</label>
                 <Tooltip text={TT.title} block>
                   {/* שינוי הנושא מנקה את תוכן הלימוד — כדי שתוכן (מועשר) על נושא ישן לא יישאר ויבלבל */}
-                  <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value, curriculum: '' })} placeholder="למשל: מסע אל מערכת השמש" />
+                  <input className="cf-in" style={inputBase} value={s.title} onChange={(e) => s.set({ title: e.target.value, curriculum: '', focusedMisconceptionId: null, focusedNote: null })} placeholder="למשל: מסע אל מערכת השמש" />
                 </Tooltip>
               </div>
               <div style={{ flex: '0 0 170px', position: 'relative' }}>

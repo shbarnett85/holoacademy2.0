@@ -2,13 +2,14 @@
    ו"פירוט" שפותח עובדות על התלמיד/ה: מה נבחר, מה התשובה הנכונה, כמה ניסיונות, ואם ויתר/ה — וכמה זמן. תשובה שגויה עם תגית מציגה את שם
    הטעות הנפוצה. עובדות בלבד — בלי פרשנות על התלמיד/ה. כל השורות סגורות כברירת מחדל כדי שכל האתגרים ייכנסו במסך אחד. */
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { detailAvailableLine } from '../../shared/lib/findingsNarrative'
 import type { StudentChallenge, StudentItem, StudentSubmissionView } from '../../shared/types/resultsV1'
 import { EmptyState, FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import ChallengeRowShell from './ChallengeRow'
 import { ExtraIcon, OutcomeTag } from './marks'
 import { attemptsWord, formatSeconds } from './logic'
-import { caption, soft } from './styles'
+import { caption, secondaryButton, soft } from './styles'
 import { UI } from './text'
 
 const MORAL = 'moralDilemma'
@@ -45,10 +46,16 @@ function ItemFacts({ item, showPrompt }: { item: StudentItem; showPrompt: boolea
           {showCorrect && <Fact label={UI.correctAnswer}><span>{item.correctText}</span></Fact>}
         </div>
       )}
+      {wrong && item.commonMistake && !item.errorTag && (
+        <div data-common-mistake style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
+          <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
+          <span><strong>{UI.commonErrorShort}:</strong> {item.commonMistake}</span>
+        </div>
+      )}
       {wrong && item.errorTag && (
         <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {item.errorTag.title}</span>
+          <span><strong>{UI.commonErrorShort}:</strong> {item.errorTag.title}{item.commonMistake ? ` — ${item.commonMistake}` : ''}</span>
         </div>
       )}
       {facts.length > 0 && <div style={soft}>{facts.join(' · ')}</div>}
@@ -58,23 +65,56 @@ function ItemFacts({ item, showPrompt }: { item: StudentItem; showPrompt: boolea
 
 function ChallengeRow({ c }: { c: StudentChallenge }) {
   const reached = c.outcome !== 'not_reached'
+  const levelText = c.level !== null && c.level !== undefined && reached ? UI.levelWord(c.level) : null
   const moral = c.type === MORAL
   const multi = c.items.length > 1
   const canExpand = reached && (moral || c.items.length > 0)
+  /* אתגר שלא הצליחו בו: שם הטעות הנפוצה וההשוואה לתלמידים ברמה דומה גלויים בשורה עצמה (לא רק בפירוט) — כדי שיהיו במרחק שתי לחיצות מהרשימה.
+     אתגר שהצליחו בו: ההשוואה בפירוט בלבד. */
+  const failed = reached && !moral && c.outcome !== 'correct'
+  const mistake = failed && !multi ? (c.items[0]?.commonMistake ?? null) : null
+  const showCompare = failed && !!c.comparison
   return (
-    <ChallengeRowShell sceneId={c.sceneId} order={c.order} title={c.title} typeLabel={`${c.typeLabel}${multi && c.seconds !== null ? ` · ${UI.totalTime}: ${formatSeconds(c.seconds)}` : ''}`}
+    <ChallengeRowShell sceneId={c.sceneId} order={c.order} title={c.title} typeLabel={`${c.typeLabel}${levelText ? ` · ${levelText}` : ''}${multi && c.seconds !== null ? ` · ${UI.totalTime}: ${formatSeconds(c.seconds)}` : ''}`}
+      footer={(mistake || showCompare) ? (
+        <div data-row-note style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '0 0 4px 0', paddingInlineStart: 46, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>
+          <span style={{ color: mistake ? T.warn : T.muted, display: 'inline-flex', marginTop: 2 }}><Icon name={mistake ? 'alert' : 'info'} size={18} /></span>
+          <span>{[mistake ? `${UI.commonErrorShort}: ${mistake}` : null, showCompare ? c.comparison?.sentence : null].filter(Boolean).join(' · ')}</span>
+        </div>
+      ) : undefined}
       dataOutcome={c.outcome} canExpand={canExpand} summaryGrows={false} summary={<OutcomeTag outcome={c.outcome} />}>
       <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {moral ? <p style={{ ...soft, margin: 0 }}>{UI.moralStudentNote}</p> : c.items.map((item) => <ItemFacts key={item.itemIndex} item={item} showPrompt />)}
+        {/* השוואה הוגנת: רק מול תלמידים שהגיעו לאותו אתגר בדרגה דומה — או ההסבר שאין מספיק כאלה */}
+        {c.comparison && !showCompare && (
+          <div data-comparison={c.comparison.kind} style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
+            <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
+            <span>{c.comparison.sentence}</span>
+          </div>
+        )}
       </div>
     </ChallengeRowShell>
   )
 }
 
-export default function StudentChallenges({ view }: { view: StudentSubmissionView }) {
+export default function StudentChallenges({ view, progressTo, progressLabel }: { view: StudentSubmissionView; /* קישור להתקדמות התלמיד/ה במקצוע (אנליטיקה) */ progressTo?: string; progressLabel?: string }) {
   const none = view.challenges.length > 0 && view.challenges.every((c) => c.outcome === 'not_reached')
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {progressTo && progressLabel && (
+        <div>
+          <Link to={progressTo} data-tu-press data-progress-link style={{ ...secondaryButton, textDecoration: 'none' }}>
+            <Icon name="growth" size={18} />
+            {progressLabel}
+          </Link>
+        </div>
+      )}
+      {view.head.levelNotice && (
+        <p data-level-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
+          {view.head.levelNotice}
+        </p>
+      )}
       {!view.hasAnswerDetail && view.detailAvailableFrom && (
         <p data-detail-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>

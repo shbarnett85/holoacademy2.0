@@ -38,7 +38,7 @@ describe('סיכום ישן: הופרש', () => {
       expect(r.error?.status, scope).toBe(410)
       expect(r.error?.message).toBe(ERR_LEGACY_SUMMARY_MOVED)
     }
-    expect(ERR_LEGACY_SUMMARY_MOVED).toBe('הסיכום עבר למסך התלמיד/ה והכיתה באנליטיקה')
+    expect(ERR_LEGACY_SUMMARY_MOVED).toBe('הסיכום עבר למסך ההתקדמות של התלמיד/ה והכיתה')
     expect(h.llmCalls).toBe(0)
     expect(h.dbCalls).toBe(0)
   })

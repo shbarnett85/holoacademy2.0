@@ -154,4 +154,71 @@ export const UI = {
   reviewOpen: 'פתיחת שיעור החזרה',
   reviewFailed: 'לא הצלחנו ליצור את שיעור החזרה. אפשר לנסות שוב.',
   reviewSlow: 'היצירה לוקחת יותר זמן מהרגיל. שיעור החזרה יופיע בספריית השיעורים כשיהיה מוכן.',
+
+  /* ── רשימת השיעורים (שלב R): מחנך/ת, חלון זמן, שבועות ── */
+  viewLabel: 'אילו שיעורים להציג',
+  viewMine: 'השיעורים שלי',
+  viewClass: 'כל השיעורים בכיתה שלי',
+  weekStripLabel: 'השבוע בכיתה',
+  groupActive: 'פעיל עכשיו',
+  groupThisWeek: 'השבוע',
+  groupLastWeek: 'שבוע שעבר',
+  groupEarlier: 'מוקדם יותר',
+  showOlder: 'הצגת שיעורים ישנים יותר',
+  olderHint: (n: number): string => (n === 1 ? 'יש עוד שיעור אחד ישן יותר.' : `יש עוד ${n} שיעורים ישנים יותר.`),
+  emptyMine: 'עוד לא שלחתם שיעורים לכיתות. אפשר לבחור שיעור בספרייה ולשלוח אותו.',
+  emptyMineClassHint: 'שיעורים ששלחו מורים אחרים לכיתה שלכם מופיעים תחת "כל השיעורים בכיתה שלי".',
+  openLive: 'תצוגה חיה',
+  openLiveFor: (title: string): string => `לצפייה חיה בשיעור ${title}`,
+
+  /* ── עמוד השיעור (שלב R) ── */
+  tabActions: 'מה עושים עם זה',
+  attentionTitle: 'מי צריך תשומת לב, ולמה',
+  attentionNone: 'אף תלמיד/ה לא מסומן/ת לתשומת לב כרגע.',
+  attentionOpen: 'לפתיחת התוצאות',
+  levelWord: (n: number): string => `דרגה ${n}`,
+  levelNoteTitle: 'הדרגה שבה שוחק כל אתגר',
+  progressLink: (name: string, subject: string): string => `ההתקדמות של ${name} ב${subject}`,
+  progressLinkNoSubject: (name: string): string => `ההתקדמות של ${name}`,
+  liveOpenNote: 'התוצאות מתעדכנות כל כמה שניות, בלי לרענן.',
+
+  /* ── מה עושים עם זה ── */
+  actionsIntro: (n: number): string =>
+    n === 0 ? 'אין עדיין טעות שכמה תלמידים בחרו בה, ולכן אין מה להתמקד בו. אפשר להמשיך לתרגול חזרה.'
+      : n === 1 ? 'יש טעות אחת שכמה תלמידים בחרו בה. אפשר לתת להם שיעור ממוקד, או לדון בה בכיתה.'
+        : `יש ${n} טעויות שכמה תלמידים בחרו בהן. לכל אחת אפשר לתת שיעור ממוקד, או לדון בה בכיתה.`,
+  actionsEmpty: 'אין עדיין טעות נפוצה בשיעור הזה.',
+  actionsEmptyNext: 'טעות נפוצה מופיעה כאן כשלפחות שלושה תלמידים בוחרים באותה תשובה שגויה. אז אפשר להכין שיעור ממוקד או שאלה לדיון.',
+  discussionButton: 'שאלה לדיון בכיתה',
+  glanceMistakeLabel: 'הטעות הנפוצה ביותר',
+  attentionMore: (n: number): string => (n === 1 ? 'ועוד תלמיד/ה אחד/ת — מסומן/ת ברשימת התלמידים.' : `ועוד ${n} תלמידים — מסומנים ברשימת התלמידים.`),
+  focusedTitle: (name: string): string => `שיעור ממוקד: ${name}`,
+  focusedNoteTitle: 'שימו לב',
+  reviewSection: 'תרגול חזרה לכל הכיתה',
+
+  /* ── שאלה לדיון (מסך מלא להקרנה, בלי שמות) ── */
+  discussClose: 'חזרה לתוצאות',
+  discussQuestionLabel: 'השאלה',
+  discussCommonLabel: 'התשובה שרבים בחרו',
+  discussCount: (n: number): string => (n === 1 ? 'תלמיד אחד בחר בה' : `${n} תלמידים בחרו בה`),
+  discussNotFound: 'לא מצאנו את השאלה לדיון. ייתכן שהתוצאות השתנו מאז. חזרו לתוצאות ובחרו שוב.',
+
+  /* ── תצוגה חיה ── */
+  liveTitle: 'מה קורה עכשיו בשיעור?',
+  liveCrumb: 'תצוגה חיה',
+  liveNotActive: 'השיעור לא פעיל כרגע. כשתלמידים ישחקו, תראו כאן מי נמצא איפה.',
+  liveUnavailable: 'הנתונים החיים עדיין לא זמינים. המסך יתעדכן כשהתלמידים ישחקו בגרסה החדשה של המשחק.',
+  liveRefreshing: (sec: number): string => `המסך מתרענן אוטומטית כל ${sec} שניות`,
+  liveUpdatedAt: (time: string): string => `עודכן בשעה ${time}`,
+  liveScene: (order: number, title: string): string => `סצנה ${order}: ${title}`,
+  liveNoScene: 'אין סצנה להצגה',
+  liveBack: 'חזרה לתוצאות השיעור',
+  liveLegend: 'מקרא',
+
+  /* ── מנהל/ת: טבלה כללית ── */
+  overviewTitle: 'כמה שיעורים התקיימו, ואיזה חלק מהתלמידים השתתף?',
+  overviewTable: 'שכבה ומקצוע',
+  overviewGrade: 'שכבה',
+  overviewNoData: 'עוד אין נתונים להצגה.',
+  overviewEmptyNext: 'הטבלה תתמלא כשמורים ישלחו שיעורים לתלמידים.',
 } as const

@@ -19,6 +19,7 @@ import { clampLevel, moralDilemmaDepth } from '../../../src/shared/lib/difficult
 import { gradeToLevel } from '../../../src/shared/lib/difficultyCalibration.js'
 import { requireStaff, ensureOwner, isDemoGuest, requireCanShare, tryStaff, SHARING_DISABLED_MESSAGE } from '../middleware/staffAuth.js'
 import { hasCanShare } from '../lib/activeColumn.js'
+import { linkFocusedLesson } from '../lib/focusedLink.js'
 import { requireCreator, ensureQuestAccess, readAnonId } from '../lib/creatorAccess.js'
 import { verifyTurnstile, checkRateLimit, acquireFlight, releaseFlight, logGeneration, clientIp } from '../lib/genGuard.js'
 import { demoVariantSnapshot } from '../lib/demoAnalytics.js'
@@ -1330,6 +1331,11 @@ questsRouter.post('/generate', requireCreator, async (req, res, next) => {
 
     const { data: quest, error } = await supabaseAdmin.from('quests').insert(stub).select().single()
     if (error || !quest) throw new AppError(500, 'שגיאה ביצירת השיעור: ' + (error?.message ?? ''))
+
+    /* שיעור ממוקד: קישור לתפיסה השגויה (best-effort; מורה אורח לא כותב ל-DB האמיתי של התגיות) */
+    if (parsed.data.focusedMisconceptionId && req.staff && !isDemoGuest(req)) {
+      void linkFocusedLesson(parsed.data.focusedMisconceptionId, quest.id, req.staff.userId)
+    }
 
     /* ניטור עלויות — כל יצירה נרשמת (אנונימי/צוות/אורח-דמו) */
     void logGeneration({

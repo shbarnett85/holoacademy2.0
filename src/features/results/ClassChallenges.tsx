@@ -1,6 +1,6 @@
 /* האתגרים בהדמיה — מצב "כל הכיתה". שורה אחת לכל אתגר לפי סדר ההדמיה: שם האתגר וסוגו, "X מתוך Y הצליחו" עם בר, והטעות הנפוצה במילים (אם יש תגית).
    "פירוט" פותח את התפלגות התשובות — מי בחר מה (בשמות) ומי ויתר. שאלות מוסר: אין נכון/שגוי ואין שמות (לפי עיצוב המערכת). */
-import { countNb, detailAvailableLine, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
+import { countNb, detailAvailableLine, levelBandText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ChallengeResult, ClassSubmissionView, ItemResult, OptionCount } from '../../shared/types/resultsV1'
 import { EmptyState, FONT, Icon, ProgressBar, RADIUS, T } from '../teacherUi'
 import ChallengeRowShell from './ChallengeRow'
@@ -55,6 +55,13 @@ function Detail({ c }: { c: ChallengeResult }) {
       {moral && <p style={{ ...soft, margin: 0 }}>{UI.moralNote}</p>}
       {c.items.map((item) => <ItemDetail key={item.itemIndex} item={item} moral={moral} showPrompt={showPrompts} />)}
       {c.items.length === 0 && c.attempted > 0 && <div style={soft}>{countNb(c.solved, c.attempted)} {UI.succeeded}</div>}
+      {/* פירוק לפי דרגות: כל תלמיד/ה משחק/ת ברמה משלו/ה, ולכן ההצלחה מוצגת לפי טווח דרגות ולא כממוצע אחד */}
+      {(c.levelBands ?? []).length > 1 && (
+        <div data-level-bands style={{ fontFamily: FONT, fontSize: 16, lineHeight: 1.5, color: T.text }}>
+          <span style={{ fontWeight: 800 }}>{UI.levelNoteTitle}: </span>
+          <span style={{ color: T.textSoft }}>{(c.levelBands ?? []).map((b) => levelBandText(b.from, b.to, b.solved, b.attempted)).join(' · ')}</span>
+        </div>
+      )}
       {c.gaveUp > 0 && (
         <div style={{ fontFamily: FONT, fontSize: 16, lineHeight: 1.5, color: T.text }}>
           <span style={{ fontWeight: 800 }}>{UI.gaveUpLine(c.gaveUp)}</span>
@@ -75,7 +82,7 @@ function ChallengeRow({ c }: { c: ChallengeResult }) {
       footer={c.commonError && !moral ? (
         <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 0 4px 0', paddingInlineStart: 46, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {c.commonError.title} — {countNb(c.commonError.count, c.attempted)} {UI.studentsPlural}</span>
+          <span><strong>{UI.commonErrorShort}:</strong> {c.commonError.sentence ?? `${c.commonError.title} — ${countNb(c.commonError.count, c.attempted)} ${UI.studentsPlural}`}{c.commonError.title && c.commonError.sentence ? ` — ${c.commonError.title}` : ''}</span>
         </div>
       ) : undefined}>
       <Detail c={c} />
@@ -91,6 +98,12 @@ export default function ClassChallenges({ view }: { view: ClassSubmissionView })
         <p data-detail-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
           {detailAvailableLine(view.detailAvailableFrom)}
+        </p>
+      )}
+      {view.head.levelNotice && (
+        <p data-level-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
+          {view.head.levelNotice}
         </p>
       )}
       {view.challenges.length === 0 ? (

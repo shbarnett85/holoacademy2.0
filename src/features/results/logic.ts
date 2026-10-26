@@ -1,5 +1,6 @@
 /* עזרים טהורים של מסך התוצאות (סינון הרשימה, סידור שמות, ניסוח מספרים בעברית פשוטה). בלי DOM ובלי רשת — נבדקים ב-logic.test.ts. */
 import type { ObjectivesSummaryInput } from '../../shared/lib/findingsNarrative'
+import { weekGroupOf, type WeekGroup } from '../../shared/lib/lessonState'
 import type { ClassSubmissionView, ObjectiveResult, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
 
 /* ── רשימת השליחות ── */
@@ -30,6 +31,19 @@ export function filterSubmissions(rows: SubmissionRow[], f: ListFilter): Submiss
     if (q && !norm(r.title).includes(q)) return false
     return true
   })
+}
+
+/* ── קיבוץ הרשימה לשבועות (שבוע ישראלי: ראשון עד שבת) ──
+   פעיל עכשיו עומד לבד בראש הרשימה; השאר: השבוע · שבוע שעבר · מוקדם יותר, החדש ראשון בכל קבוצה. קבוצה ריקה לא מופיעה. */
+export type ListGroupKey = 'active' | WeekGroup
+export interface ListGroup { key: ListGroupKey; rows: SubmissionRow[] }
+export function groupByWeek(rows: SubmissionRow[], nowMs: number): ListGroup[] {
+  const sorted = newestFirst(rows)
+  const active = sorted.filter((r) => r.state === 'active_now')
+  const rest = sorted.filter((r) => r.state !== 'active_now')
+  const groups: ListGroup[] = [{ key: 'active', rows: active }]
+  for (const key of ['this', 'last', 'earlier'] as const) groups.push({ key, rows: rest.filter((r) => weekGroupOf(r.sentAt, nowMs) === key) })
+  return groups.filter((g) => g.rows.length > 0)
 }
 
 /* מסנן שאינו ברשימת האפשרויות של השרת (כתובת ישנה / עדשה אחרת) נחשב "הכול" — כדי שלא יוצג מסך ריק בלי כפתור שמסביר למה */
@@ -118,7 +132,7 @@ export function attemptsWord(n: number): string {
 }
 
 /* ── טאבים: סט קבוע לכל שליחה (טאב בלי נתונים נשאר במקומו ומסביר למה ריק — טאבים לא מופיעים ונעלמים) ── */
-export const CLASS_TAB_IDS = ['glance', 'challenges', 'objectives', 'errors', 'review'] as const
+export const CLASS_TAB_IDS = ['glance', 'challenges', 'objectives', 'actions'] as const
 export const STUDENT_TAB_IDS = ['challenges', 'slides'] as const
 
 /* ?tab= שאינו אחד מטאבי המסך (או חסר) → הטאב הראשון של המסך: "במבט אחד" בכיתה, "האתגרים" אצל תלמיד/ה */

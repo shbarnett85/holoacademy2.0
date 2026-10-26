@@ -699,8 +699,7 @@ export const realResultsProvider: ResultsProvider = {
       subject: quests.get(a.quest_id)?.subject?.code ?? null,
       students: (studentsByClass.get(a.class_id) ?? []).map((s) => s.id),
     }))
-    /* שורה אחת, בלי תלמיד ובלי כיתה — אין כאן מידע ברמה אישית */
-    await logAccess(viewer, { scope: 'results_overview', endpoint: 'GET /api/results/overview' })
+    /* אין רישום ביומן הגישה: אין כאן שום מידע ברמת תלמיד/ה, כיתה או מורה — רק ספירות מצטברות (תאים קטנים מוסתרים) */
     return buildOverview({ periodLabel, sends, started: new Set(latest.keys()) })
   },
 

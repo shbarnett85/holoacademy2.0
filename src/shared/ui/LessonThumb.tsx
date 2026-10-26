@@ -42,7 +42,7 @@ export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 8
   const showImg = !!url && !failed
 
   const minSide = typeof width === 'number' && typeof height === 'number' ? Math.min(width, height) : 72
-  const chip = chipSize ?? Math.max(22, Math.min(32, Math.round(minSide * 0.36)))
+  const chip = chipSize ?? Math.max(26, Math.min(32, Math.round(minSide * 0.36)))
   const inset = Math.max(3, Math.round(frame))
   const place: CSSProperties = {
     ...(corner.startsWith('top') ? { top: inset } : { bottom: inset }),
@@ -67,7 +67,7 @@ export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 8
       {children}
       <span role="img" aria-label={v.label} title={v.label} style={{
         position: 'absolute', ...place, zIndex: 2, width: chip, height: chip, borderRadius: '50%', display: 'grid', placeItems: 'center',
-        background: CHIP_SURFACE[resolved], border: `2px solid ${v.color}`, fontSize: Math.round(chip * 0.56), lineHeight: 1, boxSizing: 'border-box',
+        background: CHIP_SURFACE[resolved], border: `2px solid ${v.color}`, fontSize: Math.max(16, Math.round(chip * 0.56)), lineHeight: 1, boxSizing: 'border-box',
       }}>{v.glyph}</span>
     </div>
   )

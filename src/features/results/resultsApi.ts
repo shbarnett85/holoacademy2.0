@@ -40,6 +40,15 @@ export async function resultsGet<T>(ep: ResultsEndpointName, path: string): Prom
   return body.data
 }
 
+/* מחרוזת שאילתה לרשימה: העדשה של האורח (apiQs) + מצב "כל השיעורים בכיתה שלי" + "שיעורים ישנים יותר" */
+export function listQuery(apiQs: string, view: 'mine' | 'class', older: boolean): string {
+  const p = new URLSearchParams(apiQs.replace(/^\?/, ''))
+  if (view === 'class') p.set('view', 'class')
+  if (older) p.set('older', '1')
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
 export interface ResultsState<T> { data: T | null; error: ResultsError | null; loading: boolean; reload: () => void }
 
 /* טעינה לפי נתיב. "בטעינה" נגזר מכך שהתוצאה האחרונה שייכת למפתח אחר (בלי setState סינכרוני ב-effect).

@@ -67,7 +67,18 @@ export const SCENARIOS: Scenario[] = [
   {
     name: 'results-list', group: 'results', who: TEACHERS_AND_UNLINKED,
     url: '/results', clicksFromMainTab: 0, ready: '[data-submission-row], [data-empty-state]',
-    note: 'רשימת השליחות. real-unlinked = מצב ריק (עיקרון 9)',
+    note: 'רשימת השיעורים (30 הימים האחרונים), מקובצת: פעיל עכשיו · השבוע · שבוע שעבר · מוקדם יותר. מחנך/ת: בורר [השיעורים שלי] [כל השיעורים בכיתה שלי]. real-unlinked = מצב ריק (עיקרון 9)',
+  },
+  {
+    name: 'results-list-class', group: 'results', who: HOMEROOM,
+    url: '/results?view=class', clicksFromMainTab: 1, ready: '[data-week-strip]',
+    expect: { present: ['[data-week-strip]', '[data-view-toggle]'] },
+    note: 'מחנך/ת › "כל השיעורים בכיתה שלי": פס שבועי ("השבוע: X שיעורים ב-Y מקצועות") ומי שסומן/ה בכמה מקצועות',
+  },
+  {
+    name: 'results-list-older', group: 'results', who: ['guest-subject-math', 'guest-subject-hebrew'],
+    url: '/results?older=1', clicksFromMainTab: 1, ready: '[data-submission-row], [data-empty-state]',
+    note: '"הצגת שיעורים ישנים יותר" אחרי לחיצה: גם שיעורים מלפני יותר מ-30 יום',
   },
   {
     name: 'results-class', group: 'results', who: TEACHERS,
@@ -96,14 +107,32 @@ export const SCENARIOS: Scenario[] = [
     note: 'טאב יעדי הלמידה (סט הטאבים קבוע: עם יעדים — הרשימה; בלי — מצב ריק מסביר)',
   },
   {
-    name: 'results-class-errors', group: 'results', who: TEACHERS,
-    url: '/results/{submissionId}?tab=errors', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
-    note: 'טאב טעויות נפוצות (עם תגיות — כרטיסים; בלי — מצב ריק מסביר)',
+    name: 'results-class-actions', group: 'results', who: TEACHERS,
+    url: '/results/{submissionId}?tab=actions', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    note: 'טאב "מה עושים עם זה": שיעור ממוקד + שאלה לדיון לכל טעות נפוצה, ותרגול חזרה (אין מה לעשות — מצב ריק מסביר)',
   },
   {
-    name: 'results-class-review', group: 'results', who: TEACHERS,
-    url: '/results/{submissionId}?tab=review', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
-    note: 'טאב תרגול חזרה (יש תחומים חלשים — כפתור יצירה; אין — מצב ריק מסביר)',
+    name: 'results-student-level-story', group: 'results', who: ['guest-subject-math'],
+    url: '/results/demo-sub-compare-d1/student/s-d1-01', inner: true, clicksFromMainTab: 2, ready: '[data-people-panel]',
+    expect: { present: ['[data-row-note]', '[data-progress-link]'] },
+    note: 'תלמיד/ה בדרגה 14 שנכשל/ת איפה שהכיתה (דרגה 5–7) הצליחה: הדרגה מוצגת ליד כל אתגר, וההשוואה אומרת "אין מספיק תלמידים ברמה דומה להשוואה" — לא "חלש/ה מהכיתה". עם קישור "ההתקדמות של … במתמטיקה"',
+  },
+  {
+    name: 'results-live', group: 'results', who: ['guest-homeroom'],
+    url: '/results/demo-sub-live-english-v2/live', inner: true, clicksFromMainTab: 2, ready: '[data-live-tiles]',
+    expect: { present: ['[data-live-legend]', '[data-live-tile]'] },
+    note: 'תצוגה חיה של שיעור פעיל עכשיו (הדגמה): אריח לכל תלמיד/ה — מצב (אייקון + מילה), סצנה, סיבה במילים; רענון כל 15 שניות',
+  },
+  {
+    name: 'results-discuss', group: 'results', who: ['guest-homeroom'],
+    url: '/results/demo-sub-fractions-v2/discuss?e=s1%3A0%3Am%3Amc-frac-add-straight', clicksFromMainTab: 2, ready: '[data-discuss-question]',
+    expect: { present: ['[data-discuss-prompt]'] },
+    note: 'שאלה לדיון בכיתה — מסך מלא להקרנה, בלי שמות. נתיב החזרה הוא הכפתור הגדול "חזרה לתוצאות"',
+  },
+  {
+    name: 'results-overview', group: 'results', who: ['guest-admin', 'real-admin'],
+    url: '/results', clicksFromMainTab: 0, ready: '[data-overview-table], [data-empty-state]',
+    note: 'מנהל/ת: טבלה כללית אחת, שכבה × מקצוע, בלי שמות, בלי פירוט לפי כיתה או מורה; תא עם מעט תלמידים מוסתר',
   },
   {
     name: 'results-class-how-we-calc', group: 'results', who: HOMEROOM,

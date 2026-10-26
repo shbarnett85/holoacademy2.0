@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { countNb, DONUT_TEXT, donutAriaLabel, donutLegendCount, howWeCalcObjectivesLines, narrateObjectivesSummary, narrateSubmissionsSummary, objectiveLevelText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, ObjectiveResult, ResultsSubject, StudentChip, SubmissionRow } from '../../shared/types/resultsV1'
-import { attemptsWord, attentionTotal, byAttentionThenName, CLASS_TAB_IDS, filterSubmissions, firstStudentId, formatSeconds, inTopics, newestFirst, objectiveLevelCounts, resolveTab, ROSTER_GROUP_ORDER, sortedStudents, STUDENT_TAB_IDS, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
+import { attemptsWord, attentionTotal, byAttentionThenName, CLASS_TAB_IDS, filterSubmissions, firstStudentId, formatSeconds, groupByWeek, inTopics, newestFirst, objectiveLevelCounts, resolveTab, ROSTER_GROUP_ORDER, sortedStudents, STUDENT_TAB_IDS, studentsWord, topicsWord, validOption, visibleStudents } from './logic'
 import { UI } from './text'
 
 const row = (id: string, title: string, sentAt: string, classId = 'c1', subject: string | null = 'math'): SubmissionRow => ({
@@ -148,13 +148,17 @@ describe('יעדי למידה', () => {
 })
 
 describe('סט הטאבים הקבוע', () => {
-  it('מסך הכיתה: במבט אחד · האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה — תמיד, בכל שליחה', () => {
-    expect([...CLASS_TAB_IDS]).toEqual(['glance', 'challenges', 'objectives', 'errors', 'review'])
+  it('מסך הכיתה: במבט אחד · האתגרים · יעדי הלמידה · מה עושים עם זה — תמיד, בכל שליחה', () => {
+    expect([...CLASS_TAB_IDS]).toEqual(['glance', 'challenges', 'objectives', 'actions'])
+    expect(UI.tabActions).toBe('מה עושים עם זה')
     expect([...STUDENT_TAB_IDS]).toEqual(['challenges', 'slides'])
     expect(UI.tabGlance).toBe('במבט אחד')
   })
   it('?tab= תקף נשאר; לא תקף או חסר → הטאב הראשון של המסך (במבט אחד בכיתה, האתגרים אצל תלמיד/ה)', () => {
-    expect(resolveTab('review', CLASS_TAB_IDS)).toBe('review')
+    expect(resolveTab('actions', CLASS_TAB_IDS)).toBe('actions')
+    /* קישורים ישנים (?tab=review / ?tab=errors) נופלים לטאב הראשון ולא שוברים את המסך */
+    expect(resolveTab('review', CLASS_TAB_IDS)).toBe('glance')
+    expect(resolveTab('errors', CLASS_TAB_IDS)).toBe('glance')
     expect(resolveTab('objectives', CLASS_TAB_IDS)).toBe('objectives')
     expect(resolveTab('glance', CLASS_TAB_IDS)).toBe('glance')
     expect(resolveTab('challenges', CLASS_TAB_IDS)).toBe('challenges')
@@ -166,7 +170,7 @@ describe('סט הטאבים הקבוע', () => {
     expect(resolveTab('slides', STUDENT_TAB_IDS)).toBe('slides')
   })
   it('מצבי הריק של הטאבים אומרים מה קורה ומה יקרה (עיקרון 9)', () => {
-    for (const [title, next] of [[UI.objectivesEmpty, UI.objectivesEmptyNext], [UI.reviewEmpty, UI.reviewEmptyNext], [RESULTS_TEXT.noCommonErrors, UI.errorsEmptyNext]]) {
+    for (const [title, next] of [[UI.objectivesEmpty, UI.objectivesEmptyNext], [UI.reviewEmpty, UI.reviewEmptyNext], [RESULTS_TEXT.noCommonErrors, UI.errorsEmptyNext], [UI.actionsEmpty, UI.actionsEmptyNext], [UI.liveNotActive, UI.liveUnavailable], [UI.overviewNoData, UI.overviewEmptyNext]]) {
       expect(title.length).toBeGreaterThan(10)
       expect(next.length).toBeGreaterThan(20)
     }
@@ -212,5 +216,31 @@ describe('narrateSubmissionsSummary — משפט מעל רשימת השליחו�
   it('אין שליחות → ריק; ספירה גדולה מהסך נחתכת לסך', () => {
     expect(narrateSubmissionsSummary(0, 0)).toBe('')
     expect(narrateSubmissionsSummary(2, 9)).toBe('2 שיעורים נשלחו; בכולם יש תלמידים לתשומת לב.')
+  })
+})
+
+describe('groupByWeek — רשימה לפי שבועות', () => {
+  const NOW = Date.parse('2026-10-28T10:00:00Z') /* רביעי; השבוע התחיל ב-25.10 */
+  const st = (id: string, sentAt: string, state?: SubmissionRow['state']): SubmissionRow => ({ ...row(id, id, sentAt), ...(state ? { state } : {}) })
+  const rows = [
+    st('old', '2026-09-15T08:00:00Z'),
+    st('last1', '2026-10-20T08:00:00Z'),
+    st('this1', '2026-10-25T05:00:00Z'),
+    st('live-last', '2026-10-19T08:00:00Z', 'active_now'),
+    st('this2', '2026-10-27T08:00:00Z'),
+    st('last2', '2026-10-18T05:00:00Z'),
+  ]
+  it('פעיל עכשיו לבד בראש (גם אם נשלח בשבוע שעבר); אחריו השבוע · שבוע שעבר · מוקדם יותר, החדש קודם בכל קבוצה', () => {
+    const g = groupByWeek(rows, NOW)
+    expect(g.map((x) => x.key)).toEqual(['active', 'this', 'last', 'earlier'])
+    expect(g.map((x) => x.rows.map((r) => r.id))).toEqual([['live-last'], ['this2', 'this1'], ['last1', 'last2'], ['old']])
+  })
+  it('קבוצה ריקה לא מופיעה; אין שליחות → אין קבוצות', () => {
+    expect(groupByWeek([st('a', '2026-10-27T08:00:00Z')], NOW).map((x) => x.key)).toEqual(['this'])
+    expect(groupByWeek([], NOW)).toEqual([])
+  })
+  it('גבול השבוע לפי שעון ישראל: שבת בערב עדיין בשבוע שעבר, ראשון בבוקר כבר השבוע', () => {
+    const g = groupByWeek([st('sat', '2026-10-24T18:00:00Z'), st('sun', '2026-10-24T22:30:00Z')], NOW)
+    expect(g.map((x) => [x.key, x.rows.map((r) => r.id)])).toEqual([['this', ['sun']], ['last', ['sat']]])
   })
 })

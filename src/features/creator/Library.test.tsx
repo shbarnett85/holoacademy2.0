@@ -55,14 +55,14 @@ describe('צ׳יפ הסינון "ללא מקצוע (N)"', () => {
 })
 
 describe('אחרי שיוך מקצוע', () => {
-  it('הודעה שנשארת על המסך (role=status): מה ייכלל באנליטיקה ומה לא, קישור "חזרה לאנליטיקה" וכפתור "סגירה"', () => {
+  it('הודעה שנשארת על המסך (role=status): מה ייכלל בהתקדמות ומה לא, קישור לחזרה וכפתור "סגירה"', () => {
     const html = toolbar({ assignedNote: true, noSubjectCount: 1 })
     expect(html).toContain('data-library-assigned')
     expect(html).toMatch(/<div role="status"[^>]*data-library-assigned/)
     expect(text(html)).toContain(LIBRARY_ASSIGN_TEXT.saved)
     /* אומר את האמת על שיוך בדיעבד: משחקים חדשים כן, משחקים שכבר שוחקו — לא */
     expect(LIBRARY_ASSIGN_TEXT.saved).toContain('המקצוע נשמר')
-    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים חדשים בשיעור הזה ייכללו באנליטיקה')
+    expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים חדשים בשיעור הזה ייכללו בהתקדמות')
     expect(LIBRARY_ASSIGN_TEXT.saved).toContain('משחקים שכבר שוחקו בו לא ייכללו')
     expect(links(html).map(text)).toEqual([LIBRARY_ASSIGN_TEXT.backToAnalytics])
     expect(links(html)[0]).toContain('href="/analytics"')

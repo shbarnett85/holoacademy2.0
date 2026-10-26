@@ -3,7 +3,7 @@
      פס ראש אחד (שם, כיתה, תאריך, מצב השלמה, המתג) — לכל הרוחב
      משפט הסיכום (שורה אחת) — לכל הרוחב; במצב "לפי תלמיד" עם הקודם/הבא בקצה השורה
      מתחת, שתי עמודות בגובה שנשאר:
-       ימין (העיקר):  טאבים — במבט אחד · האתגרים · יעדי הלמידה · טעויות נפוצות · תרגול חזרה  (במצב תלמיד: האתגרים · זמן בשקפים)
+       ימין (העיקר):  טאבים — במבט אחד · האתגרים · יעדי הלמידה · מה עושים עם זה  (במצב תלמיד: האתגרים · זמן בשקפים)
                       "במבט אחד" (שני גרפי עוגה: מי סיים, כמה אתגרים הצליחו מי שסיימו) הוא הטאב הראשון והפותח במצב "כל הכיתה"
        שמאל:  חלונית התלמידים — רשת צפופה של שמות (שלוש קבוצות / כל הכיתה לפי א-ב)
    סט הטאבים קבוע בכל שליחה: טאב בלי נתונים נשאר במקומו ומסביר במילים למה ריק ומה יקרה (עיקרון 9) — טאבים לא מופיעים ונעלמים.
@@ -18,7 +18,7 @@ import { AiSummaryPanel } from '../aiSummary'
 import { EmptyState, FONT, guestLensParams, ScreenShell, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem } from '../teacherUi'
 import ClassChallenges from './ClassChallenges'
-import CommonErrors from './CommonErrors'
+import Actions from './Actions'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
 import Glance from './Glance'
@@ -27,7 +27,6 @@ import type { Mode } from './HeadStrip'
 import { CLASS_TAB_IDS, firstStudentId, resolveTab, STUDENT_TAB_IDS, studentIndex } from './logic'
 import Objectives from './Objectives'
 import { ClassRoster, PrevNext, StudentList } from './People'
-import ReviewPractice from './ReviewPractice'
 import { useLens, useResultsData } from './resultsApi'
 import ResultsLensSwitcher from './ResultsLensSwitcher'
 import SlidesTable from './SlidesTable'
@@ -46,8 +45,7 @@ const CLASS_TABS: TabItem[] = [
   { id: 'glance', label: UI.tabGlance },
   { id: 'challenges', label: UI.tabChallenges },
   { id: 'objectives', label: UI.tabObjectives },
-  { id: 'errors', label: UI.tabErrors },
-  { id: 'review', label: UI.tabReview },
+  { id: 'actions', label: UI.tabActions },
 ]
 const STUDENT_TABS: TabItem[] = [
   { id: 'challenges', label: UI.tabChallenges },
@@ -112,6 +110,8 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
 
   const toList = link('/results')
   const toClass = link(`/results/${enc(submissionId)}`)
+  const toLive = link(`/results/${enc(submissionId)}/live`)
+  const discussHref = (errorId: string): string => link(`/results/${enc(submissionId)}/discuss`, { e: errorId })
   const toStudent = (id: string): void => { void navigate(link(`/results/${enc(submissionId)}/student/${enc(id)}`)) }
   const switchMode = (m: Mode): void => {
     if (m === 'class') { void navigate(toClass); return }
@@ -135,6 +135,12 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   const shownCrumbs: BreadcrumbItem[] = active.error ? [{ label: UI.crumbResults, to: toList }, { label: UI.crumbError(active.error.status) }] : crumbs
 
   const title = mode === 'class' ? RESULTS_TEXT.classQuestion : RESULTS_TEXT.studentQuestion
+  /* ההתקדמות של התלמיד/ה במקצוע של השיעור (מסך ההתקדמות; בלי מקצוע — מסך התלמיד/ה הכללי) */
+  const progressTo = (d: StudentSubmissionView): string => link(`/analytics/student/${enc(d.student.id)}`, { class: d.head.classId, tab: d.head.subject?.code ?? '' })
+  const progressLabel = (d: StudentSubmissionView): string => {
+    const first = d.student.name.split(' ')[0]
+    return d.head.subject ? UI.progressLink(first, d.head.subject.nameHe) : UI.progressLinkNoSubject(first)
+  }
 
   /* ── תוכן לפי מצב ── */
   let body: ReactNode
@@ -147,25 +153,20 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
     const shownTab = resolveTab(tab, CLASS_TAB_IDS)
     body = (
       <Layout wide={wide} busy={classQ.loading}
-        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} onDueChanged={onDueChanged} />}
+        head={<HeadStrip head={d.head} mode={mode} onMode={switchMode} onDueChanged={onDueChanged} liveTo={toLive} />}
         sentence={<Sentence compact>{d.summary}</Sentence>}
         people={<ClassRoster roster={d.roster} onOpen={toStudent} />}
         panel={(
           <MainPanel tabs={CLASS_TABS} active={shownTab} onTab={setTab}>
             {shownTab === 'glance' && (
               /* הסיכום המילולי של ד״ר הולו: כרטיס מוטמע בחריץ שמתחת לגרפים (מורה אורח: העדשה נשלחת איתו) */
-              <Glance view={d} summary={<AiSummaryPanel key={d.head.id} compact target={{ scope: 'submission', id: d.head.id }} params={guestLensParams(lensState)} exportName={d.head.title} />} />
+              <Glance view={d} onOpenStudent={toStudent} onDiscuss={(id) => { void navigate(discussHref(id)) }} onActions={() => setTab('actions')} summary={<AiSummaryPanel key={d.head.id} compact target={{ scope: 'submission', id: d.head.id }} params={guestLensParams(lensState)} exportName={d.head.title} />} />
             )}
             {shownTab === 'challenges' && <ClassChallenges view={d} />}
             {shownTab === 'objectives' && (d.objectives.length > 0
               ? <Objectives objectives={d.objectives} onOpenStudent={toStudent} />
               : <EmptyState title={UI.objectivesEmpty} whatNext={UI.objectivesEmptyNext} />)}
-            {shownTab === 'errors' && (d.commonErrors.length > 0
-              ? <CommonErrors errors={d.commonErrors} />
-              : <EmptyState title={RESULTS_TEXT.noCommonErrors} whatNext={UI.errorsEmptyNext} />)}
-            {shownTab === 'review' && (d.review.weakCount > 0
-              ? <ReviewPractice questId={d.head.questId} submissionId={d.head.id} weakCount={d.review.weakCount} />
-              : <EmptyState title={UI.reviewEmpty} whatNext={UI.reviewEmptyNext} />)}
+            {shownTab === 'actions' && <Actions view={d} discussHref={discussHref} />}
           </MainPanel>
         )} />
     )
@@ -182,7 +183,7 @@ const position = at >= 0 ? UI.studentPosition(at + 1, d.roster.length) : ''
         people={<StudentList roster={d.roster} currentId={d.student.id} onOpen={toStudent} />}
         panel={(
           <MainPanel tabs={STUDENT_TABS} active={shownTab} onTab={setTab}>
-            {shownTab === 'challenges' && <StudentChallenges view={d} />}
+            {shownTab === 'challenges' && <StudentChallenges view={d} progressTo={progressTo(d)} progressLabel={progressLabel(d)} />}
             {shownTab === 'slides' && <SlidesTable slides={d.slides} />}
           </MainPanel>
         )} />

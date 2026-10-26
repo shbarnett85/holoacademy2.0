@@ -1,10 +1,11 @@
 /* ראש מסך ההדמיה (זהה בשני המצבים) — פס אחד: תמונה, שם ההדמיה, מקצוע, כיתה, תאריך, מצב ההשלמה של הכיתה, והמתג הגדול [כל הכיתה] [לפי תלמיד].
    המתג בקצה השמאלי — מעל חלונית התלמידים שהוא קובע איך מסתכלים עליה. */
+import { Link } from 'react-router-dom'
 import { LESSON_DUE_TEXT, dateHe } from '../../shared/lib/findingsNarrative'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import type { SubmissionHead } from '../../shared/types/resultsV1'
-import { FONT, ModeToggle, ProgressBar, SubjectBadge, T } from '../teacherUi'
-import { card, soft } from './styles'
+import { FONT, Icon, ModeToggle, ProgressBar, SubjectBadge, T } from '../teacherUi'
+import { card, primaryButton, soft } from './styles'
 import { UI } from './text'
 import Thumb from './Thumb'
 import { DueEditor, DueLine, LessonStateChip } from './LessonDue'
@@ -17,9 +18,11 @@ interface HeadStripProps {
   onMode: (m: Mode) => void
   /* אחרי שינוי מועד הגשה — טעינה מחדש של הנתונים (המצב והסימון "באיחור" נגזרים בשרת) */
   onDueChanged?: () => void
+  /* קישור ל"תצוגה חיה" — מוצג רק כשהשיעור פעיל עכשיו */
+  liveTo?: string
 }
 
-export default function HeadStrip({ head, mode, onMode, onDueChanged }: HeadStripProps) {
+export default function HeadStrip({ head, mode, onMode, onDueChanged, liveTo }: HeadStripProps) {
   const c = head.counts
   /* מורה אורח (הדגמה) לא משנה מועדים — השרת חוסם, והכפתור לא מוצג */
   const { isGuest } = useStaffAuth()
@@ -32,9 +35,22 @@ export default function HeadStrip({ head, mode, onMode, onDueChanged }: HeadStri
         <SubjectBadge code={head.subject?.code ?? null} />
         <span>{UI.classWord(head.className)}</span>
         <span>{UI.sentOn(dateHe(head.sentAt))}</span>
-        {head.state && <LessonStateChip state={head.state} />}
+        {head.state && <LessonStateChip state={head.state} dueAt={head.dueAt} />}
         {head.dueAt !== undefined && <DueLine dueAt={head.dueAt} state={head.state} />}
         {!isGuest && head.dueAt !== undefined && onDueChanged && <DueEditor submissionId={head.id} dueAt={head.dueAt} onChanged={onDueChanged} />}
+        {head.state === 'active_now' && liveTo && (
+          <Link to={liveTo} data-tu-press data-live-link style={{ ...primaryButton, textDecoration: 'none' }}>
+            <Icon name="pulse" size={18} />
+            {UI.openLive}
+          </Link>
+        )}
+        {/* "השיעור פתוח עד 1.11. 8 תלמידים עוד לא סיימו, ולכן התמונה עדיין חלקית." — כל עוד השיעור פתוח ויש מי שלא סיים */}
+        {head.openNote && (
+          <span data-open-note style={{ flexBasis: '100%', display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
+            <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>
+            {head.openNote}
+          </span>
+        )}
       </div>
       <div style={{ flex: '0 1 340px', minWidth: 230, display: 'flex', flexDirection: 'column', gap: 0 }}>
         {/* בסרגל הזה תמיד נספרת הכיתה כולה; במצב "לפי תלמיד" המילה אומרת את זה */}

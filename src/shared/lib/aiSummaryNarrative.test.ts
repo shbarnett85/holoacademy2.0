@@ -137,7 +137,7 @@ describe('הקשחת הסיכום המילולי: גילוי נאות, התיי�
     expect(n).toBeGreaterThan(6)
     clean(ERR_SUMMARY_EDIT_EXISTS)
     clean(ERR_LEGACY_SUMMARY_MOVED)
-    expect(ERR_LEGACY_SUMMARY_MOVED).toBe('הסיכום עבר למסך התלמיד/ה והכיתה באנליטיקה')
+    expect(ERR_LEGACY_SUMMARY_MOVED).toBe('הסיכום עבר למסך ההתקדמות של התלמיד/ה והכיתה')
     /* שני כפתורי האישור נבדלים במילים (לא בצבע בלבד) */
     expect(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.cancel).not.toBe(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.confirm)
     expect(AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.body).toContain('תמחק את העריכה')

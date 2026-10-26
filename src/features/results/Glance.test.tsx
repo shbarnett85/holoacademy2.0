@@ -57,9 +57,9 @@ describe('Glance — שני הגרפים', () => {
     expect(second).toContain('data-donut-bands-help')
     const help = /<p data-donut-bands-help[^>]*>([^<]*)<\/p>/.exec(second)?.[1] ?? ''
     expect(help).toBe(donutBandsHelp())
-    /* הספים מהתצורה (75% ו-50%) במילים */
+    /* הספים מהתצורה (75% ו-40%) במילים */
     expect(help).toContain('3 מכל 4 אתגרים או יותר')
-    expect(help).toContain('פחות ממחצית האתגרים')
+    expect(help).toContain('פחות מ-40% מהאתגרים')
     /* בגרף הראשון אין שורת עזר, ובמצב ריק של הגרף השני — גם לא */
     expect(card(h, 'completion')).not.toContain('data-donut-bands-help')
     expect(card(html(view({ bands: { basis: 1, low: 0, mid: 0, high: 1, enough: false } })), 'success')).not.toContain('data-donut-bands-help')
@@ -67,7 +67,8 @@ describe('Glance — שני הגרפים', () => {
 
   it('שורת העזר לפי הספים שמגיעים מהתצורה: ספים לא מוכרים נכתבים באחוזים', () => {
     expect(donutBandsHelp({ low: 0.4, high: 0.9 })).toBe('ברוב: 90% מהאתגרים או יותר. במעט: פחות מ-40% מהאתגרים. בחלק: כל מה שביניהם.')
-    expect(donutBandsHelp({ low: 0.5, high: 0.75 })).toBe(donutBandsHelp())
+    expect(donutBandsHelp({ low: 0.4, high: 0.75 })).toBe(donutBandsHelp())
+    expect(donutBandsHelp({ low: 0.5, high: 0.75 })).toContain('פחות ממחצית האתגרים')
   })
 
   it('המרכז: כל תלמידי הכיתה / מי שסיימו', () => {

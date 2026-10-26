@@ -244,6 +244,8 @@ export const generateRequestSchema = z.object({
   formOfAddress: z.enum(['male', 'female', 'plural']).optional().transform(() => 'plural' as const),
   /* יעדי למידה (טקסט חופשי מהמורה / חילוץ AI) — השרת מקצה מזהים ומזריק לפרומפט */
   objectives: z.array(z.string().min(1).max(300)).max(8).optional(),
+  /* שיעור ממוקד (מסך סיכום שיעור): התפיסה השגויה שבגללה נוצר. אחרי היצירה נרשם קישור ב-misconception_content_links (best-effort) */
+  focusedMisconceptionId: z.string().uuid().optional(),
 })
 
 /* חילוץ JSON מתשובת Claude (כולל ניקוי גדרות קוד אם יש).

@@ -758,6 +758,19 @@ export const liveSummary = (c: Record<LiveStatusKey, number>, total: number): st
   return `${parts.join('. ')}.`
 }
 
+/* שורות "איך חישבנו?" של התצוגה החיה — הכללים מהתצורה (LIVE_RULES), בלי מספרים כתובים ידנית */
+export function howWeCalcLiveLines(): string[] {
+  const sec = (ms: number): number => Math.round(ms / 1000)
+  const min = (ms: number): number => Math.round(ms / 60000)
+  return [
+    `משחק פותח שורת עדכון כל ${sec(LIVE_RULES.heartbeatMs)} שניות וגם בסוף כל אתגר. המסך מתרענן אוטומטית כל ${sec(LIVE_RULES.refreshMs)} שניות.`,
+    `"נתקע/ה" = ${LIVE_RULES.stuckMistakes} טעויות ברצף באותו אתגר, או ${min(LIVE_RULES.stuckNoProgressMs)} דקות בלי התקדמות (מעבר לסצנה אחרת או סיום אתגר).`,
+    `"ויתר/ה" = האתגר האחרון נסגר בויתור ומאז אין התקדמות.`,
+    `"לא פעיל/ה" = ${min(LIVE_RULES.inactiveMs)} דקות בלי שום פעולה במשחק. מי שלא פעיל/ה לא נחשב/ת לנתקע/ה, כי אין עליו/ה מידע חי.`,
+    'אלה עובדות בלבד — הן לא מסבירות למה.',
+  ]
+}
+
 /* ── שיעור ממוקד / שאלה לדיון ── */
 export const focusedLessonLabel = (n: number): string => (n === 1 ? 'שיעור ממוקד לתלמיד אחד' : `שיעור ממוקד ל-${n} התלמידים`)
 export const FOCUSED_LESSON_WHOLE_CLASS_NOTE = 'המערכת שולחת שיעור לכיתה שלמה, ולא לחלק מתלמידיה. אחרי היצירה השיעור יישלח לכל הכיתה — ההתמקדות היא בנושא, לא בתלמידים.'
@@ -1407,6 +1420,9 @@ export const LESSON_STATE_TEXT = {
   open: { label: 'פתוח להגשה', hint: 'מועד ההגשה עוד לא הגיע.' },
   ended: { label: 'ההגשה הסתיימה', hint: 'מועד ההגשה עבר. השיעור לא ננעל — מי שיסיימו אותו עכשיו יסומנו "באיחור".' },
 } as const
+/* התווית בתג המצב: "פעיל עכשיו" · "פתוח עד 1.11" · "הסתיים" */
+export const lessonStateLabel = (state: keyof typeof LESSON_STATE_TEXT, dueAt?: string | null): string =>
+  state === 'open' && dueAt ? `פתוח עד ${dayMonth(dueAt)}` : state === 'ended' ? 'הסתיים' : LESSON_STATE_TEXT[state].label
 export const ERR_DUE_NOT_ALLOWED = 'רק מי ששלחו את השיעור או מחנכי הכיתה יכולים לשנות את מועד ההגשה.'
 export const ERR_DUE_INVALID = 'תאריך לא תקין. בחרו יום מלא (יום-חודש-שנה).'
 export const ERR_DUE_PAST = 'בחרו תאריך מהיום והלאה.'

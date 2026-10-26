@@ -52,12 +52,12 @@ function BarButton({ icon, label, onClick, tone }: { icon: React.ReactNode; labe
 /* סרגל עליון משותף לאולפן (לוגו + טאבים שמנווטים ב-router + סטטוס + יציאה) */
 export default function StudioTopBar({ active }: { active: TabId }) {
   const navigate = useNavigate()
-  const { logout, user, isStaff, role } = useStaffAuth()
+  const { logout, user, isStaff } = useStaffAuth()
   const { muted, toggleMuted } = useSoundSettings()
   const light = useTheme()
 
-  /* "תוצאות" שייך למורים (ומנהל-על): מנהל בית ספר/רשות אין לו תוצאות ברמת הדמיה, והאנונימי לא מחובר */
-  const showResults = isStaff && role !== 'admin' && role !== 'municipal_admin'
+  /* "סיכום שיעור" לכל הצוות המחובר: מורה — הרשימה; מנהל בית ספר/רשות — טבלה כללית אחת (שכבה × מקצוע), בלי תוצאות ברמת תלמיד. האנונימי לא מחובר */
+  const showResults = isStaff
   const tabs = TABS.filter((t) => t.id !== 'results' || showResults || active === 'results')
 
   /* מסמן ל-CSS שמסך אולפן מורכב, כדי שהמצב הבהיר יבהיר גם את רקע ה-body —

@@ -12,8 +12,9 @@
    מה נוצר (כיתה ראשית "fx.classId", 6 תלמידים):
    · הדמיה מדעית "sci" (רב-ברירה עם מסיח מתויג + מסיח לא מתויג, נכון/לא-נכון, זיכרון, מבחן סיכום 3 שאלות):
        אבי — סיים, הכול נכון · בני — סיים, ויתר על 2 אתגרים + בחר במסיח המתויג · גלית — סיימה, בחרה במסיח המתויג
-       דנה — סיימה, בחרה במסיח לא מתויג · הדס — באמצע (session פתוח) · ויקטור — לא התחיל (יש לו session *סינתטי* מושלם —
-       נראה רק בארגון הדגמה).
+       דנה — סיימה, בחרה במסיח המתויג (שלושה תלמידים באותה תשובה שגויה = "טעות נפוצה") · הדס — באמצע (session פתוח) ·
+       ויקטור — לא התחיל (יש לו session *סינתטי* מושלם — נראה רק בארגון הדגמה).
+     מועד ההגשה של sci עבר אתמול ("לא התחיל" נחשב לתשומת לב רק אחרי המועד).
    · הדמיה ישנה "old" — שליחה מלפני 400 יום: sessions + events מסוכמים בלבד, אין answers (הדמיה מלפני לכידת התשובות).
    · הדמיה היסטורית "hist" שנשלחה ע"י מורה אחר (senderOnly) — לא גלויה למורה המדעים.
    · כיתה שנייה עם מורה שאינו מקושר לכיתה הראשית (+ שליחה משלו) — לבדיקת בידוד.
@@ -194,10 +195,10 @@ async function build(auths: string[]): Promise<ResultsFixture> {
   const qHist = await mkQuest('hist', HIST_GAME, HIST, subjectOther.userId)
 
   /* שליחות */
-  const asg = async (cls: string, quest: string, by: string, ageDays: number): Promise<string> =>
-    (await ins('assignments', { class_id: cls, quest_id: quest, user_id: by, created_at: iso(-ageDays * DAY) }))[0].id
+  const asg = async (cls: string, quest: string, by: string, ageDays: number, dueAgoDays?: number): Promise<string> =>
+    (await ins('assignments', { class_id: cls, quest_id: quest, user_id: by, created_at: iso(-ageDays * DAY), ...(dueAgoDays !== undefined ? { due_at: iso(-dueAgoDays * DAY) } : {}) }))[0].id
   const submissions = {
-    sci: await asg(classId, qSci, subjectSame.userId, 2),
+    sci: await asg(classId, qSci, subjectSame.userId, 2, 1),
     old: await asg(classId, qOld, subjectSame.userId, 400),
     hist: await asg(classId, qHist, senderOnly.userId, 1),
     other: await asg(otherClassId, qHist, unlinked.userId, 3),
@@ -264,7 +265,7 @@ async function build(auths: string[]): Promise<ResultsFixture> {
     { scene: 's4', item: 0, opt: 'o0', outcome: 'correct', type: FQ }, { scene: 's4', item: 1, opt: 'o2', outcome: 'correct', type: FQ }, { scene: 's4', item: 2, opt: 'o2', outcome: 'wrong', type: FQ },
   ], { s1: false, s2: true, s3: true, s4: true })
   await play(students.dana, [
-    { scene: 's1', item: 0, opt: 'c', outcome: 'wrong', type: MC }, { scene: 's2', item: 0, opt: 't', outcome: 'correct', type: TF },
+    { scene: 's1', item: 0, opt: 'b', outcome: 'wrong', type: MC }, { scene: 's2', item: 0, opt: 't', outcome: 'correct', type: TF },
     { scene: 's3', item: 0, opt: null, outcome: 'correct', type: MEM },
     { scene: 's4', item: 0, opt: 'o0', outcome: 'correct', type: FQ }, { scene: 's4', item: 1, opt: 'o2', outcome: 'correct', type: FQ }, { scene: 's4', item: 2, opt: 'o1', outcome: 'correct', type: FQ },
   ], { s1: false, s2: true, s3: true, s4: true })

@@ -141,6 +141,10 @@ interface CreatorState {
   includeDrHolo: boolean
   artStyle: string
 
+  /* שיעור ממוקד (מסך סיכום שיעור): התפיסה השגויה שבגללה נוצר השיעור, וההערה שמוצגת בטופס. נמחקים אחרי היצירה / איפוס */
+  focusedMisconceptionId: string | null
+  focusedNote: string | null
+
   /* מצב יצירה */
   status: 'idle' | 'generating' | 'done' | 'error'
   error: string | null
@@ -172,6 +176,8 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
   puzzleDifficulty: 10,
   includeDrHolo: true,
   artStyle: 'digital-painting',
+  focusedMisconceptionId: null,
+  focusedNote: null,
   status: 'idle',
   error: null,
   result: null,
@@ -225,6 +231,7 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
           },
           includeDrHolo: s.includeDrHolo,
           artStyle: s.artStyle,
+          ...(s.focusedMisconceptionId ? { focusedMisconceptionId: s.focusedMisconceptionId } : {}),
         }),
       })
 
@@ -296,5 +303,5 @@ export const useCreatorStore = create<CreatorState>((set, get) => ({
     set({ status: 'idle', error: null })
   },
 
-  reset: () => set({ status: 'idle', error: null, result: null, warnings: [], hub: null }),
+  reset: () => set({ status: 'idle', error: null, result: null, warnings: [], hub: null, focusedMisconceptionId: null, focusedNote: null }),
 }))
