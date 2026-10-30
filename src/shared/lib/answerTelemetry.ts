@@ -59,6 +59,7 @@ export interface QuizQuestionLike {
   correctIndex: number
   explanationCorrect?: string
   explanationIncorrect?: string
+  retryHint?: string
 }
 export interface PresentedQuizQuestion extends QuizQuestionLike {
   /* אינדקסי האפשרויות *המקוריות* בסדר ההצגה (option_id = 'o<originalIndex>') */
@@ -113,6 +114,12 @@ export interface AnswerRecord {
      levelDimension = סוג האתגר (מפתח per_puzzle_level). השוואה בין תלמידים נעשית רק באותו ממד וברמות קרובות. */
   levelAtPlay?: number | null
   levelDimension?: string | null
+}
+
+/* ניסיון שני בבחירה מרובה ובמבחן סיכום נשמר בשורה נפרדת עם attempt_no=2. לאנליטיקה ולכיול נכנס רק הניסיון הראשון:
+   כל מי שקורא answers לניתוח מסנן בעזרת הפונקציה הזו. (בסוגים האחרים attempt_no הוא מספר הניסיונות בתוך שורה אחת, ולכן הם לא מסוננים.) */
+export function isRetryRow(puzzleType: string | null | undefined, attemptNo: number | null | undefined): boolean {
+  return (attemptNo ?? 1) > 1 && (puzzleType === 'multipleChoice' || puzzleType === 'finalQuiz' || puzzleType === 'trueFalse')
 }
 
 /* טעויות ברצף באתגר הפתוח — לכלל "נתקע" בתצוגה החיה (LIVE_RULES.stuckMistakes). רצף = הפעולות האחרונות שהיו טעות, עד פעולה נכונה.
@@ -192,8 +199,8 @@ export interface PuzzleTelemetry {
   act(kind: string, data?: Record<string, unknown>): void
   /* קובע את סדר ההצגה של אפשרויות (בחירה מרובה) */
   setDisplay(displayedOrder: string[], correctPosition: number): void
-  /* מבחן סיכום: שורה אחת לכל שאלה. t = חותמת פעולה, shownAt = מתי הוצגה */
-  quizItem(item: { itemIndex: number; selectedOptionId: string; selectedPosition: number; correctPosition: number; displayedOrder: string[]; isCorrect: boolean; shownAt: number; answeredAt: number }): void
+  /* מבחן סיכום: שורה אחת לכל ניסיון בשאלה. t = חותמת פעולה, shownAt = מתי הוצגה. attemptNo: 1 (ברירת מחדל) או 2 */
+  quizItem(item: { itemIndex: number; selectedOptionId: string; selectedPosition: number; correctPosition: number; displayedOrder: string[]; isCorrect: boolean; shownAt: number; answeredAt: number; attemptNo?: number }): void
   /* משתמשים פנימית */
   readonly state: TelemetryState
 }
@@ -205,7 +212,7 @@ export interface TelemetryState {
   droppedEvents: number
   displayedOrder: string[] | null
   correctPosition: number | null
-  quizItems: { itemIndex: number; selectedOptionId: string; selectedPosition: number; correctPosition: number; displayedOrder: string[]; isCorrect: boolean; responseMs: number }[]
+  quizItems: { itemIndex: number; selectedOptionId: string; selectedPosition: number; correctPosition: number; displayedOrder: string[]; isCorrect: boolean; responseMs: number; attemptNo: number }[]
   gaveUp: boolean
   timedOut: boolean
 }
@@ -244,6 +251,7 @@ export function createPuzzleTelemetry(now: () => number = Date.now): PuzzleTelem
           itemIndex: item.itemIndex, selectedOptionId: item.selectedOptionId, selectedPosition: item.selectedPosition,
           correctPosition: item.correctPosition, displayedOrder: item.displayedOrder, isCorrect: item.isCorrect,
           responseMs: Math.max(0, item.answeredAt - item.shownAt),
+          attemptNo: item.attemptNo ?? 1,
         })
       } catch { /* ignore */ }
     },
@@ -286,6 +294,11 @@ export function buildPresentation(tel: PuzzleTelemetry, input: FinishInput): Pre
   return level === null ? rec : { ...rec, answers: rec.answers.map((a) => ({ ...a, levelAtPlay: level, levelDimension: a.puzzleType })) }
 }
 
+/* המזהה המקומי של ניסיון שני. המספר האחרון במזהה נשאר מספר ההצגה (הקריאה בשרת נשענת על זה) */
+function attemptLocalId(sceneId: string, item: number, seq: number, attemptNo: number): string {
+  return attemptNo > 1 ? `${sceneId}:${item}:a${attemptNo}:${seq}` : `${sceneId}:${item}:${seq}`
+}
+
 function buildPresentationRows(tel: PuzzleTelemetry, input: FinishInput): PresentationRecord {
   const st = tel.state
   const { sceneId, puzzleType, seq, result } = input
@@ -305,15 +318,33 @@ function buildPresentationRows(tel: PuzzleTelemetry, input: FinishInput): Presen
     return { ...base, answers: [], moral: pick ? { sceneId, optionId: `m${Number(pick.index)}` } : null }
   }
 
-  /* מבחן סיכום — שורה לכל שאלה שנענתה */
+  /* מבחן סיכום — שורה לכל ניסיון בכל שאלה שנענתה (ניסיון שני: attempt_no=2) */
   if (puzzleType === 'finalQuiz') {
     const answers: AnswerRecord[] = st.quizItems.map((q) => ({
-      localId: id(q.itemIndex), sceneId, itemIndex: q.itemIndex, puzzleType,
+      localId: attemptLocalId(sceneId, q.itemIndex, seq, q.attemptNo), sceneId, itemIndex: q.itemIndex, puzzleType,
       selectedOptionId: q.selectedOptionId, selectedPosition: q.selectedPosition, correctPosition: q.correctPosition,
-      displayedOrder: q.displayedOrder, isCorrect: q.isCorrect, attemptNo: 1, responseMs: q.responseMs,
+      displayedOrder: q.displayedOrder, isCorrect: q.isCorrect, attemptNo: q.attemptNo, responseMs: q.responseMs,
       outcome: q.isCorrect ? 'correct' : 'wrong', interaction: null,
     }))
     return { ...base, answers, moral: null }
+  }
+
+  /* בחירה מרובה: שורה לכל בחירה. הראשונה היא מה שנספר; בחירה שנייה נשמרת עם attempt_no=2 */
+  if ((puzzleType === 'multipleChoice' || puzzleType === 'trueFalse' || puzzleType === undefined) && result !== null) {
+    const selects = st.events.filter((e) => e.k === 'select')
+    if (selects.length > 1) {
+      const answers: AnswerRecord[] = selects.slice(0, 2).map((sel, i) => {
+        const isCorrect = sel.correct === true
+        return {
+          localId: attemptLocalId(sceneId, 0, seq, i + 1), sceneId, itemIndex: 0, puzzleType,
+          selectedOptionId: String(sel.optionId), selectedPosition: Number(sel.position),
+          correctPosition: st.correctPosition, displayedOrder: st.displayedOrder,
+          isCorrect, attemptNo: i + 1, responseMs: Math.max(0, Number(sel.t) || 0),
+          outcome: isCorrect ? 'correct' : 'wrong', interaction: cap({ events: i === 0 ? st.events : [] }),
+        }
+      })
+      return { ...base, answers, moral: null }
+    }
   }
 
   let selectedOptionId: string | null = null

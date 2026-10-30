@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
-import { playSound } from '../../../shared/lib/sound'
+import { sounds } from '../gameFeel/engine'
 import { scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
@@ -72,7 +72,7 @@ export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props
         setLocked(true)
         setTimeout(() => onResult({ correct: true, score: 1 }), 450)
       } else {
-        playSound('good') /* צעד-ביניים — חלל הושלם, ממשיכים לבא */
+        sounds.step() /* צעד-ביניים — חלל הושלם, ממשיכים לבא */
       }
     } else {
       /* שגוי — ניקוב מד הניסיונות; כישלון רק במיצוי */

@@ -23,7 +23,7 @@ const h = vi.hoisted(() => {
     constructor(private t: string) { calls.push(t) }
     select(c = '*') { this.cols = c; return this }
     insert(p: Row | Row[]) { this.ins = Array.isArray(p) ? p : [p]; return this }
-    eq(k: string, v: unknown) { this.filters.push((r) => r[k] === v); return this }
+    eq(k: string, v: unknown) { this.filters.push((r) => (k === 'is_replay' ? (r[k] ?? false) : r[k]) === v); return this }
     in(k: string, a: unknown[]) { this.filters.push((r) => a.includes(r[k])); return this }
     is(k: string, v: unknown) { this.filters.push((r) => (r[k] ?? null) === v); return this }
     gte(k: string, v: string) { this.filters.push((r) => String(r[k]) >= v); return this }
@@ -63,7 +63,7 @@ vi.mock('../activeColumn.js', () => ({
   hasMisconceptions: async () => true, hasMoralChoices: async () => true, hasOptionTags: async () => true, hasQuestSubject: async () => false,
   hasQuestSubjectId: async () => true, hasQuestVariants: async () => true, hasSyntheticFlag: async () => true,
   hasClassTeachers: async () => true, hasDataAccessLog: async () => true, hasAssignmentDueAt: async () => true,
-  hasAnswerLevel: async () => true, hasSessionLive: async () => true,
+  hasAnswerLevel: async () => true, hasSessionLive: async () => true, hasSessionGems: async () => true,
 }))
 vi.mock('../subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => {

@@ -43,7 +43,7 @@ class Query {
   private inLens: Record<string, number> = {}
   constructor(private db: MockDb, private t: string) {}
   select(c = '*') { this.cols = c; return this }
-  eq(k: string, v: unknown) { this.filters.push({ desc: `eq:${k}`, fn: (r) => pathGet(r, k) === v }); return this }
+  eq(k: string, v: unknown) { this.filters.push({ desc: `eq:${k}`, fn: (r) => (k === 'is_replay' ? (pathGet(r, k) ?? false) : pathGet(r, k)) === v }); return this }
   neq(k: string, v: unknown) { this.filters.push({ desc: `neq:${k}`, fn: (r) => pathGet(r, k) !== v }); return this }
   in(k: string, a: unknown[]) { this.inLens[k] = a.length; this.filters.push({ desc: `in:${k}`, fn: (r) => a.includes(pathGet(r, k)) }); return this }
   is(k: string, v: unknown) { this.filters.push({ desc: `is:${k}`, fn: (r) => (pathGet(r, k) ?? null) === v }); return this }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GEM_TOTAL, gemsValue, wholeGems } from '../../shared/lib/gemModel'
 import type { ChallengeRecord, SceneTime, AnalyticsSummary } from './sessionTracker'
 import {
   slideWordCount, GATE_EVENT_TYPES,
@@ -42,6 +43,9 @@ export interface GameAnalytics {
   answers: AnswerRecord[]
   moralChoices: MoralChoiceRecord[]
   gateEvents: GateEvent[]
+  /* שכבת המשחק: הנקודות שנצברו והמקסימום. לא מזינים כיול */
+  gemPoints: number
+  gemPossible: number
 }
 
 export interface CollectableItem {
@@ -66,6 +70,8 @@ export interface QuizQuestion {
   correctIndex: number
   explanationCorrect?: string
   explanationIncorrect?: string
+  /* רמז אחרי טעות ראשונה, בלי לגלות את התשובה */
+  retryHint?: string
 }
 
 /* אתגר בסצנה — שדות משותפים + שדות ייעודיים לכל סוג */
@@ -77,6 +83,8 @@ export interface Puzzle {
   points?: number
   explanationCorrect?: string
   explanationIncorrect?: string
+  /* רמז אחרי טעות ראשונה, בלי לגלות את התשובה */
+  retryHint?: string
   /* tileSwap — גודל הרשת (2/3/4); משתמש בתמונת הסצנה */
   gridSize?: number
   /* wordSearch — מילים מוסתרות בעברית */
@@ -138,34 +146,16 @@ export interface GameData {
   readingScale?: number
 }
 
-export const TOTAL_CRYSTALS = 5
-
-/* ── הקצאת אתגרים לקריסטלים (ויזואלי בלבד — המכנה של המילוי החלקי בשקעים) ──
-   כל אתגר משויך לקריסטל שבו נופל אמצע טווח-המשקל המצטבר שלו, והמכנה של כל
-   שקע = מספר האתגרים ששויכו לו (משתנה בין קריסטלים ובין הדמיות — נקרא
-   מהנתונים, לא מספר קבוע). **לא נוגע בלוגיקת ההתקדמות** (crystalProgress /
-   crystalsFull נשארים רציפים לפי משקל) — משמש רק לקוונטיזציית התצוגה
-   ולתוויות הנגישות. קריסטל בלי אתגרים משויכים (הדמיה עם <5 אתגרים) מקבל
-   מכנה 1 — מתמלא כיחידה אחת. */
-export function crystalStepCounts(weights: number[], totalCrystals = TOTAL_CRYSTALS): number[] {
-  const counts: number[] = Array(totalCrystals).fill(0)
-  const total = weights.reduce((a, b) => a + b, 0)
-  if (total <= 0) return counts.map(() => 1)
-  let cum = 0
-  for (const w of weights) {
-    const mid = (cum + w / 2) / total
-    counts[Math.min(totalCrystals - 1, Math.floor(mid * totalCrystals))]++
-    cum += w
-  }
-  return counts.map((c) => Math.max(1, c))
-}
+export const TOTAL_CRYSTALS = GEM_TOTAL
 
 export interface ChallengeResult {
   sceneId: string
   sceneTitle: string
   correct: boolean
-  /* ציון חלקי 0..1 — 1 לאתגר בינארי שנפתר, יחס נכונות למבחן סיכום */
+  /* ציון חלקי 0..1 — 1 לאתגר בינארי שנפתר, יחס נכונות למבחן סיכום. לפי הניסיון הראשון בלבד (מזין כיול) */
   score: number
+  /* נקודות הגבישים של האתגר: 0, 0.5 או 1 (מבחן סיכום: ממוצע השאלות). שכבת המשחק בלבד. שמירה ישנה בלי השדה — score */
+  gemPoints?: number
 }
 
 /* מנוע המשחק — state ולוגיקת מעברים, חפצים ושערים */
@@ -203,7 +193,8 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   /* תוצאות אתגרים — הבסיס לרסיסים ולקריסטלים. ב-resume משוחזרות מהשמירה
      המקומית, כך שהמילוי החלקי של הקריסטלים לא מתאפס ביציאה-וחזרה. */
   const [challengeResults, setChallengeResults] = useState<ChallengeResult[]>(init?.challengeResults ?? [])
-  const [shardEvent, setShardEvent] = useState(0) /* טריגר לאנימציית רסיס עף */
+  /* נקודות מבחן הסיכום שכבר נצברו תוך כדי השאלות, לפני שהאתגר נסגר (כדי שהגביש יתמלא שאלה-שאלה) */
+  const [livePoints, setLivePoints] = useState(0)
   const [visitedScenes, setVisitedScenes] = useState<string[]>(init?.visitedScenes ?? [gameData.entrySceneId])
   const [unlockedGates, setUnlockedGates] = useState<Set<string>>(new Set())
   /* אתגרים שכבר נוסו (פתרון או כישלון) — ב-resume משוחזרים מתוצאות האתגרים */
@@ -507,18 +498,19 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     ],
   )
 
-  /* פתרון אתגר — תשובה שגויה = הרסיסים אבודים (אין retry באותו אתגר).
+  /* סיום אתגר. correct ו-score הם לפי הניסיון הראשון בלבד — זה מה שנכנס לאנליטיקה ולכיול.
+     gemPoints היא שכבת המשחק (כולל הצלחה בניסיון שני), ונספרת רק לגבישים.
      score אופציונלי לאתגרים עם ציון חלקי (מבחן סיכום); ברירת מחדל בינארית. */
   const solvePuzzle = useCallback(
-    (correct: boolean, score?: number) => {
+    (correct: boolean, score?: number, gemPoints?: number) => {
       if (!scene.puzzle || solvedPuzzles.has(scene.id)) return
       const finalScore = score ?? (correct ? 1 : 0)
       setSolvedPuzzles((prev) => new Set(prev).add(scene.id))
       setChallengeResults((prev) => [
         ...prev,
-        { sceneId: scene.id, sceneTitle: scene.title, correct, score: finalScore },
+        { sceneId: scene.id, sceneTitle: scene.title, correct, score: finalScore, gemPoints: gemPoints ?? finalScore },
       ])
-      if (finalScore > 0) setShardEvent((n) => n + 1)
+      setLivePoints(0)
       /* תיעוד: זמן פתרון מאז פתיחת האתגר, רסיסים שהוענקו (0..1), ניסיון יחיד (אין retry) */
       const durationMs = puzzleStartRef.current ? Date.now() - puzzleStartRef.current : null
       track(correct ? 'puzzle_solved' : 'puzzle_failed', scene.id, {
@@ -591,37 +583,14 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     }
   }, [])
 
-  /* ── חישוב קריסטלים: סך האתגרים מתחלק ל-5 קריסטלים לפי משקל ──
-     מבחן סיכום (finalQuiz) שוקל קריסטל שלם אחד; שאר האתגרים חולקים את היתר.
-     (crystalStepCounts — הפונקציה הטהורה — מוגדרת מחוץ ל-hook, מיוצאת לבדיקות) */
-  const challengeWeights = useMemo(() => {
-    const map = new Map<string, number>()
-    const challengeScenes = gameData.scenes.filter((s) => s.puzzle)
-    const regularCount = challengeScenes.filter((s) => s.puzzle!.type !== 'finalQuiz').length
-    for (const s of challengeScenes) {
-      /* finalQuiz = משקל שמקנה לו בדיוק קריסטל אחד מתוך 5 (1/5 מהמשקל הכולל).
-         אם הוא האתגר היחיד — משקל 1 (כל ה-5 הקריסטלים). */
-      const weight =
-        s.puzzle!.type === 'finalQuiz' ? (regularCount > 0 ? regularCount / 4 : 1) : 1
-      map.set(s.id, weight)
-    }
-    return map
-  }, [gameData])
-
-  const totalWeight = useMemo(
-    () => [...challengeWeights.values()].reduce((a, b) => a + b, 0),
-    [challengeWeights],
-  )
-  /* המכנה של המילוי החלקי בכל שקע — כמה אתגרים הוקצו לכל קריסטל (ויזואלי בלבד) */
-  const crystalSteps = useMemo(() => crystalStepCounts([...challengeWeights.values()]), [challengeWeights])
-  const earnedWeight = challengeResults.reduce(
-    (a, r) => a + (challengeWeights.get(r.sceneId) ?? 0) * r.score,
-    0,
-  )
-  const totalChallenges = challengeWeights.size
-  /* התקדמות כוללת 0..1 — הקריסטלים מתמלאים ברצף */
-  const crystalProgress = totalWeight > 0 ? earnedWeight / totalWeight : 0
-  const crystalsFull = Math.floor(crystalProgress * TOTAL_CRYSTALS + 1e-9)
+  /* ── הגבישים: כל אתגר שווה נקודה אחת לכל היותר; הגבישים = נקודות ÷ נקודות אפשריות × 5 (shared/lib/gemModel) ── */
+  const gemPossible = useMemo(() => gameData.scenes.filter((s) => s.puzzle).length, [gameData])
+  const gemPoints = challengeResults.reduce((a, r) => a + (r.gemPoints ?? r.score), 0)
+  const totalChallenges = gemPossible
+  /* מספר הגבישים כמספר רציף 0..5 — למילוי השקעים */
+  const gemValue = gemsValue(gemPoints + livePoints, gemPossible)
+  /* גבישים שלמים של המשחק (בלי נקודות ביניים): מה שקובע את סוף הסיפור ומה שנשמר */
+  const crystalsFull = wholeGems(gemPoints, gemPossible)
 
   /* בניית סיכום האנליטיקה מהאירועים הנצברים — נקרא פעם אחת בסיום, ללא רשת */
   const getAnalytics = useCallback((): GameAnalytics => {
@@ -676,38 +645,10 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       answers: answersRef.current,
       moralChoices: moralRef.current,
       gateEvents: gateRef.current,
+      gemPoints: challengeResults.reduce((a, r) => a + (r.gemPoints ?? r.score), 0),
+      gemPossible,
     }
-  }, [visitedScenes, sceneById])
-
-  /* אתחול session — "צא למסע שוב" */
-  const restart = useCallback(() => {
-    setCurrentSceneId(gameData.entrySceneId)
-    setInventory([])
-    setChallengeResults([])
-    setShardEvent(0)
-    setVisitedScenes([gameData.entrySceneId])
-    setUnlockedGates(new Set())
-    setSolvedPuzzles(new Set())
-    setCollectedScenes(new Set())
-    setMessage(null)
-    setUnlockBubble(null)
-    setFinished(false)
-    setTransitionType('fade')
-    junctionStack.current = []
-    lastHubRef.current = null
-    pendingUnlockRef.current = null
-    completedOnceRef.current = false
-    puzzleStartRef.current = 0
-    eventsRef.current = []
-    answersRef.current = []
-    moralRef.current = []
-    gateRef.current = []
-    seqRef.current = {}
-    closeTsRef.current = 0
-    hiddenAtRef.current = null
-    hiddenByEnterRef.current = new Map()
-    enteredOnceRef.current = false
-  }, [gameData.entrySceneId])
+  }, [visitedScenes, sceneById, challengeResults, gemPossible])
 
   const puzzleSolved = solvedPuzzles.has(scene.id)
   /* חפץ ללא חידה נאסף אוטומטית; עם חידה — רק אחרי פתרון */
@@ -718,10 +659,11 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     inventory,
     challengeResults,
     totalChallenges,
-    crystalProgress,
+    gemValue,
+    gemPoints,
+    gemPossible,
     crystalsFull,
-    crystalSteps,
-    shardEvent,
+    setLivePoints,
     visitedScenes,
     message,
     shakeGate,
@@ -748,6 +690,5 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
     recordPageTime,
     getAnalytics,
     collectCurrentItem,
-    restart,
   }
 }

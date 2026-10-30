@@ -31,8 +31,10 @@ const VOLUME_KEY = 'holo_sound_volume'
 
 const isBrowser = typeof window !== 'undefined'
 
+/* הבחירה בהשתקה נשמרת לכל תלמיד/ה: במחשב כיתתי משותף אותו דפדפן משרת כמה תלמידים. בלי זהות — מפתח כללי */
+let mutedKey = MUTED_KEY
 function loadMuted(): boolean {
-  try { return localStorage.getItem(MUTED_KEY) === '1' } catch { return false }
+  try { return localStorage.getItem(mutedKey) === '1' } catch { return false }
 }
 function loadVolume(): number {
   try {
@@ -63,6 +65,9 @@ function getCtx(): AudioContext | null {
   if (ctx.state === 'suspended') void ctx.resume().catch(() => {})
   return ctx
 }
+
+/* קונטקסט השמע המשותף — גם הצלילים המסונתזים של תחושת המשחק משתמשים בו */
+export const getAudioContext = (): AudioContext | null => getCtx()
 
 async function decodeOne(name: SoundName, ac: AudioContext) {
   const url = FILES[name]
@@ -256,7 +261,21 @@ export function getVolume() { return volume }
 
 export function setMuted(v: boolean) {
   muted = v
-  try { localStorage.setItem(MUTED_KEY, v ? '1' : '0') } catch { /* noop */ }
+  try { localStorage.setItem(mutedKey, v ? '1' : '0') } catch { /* noop */ }
+  emit()
+}
+/* התלמיד/ה המחובר/ת לפי הטוקן (בלי אימות: רק כדי לדעת של מי ההעדפה) */
+export function setSoundOwnerFromToken() {
+  try {
+    const token = sessionStorage.getItem('holo_token')
+    const payload = token ? JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { userId?: string } : null
+    if (payload?.userId) setSoundOwner(payload.userId)
+  } catch { /* נשאר המפתח הכללי */ }
+}
+/* נקרא כשיודעים מי התלמיד/ה: טוען את הבחירה השמורה שלו/ה */
+export function setSoundOwner(ownerId: string | null) {
+  mutedKey = ownerId ? `${MUTED_KEY}:${ownerId}` : MUTED_KEY
+  muted = loadMuted()
   emit()
 }
 export function toggleMuted() { setMuted(!muted) }

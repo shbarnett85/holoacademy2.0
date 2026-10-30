@@ -404,6 +404,9 @@ html.holo-playing { font-size: 144%; }
 .holo-image-fill { position: absolute; inset: 0; pointer-events: none; transition: opacity .35s ease; }
 .holo-image-fill img { position: absolute; inset: 0; width: 100%; height: 100%; }
 
+/* ד"ר הולו כהולוגרמה: בפינת עמוד התמונה, מעל התמונה ומתחת לאתגר עצמו. לא תופס לחיצות */
+.holo-dr-holo-spot { position: absolute; inset-block-end: 0.4rem; inset-inline-end: 0.5rem; z-index: 1; pointer-events: none; --dr-holo-size: clamp(4.4rem, 22vh, 9rem); }
+
 /* שכבת כהיה מקומית — רק בתוך מלבן התמונה, לא על כל המסך. האתגר קריא
    והתמונה נשארת נוכחת מאחוריו כהקשר. */
 .holo-stage-scrim {
@@ -464,7 +467,7 @@ html.holo-playing { font-size: 144%; }
   }
 
   /* הקריסטלים מוגדרים ב-px קבועים (לא rem) ולכן לא הצטמצמו עם הגופן */
-  .holo-hud-crystals svg { width: 19px; height: 19px; }
+  .holo-hud-gems { --hud-gem: 1.2rem; }
 
   /* safe-area — בטלפון לאורך ה-notch למעלה וסרגל-הבית למטה */
   .holo-hud-top    { padding-top: env(safe-area-inset-top); }
@@ -509,7 +512,7 @@ html.holo-playing { font-size: 144%; }
     --puzzle-vgutter: 7rem;
     --tile-maxh: 52dvh;
   }
-  .holo-hud-crystals svg { width: 20px; height: 20px; }
+  .holo-hud-gems { --hud-gem: 1.3rem; }
 
   /* פאנל הנרטיב — פחות ריפוד אנכי, כדי שהטקסט ייכנס ל-~270px הפנויים */
   .holo-playing .holo-panel { padding-block: 0.75rem; }
@@ -651,4 +654,16 @@ html {
 
 @media (prefers-reduced-motion: reduce) {
   [data-teacher-ui] * { transition: none !important; }
+}
+
+/* תנועה מופחתת: אין אנימציה ואין מעבר, בשום מסך. משך כמעט אפס ולא none, כדי שאירועי animationend שהקוד מחכה להם עדיין יירו */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

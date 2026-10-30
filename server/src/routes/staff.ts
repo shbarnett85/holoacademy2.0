@@ -7,7 +7,8 @@ import { hasCanShare } from '../lib/activeColumn.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { demoClassesV2, demoRosterV2 } from '../lib/analyticsV2/demoRoster.js'
 import { v2LinkFor } from '../lib/staffV2Link.js'
-import { hasIsActive, hasApprovalStatus, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasFictitious, hasClassTeacherSubjectId, hasHomeroom } from '../lib/activeColumn.js'
+import { hasIsActive, hasApprovalStatus, hasClassTeachers, hasGradeLabel, hasGradeLevel, hasFictitious, hasClassTeacherSubjectId, hasHomeroom, hasClassEffects } from '../lib/activeColumn.js'
+import { EFFECT_LEVELS, effectLevelOf } from '../../../src/shared/lib/gemModel.js'
 import { isValidGradeLevel, gradeLevelFromLabel, labelWithLevel, nextGradeLevel } from '../../../src/shared/lib/gradeLevels.js'
 import { loadViewer } from '../lib/authz.js'
 import { canManageJoinRequest } from '../lib/staffSignup.js'
@@ -380,6 +381,7 @@ staffRouter.get('/classes', async (req, res, next) => {
         id: c.id, name: c.name, slug: c.slug, url_code: c.url_code,
         gradeLabel: (withGrade ? c.grade_label : null) ?? c.name,
         gradeLevel: isValidGradeLevel(c.grade_level) ? c.grade_level : null,
+        effectsLevel: effectLevelOf((c as { effects_level?: string | null }).effects_level),
         teachers: teacherMap.get(c.id) ?? [],
         studentCount: studentCount.get(c.id) ?? 0,
         is_active: c.is_active !== false,
@@ -462,6 +464,8 @@ const patchClassSchema = z.object({
   name: z.string().min(1).optional(),
   gradeLabel: z.string().min(1).optional(),
   gradeLevel: z.number().int().min(1).max(12).nullable().optional(),
+  /* עוצמת האפקטים בשיעורים של הכיתה */
+  effectsLevel: z.enum(EFFECT_LEVELS).optional(),
 })
 
 staffRouter.patch('/classes/:id', async (req, res, next) => {
@@ -478,6 +482,10 @@ staffRouter.patch('/classes/:id', async (req, res, next) => {
     if (parsed.data.gradeLevel !== undefined) {
       if (!(await hasGradeLevel())) throw new AppError(503, 'שדה השכבה דורש את migrations/analytics_capture.sql')
       patch.grade_level = parsed.data.gradeLevel
+    }
+    if (parsed.data.effectsLevel !== undefined) {
+      if (!(await hasClassEffects())) throw new AppError(503, 'עוצמת האפקטים דורשת את migrations/game_feel.sql')
+      patch.effects_level = parsed.data.effectsLevel
     }
     if (Object.keys(patch).length === 0) throw new AppError(400, 'אין שדות לעדכון')
     const { error } = await supabaseAdmin.from('classes').update(patch).eq('id', req.params.id)

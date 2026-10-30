@@ -37,8 +37,10 @@ interface PlaySession {
   variantGameData?: unknown
   /* שמירת מצב ביניים ל-resume — מקומי בלבד (sessionStorage), ללא קריאת רשת */
   saveResume: (s: ResumeState) => void
-  /* שליחה מרוכזת אחת בסיום — רקעית, לא חוסמת את מסך הסיכום */
-  complete: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
+  /* שליחה מרוכזת אחת בסיום — רקעית, לא חוסמת את מסך הסיכום. ההבטחה מסתיימת כשהשמירה הסתיימה (גבישי הכיתה נטענים אחריה, ומשחק חוזר מתחיל אחריה) */
+  complete: (analytics: GameAnalytics, totalScore: number, crystalsFull: number, finished: boolean) => Promise<void>
+  /* עוצמת האפקטים של הכיתה (ברירת מחדל: בינוני) */
+  effectsLevel?: string
   /* "תצוגה חיה" של המורה — undefined כשאין session (מבקר/מקרן/תצוגה מקדימה) */
   live?: LiveApi
 }
@@ -54,8 +56,8 @@ export interface LiveApi {
    - בתחילה: start (sessionId + resume). אין תיעוד events שוטף ואין קריאות רשת במהלך המשחק.
    - resume נשמר מקומית ב-sessionStorage; השרת אינו מתעדכן תוך כדי משחק.
    - בסיום: complete יחיד עם סיכום האנליטיקה (רקעי, best-effort, retry בטעינה הבאה). */
-export function usePlaySession(questId: string | undefined): PlaySession {
-  const [state, setState] = useState<{ sessionId: string | null; initialState?: InitialState; settled: boolean; variantGameData?: unknown }>({
+export function usePlaySession(questId: string | undefined, playKey = 0): PlaySession {
+  const [state, setState] = useState<{ sessionId: string | null; initialState?: InitialState; settled: boolean; variantGameData?: unknown; effectsLevel?: string }>({
     sessionId: null,
     settled: false,
   })
@@ -64,6 +66,8 @@ export function usePlaySession(questId: string | undefined): PlaySession {
   useEffect(() => {
     if (!questId) return
     let cancelled = false
+    sessionIdRef.current = null
+    setState({ sessionId: null, settled: false })
 
     /* ניסיון חוזר לשליחת אנליטיקה של משחק קודם שהושלם אך השליחה נכשלה */
     void retryPendingComplete()
@@ -89,11 +93,11 @@ export function usePlaySession(questId: string | undefined): PlaySession {
             telemetry: (snap as { telemetry?: TelemetrySnapshot }).telemetry,
           }
         : undefined
-      setState({ sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined })
+      setState({ sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined, effectsLevel: s.effectsLevel })
     })
 
     return () => { cancelled = true }
-  }, [questId])
+  }, [questId, playKey])
 
   /* ── "תצוגה חיה": פעימה כל LIVE_RULES.heartbeatMs + סוף כל אתגר. בלי session — אין כלום ── */
   const liveCtx = useRef<{ sceneId: string | null; probe: (() => number) | null }>({ sceneId: null, probe: null })
@@ -122,10 +126,13 @@ export function usePlaySession(questId: string | undefined): PlaySession {
     saveResumeLocal(questId, { sessionId: sessionIdRef.current, ...s })
   }, [questId])
 
-  const complete = useCallback((analytics: GameAnalytics, totalScore: number, crystalsFull: number) => {
+  const complete = useCallback(async (analytics: GameAnalytics, totalScore: number, crystalsFull: number, finished: boolean): Promise<void> => {
     const sid = sessionIdRef.current
     if (!sid) return
     const payload: CompletePayload = {
+      gemPoints: analytics.gemPoints,
+      gemPossible: analytics.gemPossible,
+      finished,
       totalScore,
       crystalsFull,
       summary: { ...analytics.summary, crystalsEarned: crystalsFull, completed: true },
@@ -154,8 +161,8 @@ export function usePlaySession(questId: string | undefined): PlaySession {
     } catch { payload.answers = [] }
     doneRef.current = true /* אחרי ה-complete אין עוד פעימות (והשרת ממילא מתעלם מסשן שהושלם) */
     /* רקעי — לא ממתינים, לא חוסם את מסך הסיכום */
-    void completeSession(sid, payload)
     if (questId) clearResumeLocal(questId)
+    await completeSession(sid, payload)
   }, [questId])
 
   return { ...state, saveResume, complete, live: state.sessionId ? live : undefined }

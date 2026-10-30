@@ -14,7 +14,8 @@
        - קנה מידה: session_facts (או progress_snapshots.facts) במקום סריקת events; אינדקסים answers(session_id) ו-option_tags(variant_id).
    ────────────────────────────────────────────────────────────────────────── */
 import { isSubjectCode, type SubjectCode } from '../../../../../src/shared/lib/subjects.js'
-import { hasFictitious, hasIsActive, hasSyntheticFlag } from '../../activeColumn.js'
+import { hasFictitious, hasIsActive, hasSessionGems, hasSyntheticFlag } from '../../activeColumn.js'
+import { isRetryRow } from '../../../../../src/shared/lib/answerTelemetry.js'
 import { supabaseAdmin } from '../../supabase.js'
 import { questSubjectOut, subjectById } from '../../subjects.js'
 import { buildSchoolDays, dayIndexOf } from '../schoolCalendar.js'
@@ -75,6 +76,7 @@ export async function fetchClassRaw(classId: string, includeSynthetic: boolean, 
 
   const [withSyn, withFict, withActive] = await Promise.all([hasSyntheticFlag(), hasFictitious(), hasIsActive('users')])
   const excludeSyn = !includeSynthetic && withSyn
+  const excludeReplay = await hasSessionGems()
   const hideFict = !includeSynthetic && withFict
 
   /* ── הכיתה ── */
@@ -141,6 +143,7 @@ export async function fetchClassRaw(classId: string, includeSynthetic: boolean, 
     paged<{ id: string; user_id: string; quest_id: string; completed_at: string }>((f, t) => {
       let q = supabaseAdmin.from('sessions').select('id, user_id, quest_id, completed_at').in('user_id', part).gte('completed_at', cutoff)
       if (excludeSyn) q = q.eq('is_synthetic', false)
+      if (excludeReplay) q = q.eq('is_replay', false) /* משחק חוזר לא נכנס לאנליטיקה ולזיהוי הדפוסים */
       return q.order('completed_at').order('id').range(f, t)
     }))
   const sessions: RawSession[] = sessionRows
@@ -206,12 +209,15 @@ export async function fetchClassRaw(classId: string, includeSynthetic: boolean, 
     const answerRows = await inChunks(memberIds, (part) =>
       paged<Record<string, unknown>>((f, t) => {
         let q = supabaseAdmin.from('answers')
-          .select('session_id, scene_id, item_index, puzzle_type, selected_position, correct_position, displayed_order, outcome')
+          .select('session_id, scene_id, item_index, puzzle_type, selected_position, correct_position, displayed_order, outcome, attempt_no')
           .in('student_id', part).gte('created_at', cutoff).in('puzzle_type', ANSWER_TYPES)
         if (excludeSyn) q = q.eq('is_synthetic', false)
         return q.order('created_at').order('id').range(f, t)
       }))
-    out.answers = answerRows.filter((r) => evidenceIds.has(r.session_id as string) && OUTCOMES.has(r.outcome as string)).map(toRawAnswer)
+    out.answers = answerRows
+      .filter((r) => evidenceIds.has(r.session_id as string) && OUTCOMES.has(r.outcome as string))
+      .filter((r) => !isRetryRow(r.puzzle_type as string, r.attempt_no as number)) /* נספר רק הניסיון הראשון */
+      .map(toRawAnswer)
 
     const memoryRows = await inChunks(memberIds, (part) =>
       paged<Record<string, unknown>>((f, t) => {

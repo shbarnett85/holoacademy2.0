@@ -120,6 +120,14 @@ export async function hasGradeLevel(): Promise<boolean> {
   return check('__grade_level', () => supabaseAdmin.from('classes').select('grade_level').limit(1))
 }
 
+/* תחושת משחק (migrations/game_feel.sql): גבישים ומשחק חוזר בסשן. לפני המיגרציה — כל המשחקים נחשבים ראשונים והגבישים לא נשמרים */
+export async function hasSessionGems(): Promise<boolean> {
+  return check('__session_gems', () => supabaseAdmin.from('sessions').select('gem_points, gems, is_replay').limit(1))
+}
+/* עוצמת האפקטים של הכיתה (migrations/game_feel.sql). לפני המיגרציה — בינוני */
+export async function hasClassEffects(): Promise<boolean> {
+  return check('__class_effects', () => supabaseAdmin.from('classes').select('effects_level').limit(1))
+}
 /* האם עמודת sessions.crystals קיימת */
 export async function hasSessionCrystals(): Promise<boolean> {
   return check('__session_crystals', () => supabaseAdmin.from('sessions').select('crystals').limit(1))

@@ -93,6 +93,8 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 
 ## תיעוד משחק (sessions & events) — אנליטיקה והתאמת קושי
 
+**משחק חוזר** (`is_replay=true`, ראו "תחושת משחק") לא נכנס לשום דבר שמתואר כאן: הוא מעדכן רק את שכבת המשחק.
+
 **מודל מרוכז (לא זמן-אמת)**: אין קריאת רשת לתיעוד **האנליטיקה** במהלך המשחק. האנליטיקה נצברת מקומית, ובסיום נשלח **complete יחיד מרוכז** עם סיכום מעובד. קריאות הרשת לכל משחק: `start` (בהתחלה), `complete` (בסיום) — **ובנוסף, מאז שלב R, "דופק חי" קל** (`POST /api/sessions/:id/live`: פעימה כל 30 שניות כשהלשונית גלויה + בסוף כל אתגר) שמזין **רק** את "התצוגה החיה" של המורה ואת מצב "פעיל עכשיו". הדופק אינו נכנס לאנליטיקה/לכיול, הוא best-effort לגמרי (כשל לא משפיע על המשחק), ואין הוא נשלח ללא session (מבקר/מקרן/תצוגה מקדימה). טבלאות `sessions`/`events` + הפונקציה `update_difficulty_profile` קיימות ב-Supabase.
 
 - **שרת** (`server/src/routes/sessions.ts`, מ-`/api/sessions`, כולם `requireStudent`): `requireStudent` ב-`middleware/studentAuth.ts` מאמת את ה-JWT-PIN (jsonwebtoken עם `JWT_SECRET`, payload `{userId,role:'student',classId}`) ומצרף `req.student`. תלמיד כותב/קורא **רק את ה-session שלו** (`loadOwnSession`).
@@ -136,13 +138,13 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 `{ scenes: GameScene[], entrySceneId, isHistorical?, endingGood?, endingBad? }`. כל סצנה: `id, title, narrative?, imagePrompt?/imageUrl?, drHoloExpression?, drHoloDialog?, puzzle?, collectableItem?, choices?, nextSceneId?`.
 
 - **מבנה הרפתקה**: משימה מרכזית בפתיחה (מעבדת ד"ר הולו) → קשת עלילתית → **סצנת שיא** (ללא `nextSceneId`, בה המשימה נפתרת) → `endingGood`/`endingBad`. ראו `ADVENTURE NARRATIVE STRUCTURE` ב-questPrompt.ts.
-- **תמונות סיום ייעודיות**: לכל סיום `imagePrompt`+`imageUrl`+`drHoloExpression` משלו (**שונה מתמונת הפתיחה**) — מסך הסיכום מציג אותן (`GameScreen` בוחר `ending.imageUrl` לפי `crystalsFull>=3`, fallback לתמונת הפתיחה בהדמיות ישנות). `endingGood` = מסך ניצחון חוגג (הדוקטור שמח/גאה, מואר); `endingBad` = אווירה קודרת (הדוקטור מבולבל/מאוכזב/עייף, עמום). נוצרות יחד עם שאר התמונות ב-`images.ts` (`generate-images` מוסיף משימות `ending_good`/`ending_bad` עם sceneId סינתטי `__endingGood__`/`__endingBad__`; `regenerate-image` תומך בהן). הסכמה: `endingSchema` ב-`quests.ts` + `EndingScene` בקליינט.
+- **תמונות סיום ייעודיות**: לכל סיום `imagePrompt`+`imageUrl`+`drHoloExpression` משלו (**שונה מתמונת הפתיחה**) — `EndScreen` מציג אותן לפי מצב הסיפור (fallback לתמונת הפתיחה בהדמיות ישנות). `endingGood` = הסיפור נסגר (הדוקטור שמח/גאה, מואר); `endingBad` = הסיפור נשאר פתוח (הדוקטור חם ומעודד). בהדמיות ישנות תמונת `endingBad` עדיין קודרת: התמונות לא נוצרו מחדש. נוצרות יחד עם שאר התמונות ב-`images.ts` (`generate-images` מוסיף משימות `ending_good`/`ending_bad` עם sceneId סינתטי `__endingGood__`/`__endingBad__`; `regenerate-image` תומך בהן). הסכמה: `endingSchema` ב-`quests.ts` + `EndingScene` בקליינט.
 - **מבנה Hub** (כשיש מפתחות `itemUsage`): צומת מרכזי + מסלולי מפתח + סצנת מכשול נעולה שמובילה לסצנת השיא. נאכף ב-hubValidation.ts.
 
 ### דמות ד"ר הולו בתמונות — זהות קבועה + הבעה משתנה
 
 הפרדה בין **זהות יציבה** ל**הבעת פנים משתנה**, כדי שההבעה תתאים לטון הסצנה (לא חיוך קבוע):
-- `prompts/constants.ts` — `DR_HOLO_DESCRIPTION` מכיל **רק זהות** (גיל, זקן, שיער, פנים, משקפיים, חלוק) — ללא הבעת פנים. `drHoloWithExpression(expr)` מצרף `", his face showing <expr>"`; `DR_HOLO_DEFAULT_EXPRESSION` = "a calm, attentive expression" כשלא צוינה הבעה.
+- `prompts/constants.ts` — `DR_HOLO_DESCRIPTION` מכיל **רק זהות** (גיל, זקן, שיער, פנים, משקפיים, חלוק, ו"as a translucent glowing cyan hologram projected from a small base") — ללא הבעת פנים. `drHoloWithExpression(expr)` מצרף `", his face showing <expr>"`; `DR_HOLO_DEFAULT_EXPRESSION` = "a calm, attentive expression" כשלא צוינה הבעה.
 - כל סצנה שה-`imagePrompt` שלה מכיל `{DR_HOLO}` כוללת שדה `drHoloExpression` (אנגלית, למשל "a worried, tense expression") שה-AI קובע **לפי טון הנרטיב** של הסצנה. אין `{DR_HOLO}` → אין `drHoloExpression`.
 - `routes/images.ts` — `resolveDrHolo(prompt, expression)` מחליף `{DR_HOLO}` בזהות הקבועה + ההבעה של הסצנה, לפני ה-enhancement של haiku. ה-`REWRITE_INSTRUCTION` (להדמיות היסטוריות) מורה במפורש לשמר מילה-במילה גם את הזהות וגם את ההבעה — כך השכתוב לא דורס אותן.
 - הסכמה: `drHoloExpression?: string` ב-`gameDataSchema`/`patchSceneSchema` (server, `quests.ts`) וב-typings של הקליינט (`useGameEngine.ts`, `creatorStore.ts`).
@@ -151,9 +153,45 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 
 `digital-painting` (ציור דיגיטלי), `realistic` (ריאליסטי), `comic` (קומיקס), `storybook` (ספר ילדים), `anime` (אנימה / מנגה), `pixar-3d` (תלת-ממד מצויר). ה-mapping ל-fragment בפרומפט: `STYLE_SUFFIX` ב-`server/src/lib/together.ts` (`styledPrompt` מצרף את הסגנון **אחרי** ה-`{DR_HOLO}` המוחלף — הזהות+ההבעה נשמרות בכל סגנון). ה-fragment של הסגנון מצורף בסוף, אז ד"ר הולו עקבי בכל הסגנונות. הרשימה בקליינט: `ART_STYLES` ב-`creatorStore.ts` (key+label+icon), תוויות מרוכזות ב-`shared/lib/labels.ts` (`artStyleLabel`). **`pixel-art` הוסר** — כל סגנון לא-מוכר (כולל הדמיות ישנות עם `pixel-art`) נופל ל-`digital-painting` גם ב-`styledPrompt` (יצירה/חידוש) וגם ב-`artStyleLabel` (תצוגה), ולא נשבר. בורר הסגנון ב-`CreationForm` הוא גריד 3×2 של כרטיסי אייקון+שם.
 
-## קריסטלים (ניקוד)
+## תחושת משחק (שלב J)
 
-5 קריסטלים סה"כ (`TOTAL_CRYSTALS`). כל אתגר מקבל **משקל**; ההתקדמות = `earnedWeight/totalWeight × 5`. אתגר רגיל = משקל 1; **מבחן סיכום שוקל קריסטל שלם אחד** (`regularCount/4`). אתגר שנפתר מעניק את רסיסיו; כישלון = אובדן הרסיסים, **ללא retry** באתגר עצמו. הלוגיקה ב-`useGameEngine.ts` (`solvePuzzle`, `challengeWeights`).
+### תחושת משחק: כללים
+1. תנועה וצליל רק ברגעי משוב ומעבר. בזמן קריאת טקסט שום דבר לא זז, חוץ מזום איטי מאוד של תמונת הרקע.
+2. טעות מקבלת תגובה רכה: נדנוד וצליל עמום. בלי הבזק אדום ובלי צליל של זמזם.
+3. אין שום פרס על מהירות.
+4. דרגת הקושי של התלמיד לא מוצגת לו בשום מקום ובשום צורה.
+5. אין "סיום טוב" ואין "סיום רע". יש שני מצבים בלבד:
+   - הסיפור נסגר, כי נאספו מספיק תובנות.
+   - הסיפור נשאר פתוח, כי חסרות תובנות.
+   הביטויים "הסיום הטוב" ו"הסיום הרע" אסורים בממשק ובתוכן.
+6. גבישים הם תובנות. חמשת הגבישים הם פס התקדמות (סעיף 2).
+7. לאנליטיקה ולכיול נכנסים רק המשחק הראשון, ורק הניסיון הראשון בכל אתגר.
+   משחק חוזר משפר רק את שכבת המשחק: גבישים, מסע, גבישי הכיתה.
+8. לתלמידים לא מוצג כמה תלמידים עוד לא סיימו, ואין טבלאות מובילים.
+9. ד"ר הולו הוא עותק וירטואלי, ולכן הוא תמיד הולוגרמה (סעיף 5).
+10. נגישות וביצועים:
+    - מכבדים את prefers-reduced-motion.
+    - כפתור השתקה גלוי.
+    - שום דבר לא מהבהב יותר מ-3 פעמים בשנייה.
+    - במחשב חלש העוצמה יורדת אוטומטית.
+
+### מימוש
+- **מודל הגבישים** (`shared/lib/gemModel.ts`, pure, משותף ללקוח ולשרת): אתגר שווה נקודה אחת לכל היותר (נקי 1 / אחרי טעות 0.5 / כישלון, ויתור או שהזמן נגמר 0 / דילמה תמיד 1; מבחן סיכום = ממוצע השאלות). "הצלחה נקייה" לכל סוג: `CLEAN_SUCCESS`. גבישים = נקודות ÷ אפשריות × 5; המונה מציג רק גבישים שלמים. ≥3 הסיפור נסגר, 5 נסגר עם זוהר, <3 פתוח; שיעור בלי אתגרים נחשב נסגר. מפתח ושער **לא** נספרים (רק `scene.puzzle` הוא אתגר). `sessions.gem_points`/`gems` נכתבים לכל משחק; השרת מחשב `gems` מ-`gemPoints`÷`gemPossible` של הלקוח, ורק כש-`finished=true` (יציאה באמצע לא נספרת). `shards` ו-`crystals` הישנים ממשיכים להיכתב.
+- **הפרדה מהכיול**: `correct`/`score`/`shards` ב-events הם תמיד הניסיון הראשון. `gemPoints` הוא שכבת המשחק בלבד. נקודות האתגרים נקראות מהטלמטריה (`gameFeel/points.ts`), בלי לגעת בלוגיקת האתגר.
+- **ניסיון שני** (בחירה מרובה ומבחן סיכום; לא נכון/לא נכון): האפשרות השגויה ננעלת, מוצג רמז (`puzzle.retryHint` בשיעורים חדשים; בשיעורים קיימים `retryHint()` נופל לרמז כללי כשההסבר מגלה את התשובה, כי `explanationIncorrect` נפתח ב"התשובה הנכונה היא"), ואפשר לבחור פעם אחת נוספת. ההסבר המלא מוצג אחרי הניסיון. הניסיון השני נשמר ב-`answers` עם `attempt_no=2` ו-`localId` מהצורה `scene:item:a2:seq` (המספר האחרון נשאר מספר ההצגה). כל מי שקורא `answers` לניתוח מסנן ב-`isRetryRow(puzzleType, attemptNo)` (בסוגים האחרים `attempt_no` הוא מספר הניסיונות באותה שורה).
+- **משחק חוזר**: `sessions.is_replay` (עמודה חדשה). `/start` מסמן משחק חוזר כשכבר יש לתלמיד session עם `gems`. `/complete` של משחק חוזר כותב רק את שכבת המשחק (בלי events, כיול, snapshot או answers). כל קוראי האנליטיקה מסננים `is_replay=false`, מאחורי `hasSessionGems()`. "הטוב ביותר": `bestGems`.
+- **gameFeel** (`features/player/gameFeel/engine.ts`): store יחיד, שלוש עוצמות (`LEVELS`: gentle/medium/full, ברירת מחדל medium), צלילים מסונתזים ב-Web Audio (עוצמה כללית 0.13), canvas אחד לחלקיקים, `flyGem` לא חוסם, ובדיקת FPS בשניות הראשונות של השיעור (<40 → עדין). `classes.effects_level` נבחר ב-"עוצמת האפקטים" בניהול הכיתה ומגיע לנגן דרך `/sessions/start`. ההשתקה נשמרת לכל תלמיד בדפדפן (`setSoundOwnerFromToken`). בפיתוח: `window.__holoFx`. **תנועה מופחתת**: כלל גלובלי ב-`index.css` מאפס אנימציות ומעברים, והמנוע לא מפעיל מעוף וחלקיקים.
+- **אין יותר אפקט הקלדה**: `SceneText` מציג את הטקסט מיד (כלל 1). שלב `typing` נגמר מיד, ולכן **זמני השהייה בסצנה מתקצרים** ביחס לנתונים ישנים (משפיע על סף `skipping` <3ש׳).
+- **סצנות סיום**: `endingGood` = הסיפור נסגר, `endingBad` = הסיפור נשאר פתוח ("חסרות עוד תובנות…" + הזמנה לשחק שוב), בלי ניסוח של כישלון. שמות השדות במסד לא השתנו. המרת התוכן הקיים: `scripts/openEndingLibrary.ts` (dry-run → דוח → `--apply-from`, שחזור `--restore`/`--restore-all`, סריקה `--scan`; הגרסה הקודמת ב-`quest_ending_conversion`; `lib/openEnding.ts` = הכללים). למודל נשלח מפתח מספרי בלבד.
+- **ד"ר הולו**: `features/player/DrHoloHologram.tsx`, אפקט בקוד על `public/dr-holo/{neutral,happy,thinking,surprised}.webp` (נוצרו פעם אחת ב-`scripts/genDrHoloAssets.ts`; השחור הופך לשקיפות בנכס עצמו). תמונה שלא נטענה: `DrHoloEmblem` באותו אפקט. ההבהוב עוצר בזמן קריאה. `DR_HOLO_DESCRIPTION` כולל את המשפט על ההולוגרמה, כך שגם תמונות סצנה **חדשות** מציגות אותו כהולוגרמה; תמונות קיימות לא נוצרות מחדש.
+- **גבישי הכיתה** (`lib/classGems.ts`, `GET /api/sessions/class-gems/:questId`): הסכום, היעד (3 × תלמידים) וכמה מהגבישים של התלמיד/ה. הכיתה נלקחת מהטוקן בלבד; שיעור שלא נשלח לכיתה: `available:false`. אין שמות ואין כמה סיימו. **מיוחס לפי הדמיה + חברות בכיתה**, כמו שאר התוצאות (sessions לא מקושרים להקצאה). `allClosed` מזין את הסימון המשותף במסע.
+- **המסע** (`features/player/Journey.tsx`, `buildJourney`): טאב לכל מקצוע בצבע המקצוע, בעמוד הבית של התלמיד ובמסך הסיום.
+- **מיגרציה**: `migrations/game_feel.sql` (+`.rollback.sql`; אדיטיבית). הקוד עמיד בלעדיה (`hasSessionGems`/`hasClassEffects`): בלי העמודות אין גבישי כיתה, אין סימון משחק חוזר, והעוצמה בינוני.
+- **בדיקות**: `gemModel.test.ts`, `gameFeel/gameFeel.test.ts`, `server/src/lib/{classGems,secondAttempt,gameFeelWording}.test.ts`; e2e `npx tsx e2e/gameFeel/run.ts --out <dir> [--section flow,shots,perf,reduced,hologram]` (הנגן האמיתי עם `/api` מדומה, בלי כתיבה ל-DB).
+
+## גבישים (ניקוד)
+
+ראו "מודל הגבישים" למעלה (מחליף את מודל המשקלים של הקריסטלים: מבחן סיכום כבר לא שוקל קריסטל שלם). כישלון באתגר = בלי נקודות, והמשחק ממשיך. הלוגיקה ב-`useGameEngine.ts` (`solvePuzzle`, `gemValue`, `gemPoints`, `gemPossible`).
 
 ## סוגי אתגרים (כולם ממומשים)
 
@@ -170,17 +208,18 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 | `sequenceOrder` | `SequenceOrderChallenge` | `items[{id,text,imagePrompt?}]`, `correctOrder` (id-ים בסדר הנכון), `orderType` (`chronological`/`logical`/`hierarchical`) | סידור נכון בגרירה / מיצוי `maxAttempts` (חשיפת הסדר) |
 | `hangman` | `HangmanChallenge` | `question` (רמז), `answer` (מושג בעברית, אותיות בלבד), `maxWrong` (טעויות מותר) | ניחוש כל האותיות לפני מיצוי הניסיונות / כישלון במיצוי |
 | `finalQuiz` | `FinalQuizChallenge` | `questions[]` — ראו למטה | ציון חלקי (נכונות/סה"כ) |
-| `moralDilemma` | `MoralDilemmaChallenge` | `situation`, `moralChoices[{text,consequence}]` (2-4, ללא correctIndex) | **אין כישלון** — כל בחירה מתקבלת ומזכה ברסיסים; מציג את ה-consequence ואז המשך |
+| `moralDilemma` | `MoralDilemmaChallenge` | `situation`, `moralChoices[{text,consequence}]` (2-4, ללא correctIndex) | **אין כישלון** — כל בחירה מתקבלת ומזכה בנקודה; מציג את ה-consequence ואז המשך |
 
 הערה: `slidingPuzzle` נשמר כ-alias היסטורי ל-`tileSwap`.
 
 ### פילוסופיית כישלון (lose conditions) — אחידה לכל הסוגים
 
-**כישלון באתגר = התלמיד לא מקבל את רסיסי הקריסטל של אותו אתגר, אך ממשיך הלאה (לא נתקע) ומקבל את התשובה/ההסבר.** הכישלון נרשם ל-`puzzle_failed` (תיעוד מרוכז) ומזין את מודל הכיול 60/80 פר-סוג. המנגנון כבר אכוף ב-`useGameEngine.solvePuzzle`: `score=0` → אין רסיסים, `puzzle_failed` נכתב; `PuzzleModal` מציג פאנל תוצאה/הסבר ואז "המשך". כל סוג מציג **מד כישלון הולוגרפי עקבי** (`challenges/failUi.tsx` — `FailPips` רסיסי ◆/◇ ל-ניסיונות/פסילות, `Countdown` בר זמן יורד), והפרמטרים מתכווננים לפי הרמה ב-`difficultyScaling.ts`:
+**כישלון באתגר = התלמיד לא מקבל נקודות על אותו אתגר, אך ממשיך הלאה (לא נתקע) ומקבל את התשובה/ההסבר.** הכישלון נרשם ל-`puzzle_failed` (תיעוד מרוכז) ומזין את מודל הכיול 60/80 פר-סוג. המנגנון כבר אכוף ב-`useGameEngine.solvePuzzle`: `score=0` → אין רסיסים, `puzzle_failed` נכתב; `PuzzleModal` מציג פאנל תוצאה/הסבר ואז "המשך". כל סוג מציג **מד כישלון הולוגרפי עקבי** (`challenges/failUi.tsx` — `FailPips` רסיסי ◆/◇ ל-ניסיונות/פסילות, `Countdown` בר זמן יורד), והפרמטרים מתכווננים לפי הרמה ב-`difficultyScaling.ts`:
 
 | type | תנאי כישלון | פרמטר (1→20) | חשיפת פתרון בכישלון |
 |------|-------------|---------------|----------------------|
-| `multipleChoice`/`trueFalse`/`finalQuiz` | תשובה שגויה (ניסיון יחיד) | — | הבחירה/השאלה הנכונה + הסבר |
+| `multipleChoice`/`finalQuiz` | שתי תשובות שגויות (ניסיון שני, ראו "תחושת משחק") | — | הבחירה/השאלה הנכונה + הסבר |
+| `trueFalse` | תשובה שגויה (ניסיון יחיד) | — | הבחירה הנכונה + הסבר |
 | `moralDilemma` | **אין כישלון** — כל בחירה מתקבלת ומזכה ברסיסים | — (עומק לפי min(גיל,טקסט)) | ה-consequence של הבחירה שנבחרה |
 | `wordCompletion` | מיצוי נסיונות שגויים | `scaleWordCompletion.maxAttempts` (3→1) | `answer` בפאנל התוצאה |
 | `sequenceOrder` | מיצוי נסיונות הגשה | `scaleSequenceOrder.maxAttempts` (3→1) | הסדר הנכון נחשף בתצוגה |
@@ -214,7 +253,7 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 
 - שאלות **אינטגרטיביות** הבוחנות הבנה כוללת — לא חזרה על שאלות קודמות.
 - UI: רצף שאלות עם מד התקדמות ("שאלה 3 מתוך 7"), הסבר רספונסיבי לכל שאלה, ובסוף סיכום ("ענית נכון על X מתוך N").
-- ניקוד: שוקל קריסטל שלם אחד מתחלק בין השאלות (ציון חלקי).
+- ניקוד: נקודה אחת לכל האתגר, מתחלקת בין השאלות (נכון בניסיון ראשון 1, בשני 0.5). לכיול נספר רק הניסיון הראשון.
 
 ### שאלת מוסר (moralDilemma)
 
@@ -325,7 +364,7 @@ routes ב-`server/src/routes/staff.ts` (מ-`/api/staff`, כולם `requireStaff`
 - **יצירה**: `sceneLengthBlock(level)` ב-`questPrompt.ts` (תקציב מפורש פר-סצנה + עיקרון 5; דוגמאות ה-few-shot קוצרו); אחרי הולידציה ולפני בדיקת הבטיחות רץ `enforceSceneFit` (`lib/sceneFit.ts`): סצנה חורגת → **בקשת קיצור אחת** לכל הסצנות החורגות (haiku/Gemini לפי `engineFor('phrasing')`, צורת הפנייה נשמרת) עם **עוגני עובדות** (מילות התשובה הנכונה + מספרים — `anchorsOf`; קיצור שמאבד עוגן נדחה) ← אחרת **פיצול לשתי סצנות** אם המבנה מאפשר (ליניארית, בלי אתגר/בחירות/חפץ) ← אחרת **נשארת ומסומנת** באזהרה למורה. תוצאה מוזנת ל-`genMeta.fit` (`overflow/shortened/split/flagged/questionFlags`) ומודפסת ללוג (`[gen] אורך טקסט …`). הקיצורים עוברים שוב בטיחות+לינטים+בדיקת עובדות (בתוך `factCheckInBackground` הרגיל). **אין** שינוי ב-`/personalize` מעבר להוראת "אל תאריך".
 - **עורך/ספרייה (תוכן קיים — בלי שכתוב אוטומטי)**: `SceneEditModal` מציג תג **"ארוך מדי למסך אחד · N מילים · יוצג ב-N עמודים"** (חי, `fitsScreen` על הטקסט שבעריכה) וכפתור **"קצר טקסט"** ← `POST /api/quests/:id/scene/:sceneId/shorten` (`proposeSceneShortening` ב-`lib/sceneShorten.js`: אותן בדיקות עוגנים+בטיחות+לינטים+עובדות; **לא שומר**) ← פאנל לפני/אחרי לאישור המורה; אזהרה גם על שאלה/אפשרויות ארוכות. בספרייה כרטיס "הספרייה שלי" מציג צ׳יפ "N סצנות ארוכות" (`longSceneCount` מ-`GET /quests`, למורה בלבד).
 - **תיעוד**: `useGameEngine.recordPageTime` + `sceneTimes[].pages/pageMs` ב-complete (סכמה סובלנית ב-`sessions.ts`), נכתבים ל-`scene_enter.payload` כ-`pages`/`page_ms`; `word_count`/`closed_dwell_ms` נשארו.
-- **בדיקות**: `sceneText.test.ts` (כיול מול Chrome), `scenePages.test.ts`, `sceneFit.test.ts` (שרת; עוגנים/קיצור/פיצול/עורך), `quests.shorten.test.ts` (נתיב הקיצור), `sessions.sceneTimes.test.ts`; E2E: `pagination-flow.ts` (הקלדה אמיתית, אין גלישה בשום עמוד, האתגר רק אחרי העמוד האחרון, `pages/pageMs` ב-complete), `render-generated.ts` (הדמיות חדשות ב-3 מסכי ייחוס, `scrollHeight ≤ clientHeight`). ניסוי יצירה אמיתי (**עלות**): `server/src/scripts/textFitGen.ts` (חשבון מורה זמני `zz-textfit-*` שמנוקה בסוף).
+- **בדיקות**: `sceneText.test.ts` (כיול מול Chrome), `scenePages.test.ts`, `sceneFit.test.ts` (שרת; עוגנים/קיצור/פיצול/עורך), `quests.shorten.test.ts` (נתיב הקיצור), `sessions.sceneTimes.test.ts`; E2E: `pagination-flow.ts` (אין גלישה בשום עמוד, האתגר רק אחרי העמוד האחרון, `pages/pageMs` ב-complete), `render-generated.ts` (הדמיות חדשות ב-3 מסכי ייחוס, `scrollHeight ≤ clientHeight`). ניסוי יצירה אמיתי (**עלות**): `server/src/scripts/textFitGen.ts` (חשבון מורה זמני `zz-textfit-*` שמנוקה בסוף).
 
 ## חוקי אנליטיקה — לא לעקוף בשום שלב
 

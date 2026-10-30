@@ -67,6 +67,10 @@ export interface CompletePayload {
   answers?: AnswerWire[]
   moralChoices?: { sceneId: string; optionId: string }[]
   gateEvents?: { type: string; sceneId: string | null; payload: Record<string, unknown>; clientTs: number }[]
+  /* שכבת המשחק. finished=false: יציאה באמצע, לא נספרת כמשחק לגבישים */
+  gemPoints?: number
+  gemPossible?: number
+  finished?: boolean
 }
 
 export interface SessionStart {
@@ -77,6 +81,9 @@ export interface SessionStart {
   visitedScenes: unknown[]
   crystals: number
   variantGameData?: unknown
+  /* עוצמת האפקטים שהמורה בחר/ה לכיתה */
+  effectsLevel?: string
+  isReplay?: boolean
 }
 
 const API = '/api/sessions'

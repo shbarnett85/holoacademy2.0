@@ -19,9 +19,10 @@ import type { LiveSnapshot } from '../../../../src/shared/lib/liveStatus.js'
 import { AppError } from '../../middleware/errors.js'
 import { supabaseAdmin } from '../supabase.js'
 import { thumbsFor } from '../lessonThumbStore.js'
+import { isRetryRow } from '../../../../src/shared/lib/answerTelemetry.js'
 import {
   hasAnswersTable, hasFictitious, hasIsActive, hasMisconceptionLinks, hasMisconceptions, hasMoralChoices, hasOptionTags,
-  hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag, hasAssignmentDueAt, hasAnswerLevel, hasSessionLive,
+  hasQuestSubject, hasQuestSubjectId, hasQuestVariants, hasSyntheticFlag, hasAssignmentDueAt, hasAnswerLevel, hasSessionLive, hasSessionGems,
 } from '../activeColumn.js'
 import { isAggregateOnly, loadViewer, logAccess, logAccessMany, submissionVisible, canUseResults, type Viewer } from '../authz.js'
 import { questSubjectOut } from '../subjects.js'
@@ -279,6 +280,8 @@ async function studentInRoster(viewer: Viewer, classId: string, studentId: strin
 /* opts.live: גם שדות "התצוגה החיה" של ההרצה האחרונה (startedAt) לכל זוג שיעור×תלמיד — מחזיר liveRows (מפתח `questId|studentId`) */
 async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds: string[], opts: { live?: boolean } = {}): Promise<{ latest: Map<string, CoreSession>; activity: Map<string, string>; liveRows: Map<string, LiveSessionRow> }> {
   const excludeSyn = !viewer.seesSynthetic && (await hasSyntheticFlag())
+  /* משחק חוזר לא נכנס לסיכום השיעור */
+  const excludeReplay = await hasSessionGems()
   type S = { id: string; user_id: string; quest_id: string; started_at: string | null; completed_at: string | null; last_seen_at?: string | null; live?: LiveSnapshot | null }
   const withLive = await hasSessionLive()
   const cols = 'id, user_id, quest_id, started_at, completed_at' + (withLive ? ', last_seen_at' + (opts.live ? ', live' : '') : '')
@@ -288,6 +291,7 @@ async function loadLatestSessions(viewer: Viewer, questIds: string[], studentIds
     paged<S>((f, t) => {
       let q = supabaseAdmin.from('sessions').select(cols).in('quest_id', qpart).in('user_id', spart)
       if (excludeSyn) q = q.eq('is_synthetic', false)
+      if (excludeReplay) q = q.eq('is_replay', false)
       return q.order('started_at', { ascending: false }).order('id').range(f, t)
     }),
   ))).flat()
@@ -344,6 +348,7 @@ async function loadAnswers(sessionIds: string[]): Promise<Map<string, CoreAnswer
       .in('session_id', part).order('id').range(f, t)),
   ))).flat()
   for (const a of rows) {
+    if (isRetryRow(a.puzzle_type, a.attempt_no)) continue /* נספר רק הניסיון הראשון */
     const seqRaw = Number((a.client_event_id ?? '').split(':').pop())
     const list = map.get(a.session_id) ?? []
     list.push({

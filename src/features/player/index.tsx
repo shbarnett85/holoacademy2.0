@@ -1,5 +1,5 @@
 import { apiFetch } from '../../shared/lib/api'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
 import RotateGate from './RotateGate'
@@ -9,6 +9,7 @@ import { trackFunnel } from '../../shared/lib/funnel'
 import { usePlaySession } from './usePlaySession'
 import type { GameData } from './useGameEngine'
 import { useIsPhonePortrait } from '../../shared/lib/useIsMobile'
+import { setSoundOwnerFromToken } from '../../shared/lib/sound'
 
 interface QuestPayload {
   id: string
@@ -32,7 +33,14 @@ export default function Player() {
   const [quest, setQuest] = useState<QuestPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
-  const { sessionId, initialState, settled, saveResume, complete, variantGameData, live } = usePlaySession(questId)
+  /* "שחקו שוב": מספר המשחק הנוכחי. מעלה אותו → session חדש ומנוע חדש */
+  const [playKey, setPlayKey] = useState(0)
+  const { sessionId, initialState, settled, saveResume, complete, variantGameData, live, effectsLevel } = usePlaySession(questId, playKey)
+  const playAgain = useCallback((saved: Promise<void> | null) => {
+    /* מחכים שהמשחק הקודם יישמר (עד 4 שניות), כדי שהשרת יזהה את החדש כמשחק חוזר */
+    const timeout = new Promise<void>((resolve) => { window.setTimeout(resolve, 4000) })
+    void Promise.race([saved ?? Promise.resolve(), timeout]).catch(() => undefined).then(() => setPlayKey((k) => k + 1))
+  }, [])
 
   useEffect(() => {
     if (!isDemoSlug) return
@@ -61,6 +69,9 @@ export default function Player() {
       .then((body) => setQuest(body.quest))
       .catch((e: Error) => setError(e.message))
   }, [questId])
+
+  /* כפתור ההשתקה נשמר לכל תלמיד/ה */
+  useEffect(() => { setSoundOwnerFromToken() }, [])
 
   /* כותרת הלשונית = שם ההדמיה (קריא בהיסטוריה, בלשוניות ובשיתוף קישור) */
   useEffect(() => {
@@ -118,6 +129,11 @@ export default function Player() {
           מושהה בעצמו כל עוד השער פתוח — ראו challenges/failUi.tsx. */}
       {phonePortrait && <RotateGate />}
       <GameScreen
+        key={playKey}
+        questId={questId}
+        hasSession={!!sessionId}
+        effectsLevel={effectsLevel}
+        onPlayAgain={playAgain}
         gameData={effectiveGameData}
         questTitle={quest.title}
         initialState={initialState}

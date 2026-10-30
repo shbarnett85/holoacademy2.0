@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
-import { useSoundSettings } from '../../shared/lib/sound'
+import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
 import LessonCard from '../../shared/ui/LessonCard'
+import { GemDefs, GemSocket } from '../../shared/ui/Gem'
+import { GEM_TOTAL } from '../../shared/lib/gemModel'
+import { MyJourney } from './Journey'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
 
 
@@ -32,22 +35,20 @@ interface AssignedQuest {
   assignedAt?: string | null
   sessionStatus: 'completed' | 'in_progress' | null
   crystals: number | null
+  /* הגבישים של המשחק הטוב ביותר */
+  gems?: number | null
+  /* כל הכיתה סגרה את הסיפור בשיעור הזה */
+  classClosed?: boolean
   maxScore: number | null
   /* הדמיית חזרה — משימת חיזוק שנוצרה מהמושגים שהכיתה התקשתה בהם */
   isReview?: boolean
 }
 
-/* ── crystal dots ── */
-function CrystalRow({ crystals, max = 5 }: { crystals: number; max?: number }) {
+/* הגבישים של המשחק הטוב ביותר */
+function GemRow({ gems }: { gems: number }) {
   return (
-    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-      {Array.from({ length: max }).map((_, i) => (
-        <div key={i} style={{
-          width: 7, height: 7, borderRadius: 2, transform: 'rotate(45deg)', flexShrink: 0,
-          background: i < crystals ? '#2ff3ff' : 'rgba(47,243,255,.18)',
-          boxShadow: i < crystals ? '0 0 6px rgba(47,243,255,.8)' : 'none',
-        }} />
-      ))}
+    <div dir="ltr" role="img" aria-label={gems === 1 ? 'גביש אחד' : `${gems} גבישים`} style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+      {Array.from({ length: GEM_TOTAL }).map((_, i) => <GemSocket key={i} fill={i < gems ? 1 : 0} size={20} />)}
     </div>
   )
 }
@@ -58,7 +59,7 @@ const BADGE: React.CSSProperties = { borderRadius: 7, padding: '3px 9px', fontSi
 function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onPlay: () => void }) {
   const [hov, setHov] = useState(false)
   const status = q.sessionStatus
-  const crystals = q.crystals ?? 0
+  const gems = q.gems ?? q.crystals ?? 0
   /* "להגשה עד [תאריך]" — רק לשיעור שעוד לא הושלם; אחרי המועד: "המועד עבר" (השיעור לא ננעל) */
   const due = q.dueAt && status !== 'completed'
     ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: '#fbbf24' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'rgba(255,255,255,.92)' })
@@ -80,7 +81,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <div>
               {status === 'completed'
-                ? <CrystalRow crystals={crystals} />
+                ? <GemRow gems={gems} />
                 : <span style={{
                     fontSize: 12, padding: '2px 8px', borderRadius: 5, fontWeight: 600,
                     background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.25)',
@@ -173,6 +174,7 @@ const STATUS_CHIPS: { key: StatusFilter; label: string; color: 'cyan' | 'green' 
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
   const { muted, toggleMuted } = useSoundSettings()
+  useEffect(() => { setSoundOwnerFromToken() }, [])
   const navigate = useNavigate()
   const name = sessionStorage.getItem('holo_student_name') ?? ''
   const [quests, setQuests] = useState<AssignedQuest[]>([])
@@ -430,6 +432,14 @@ export default function StudentHome() {
 
         {/* ── CONTENT ── */}
         <div style={{ width: '100%' }}>
+          <GemDefs />
+          {/* המסע שלי: טאב לכל מקצוע */}
+          {!loading && quests.length > 0 && (
+            <MyJourney
+              lessons={quests.map((q) => ({ id: q.id, title: q.title, subjectCode: q.subjectCode ?? null, assignedAt: q.assignedAt, gems: q.sessionStatus === 'completed' ? (q.gems ?? q.crystals ?? 0) : null, classClosed: q.classClosed, inProgress: q.sessionStatus === 'in_progress' }))}
+              onOpen={(id) => navigate(`/play/${id}`)}
+            />
+          )}
 
           {/* כותרת מקטע */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>

@@ -1,7 +1,7 @@
 /* תיאור הזהות הקבועה של ד"ר הולו — מאפיינים יציבים בלבד (גיל, זקן, שיער, פנים, משקפיים, חלוק).
    בלי הבעת פנים! ההבעה משתנה לפי טון הסצנה (drHoloExpression) ומצורפת בנפרד בעת יצירת התמונה. */
 export const DR_HOLO_DESCRIPTION =
-  'a man in his early 50s with a thick full white beard and short white hair, a round face, thick glowing cyan square-rimmed glasses, wearing a translucent sapphire blue lab coat with glowing blue-cyan circuit patterns over a dark navy shirt'
+  'a man in his early 50s with a thick full white beard and short white hair, a round face, thick glowing cyan square-rimmed glasses, wearing a translucent sapphire blue lab coat with glowing blue-cyan circuit patterns over a dark navy shirt, as a translucent glowing cyan hologram projected from a small base'
 
 /* הבעת ברירת מחדל כשהסצנה לא ציינה אחת — נייטרלית-חמה, לא קובעת מצב רוח חזק */
 export const DR_HOLO_DEFAULT_EXPRESSION = 'a calm, attentive expression'

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { playSound } from '../../../shared/lib/sound'
+import { sounds } from '../gameFeel/engine'
 import type { Puzzle } from '../useGameEngine'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
@@ -45,9 +45,11 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
       /* אות נכונה — בדיקת ניצחון */
       if ([...needed].every((l) => next.has(l))) {
         setDone('win')
+        /* הנורות נדלקות בשרשרת */
+        ;[...answer].forEach((_, i) => { if (i < 8) window.setTimeout(() => sounds.chain(i), i * 70) })
         setTimeout(() => onResult({ correct: true, score: 1 }), 850) /* win בסיום */
       } else {
-        playSound('good') /* אות נכונה (צעד-ביניים) */
+        sounds.step() /* אות נכונה (צעד-ביניים) */
       }
     } else {
       /* אות שגויה — רעד + ניקוב המד */
@@ -72,6 +74,9 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
         .hang-shake { animation: hang-shake 0.4s ease; }
         @keyframes slot-pop { 0%{transform:scale(0.5);opacity:0;} 100%{transform:scale(1);opacity:1;} }
         .slot-pop { animation: slot-pop 0.25s ease; }
+        @keyframes slot-chain { 0%, 100% { text-shadow: 0 0 10px rgba(0,246,255,.9); } 45% { text-shadow: 0 0 22px #2FF3FF, 0 0 34px #BFF9FF; color: #fff; transform: translateY(-3px); } }
+        .slot-chain { animation: slot-chain .5s ease-out both; }
+        @media (prefers-reduced-motion: reduce) { .slot-pop, .slot-chain { animation: none; } }
         /* זוהר ריחוף על כפתורי האותיות (חידת הקוד) */
         .hang-key:not(:disabled):hover {
           box-shadow: 0 0 14px rgba(0,246,255,0.6), 0 0 4px rgba(0,246,255,0.9) inset;
@@ -96,7 +101,7 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
             transition: 'opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease',
           }}
         >
-          {done === 'lose' ? '💥' : '🔮'}
+          🔮
         </div>
         <div className="flex gap-1" dir="ltr">
           {Array.from({ length: maxWrong }).map((_, i) => (
@@ -128,8 +133,10 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
           return (
             <span
               key={i}
-              className={revealed && !lostReveal ? 'slot-pop' : ''}
+              className={done === 'win' ? 'slot-chain' : revealed && !lostReveal ? 'slot-pop' : ''}
+              data-hang-slot
               style={{
+                animationDelay: done === 'win' ? `${i * 0.07}s` : undefined,
                 width: '2rem', height: '2.5rem',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderBottom: '2px solid var(--holo-cyan)',

@@ -11,9 +11,11 @@ import HangmanChallenge from './challenges/HangmanChallenge'
 import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
 import { triggerErrorFlash } from './challenges/errorFlash'
-import { shatterToCrystals } from './challenges/successShatter'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
-import { playSound } from '../../shared/lib/sound'
+import { challengePoints, hasSecondTry } from '../../shared/lib/gemModel'
+import { bigEntrance, feelCorrect, revealEl, setMood } from './gameFeel/engine'
+import { pointsFromTelemetry } from './gameFeel/points'
+import { HUD_TEXT, RETRY_TEXT, retryHint } from './gameFeel/text'
 import {
   createPuzzleTelemetry, buildPresentation, presentChoices, isTrueFalse, trailingMistakes, PUZZLE_READY_DELAY_MS,
   type PuzzleTelemetry, type PresentationRecord,
@@ -23,7 +25,14 @@ interface Props {
   puzzle: Puzzle
   /* תמונת הסצנה — לפאזל ההזזה */
   imageUrl?: string
-  onSolve: (correct: boolean, score?: number) => void
+  /* correct/score: לפי הניסיון הראשון בלבד (אנליטיקה וכיול). gemPoints: הנקודות של שכבת המשחק */
+  onSolve: (correct: boolean, score?: number, gemPoints?: number) => void
+  /* כמה גבישים שווה נקודה אחת בשיעור הזה (5 ÷ מספר האתגרים) — לגודל הגביש המעופף */
+  gemsPerPoint?: number
+  /* האתגר האחרון בשיעור: מסגרת בצבע אחר וכניסה מודגשת */
+  isFinalChallenge?: boolean
+  /* מבחן סיכום: הנקודות שכבר נצברו, כדי שהגביש יתמלא שאלה-שאלה */
+  onLivePoints?: (points: number) => void
   onClose: () => void
   /* "המשך ←" אחרי ההסבר — הדרך היחידה להתקדם */
   onContinue: () => void
@@ -43,7 +52,14 @@ interface Props {
   onLiveProbe?: (probe: (() => number) | null) => void
 }
 
-interface Result { correct: boolean; score: number }
+interface Result {
+  correct: boolean
+  score: number
+  /* נקודות הגבישים של האתגר */
+  points: number
+  /* בחירה מרובה: הצליח/ה בניסיון השני */
+  secondTry?: boolean
+}
 
 /* רוחב המודאל לפי סוג האתגר — חלקם דורשים שטח רחב יותר */
 function maxWidthFor(type?: string): string {
@@ -63,8 +79,11 @@ function maxWidthFor(type?: string): string {
 }
 
 /* מודאל אתגר הולוגרפי — אתגר אינטראקטיבי → פאנל תוצאה/הסבר → המשך */
-export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel', sceneId = '', presentationSeq = 1, onTelemetry, onLiveProbe }: Props) {
+export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onContinue, onCollect, collectLabel, placement = 'panel', sceneId = '', presentationSeq = 1, onTelemetry, onLiveProbe, gemsPerPoint = 1, isFinalChallenge = false, onLivePoints }: Props) {
   const [result, setResult] = useState<Result | null>(null)
+  /* בחירה מרובה: האפשרות השגויה שנבחרה בניסיון הראשון — מסומנת וננעלת */
+  const [wrongChoiceId, setWrongChoiceId] = useState<string | null>(null)
+  const [pickedId, setPickedId] = useState<string | null>(null)
   /* טלמטריה להצגה הזו — נוצרת פעם אחת לכל mount (= הצגה) */
   const telRef = useRef<PuzzleTelemetry | null>(null)
   if (telRef.current === null) telRef.current = createPuzzleTelemetry()
@@ -116,50 +135,75 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   }
   /* הגנה מלחיצה כפולה — ה-state אסינכרוני, ה-ref מיידי */
   const lockedRef = useRef(false)
-  /* התפוגגות לרסיסים בהצלחה — הפאנל כולו מתנפץ לתכלת שעפה אל מד הקריסטלים */
   const panelRef = useRef<HTMLDivElement>(null)
-  const shatteringRef = useRef(false)
 
-  /* force — לשאלת מוסר, שאינה עוברת דרך result אך תמיד מזכה ברסיסים */
-  function continueAfterSuccess(action: () => void, force = false) {
-    if (shatteringRef.current) return
-    if ((!force && !result?.correct) || !panelRef.current) { action(); return }
-    shatteringRef.current = true
-    shatterToCrystals(panelRef.current, action)
-  }
+  /* האתגר האחרון נכנס בכניסה מודגשת (לא חוסם: הטלמטריה מודדת מהרגע שהאתגר מוכן, כמו היום) */
+  useEffect(() => {
+    if (isFinalChallenge) bigEntrance(panelRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  function handleResult(r: { correct: boolean; score?: number }) {
+  /* סיום האתגר. r.correct/r.score: הניסיון הראשון. points: שכבת המשחק. שום אנימציה לא חוסמת: המעוף יוצא לדרך, והכפתור "המשך" זמין מיד */
+  function finish(r: { correct: boolean; score?: number }, points: number, from?: Element | null, secondTry = false) {
     if (lockedRef.current) return
     lockedRef.current = true
     const score = r.score ?? (r.correct ? 1 : 0)
-    /* צליל הפתרון עדין — צליל הניצחון (win) שמור לרגע שקריסטל מתמלא לגמרי (CrystalBar) */
-    if (r.correct) playSound('good')
-    setResult({ correct: r.correct, score })
-    onSolve(r.correct, score)
+    setResult({ correct: r.correct, score, points, secondTry })
+    onSolve(r.correct, score, points)
     finalize({ correct: r.correct, score })
+    if (points > 0) feelCorrect({ from: from ?? panelRef.current, gain: points * gemsPerPoint, clean: points >= 1 })
+    else setMood('thinking')
+  }
+
+  /* כל האתגרים חוץ מבחירה מרובה ומבחן סיכום: הנקודות נגזרות ממה שנרשם בטלמטריה */
+  function handleResult(r: { correct: boolean; score?: number; quizAttempts?: number[] }) {
+    const points = type === 'finalQuiz'
+      ? challengePoints({ type, solved: r.correct, quizAttempts: r.quizAttempts ?? [] })
+      : pointsFromTelemetry(puzzle, r.correct, tel.state.events)
+    finish(r, points)
+  }
+
+  /* בחירה מרובה ונכון/לא נכון. בחירה מרובה: אחרי טעות אפשר לבחור פעם נוספת אחת; אחרי שתי טעויות התשובה הנכונה מסומנת.
+     לכיול ולאנליטיקה נכנס רק הניסיון הראשון. */
+  function pickChoice(c: { id: string; isCorrect: boolean }, pos: number, el: Element) {
+    if (lockedRef.current || c.id === wrongChoiceId) return
+    tel.act('select', { optionId: c.id, position: pos, correct: c.isCorrect })
+    setPickedId(c.id)
+    const secondAttempt = wrongChoiceId !== null
+    if (c.isCorrect) {
+      finish({ correct: !secondAttempt, score: secondAttempt ? 0 : 1 }, secondAttempt ? 0.5 : 1, el, secondAttempt)
+      return
+    }
+    triggerErrorFlash(el)
+    if (secondAttempt || !retryAllowed) finish({ correct: false, score: 0 }, 0)
+    else setWrongChoiceId(c.id)
   }
 
   const type = puzzle.type
   const correctChoiceText = puzzle.choices?.find((c) => c.isCorrect)?.text
+  const retryAllowed = hasSecondTry(type, isTrueFalse(type, puzzle.choices))
 
   /* ── פאנל התוצאה: הסבר מעמיק / סיכום מבחן / הצלחה-כישלון ── */
   function renderResult(res: Result) {
     let header: string
     let body: string
-    const good = res.correct
+    const good = res.points >= 0.5
 
     if (type === 'finalQuiz') {
       const n = puzzle.questions?.length ?? 0
       const correctCount = Math.round(res.score * n)
-      header = `עניתם נכון על ${correctCount} מתוך ${n}`
+      header = `נכון בניסיון הראשון: ${correctCount} מתוך ${n}`
       body =
-        res.score === 1
+        res.points === 1
           ? 'מבחן מושלם! שליטה מלאה בחומר! 🌟'
-          : res.score >= 0.5
+          : res.points >= 0.5
             ? 'כל הכבוד — תפסתם את עיקרי החומר!'
-            : 'שווה לחזור על החומר ולנסות שוב במסע הבא.'
+            : 'שווה לחזור על החומר ולנסות שוב במשחק הבא.'
+    } else if (res.secondTry) {
+      header = RETRY_TEXT.secondTryHeader
+      body = puzzle.explanationCorrect ?? RETRY_TEXT.secondTryNote
     } else if (type === 'multipleChoice' || type === 'trueFalse' || type === 'wordCompletion' || !type) {
-      header = good ? '✓ תשובה נכונה! 💎' : '✗ לא בדיוק…'
+      header = good ? '✓ תשובה נכונה!' : '✗ לא בדיוק…'
       /* בכישלון מציגים את התשובה הנכונה: השלמת מילים → ה-answer; רב-ברירה → הבחירה הנכונה */
       const wcAnswer = puzzle.answers && puzzle.answers.length > 0 ? puzzle.answers.join(', ') : puzzle.answer
       const correctText = type === 'wordCompletion' ? wcAnswer : correctChoiceText
@@ -169,12 +213,13 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
           (correctText ? `התשובה הנכונה היא: ${correctText}` : 'נסו לזכור להבא!'))
     } else {
       /* אתגרים אינטראקטיביים (פאזל/חיפוש/זיכרון) */
-      header = good ? '✓ כל הכבוד! פתרתם את האתגר 💎' : '✗ האתגר לא הושלם'
-      body = good ? 'מעולה! ממשיכים הלאה 🌟' : 'לא נורא — אפשר לנסות שוב במסע הבא.'
+      header = good ? '✓ כל הכבוד! פתרתם את האתגר' : '✗ האתגר לא הושלם'
+      body = good ? 'מעולה! ממשיכים הלאה 🌟' : 'לא נורא — אפשר לנסות שוב במשחק הבא.'
     }
 
     return (
       <div
+        ref={revealEl}
         className="rounded-xl p-4 mt-4 text-start"
         style={good
           ? { background: 'rgba(0,255,150,0.08)', border: '1px solid rgba(0,255,150,0.45)' }
@@ -188,16 +233,49 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             <button
               className="holo-button text-lg"
               style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
-              onClick={() => continueAfterSuccess(onCollect)}
+              onClick={onCollect}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
             </button>
           ) : (
-            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={() => continueAfterSuccess(onContinue)}>
+            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
               המשך ←
             </button>
           )}
         </div>
+      </div>
+    )
+  }
+
+  /* האפשרויות של בחירה מרובה: נכונה נצבעת, שגויה מסומנת וננעלת, ואחרי שתי טעויות הנכונה מסומנת */
+  function choiceButtons() {
+    const done = result !== null
+    return (
+      <div className="flex flex-col gap-3 mt-5 holo-answers">
+        {(presented?.choices ?? puzzle.choices ?? []).map((c, pos) => {
+          const isWrongPick = c.id === wrongChoiceId || (done && c.id === pickedId && !c.isCorrect)
+          const isRight = done && c.isCorrect
+          return (
+            <button
+              key={c.id}
+              className="holo-button"
+              disabled={done || c.id === wrongChoiceId}
+              data-choice-state={isRight ? 'correct' : isWrongPick ? 'wrong' : undefined}
+              aria-label={isRight ? `${c.text} (התשובה הנכונה)` : isWrongPick ? `${c.text} (לא נכון)` : undefined}
+              style={{
+                padding: '0.8rem',
+                ...(isRight
+                  ? { background: 'rgba(95,224,174,.16)', border: '1.5px solid #5FE0AE', boxShadow: 'none', color: 'var(--holo-text)', opacity: 1 }
+                  : isWrongPick
+                    ? { background: 'rgba(242,166,90,.09)', border: '1.5px solid #F2A65A', boxShadow: 'none', color: 'var(--holo-text)', opacity: 0.75 }
+                    : done ? { opacity: 0.55, boxShadow: 'none' } : {}),
+              }}
+              onClick={(e) => pickChoice(c, pos, e.currentTarget)}
+            >
+              {isRight ? '✓ ' : isWrongPick ? '✗ ' : ''}{c.text}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -219,20 +297,19 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
       case 'hangman':
         return <HangmanChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'finalQuiz':
-        return <FinalQuizChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
+        return <FinalQuizChallenge puzzle={puzzle} onResult={handleResult} tel={tel} onLivePoints={onLivePoints} />
       default:
         /* multipleChoice / trueFalse / ברירת מחדל — שאלה + תשובות */
         if (puzzle.choices && puzzle.choices.length > 0) {
           return (
             <>
               <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
-              <div className="flex flex-col gap-3 mt-5 holo-answers">
-                {(presented?.choices ?? puzzle.choices).map((c, pos) => (
-                  <button key={c.id} className="holo-button" style={{ padding: '0.8rem' }} onClick={() => { tel.act('select', { optionId: c.id, position: pos }); if (!c.isCorrect) triggerErrorFlash(); handleResult({ correct: c.isCorrect }) }}>
-                    {c.text}
-                  </button>
-                ))}
-              </div>
+              {choiceButtons()}
+              {wrongChoiceId && (
+                <p ref={revealEl} className="text-start mt-3 leading-relaxed" data-retry-hint style={{ color: '#ffce5e' }}>
+                  {puzzle.retryHint ?? retryHint(puzzle.explanationIncorrect, correctChoiceText)} {RETRY_TEXT.tryAgain}
+                </p>
+              )}
             </>
           )
         }
@@ -255,10 +332,17 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     <div
       ref={panelRef}
       className="holo-panel w-full text-center mx-auto"
-      style={{ maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: `calc(100dvh - var(--puzzle-vgutter, ${placement === 'stage' ? '6.4rem' : '12rem'}))`, overflowY: 'auto' }}
+      data-puzzle-panel
+      data-final-challenge={isFinalChallenge ? 'true' : undefined}
+      style={{
+        maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: `calc(100dvh - var(--puzzle-vgutter, ${placement === 'stage' ? '6.4rem' : '12rem'}))`, overflowY: 'auto',
+        ...(isFinalChallenge ? { borderColor: '#F3B76A', boxShadow: '0 0 22px rgba(243,183,106,.35)' } : {}),
+      }}
     >
-        <span className="text-xs rounded-full px-3 py-1" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
-          {type === 'finalQuiz' ? '📝' : '🧩'} {puzzleTypeLabel(type)}
+        <span className="text-xs rounded-full px-3 py-1" style={isFinalChallenge
+          ? { background: 'rgba(243,183,106,.16)', border: '1px solid #F3B76A', color: '#F3B76A', fontWeight: 700 }
+          : { background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
+          {isFinalChallenge ? `${HUD_TEXT.bigChallenge} · ` : (type === 'finalQuiz' ? '📝 ' : '🧩 ')}{puzzleTypeLabel(type)}
         </span>
 
         {/* ── ההוראה נוסעת עם האתגר ────────────────────────────────────────
@@ -275,7 +359,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
-          <MoralDilemmaChallenge puzzle={puzzle} tel={tel} onResolve={() => { onSolve(true, 1); finalize({ correct: true, score: 1 }) }} onContinue={() => continueAfterSuccess(onCollect ?? onContinue, true)} />
+          <MoralDilemmaChallenge puzzle={puzzle} tel={tel} onResolve={() => finish({ correct: true, score: 1 }, 1)} onContinue={onCollect ?? onContinue} />
         ) : result === null ? (
           <>
             {renderChallenge()}
@@ -291,7 +375,14 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             )}
           </>
         ) : (
-          renderResult(result)
+          <>
+            {/* בחירה מרובה: האפשרויות נשארות על המסך, והנכונה מסומנת */}
+            {!!presented && <>
+              <h3 className="text-lg font-bold mt-3">{puzzle.question}</h3>
+              {choiceButtons()}
+            </>}
+            {renderResult(result)}
+          </>
         )}
     </div>
     </DigitalEntrance>

@@ -107,7 +107,7 @@ export function puzzleDataSpec(type: string, level: number): string {
   switch (type) {
     case 'multipleChoice': {
       const { optionCount, guidance } = scaleMultipleChoice(level)
-      return `"type":"multipleChoice" — "question" + "choices":[{id,text,isCorrect}] (**בדיוק ${optionCount} תשובות**, אחת נכונה) + "explanationCorrect" + "explanationIncorrect". **קושי: ${guidance}**`
+      return `"type":"multipleChoice" — "question" + "choices":[{id,text,isCorrect}] (**בדיוק ${optionCount} תשובות**, אחת נכונה) + "explanationCorrect" + "explanationIncorrect" + "retryHint". **קושי: ${guidance}**`
     }
     case 'trueFalse':
       return `"type":"trueFalse" — "question" (היגד) + "choices":[{id:"t",text:"נכון",isCorrect},{id:"f",text:"לא נכון",isCorrect}] + "explanationCorrect" + "explanationIncorrect". **קושי: ${scaleTrueFalse(level).guidance}**`
@@ -259,7 +259,7 @@ function finalQuizInstructions(prefs: PuzzlePreferences | undefined, level: numb
 ## מבחן סיכום (finalQuiz) — חובה!
 הוסף **אתגר אחד** מסוג "finalQuiz" ב-puzzle של **סצנת השיא** (הסצנה האחרונה לפני הסיום, ראו ADVENTURE NARRATIVE STRUCTURE). זהו המבחן המסכם של השיעור:
 - "type":"finalQuiz", "question": כותרת/הוראה קצרה (למשל "מבחן הסיכום של המסע").
-- "questions": מערך של **בדיוק ${n}** שאלות רב-ברירה **אינטגרטיביות** הבוחנות הבנה כוללת של כל מה שנלמד בשיעור — לא חזרה מילולית על שאלות קודמות! כל שאלה: { "question", "options": [**בדיוק ${optionCount} מחרוזות**], "correctIndex": אינדקס התשובה הנכונה (0-based), "explanationCorrect", "explanationIncorrect" }.
+- "questions": מערך של **בדיוק ${n}** שאלות רב-ברירה **אינטגרטיביות** הבוחנות הבנה כוללת של כל מה שנלמד בשיעור — לא חזרה מילולית על שאלות קודמות! כל שאלה: { "question", "options": [**בדיוק ${optionCount} מחרוזות**], "correctIndex": אינדקס התשובה הנכונה (0-based), "explanationCorrect", "explanationIncorrect", "retryHint" }.
 - **קושי המבחן (${difficultyLabel(level)}): ${guidance}**
 - מבחן הסיכום שוקל נתח משמעותי מהקריסטלים — ודא שהוא מקיף ומאתגר.`
 }
@@ -281,8 +281,8 @@ function labStructureInstructions(): string {
    - הוסף לסצנת המעבדה גם "drHoloExpression" התואם לטון הבריפינג (למשל "a worried, urgent expression" אם המשימה דחופה, או "a warm, encouraging smile" אם הפתיחה רגועה).
    - **קריטי: לסצנת המעבדה חייב להיות "nextSceneId" שמצביע לסצנת התוכן הראשונה** (או choices במבנה Hub). אסור שתישאר ללא קישור קדימה — אחרת המשחק ידלג ישר לסיום. כל סצנה חייבת להיות נגישה מסצנת הכניסה.
 2. **שתי סצנות סיום** בשדות "endingGood" ו-"endingBad" ברמה העליונה של ה-JSON (לא בתוך scenes). מבנה כל סיום: { "title", "narrative", "drHoloDialog" (עברית), "imagePrompt" (אנגלית, **חייב** להכיל ${`{DR_HOLO}`} במרכז, **שונה מתמונת הפתיחה**), "drHoloExpression" (אנגלית, תואם לסוג הסיום) }:
-   - "endingGood": חזרה למעבדה — הדוקטור נרגש וחולק את התובנה/מוסר ההשכל **העמוק** של החומר. תמונה: מעבדה חוגגת באור חם, אורות ניצחון הולוגרפיים, קריסטלים זוהרים במלואם; הבעה שמחה/גאה (למשל "a joyful, triumphant smile, beaming with pride").
-   - "endingBad": חזרה למעבדה — הדוקטור חם ומעודד: מה הלך טוב, חסרים עוד קריסטלים לתובנה, מזמין לנסות שוב. **לעולם לא טון מאשים**. תמונה: מעבדה עמומה וקרה, אורות מהבהבים, קריסטלים דהויים; הבעה עייפה/מאוכזבת (למשל "a tired, dejected expression") — קודר אך **לא** מפחיד.
+   - "endingGood" — **הסיפור נסגר** (התלמיד אסף מספיק תובנות): חזרה למעבדה — הדוקטור נרגש וחולק את התובנה/מוסר ההשכל **העמוק** של החומר. תמונה: מעבדה חוגגת באור חם, אורות הולוגרפיים, גבישים זוהרים במלואם; הבעה שמחה/גאה (למשל "a joyful, proud smile").
+   - "endingBad" — **הסיפור נשאר פתוח** (חסרות עוד תובנות): חזרה למעבדה — הדוקטור חם ומעודד. מה כבר הושג בסיפור, מה עוד לא נפתר ("חסרות עוד תובנות כדי…"), והזמנה לשחק שוב. **אין כאן כישלון ואין כאן הפסד**: לא "נכשלתם", לא "הפסדתם", לא טון מאשים או קודר. אין כאן מנצחים ומפסידים — אלה סיפור שנסגר וסיפור שעוד פתוח. תמונה: מעבדה שקטה בתאורת ערב, דלת או פורטל פתוחים אל המשך הסיפור; הבעה מהורהרת ומזמינה (למשל "a thoughtful, encouraging smile").
    - התייחסות לקריסטלים מותרת ורצויה בסיומים — שם זה חלק מהעלילה.`
 }
 
@@ -364,7 +364,7 @@ function narrativeStructureInstructions(questType?: string): string {
 3. CLIMAX SCENE — סצנת שיא (חובה! הנקודה שנכשלת הכי הרבה):
    - לפני סצנות הסיום חייבת **סצנה ייעודית** שבה המשימה המרכזית **נפתרת בפועל** — העימות/החשיפה/ההכרעה. הכניסה אל היעד (האקרופוליס, חדר הבקרה) היא סצנת השיא עצמה — **לא** טריגר שמדלג ישר לסיום.
    - היא לינארית: **ללא choices וללא nextSceneId** (היעדרו מסמן את המעבר ל-endingGood/endingBad). מומלץ לכלול בה חידה אחרונה מכריעה.
-   - **זמן הפועל כשיש בה חידה (טעות חוזרת!):** הנרטיב מוצג לתלמיד **לפני** שפתר את החידה, ולכן מוביל אל רגע הפתירה ומנסח את התוצאה כ**עתידית-מותנית** ("פתרו את החידה — ואז הפורטל ייפתח / הבוגד ייחשף"). **אסור לתאר את הפתרון, הניצחון או השלמת המשימה כאילו כבר קרו** (לא "סיימנו!", לא "הפורטל נפתח לרווחה"). מה שקרה **אחרי** ההצלחה נמסר אך ורק ב-endingGood/endingBad. (בשיא **ללא** חידה — הנרטיב כן מתאר את ההכרעה עצמה.)
+   - **זמן הפועל כשיש בה חידה (טעות חוזרת!):** הנרטיב מוצג לתלמיד **לפני** שפתר את החידה, ולכן מוביל אל רגע הפתירה ומנסח את התוצאה כ**עתידית-מותנית** ("פתרו את החידה — ואז הפורטל ייפתח / הבוגד ייחשף"). **אסור לתאר את הפתרון, הניצחון או השלמת המשימה כאילו כבר קרו** (לא "סיימנו!", לא "הפורטל נפתח לרווחה"). מה שקרה **אחרי** האתגר נמסר אך ורק ב-endingGood/endingBad. (בשיא **ללא** חידה — הנרטיב כן מתאר את ההכרעה עצמה.)
 
 4. CONTENT AS TOOL NOT DESTINATION: החומר הלימודי מוטמע בתוך פעולות הסיפור — התלמיד לא "לומד על הדמוקרטיה", הוא "חוקר את מנגנון ההצבעה כדי להבין איך לעצור את הבוגד". כל חידה מתחברת לעלילה: פתרון החידה = התקדמות במשימה.
 
@@ -426,7 +426,7 @@ function narrativeStructureInstructions(questType?: string): string {
   "entrySceneId": "scene_lab",
   "isHistorical": true,
   "endingGood": { "title": "הדמוקרטיה ניצלה", "narrative": "חזרתם למעבדה. המזייף נחשף וההצבעה הייתה הוגנת.", "drHoloDialog": "הצלתם היום לא רק הצבעה — הראיתם למה השקיפות היא הלב של הדמוקרטיה.", "imagePrompt": "Victory celebration inside Dr. Holo's glowing holographic laboratory, warm golden light, holographic confetti and triumphant light beams, five crystals shining at full brightness, {DR_HOLO} standing proudly at the center", "drHoloExpression": "a joyful, triumphant smile, beaming with pride" },
-  "endingBad": { "title": "כמעט שם", "narrative": "חזרתם למעבדה עם חלק מהראיות, אך לא הספקתם לחשוף את המזייף בזמן.", "drHoloDialog": "התקדמתם יפה! חסרו עוד כמה רסיסים כדי להרכיב את התמונה — בואו ננסה שוב.", "imagePrompt": "Dim, cold and somber holographic laboratory, faint flickering blue light, faded dull crystals, long shadows, a melancholic gray atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a tired, dejected and disappointed expression, looking weary" }
+  "endingBad": { "title": "הסיפור עוד פתוח", "narrative": "חזרתם למעבדה עם חלק מהראיות. המזייף עדיין לא נחשף, וההצבעה עוד לא הוכרעה.", "drHoloDialog": "חסרות עוד תובנות כדי לחשוף את המזייף. בואו נחזור לאגורה ונשלים אותן.", "imagePrompt": "Quiet holographic laboratory in soft evening light, an open glowing portal leading back to the ancient agora, a few crystals softly shining, calm and inviting atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a thoughtful, encouraging smile" }
 }
 
 (בשיעור עם מפתחות/מנעולים המבנה דומה אך מסועף — ראו HUB STRUCTURE; גם שם הבחירה הנעולה מובילה אל סצנת שיא נפרדת.)`
@@ -450,7 +450,8 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 ## הסברים מעמיקים לשאלות (חובה!)
 לכל חידת רב-ברירה (multipleChoice) ונכון/לא נכון (trueFalse) חובה לכלול שני שדות:
 - "explanationCorrect": נפתח באישור ("נכון מאוד! …") וממשיך עם **העמקה לימודית מעבר למה שנשאל** — פרט נוסף, מספר מפתיע, או הקשר רחב.
-- "explanationIncorrect": נפתח ב"התשובה הנכונה היא…" (כולל התשובה עצמה) ומציג את **אותה העמקה**.
+- "explanationIncorrect": נפתח ב"התשובה הנכונה היא…" (כולל התשובה עצמה) ומציג את **אותה העמקה**. מוצג אחרי שהתלמיד סיים את האתגר.
+- "retryHint" (ברב-ברירה ובמבחן הסיכום): משפט קצר שמוצג אחרי טעות ראשונה, כשאפשר לבחור פעם נוספת: למה כדאי לחשוב שוב. **אסור שיגלה את התשובה הנכונה או יצטט אותה.**
 דרישה מפורשת: ההסבר חייב ללמד משהו חדש שלא הופיע בשאלה או בתשובות עצמן!
 דוגמה — שאלה "כמה אבנים בפירמידה הגדולה?" → ההסבר מוסיף: "כ-2.3 מיליון אבנים, כשהכבדות שבהן שוקלות עד 80 טון — כמשקל של 16 פילים!"
 
@@ -511,7 +512,7 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
   "entrySceneId": "scene_1",
   "isHistorical": true,
   "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "celebratory victory screen in the lab containing {DR_HOLO}", "drHoloExpression": "a joyful, triumphant smile" },
-  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "dim somber lab containing {DR_HOLO}", "drHoloExpression": "a tired, disappointed expression" }
+  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "quiet lab in soft evening light with an open glowing portal containing {DR_HOLO}", "drHoloExpression": "a thoughtful, encouraging smile" }
 }
 
 הערות:
@@ -674,8 +675,8 @@ ${params.subjectName ? `- מקצוע: ${params.subjectName}\n` : ''}- נושא �
     { "id": "scene_lab", "title": "כותרת קצרה", "role": "פתיחה — ד\\"ר הולו מציג את המשימה", "characters": "מי מופיע בסצנה", "beat": "מה קורה, איך הסצנה מסתיימת, ומה מוביל לסצנה הבאה", "puzzleType": "none" }
     /* ... בדיוק ${params.questLength} סצנות; האחרונה role=\"שיא\"${finalQuiz ? ', puzzleType=\"finalQuiz\"' : ''} ... */
   ],
-  "endingGood": "תיאור קצר של סיום ההצלחה",
-  "endingBad": "תיאור קצר של הסיום החלקי"
+  "endingGood": "תיאור קצר של סיפור שנסגר: המשימה נפתרה והתובנה הגדולה",
+  "endingBad": "תיאור קצר של סיפור שנשאר פתוח: מה עוד לא נפתר, והזמנה לשחק שוב"
 }
 מזהי סצנות: snake_case אנגלי ייחודי. **בלי נרטיב מלא — רק beats.** החזר JSON תקין בלבד.`
 }
@@ -744,7 +745,7 @@ ${puzzleSpec ? `## חידת השיא\n${puzzleSpec}` : ''}
 ${sceneImageRules()}
 
 ## הסיומים (תמונה ייעודית לכל אחד, **שונה מהפתיחה**)
-- endingGood: ניצחון חוגג — מעבדה זוהרת, ד"ר הולו גאה/שמח. endingBad: חלקי וקודר — מעבדה עמומה, ד"ר הולו מאוכזב/עייף (לעולם לא מאשים).
+- endingGood: הסיפור נסגר — מעבדה זוהרת, ד"ר הולו גאה/שמח. endingBad: הסיפור נשאר פתוח — "חסרות עוד תובנות כדי…" והזמנה לשחק שוב; מעבדה שקטה עם פורטל פתוח, ד"ר הולו מהורהר ומזמין. בלי כישלון, בלי הפסד ובלי טון קודר.
 - לכל סיום: title, narrative, drHoloDialog, imagePrompt (עם {DR_HOLO}), drHoloExpression.
 
 ## פלט — JSON בלבד

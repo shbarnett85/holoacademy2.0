@@ -97,7 +97,7 @@ const fieldStyle: React.CSSProperties = {
 }
 const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--t300)' }
 
-/* כרטיס מסך סיום — ניצחון / מעודד */
+/* כרטיס מסך סיום — הסיפור נסגר / הסיפור נשאר פתוח */
 function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: {
   which: 'good' | 'bad'; ending: EndingScene
   onEdit: () => void; onRegenerateImage: (id: string) => void; regenerating: boolean
@@ -122,7 +122,7 @@ function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: 
       <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${accent}, var(--t35))`, opacity: hov ? 1 : 0.5, transition: 'opacity .2s' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ ...micro, color: `${window.HoloTint(rgb, .7)}`, marginBottom: 7 }}>
-          {good ? '🏆 סיום ניצחון' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><DrHoloEmblem size={13} /> סיום מעודד</span>} · {good ? '≥3 קריסטלים' : '<3 קריסטלים'}
+          {good ? '🏆 הסיפור נסגר' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><DrHoloEmblem size={13} /> הסיפור נשאר פתוח</span>} · {good ? '3 גבישים ומעלה' : 'פחות מ-3 גבישים'}
         </div>
         <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800, color: 'var(--t13)' }}>{ending.title}</h3>
         {ending.narrative && (
@@ -191,7 +191,7 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
     <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: 'var(--t216)', backdropFilter: 'blur(4px)', zIndex: 60 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="עריכת מסך סיום">
       <div className="holo-panel w-full" style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--holo-glow)', borderColor: good ? 'var(--t217)' : 'var(--t218)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="holo-text-glow text-xl font-black" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>✏️ {good ? '🏆 מסך ניצחון' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><DrHoloEmblem size={20} /> מסך מעודד</span>}</h2>
+          <h2 className="holo-text-glow text-xl font-black" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>✏️ {good ? '🏆 הסיפור נסגר' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><DrHoloEmblem size={20} /> הסיפור נשאר פתוח</span>}</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--t301)', opacity: 0.6, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
         </div>
         <div className="mb-4">

@@ -12,6 +12,7 @@ import type { ClassRow, ClassTeacher } from './index'
 import { classSummaryNote } from './v2Link'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { GRADE_LAYER_NAMES, nextGradeLevel, labelWithLevel } from '../../shared/lib/gradeLevels'
+import { EFFECT_LEVELS, EFFECT_LEVEL_LABEL, effectLevelOf, type EffectLevel } from '../../shared/lib/gemModel'
 
 interface Student { id: string; name: string; is_active: boolean; is_fictitious?: boolean }
 interface NewStudent { id?: string; name: string; pin: string }
@@ -89,6 +90,8 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
   const [gradeLabel, setGradeLabel] = useState(cls.gradeLabel)
   /* שכבה כמספר 1–12 (א׳–י״ב); null = לא הוגדרה */
   const [gradeLevel, setGradeLevel] = useState<number | null>(cls.gradeLevel ?? null)
+  /* עוצמת האפקטים בשיעורים של הכיתה */
+  const [effectsLevel, setEffectsLevel] = useState<EffectLevel>(effectLevelOf(cls.effectsLevel))
   const [schoolTeachers, setSchoolTeachers] = useState<SchoolTeacher[]>([])
   const [newT, setNewT] = useState({ teacherId: '', subjectCode: '', isHomeroom: false })
 
@@ -140,6 +143,13 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
       refreshClass()
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה בעדכון השכבה') }
   }
+  async function saveEffectsLevel(level: EffectLevel) {
+    const prev = effectsLevel
+    setEffectsLevel(level)
+    try { await apiJson(`/api/staff/classes/${cls.id}`, { method: 'PATCH', body: JSON.stringify({ effectsLevel: level }) }) }
+    catch (e) { setEffectsLevel(prev); setError(e instanceof Error ? e.message : 'שמירת עוצמת האפקטים נכשלה') }
+  }
+
   async function promote() {
     /* קידום אוטומטי +1 (תקרה י״ב); בלי שכבה מוגדרת — מבקשים להגדיר קודם */
     const next = nextGradeLevel(gradeLevel)
@@ -199,6 +209,13 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
               style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
               <option value="">לא מוגדרת</option>
               {GRADE_LAYER_NAMES.slice(1).map((n, i) => <option key={i + 1} value={i + 1}>{n}</option>)}
+            </select>
+          </label>
+          <label style={{ fontSize: 12, color: 'var(--t12)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            עוצמת האפקטים
+            <select aria-label="עוצמת האפקטים" data-effects-level value={effectsLevel} onChange={(e) => void saveEffectsLevel(effectLevelOf(e.target.value))}
+              style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
+              {EFFECT_LEVELS.map((l) => <option key={l} value={l}>{EFFECT_LEVEL_LABEL[l]}</option>)}
             </select>
           </label>
           <HoloBtn label="קדם שכבה ⬆️" onClick={promote} color="var(--t4)" rgb="255,206,94" />

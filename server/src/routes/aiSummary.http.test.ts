@@ -636,8 +636,9 @@ describe('פרטיות (חוק 12): אף שם / מזהה / שם כיתה / שם 
     const run = async (kind: Kind, scope: string, id: string, extra: Record<string, unknown> = {}): Promise<void> => {
       const r = await post(addUser(kind), scope, id, extra)
       expect(r.status, `${kind} ${scope} ${id}`).toBe(200)
-      /* היעד (target.id) הוא הד של מה שהלקוח עצמו ביקש — הוא אינו "דליפה"; כל השאר בתגובה חייב להיות נקי */
-      bodies.push(JSON.stringify({ ...r.body.data, summary: { ...r.body.data.summary, target: undefined } }))
+      /* היעד (target.id) הוא הד של מה שהלקוח עצמו ביקש — הוא אינו "דליפה"; כל השאר בתגובה חייב להיות נקי.
+         גם id של הסיכום יוצא: UUID אקראי, ו-"c73e14ac-d12a-…" מכיל במקרה את מזהה הכיתה הקצר "c-d1" של עולם ההדגמה */
+      bodies.push(JSON.stringify({ ...r.body.data, summary: { ...r.body.data.summary, target: undefined, id: undefined } }))
     }
     for (const sid of A.classById.get(V2)!.studentIds.slice(0, 3)) { await run('home', 'student', sid); await run('math', 'student', sid) }
     await run('mixed', 'student', S_V1)

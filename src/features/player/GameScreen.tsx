@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
-import { CrystalBar, ItemSlots } from './BottomHUD'
+import { GemBar } from './GemBar'
+import { ItemSlots } from './ItemSlots'
 import TopHUD from './TopHUD'
-import CrystalGauge from './CrystalGauge'
 import PuzzleModal from './PuzzleModal'
 import { type Placement } from './stageRouting'
 import { useScenePages } from './useScenePages'
 import LoadingQuest from './LoadingQuest'
 import PortalTransition from './PortalTransition'
 import WormholeTransition from './WormholeTransition'
-import CrystalFusion from './CrystalFusion'
-import CrystalRain from './CrystalRain'
-import CrystalCharge from './CrystalCharge'
-import { TOTAL_CRYSTALS, useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
+import EndScreen from './EndScreen'
+import DrHoloHologram from './DrHoloHologram'
+import { GateUnlock, StreakBadge } from './FeelBits'
+import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
-import { typingDelayMs } from '../../shared/lib/difficultyScaling'
-import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
-import { ErrorFlashOverlay } from './challenges/errorFlash'
+import { GemDefs } from '../../shared/ui/Gem'
+import { GEM_TOTAL, effectLevelOf } from '../../shared/lib/gemModel'
 import { homePathForRole } from '../../shared/lib/homePath'
-import { initSound, playSound } from '../../shared/lib/sound'
+import { initSound } from '../../shared/lib/sound'
+import { KEN_BURNS_SECONDS, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -29,92 +29,15 @@ const prefersReducedMotion = () =>
    הסצנה (במקביל) → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
 const PANEL_MAT_MS = 800     /* משך הכניסה הדיגיטלית של קופסת הטקסט (ההקלדה מתחילה אחריו) — תואם ל-DigitalEntrance (~0.8s) */
 
-/* טקסט נרטיב מוקלד אות-אחר-אות. הקצב נגזר מ-readingScale (1-10): נמוך=איטי, גבוה=מהיר
-   (typingDelayMs, עם רצפה/תקרה). לחיצה בזמן ההקלדה משלימה מיד; לחיצה אחרי שהושלם
-   מפעילה onAdvance (אם סופק — כשהפעולה היחידה היא "המשך"). reduced-motion → טקסט מיידי. */
-function Typewriter({ text, scale, onAdvance, instant, start = true, onDone }: { text: string; scale: number; onAdvance?: () => void; instant?: boolean; start?: boolean; onDone?: () => void }) {
-  /* instant=true (ביקור חוזר בשקופית, reduced-motion, או דילוג) → הצגת הטקסט במלואו מיד.
-     start=false → ההקלדה ממתינה (בזמן fade-in של הפאנל ברצף המדורג). onDone → סיום הקלדה. */
-  const skipAnim = prefersReducedMotion() || !!instant
-  const [count, setCount] = useState(() => (skipAnim ? text.length : 0))
-  const done = count >= text.length
+/* טקסט הסצנה. בזמן קריאה שום דבר לא זז (CLAUDE.md "תחושת משחק: כללים", כלל 1): הטקסט מוצג שלם, בלי הקלדה, בלי סמן ובלי צליל.
+   אחרי שהפאנל נכנס (start) מדווחים onDone, וזה מניע את שלב הכפתורים. לחיצה על טקסט מפעילה onAdvance, כשהפעולה היחידה היא "המשך". */
+function SceneText({ text, onAdvance, start = true, onDone }: { text: string; onAdvance?: () => void; start?: boolean; onDone?: () => void }) {
   const onDoneRef = useRef(onDone)
-  onDoneRef.current = onDone
-
-  /* caret (נקודת אור) — justSkipped מבדיל בין סיום-בלחיצה (נעלם מיידית, בלי fade)
-     לסיום טבעי של ההקלדה (fade-out עדין). caretGone מסיר את הקאret מה-DOM לגמרי
-     אחרי שהדעיכה הסתיימה, כדי שלא יישאר רווח קבוע בקצה הטקסט. */
-  const [justSkipped, setJustSkipped] = useState(false)
-  const [caretGone, setCaretGone] = useState(false)
-
-  useEffect(() => {
-    setCount(skipAnim ? text.length : 0)
-    setJustSkipped(false)
-  }, [text, skipAnim])
-
-  useEffect(() => {
-    if (!done) { setCaretGone(false); return }
-    if (justSkipped) { setCaretGone(true); return } /* דילוג — נעלם מיידית */
-    const t = window.setTimeout(() => setCaretGone(true), 220) /* סיום טבעי — אחרי ה-fade */
-    return () => window.clearTimeout(t)
-  }, [done, justSkipped])
-
-  useEffect(() => {
-    if (done || skipAnim || !start) return
-    const delay = typingDelayMs(scale)
-    const timer = setInterval(() => setCount((c) => Math.min(c + 1, text.length)), delay)
-    return () => clearInterval(timer)
-  }, [text, done, skipAnim, scale, start])
-
-  /* צליל הקלדה — מתנגן כל 3 תווים (שלא יהפוך לזמזום בעברית מהירה), מדלג על רווח/שורה.
-     לא רץ ב-reduced-motion/instant (skipAnim) ולא בזמן המתנה (start=false). בדילוג count
-     קופץ ל-length → התנאי count>=length עוצר מיד את הצלילים (ואין interval סאונד נפרד לנקות). */
-  useEffect(() => {
-    if (skipAnim || !start) return
-    if (count === 0 || count >= text.length) return
-    const ch = text[count - 1]
-    if (count % 3 === 0 && ch !== ' ' && ch !== '\n' && ch !== ' ') playSound('type')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [count])
-
-  /* דיווח סיום ההקלדה (גם כשהטקסט מיידי/ריק) — מניע את שלב הכפתורים ברצף */
-  useEffect(() => { if (done) onDoneRef.current?.() }, [done])
-
-  function handleClick() {
-    if (!done) { setJustSkipped(true); setCount(text.length) } /* skip — השלמה מיידית, caret נעלם בלי fade */
-    else onAdvance?.() /* לחיצה שנייה — המשך לסצנה הבאה (רק כשזו הפעולה הזמינה) */
-  }
-
-  /* caret מוצג רק בזמן הקלדה פעילה בפועל (לא ב-instant/reduced-motion, ולא לפני start) */
-  const showCaret = !skipAnim && start && !caretGone
-
-  /* הקופסה בגודלה הסופי מההתחלה (כמו דף נייר שמתמלא): טקסט-רפאים מלא וקבוע שומר את
-     הגובה/הרוחב, והטקסט המוקלד מוצג מעליו — כך הקופסה לא "גדלה" תוך כדי ההקלדה.
-     ה-caret מרונדר *inline* מיד אחרי המחרוזת החלקית (לא במיקום אבסולוטי) — כך הוא
-     נגרר טבעית עם קצה הטקסט בזרימת ה-RTL, בלי חישוב מיקום ידני. */
+  useEffect(() => { onDoneRef.current = onDone })
+  useEffect(() => { if (start) onDoneRef.current?.() }, [start, text])
   return (
-    <div className="relative cursor-pointer" onClick={handleClick}>
-      <p className="text-lg leading-relaxed" aria-hidden style={{ visibility: 'hidden', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
-      <p className="text-lg leading-relaxed" style={{ position: 'absolute', inset: 0, color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>
-        {text.slice(0, count)}
-        {showCaret && (
-          <span
-            aria-hidden
-            data-typing-caret
-            className={done ? '' : 'typewriter-caret'}
-            style={{
-              display: 'inline-block',
-              width: 8, height: 8, borderRadius: '50%',
-              background: '#2ff3ff',
-              boxShadow: '0 0 8px #2ff3ff, 0 0 16px rgba(47,243,255,0.6)',
-              marginInlineStart: 4,
-              verticalAlign: 'middle',
-              opacity: done ? 0 : 1,
-              transition: justSkipped ? 'none' : 'opacity 0.2s ease',
-            }}
-          />
-        )}
-      </p>
+    <div className="relative cursor-pointer" onClick={() => { if (start) onAdvance?.() }}>
+      <p className="text-lg leading-relaxed" style={{ color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
     </div>
   )
 }
@@ -126,8 +49,15 @@ interface Props {
   initialState?: EngineInitialState
   /* שמירת מצב ביניים ל-resume — מקומי בלבד, ללא רשת */
   saveResume?: (s: { currentSceneId: string; inventory: unknown[]; visitedScenes: unknown[]; crystals: number; challengeResults?: unknown[]; telemetry?: unknown }) => void
-  /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע */
-  onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number) => void
+  /* נקרא פעם אחת בסיום — שולח את סיכום האנליטיקה ברקע. finished=false: יציאה באמצע, לא נספרת כמשחק לגבישים */
+  onComplete?: (analytics: GameAnalytics, totalScore: number, crystalsFull: number, finished: boolean) => Promise<void> | void
+  /* "שחקו שוב" במסך הסיום: מתחיל משחק חדש (session חדש כשיש) */
+  onPlayAgain?: (saved: Promise<void> | null) => void
+  questId?: string
+  /* יש session של תלמיד/ה: גבישי הכיתה והמסע */
+  hasSession?: boolean
+  /* עוצמת האפקטים שהמורה בחר/ה לכיתה */
+  effectsLevel?: string
   /* "תצוגה חיה" של המורה (פעימה + סוף כל אתגר). undefined = אין session */
   live?: LiveApi
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
@@ -139,9 +69,15 @@ interface Props {
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
 
-export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, live, backPath = '/creator/library', visitorMode = false }: Props) {
+export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, onPlayAgain, questId, hasSession = false, effectsLevel, live, backPath = '/creator/library', visitorMode = false }: Props) {
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
+  /* עוצמת האפקטים של הכיתה, ומדידת ביצועים בשניות הראשונות של השיעור (מחשב חלש יורד אוטומטית לעדין) */
+  useEffect(() => {
+    setFeelLevel(effectLevelOf(effectsLevel))
+    resetFeel()
+    startFpsProbe()
+  }, [effectsLevel])
   const [puzzleOpen, setPuzzleOpen] = useState(false)
   /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
      ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
@@ -209,16 +145,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      חיה במלבן משלה ולא מוסתרת בכלל, ולכן הכפתור איבד את תפקידו. */
   const eyeMode = false
   const preloadedRef = useRef(false)
-  /* אנימציית היתוך היהלומים — נורית פעם אחת כשהקריסטל השלישי מתמלא לגמרי */
-  const [fusion, setFusion] = useState(false)
-  const fusionFiredRef = useRef(false)
-  /* מעבר-סצנה שנדחה עד לסיום ההיתוך — כשההמשך מגיע למסה קריטית, הפורטל וההיתוך היו
-     רצים יחד וההיתוך התאפס בסצנה הבאה. שומרים כאן את פעולת המעבר ומריצים ב-onDone. */
-  const pendingAdvanceRef = useRef<null | (() => void)>(null)
-  /* טעינת הקריסטל במסך הניצחון — chargeT מטפס 0→1 (≈1.2ש') כך שהקריסטלים מתמלאים
-     בסנכרון עם החלקיקים המתכנסים. reduced-motion → קופץ ל-1 (מילוי סטטי). */
-  const crystalRowRef = useRef<HTMLDivElement>(null)
-  const [chargeT, setChargeT] = useState(0)
 
   const { scene } = engine
   /* האם זו באמת סצנת הסיום? (אין next *וגם* זו הסצנה האחרונה במערך) — אחרת "המשך"
@@ -282,6 +208,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* שמירת מצב ביניים ל-resume בכל מעבר סצנה — מקומי בלבד (sessionStorage), ללא רשת */
   const crystalsFull = engine.crystalsFull
   const sceneId = scene.id
+  /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
+  useEffect(() => { for (const m of ['neutral', 'happy', 'thinking', 'surprised']) new Image().src = `/dr-holo/${m}.webp` }, [])
 
   /* מעבר הפורטל: הסצנה מתחלפת *מיד* (engine), אז שומרים את תמונת הסצנה היוצאת (prevImg)
      ברגע שה-sceneId משתנה — PortalTransition מנפיש את היוצאת בשלב 1 ואת החדשה (scene.imageUrl)
@@ -310,6 +238,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* preload של קבצי הסאונד בכניסה למשחק (אין lag באירוע הראשון) */
   useEffect(() => { initSound() }, [])
 
+  /* שלב הקריאה: אלמנטים "חיים" עוצרים בזמן קריאת טקסט */
+  useEffect(() => { setReading(!puzzleOpen && !engine.finished) }, [puzzleOpen, engine.finished])
+  useEffect(() => () => setReading(false), [])
+
+  /* פתיחת שער: מפתח מסתובב, שער נפתח, וצליל */
+  useEffect(() => { if (engine.unlockBubble) sounds.gate() }, [engine.unlockBubble])
+
   useEffect(() => {
     saveResume?.({ currentSceneId: sceneId, inventory: engine.inventory, visitedScenes: engine.visitedScenes, crystals: crystalsFull, challengeResults: engine.challengeResults, telemetry: engine.exportTelemetry() })
     live?.setScene(sceneId)
@@ -337,35 +272,28 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealTick])
 
+  /* אין הקלדה, ולכן שלב 'typing' נגמר מיד. חישוב העמודים יכול להתעדכן רגע אחרי שהשלב התחיל (או לחזור מ-2 עמודים ל-1),
+     ובלי זה הרצף היה נתקע ושכבת הדילוג הייתה נשארת מעל הכפתורים */
+  useEffect(() => {
+    if (reveal === 'typing' && lastPage) { setDoneSceneId(scene.id); setReveal('buttons') }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal, lastPage, scene.id])
+
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
   const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setReveal('buttons') }, [scene.id])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
   const skipped = skipSceneId === scene.id
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
 
-  /* מילוי הקריסטל בסיום — ramp רך 0→1 (או קפיצה ב-reduced-motion) */
-  useEffect(() => {
-    if (!engine.finished) return
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-    if (reduce) { setChargeT(1); return }
-    let raf = 0
-    const start = performance.now()
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / 1200)
-      setChargeT(t)
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [engine.finished])
-
   /* סיום — שליחה מרוכזת אחת של סיכום האנליטיקה (רקעי, פעם אחת) */
   const completedRef = useRef(false)
+  /* ההבטחה של השמירה: גבישי הכיתה נטענים אחריה, ו"שחקו שוב" מחכה לה כדי שהמשחק החדש יזוהה כחוזר */
+  const [saved, setSaved] = useState<Promise<void> | null>(null)
   useEffect(() => {
     if (!engine.finished || completedRef.current) return
     completedRef.current = true
     const totalScore = engine.challengeResults.filter((r) => r.correct).length
-    onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
+    setSaved(Promise.resolve(onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull, true)))
     if (visitorMode) trackFunnel('visitor_finish')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine.finished])
@@ -380,43 +308,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       completedRef.current = true
       engine.markSceneExit() /* סגירת הסצנה הנוכחית — שהייה סגורה (טלמטריה) */
       const totalScore = engine.challengeResults.filter((r) => r.correct).length
-      onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull)
+      void onComplete?.(engine.getAnalytics(), totalScore, engine.crystalsFull, false)
     }
     /* יעד מחושב טרי בזמן היציאה (לא ב-mount) — משקף את session הצוות החי: מורה/מנהל →
        התפריט הראשי שלהם (/creator), super_admin → /admin, תלמיד → /student. backPath הוא
        ברירת-מחדל אם אין session. */
     navigate(homePathForRole() || backPath)
   }
-
-  /* היתוך יהלומים — פעם אחת, **רק אחרי שאנימציית המילוי של הקריסטל השלישי הסתיימה
-     במלואה**. המילוי בתצוגה נדחה עד הגעת הרסיסים (BottomHUD), ולכן ה-engine.crystalsFull
-     מקדים את הוויזואל; לכן ממתינים לאירוע 'holo-crystal-filled' (משודר בסיום מעבר-המילוי
-     של כל קריסטל, עם fullCount) ומפעילים כש-fullCount≥3. */
-  useEffect(() => {
-    const onFilled = (e: Event) => {
-      const full = (e as CustomEvent<{ fullCount?: number }>).detail?.fullCount ?? 0
-      if (full >= 3 && !fusionFiredRef.current) {
-        fusionFiredRef.current = true
-        setFusion(true)
-      }
-    }
-    window.addEventListener('holo-crystal-filled', onFilled)
-    return () => window.removeEventListener('holo-crystal-filled', onFilled)
-  }, [])
-
-  /* חריג — חידוש משחק שכבר מעבר למסה הקריטית (התצוגה נטענת מלאה, בלי אנימציית מילוי):
-     מפעילים פעם אחת ב-mount כדי שלא נאבד את ההיתוך. אינו יורה בזמן משחק רגיל (crystalsFull
-     מתחיל <3, וה-effect רץ פעם אחת בלבד). */
-  const fusionMountRef = useRef(false)
-  useEffect(() => {
-    if (fusionMountRef.current) return
-    fusionMountRef.current = true
-    if (crystalsFull >= 3 && !fusionFiredRef.current) {
-      fusionFiredRef.current = true
-      setFusion(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   /* preload כל תמונות הסצנות והחפצים בכניסה למשחק —
      כך המעבר (point cloud) לעולם לא חושף רקע ריק */
@@ -432,137 +330,41 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     if (gameData.endingBad?.imageUrl) new Image().src = gameData.endingBad.imageUrl
   }, [gameData])
 
-  /* מסך סיום — endingGood/endingBad מהמעבדה, או fallback להדמיות ישנות */
+  /* מסך הסיום: סצנת הסיום לפי מצב הסיפור */
   if (engine.finished) {
-    const good = engine.crystalsFull >= 3
-    const ending = good ? gameData.endingGood : gameData.endingBad
-    /* רקע מסך הסיכום — תמונת הסיום הייעודית (חוגגת/קודרת), עם fallback לסצנת הפתיחה בהדמיות ישנות */
-    const labImage = gameData.scenes.find((s) => s.id === gameData.entrySceneId)?.imageUrl
-    const endImage = ending?.imageUrl ?? labImage
-
-    /* סיכום מותאם אישית מנתוני ה-session */
-    const failed = engine.challengeResults.filter((r) => !r.correct)
-    const summaryLine =
-      engine.challengeResults.length === 0
-        ? null
-        : failed.length === 0
-          ? 'פתרתם את כל האתגרים בניסיון ראשון! מדהים! 🌟'
-          : `האתגר${failed.length > 1 ? 'ים' : ''} על ${failed.map((f) => `"${f.sceneTitle}"`).join(', ')} ${failed.length > 1 ? 'היו קשים' : 'היה קשה'} — שווה לחזור עליו במסע הבא!`
-
     return (
-      <div className="flex flex-col items-center justify-center min-h-dvh gap-6 p-6 relative">
-        {/* ההגעה לכאן קורית באמצע הפריים הלבן (המנוע חושף finished ב-830ms).
-            חור-התולעת של הסצנה נעלם עם ההחלפה, ולכן **אין** כאן מופע נוסף שלו —
-            מופע חדש היה מריץ שוב קנבס+הבזק+סאונד. במקומו: שכבת לבן שמתחילה
-            אטומה (ממשיכה את הפריים הלבן ברציפות מושלמת) ונפתחת אל הסיכום. */}
-        <div className="holo-summary-whiteout" aria-hidden />
-        <style>{`
-          @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
-          .holo-summary-whiteout {
-            position: fixed; inset: 0; z-index: 81; pointer-events: none;
-            background: radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 55%, #eafcff 100%);
-            animation: holo-whiteout 0.45s ease-out both;
-          }
-          @media (prefers-reduced-motion: reduce) { .holo-summary-whiteout { animation: none; opacity: 0; } }
-        `}</style>
-        {endImage && (
+      <EndScreen
+        gameData={gameData}
+        questId={questId}
+        questTitle={questTitle}
+        results={engine.challengeResults}
+        gemPoints={engine.gemPoints}
+        gemPossible={engine.gemPossible}
+        hasSession={hasSession}
+        saved={saved}
+        onPlayAgain={() => onPlayAgain?.(saved)}
+        onExit={visitorMode ? undefined : handleExit}
+        footer={visitorMode ? (
           <>
-            {/* אותו מיקוד כמו תמונות הסצנה — ד"ר הולו במרכז הפריים, מוטה מעט למעלה */}
-            <img src={endImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 45%' }} />
-            {/* שכבת ה-overlay לקריאות הטקסט — נעלמת במצב עין לחשיפת התמונה הנקייה.
-               סיום טוב: גוון חמים ובהיר יותר; סיום קודר: כהה ומלנכולי. */}
-            <div style={{ position: 'absolute', inset: 0, background: good ? 'linear-gradient(180deg, rgba(10,14,40,0.55), rgba(20,8,40,0.7))' : 'rgba(8,8,20,0.82)', opacity: eyeMode ? 0 : 1, transition: 'opacity 0.5s ease' }} />
-          </>
-        )}
-
-        {/* גשם קריסטלים + טעינת הקריסטל (חלקיקים מתכנסים) — רק בסיום הטוב */}
-        {good && <CrystalRain />}
-        {good && <CrystalCharge count={Math.round(engine.crystalProgress * TOTAL_CRYSTALS)} targetRef={crystalRowRef} />}
-
-        <div
-          className="holo-panel text-center max-w-lg w-full relative"
-          style={{
-            boxShadow: 'var(--holo-glow)',
-            opacity: eyeMode ? 0 : 1,
-            pointerEvents: eyeMode ? 'none' : 'auto',
-            transition: 'opacity 0.45s ease',
-          }}
-        >
-          {ending ? (
-            <>
-              <div className="flex justify-center">{good ? <div style={{ fontSize: '3rem' }}>🏆</div> : <DrHoloEmblem size={56} />}</div>
-              <h1 className="holo-text-glow text-2xl font-black mt-2">{ending.title}</h1>
-              <p className="mt-3 text-start leading-relaxed" style={{ opacity: 0.85 }}>{ending.narrative}</p>
-              {/* אין תווית/בועת "ד״ר הולו" — עקביות עם עמוד הטקסט: הדיבור מסומן
-                 בתוך הפרוזה (ד״ר הולו אומר: "…"), בלי אייקון וכותרת שאוכלים גובה. */}
-              {ending.drHoloDialog && (
-                <p className="mt-3 text-start leading-relaxed">{`ד״ר הולו אומר: "${ending.drHoloDialog}"`}</p>
-              )}
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: '3rem' }}>🏆</div>
-              <h1 className="holo-text-glow text-2xl font-black mt-2">כל הכבוד!</h1>
-              <p className="mt-3" style={{ opacity: 0.7 }}>סיימתם את "{questTitle}"</p>
-            </>
-          )}
-
-          {/* הקריסטלים שנאספו — מתמלאים בסנכרון עם chargeT (החלקיקים המתכנסים) */}
-          <div ref={crystalRowRef} className="flex justify-center gap-1 mt-5" dir="ltr">
-            {Array.from({ length: TOTAL_CRYSTALS }).map((_, i) => (
-              <CrystalGauge key={i} fill={Math.max(0, Math.min(1, engine.crystalProgress * TOTAL_CRYSTALS * chargeT - i))} steps={engine.crystalSteps[i]} index={i} size={30} />
-            ))}
-          </div>
-
-          {/* שורת סיכום מותאמת אישית */}
-          {summaryLine && (
-            <p className="text-sm mt-4 rounded-lg p-2" style={{ background: 'rgba(0,136,255,0.12)', border: '1px solid rgba(0,136,255,0.3)' }}>
-              {summaryLine}
-            </p>
-          )}
-
-          <div className="flex justify-center gap-3 mt-6 flex-wrap">
-            {!good && ending && (
-              <button className="holo-button text-lg" onClick={() => engine.restart()}>
-                צאו למסע שוב 🔄
-              </button>
-            )}
-            {visitorMode ? (
-              <>
-                <button
-                  className="holo-button"
-                  onClick={() => {
-                    trackFunnel('cta_whatsapp')
-                    const url = window.location.href
-                    const text = `🎮 "${questTitle}" — שיעור למידה אינטראקטיבי ב-HoloAcademy. שחקו:\n${url}`
-                    navigator.clipboard?.writeText(url).catch(() => {})
-                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
-                  }}
-                >
-                  שתפו בוואטסאפ 💬
-                </button>
-                <button
-                  className="holo-button"
-                  style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }}
-                  onClick={() => navigate('/')}
-                >
-                  עוד שיעורים 🎮
-                </button>
-              </>
-            ) : (
+            <div className="flex justify-center gap-3 flex-wrap">
               <button
                 className="holo-button"
-                style={!good && ending ? { background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' } : {}}
-                onClick={handleExit}
+                onClick={() => {
+                  trackFunnel('cta_whatsapp')
+                  const url = window.location.href
+                  const text = `🎮 "${questTitle}" — שיעור למידה אינטראקטיבי ב-HoloAcademy. שחקו:\n${url}`
+                  navigator.clipboard?.writeText(url).catch(() => {})
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener')
+                }}
               >
-                חזרה למעבדה
+                שתפו בוואטסאפ 💬
               </button>
-            )}
-          </div>
-
-          {/* פוטר המרה למבקרים — הרגע חוו את ה-wow; זו נקודת ההצטרפות הטבעית של מורה */}
-          {visitorMode && (
-            <div className="text-start" style={{ marginTop: 18, padding: '14px 16px', borderRadius: 12, background: 'rgba(255,154,46,.09)', border: '1px solid rgba(255,154,46,.35)' }}>
+              <button className="holo-button" style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }} onClick={() => navigate('/')}>
+                עוד שיעורים 🎮
+              </button>
+            </div>
+            {/* פוטר המרה למבקרים — הרגע חוו את ה-wow; זו נקודת ההצטרפות הטבעית של מורה */}
+            <div className="text-start" style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(255,154,46,.09)', border: '1px solid rgba(255,154,46,.35)', width: '100%' }}>
               <div style={{ fontWeight: 800, fontSize: 14.5, color: '#ffcf7d' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
               <div style={{ fontSize: 12.5, opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
                 מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה שיעור שלם — סצנות, אתגרים ותמונות — תוך דקות.
@@ -571,13 +373,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 צרו שיעור משלכם — חינם ✨
               </button>
             </div>
-          )}
-        </div>
-
-      </div>
+          </>
+        ) : undefined}
+      />
     )
   }
-
 
   /* אותו אתגר, שני מקומות אפשריים: פאנל (תשובת טקסט/בחירה) או במה (מניפולציה).
      ראו stageRouting.ts — הניתוב לפי סוג האינטראקציה, לא לפי סוג האתגר. */
@@ -587,6 +387,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* סצנה בלי טקסט — אין על מה לחכות; אחרת ממתינים לסיום ההקלדה של **הסצנה הזו** */
   const textDone = !(scene.narrative || scene.drHoloDialog) || doneSceneId === scene.id
   const onStage = puzzleOpen && !!scene.puzzle
+  /* האתגר האחרון בשיעור: סצנת השיא (בלי המשך ובלי בחירות), או מבחן הסיכום, או האתגר האחרון במערך */
+  const lastPuzzleScene = [...gameData.scenes].reverse().find((s) => s.puzzle)
+  const isFinalChallenge = !!scene.puzzle && (scene.puzzle.type === 'finalQuiz' || scene.id === lastPuzzleScene?.id)
 
   const puzzleEl = (placement: Placement) => (
     <PuzzleModal
@@ -594,6 +397,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         puzzle={scene.puzzle!}
         imageUrl={scene.imageUrl}
         onSolve={engine.solvePuzzle}
+        onLivePoints={engine.setLivePoints}
+        gemsPerPoint={engine.gemPossible > 0 ? GEM_TOTAL / engine.gemPossible : 1}
+        isFinalChallenge={isFinalChallenge}
         sceneId={scene.id}
         presentationSeq={engine.getPresentationSeq()}
         onTelemetry={(rec) => {
@@ -612,19 +418,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           const hasChoices = !!scene.choices?.length
           const willAdvance = !hasItem && !hasChoices && !engine.gateLocked
           if (willAdvance) {
-            const advanceNow = () => { setPuzzleOpen(false); engine.advance() } /* מעבר סצנה (fade-to-black) */
-            /* המשך שמגיע למסה קריטית → ההיתוך עומד להתנגן. מעכבים את מעבר הסצנה
-               עד שההיתוך יסתיים (onDone), כדי שהפורטל לא ירוץ במקביל ויאפס אותו. */
-            if (engine.crystalsFull >= 3 && !fusionFiredRef.current) {
-              pendingAdvanceRef.current = advanceNow
-              /* רשת ביטחון — אם ההיתוך לא נורה מסיבה כלשהי, מתקדמים בכל זאת */
-              window.setTimeout(() => {
-                const p = pendingAdvanceRef.current
-                if (p) { pendingAdvanceRef.current = null; setFusion(false); p() }
-              }, 5000)
-            } else {
-              advanceNow()
-            }
+            setPuzzleOpen(false)
+            engine.advance() /* מעבר סצנה */
           } else fadeSwap(() => setPuzzleOpen(false)) /* חזרה לטקסט באותה סצנה — fade */
         }}
         /* אתגר שמסתיים במפתח: כפתור איסוף ישיר במקום "המשך" — אוסף וסוגר, והסצנה
@@ -664,7 +459,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     <div className="min-h-dvh holo-scene-root flex flex-col">
       {/* מסך הטעינה נשאר מעל הסצנה עד הפריים הלבן המלא — ראו entered למעלה */}
       {!entered && <LoadingQuest overlay />}
-      <ErrorFlashOverlay />
+      <GemDefs />
+      <StreakBadge />
       <style>{`
         @keyframes gate-shake {
           0%, 100% { transform: translateX(0); }
@@ -685,7 +481,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
            במקום לקפוא. הלוך-ושוב אינסופי; הכיוון מתחלף פר-סצנה (alternate/alternate-reverse). */
         @keyframes holo-kenburns {
           from { transform: scale(1) translate(0, 0); }
-          to   { transform: scale(1.055) translate(0.6%, -0.5%); }
+          to   { transform: scale(1.07) translate(-1.6%, -1.1%); }
         }
         /* materialize — הופעת פאנל הטקסט: מטשטש→חד + הבזק זוהר הולוגרפי (opacity בלבד,
            ללא scale/translate). הקופסה כבר בגודלה הסופי, ה"דף" מתגבש ואז מתמלא בהקלדה. */
@@ -696,20 +492,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           100% { opacity: 1; filter: blur(0); }
         }
         .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
-        /* caret ה-typewriter — נקודת אור פועמת שרצה בקצה הטקסט תוך כדי ההקלדה */
-        @keyframes typewriter-caret-pulse {
-          0%, 100% {
-            opacity: 1; transform: scale(1);
-            box-shadow: 0 0 6px #2ff3ff, 0 0 14px rgba(47,243,255,0.55);
-          }
-          50% {
-            opacity: 0.7; transform: scale(0.82);
-            /* שיא ההבהוב — הילה רחבה ובוהקת סביב הנקודה */
-            box-shadow: 0 0 12px #2ff3ff, 0 0 26px rgba(47,243,255,0.95), 0 0 40px rgba(47,243,255,0.4);
-          }
-        }
-        .typewriter-caret { animation: typewriter-caret-pulse 0.9s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .typewriter-caret { animation: none; } }
       `}</style>
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
@@ -768,18 +550,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <div className="holo-panel text-start">
               {/* אין תווית "ד״ר הולו" מעל הטקסט: הנרטיב בגוף שלישי, והדיבור של הדוקטור כבר מסומן
                  בתוך הפרוזה עצמה (ד״ר הולו אומר: "…") — תווית קבועה אכלה גובה. */}
-              <Typewriter
+              <SceneText
                 key={pageKey}
                 text={pages[pageIdx] ?? sceneText}
-                scale={gameData.readingScale ?? 6}
-                /* ההקלדה מתחילה רק אחרי ה-materialize של הקופסה (שלב 'typing'); בסיומה → 'buttons' */
+                /* הכפתורים מופיעים אחרי שהקופסה נכנסה (שלב 'typing') */
                 start={reveal === 'typing' || reveal === 'buttons'}
                 onDone={() => {
                   setDonePageKey(pageKey)
                   if (lastPage) { setDoneSceneId(scene.id); setReveal('buttons') }
                 }}
-                /* ביקור חוזר/דילוג → העמוד במלואו מיד, בלי הקלדה */
-                instant={engine.transitionDir === 'back' || skipped}
                 /* לחיצה שנייה: עמוד ביניים ← העמוד הבא; עמוד אחרון ← המשך לסצנה הבאה, רק כשהפעולה הזמינה היא
                    "המשך" לינארי (אותו תנאי בדיוק של כפתור המשך/סיום — אין שינוי בלוגיקת המשחק) */
                 onAdvance={
@@ -855,7 +634,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   className={`holo-panel ${engine.shakeGate ? 'gate-shake' : ''} ${engine.gateGlow ? 'gate-glow' : ''}`}
                   style={{ padding: '0.8rem 2rem', borderColor: 'rgba(255,200,0,0.35)' }}
                 >
-                  🔒 השער נעול — השתמשו בחפץ מהתיק למטה
+                  🔒 השער נעול — השתמשו בחפץ מהתיק
                 </div>
               ) : (
                 <button
@@ -895,7 +674,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                   objectPosition: 'center 45%',
                   animation: prefersReducedMotion()
                     ? undefined
-                    : `holo-kenburns 18s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
+                    : `holo-kenburns ${KEN_BURNS_SECONDS}s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
                 }}
               />
             </div>
@@ -912,6 +691,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               onComplete={onTransitionDone}
             />
           )}
+
+          {/* ד"ר הולו: עותק וירטואלי, ולכן תמיד הולוגרמה. נבנה מקווי סריקה בכניסה לשיעור, ומגיב לתשובות */}
+          <div className="holo-dr-holo-spot"><DrHoloHologram build /></div>
 
           {/* שכבת כהיה **מקומית** למלבן — האתגר קריא, והתמונה נשארת נוכחת מאחוריו */}
           {onStage && <div className="holo-stage-scrim" />}
@@ -930,7 +712,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
         {/* שכבת דילוג שקופה — קיימת רק בזמן הרצף (לא ב-'buttons' ולא אחרי שעמוד ביניים הוקלד), כך שאינה בולעת
             קליקים על הכפתורים אחרי שהופיעו ("המשך ›" כולל). לחיצה/טאץ' מקפיצים לסוף הרצף. */}
-        {reveal !== 'buttons' && !(pageDone && !lastPage) && (
+        {reveal !== 'buttons' && !puzzleOpen && !(pageDone && !lastPage) && (
           <div
             aria-hidden
             onPointerDown={skipReveal}
@@ -950,7 +732,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             className="holo-panel max-w-md w-full text-center"
             style={{ boxShadow: '0 0 40px rgba(0,246,255,0.7)', borderColor: 'var(--holo-cyan)' }}
           >
-            <div style={{ fontSize: '2rem' }}>✨</div>
+            <GateUnlock />
             <p className="text-lg mt-2">{engine.unlockBubble}</p>
             <p className="text-xs mt-3" style={{ opacity: 0.4 }}>לחצו להמשך</p>
           </div>
@@ -958,15 +740,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       )}
 
       {/* כפתור העין במשחק נמצא עכשיו בתוך ה-TopHUD (שורה כחולה עליונה) */}
-
-      {/* היתוך יהלומים — מסה קריטית (קריסטל שלישי מלא) */}
-      {fusion && <CrystalFusion onDone={() => {
-        setFusion(false)
-        /* ההיתוך הסתיים — עכשיו מריצים את מעבר-הסצנה שנדחה (אם היה) */
-        const pend = pendingAdvanceRef.current
-        pendingAdvanceRef.current = null
-        pend?.()
-      }} />}
 
       {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
       {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
@@ -982,7 +755,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         title={scene.title}
         onExit={handleExit}
         hudSlot={<>
-          <CrystalBar progress={engine.crystalProgress} steps={engine.crystalSteps} shardEvent={engine.shardEvent} />
+          <GemBar value={engine.gemValue} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
         </>}
       />

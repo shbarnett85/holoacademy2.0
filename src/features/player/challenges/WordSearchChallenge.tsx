@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { playSound } from '../../../shared/lib/sound'
+import { sounds } from '../gameFeel/engine'
 import type { Puzzle } from '../useGameEngine'
 import { scaleWordSearch, type WordSearchScale } from '../../../shared/lib/difficultyScaling'
 import { Countdown } from './failUi'
@@ -168,7 +168,7 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
           setDone('win')
           setTimeout(() => onResult({ correct: true, score: 1 }), 500) /* win בסיום */
         } else {
-          playSound('good') /* מילה שנמצאה (צעד-ביניים) */
+          sounds.step() /* מילה שנמצאה (צעד-ביניים) */
         }
       }
     }

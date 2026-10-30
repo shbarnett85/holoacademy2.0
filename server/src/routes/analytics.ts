@@ -5,7 +5,7 @@ import { AppError } from '../middleware/errors.js'
 import { requireStaff, isDemoGuest, isOrgAdminRole } from '../middleware/staffAuth.js'
 import { ERR_LEGACY_SUMMARY_MOVED } from '../../../src/shared/lib/findingsNarrative.js'
 import { demoAssignmentsList, demoAssignmentDashboard, demoStudentsLens, demoStudentDetail, demoTrends, demoChallengeTypes, demoSummary, DEMO_CLASS } from '../lib/demoAnalytics.js'
-import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag } from '../lib/activeColumn.js'
+import { hasIsActive, hasGradeLabel, hasQuestSubject, hasQuestSubjectId, hasDifficultyProfileV2, hasProgressSnapshots, hasRollingTallies, hasFictitious, hasSubjectLevels, hasSyntheticFlag, hasSessionGems } from '../lib/activeColumn.js'
 import {
   loadViewer, studentScope, requireStudentScope, canPatchLevels, assignmentVisible, questVisible, classAccess,
   isAggregateOnly, belowMinCell, MIN_CELL_SIZE, logAccess,
@@ -106,6 +106,7 @@ async function latestSessionsByStudent(questId: string, studentIds: string[], ex
     .eq('quest_id', questId)
     .in('user_id', studentIds)
   if (excludeSyn) sq = sq.eq('is_synthetic', false)
+  if (await hasSessionGems()) sq = sq.eq('is_replay', false)
   const { data } = await sq.order('started_at', { ascending: false })
   for (const s of (data ?? []) as SessionRow[]) {
     if (!map.has(s.user_id)) map.set(s.user_id, s) /* הראשון = האחרון (ordered desc) */
@@ -405,6 +406,7 @@ analyticsRouter.get('/class/:classId/assignments', async (req, res, next) => {
         .in('quest_id', questIds)
         .in('user_id', studentIds)
       if (exSyn) sq = sq.eq('is_synthetic', false)
+      if (await hasSessionGems()) sq = sq.eq('is_replay', false)
       const { data } = await sq.order('started_at', { ascending: false })
       for (const s of (data ?? []) as SessionRow[]) {
         const arr = byQuest.get(s.quest_id) ?? []
@@ -526,6 +528,7 @@ analyticsRouter.get('/assignments', async (req, res, next) => {
         .in('quest_id', questIds)
         .in('user_id', allStudentIds)
       if (exSyn) sq = sq.eq('is_synthetic', false)
+      if (await hasSessionGems()) sq = sq.eq('is_replay', false)
       const { data } = await sq.order('started_at', { ascending: false })
       sessions.push(...((data ?? []) as SessionRow[]))
     }
@@ -598,6 +601,7 @@ analyticsRouter.get('/students', async (req, res, next) => {
       .select('id, user_id, quest_id, started_at, completed_at, total_score, max_score')
       .in('user_id', studentIds)
     if (exSyn) sessQ = sessQ.eq('is_synthetic', false)
+    if (await hasSessionGems()) sessQ = sessQ.eq('is_replay', false)
     const { data: sessRows } = await sessQ.order('started_at', { ascending: false })
     const sessions = (sessRows ?? []) as SessionRow[]
     const qmeta = await questMeta(sessions.map((x) => x.quest_id))
@@ -670,6 +674,7 @@ analyticsRouter.get('/student/:studentId', async (req, res, next) => {
       .select('id, quest_id, started_at, completed_at, total_score, max_score')
       .eq('user_id', studentId)
     if (exSyn) sq = sq.eq('is_synthetic', false)
+    if (await hasSessionGems()) sq = sq.eq('is_replay', false)
     const { data: allSessions } = await sq.order('started_at', { ascending: false }).limit(200)
     const qmeta = await questMeta((allSessions ?? []).map((x) => x.quest_id as string))
     const visible = (allSessions ?? []).filter((x) => {
@@ -944,6 +949,7 @@ analyticsRouter.get('/challenge-types', async (req, res, next) => {
       .in('user_id', uniqIds)
       .not('completed_at', 'is', null)
     if (exSyn) sessQ = sessQ.eq('is_synthetic', false)
+    if (await hasSessionGems()) sessQ = sessQ.eq('is_replay', false)
     const { data: sessRows } = await sessQ.order('started_at', { ascending: false }).limit(600)
     let sessions = (sessRows ?? []) as { id: string; user_id: string; quest_id: string }[]
     const qmeta = await questMeta(sessions.map((x) => x.quest_id))

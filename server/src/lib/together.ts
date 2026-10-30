@@ -40,6 +40,7 @@ export async function generateImage(
   width: number,
   height: number,
   extraNegative?: string,
+  seed?: number,
 ): Promise<string> {
   const apiKey = process.env.TOGETHER_API_KEY?.trim()
   if (!apiKey) throw new Error('TOGETHER_API_KEY לא מוגדר ב-.env')
@@ -63,7 +64,7 @@ export async function generateImage(
         n: 1,
         /* seed אקראי בכל קריאה — בלעדיו Qwen-Image משתמש ב-seed קבוע, ואותו prompt מחזיר
            את אותה תמונה בדיוק (→ "יצירה מחדש" לא משנה כלום). */
-        seed: Math.floor(Math.random() * 2_147_483_647),
+        seed: seed ?? Math.floor(Math.random() * 2_147_483_647),
         response_format: 'b64_json',
       }),
     })

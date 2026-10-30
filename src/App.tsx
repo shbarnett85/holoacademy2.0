@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
-import CrystalDevGallery from './features/player/CrystalDevGallery'
 import MemoryDevHarness from './features/player/MemoryDevHarness'
 import SecretDeck from './features/deck/SecretDeck'
 import ErrorBoundary from './shared/ui/ErrorBoundary'
@@ -98,7 +97,6 @@ export default function App() {
           <Route path="/analytics/student/:studentId" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           <Route path="/play/:questId"   element={<Player />} />
           {/* גלריית עיצוב לשקעי הקריסטלים — DEV בלבד */}
-          {import.meta.env.DEV && <Route path="/dev/crystals" element={<CrystalDevGallery />} />}
           {import.meta.env.DEV && <Route path="/dev/memory" element={<MemoryDevHarness />} />}
           {/* גלריית ערכת הממשק למסכי מורה (בהיר + כהה) — DEV בלבד */}
           {import.meta.env.DEV && TeacherUiGallery && <Route path="/dev/teacher-ui" element={<TeacherUiGallery />} />}

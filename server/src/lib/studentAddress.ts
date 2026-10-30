@@ -50,6 +50,7 @@ export function listTextSlots(gd: GameData): TextSlot[] {
       add(p, 'question', `s:${id}:q`, id, 'question')
       add(p, 'explanationCorrect', `s:${id}:ec`, id, 'explanation')
       add(p, 'explanationIncorrect', `s:${id}:ei`, id, 'explanation')
+      add(p, 'retryHint', `s:${id}:hint`, id, 'explanation')
       add(p, 'sentence', `s:${id}:sentence`, id, 'sentence')
       add(p, 'situation', `s:${id}:situation`, id, 'situation')
       ;((p.choices as Obj[] | undefined) ?? []).forEach((c) => add(c, 'text', `s:${id}:opt:${String(c.id)}`, id, 'option'))
@@ -61,6 +62,7 @@ export function listTextSlots(gd: GameData): TextSlot[] {
         add(q, 'question', `s:${id}:fq${i}:q`, id, 'quiz')
         add(q, 'explanationCorrect', `s:${id}:fq${i}:ec`, id, 'explanation')
         add(q, 'explanationIncorrect', `s:${id}:fq${i}:ei`, id, 'explanation')
+        add(q, 'retryHint', `s:${id}:fq${i}:hint`, id, 'explanation')
         ;((q.options as unknown[] | undefined) ?? []).forEach((_o, j) => {
           const opts = q.options as string[]
           if (typeof opts[j] === 'string' && opts[j].trim()) slots.push({ key: `s:${id}:fq${i}:o${j}`, sceneId: id, field: 'option', voice: false, get: () => opts[j], set: (v) => { opts[j] = v } })

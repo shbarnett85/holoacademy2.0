@@ -114,6 +114,11 @@ export function assignmentVisible(v: Viewer, classId: string, quest: { subject_i
    · super_admin — מפעיל פלטפורמה: גישה מלאה (נרשם ביומן ברמת תלמיד). ── */
 export const canUseResults = (v: Viewer): boolean => v.role === 'teacher' || v.role === 'super_admin'
 
+/* גבישי הכיתה: תלמיד/ה מקבל/ת נתונים רק על שליחה לכיתה שלו/ה. הכיתה מגיעה מהטוקן, לעולם לא מהבקשה */
+export function mayReadClassGems(studentClassId: string | null | undefined, assignment: { class_id: string } | null | undefined): boolean {
+  return !!studentClassId && !!assignment && assignment.class_id === studentClassId
+}
+
 export function submissionVisible(v: Viewer, classId: string, quest: { subject_id: string | null; created_by: string | null }, senderId: string | null = null): boolean {
   if (!canUseResults(v)) return false
   if (isSuper(v)) return true

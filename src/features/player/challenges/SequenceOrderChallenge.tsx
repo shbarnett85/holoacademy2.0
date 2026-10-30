@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Puzzle } from '../useGameEngine'
 import { scaleSequenceOrder } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
+import { prefersReducedMotion, sounds } from '../gameFeel/engine'
 
 interface Props {
   puzzle: Puzzle
@@ -49,6 +50,25 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
   const draggingRef = useRef<string | null>(null)
   /* סדר ההצגה ההתחלתי — לטלמטריה בלבד */
   useEffect(() => { tel?.setDisplay(order, -1) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* הפריטים נצמדים למקום כמו מגנט: כל פריט שהמיקום שלו השתנה "קופץ" אליו עם overshoot קטן. תצוגה בלבד: הסדר והבדיקה לא משתנים */
+  const listRef = useRef<HTMLDivElement>(null)
+  const prevTops = useRef<Map<string, number>>(new Map())
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const next = new Map<string, number>()
+    list.querySelectorAll<HTMLElement>('[data-seq-id]').forEach((el) => {
+      const id = el.getAttribute('data-seq-id') ?? ''
+      const top = el.getBoundingClientRect().top
+      next.set(id, top)
+      const prev = prevTops.current.get(id)
+      if (prev !== undefined && Math.abs(prev - top) > 1 && !prefersReducedMotion() && typeof el.animate === 'function') {
+        el.animate([{ transform: `translateY(${prev - top}px)` }, { transform: 'translateY(0)' }], { duration: 220, easing: 'cubic-bezier(.2,1.5,.4,1)' })
+      }
+    })
+    prevTops.current = next
+  }, [order])
 
   function startDrag(id: string) {
     draggingRef.current = id
@@ -98,6 +118,8 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
     if (ok) {
       setResult('correct')
       setFinished('win')
+      /* הפריטים נדלקים אחד אחרי השני, עם צליל עולה */
+      items.forEach((_, i) => { window.setTimeout(() => sounds.chain(i), i * 150) })
       setTimeout(() => onResult({ correct: true, score: 1 }), sweepMs)
       return
     }
@@ -141,10 +163,10 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
       <FailPips remaining={remaining} total={maxAttempts} label="ניסיונות" />
 
       {finished === 'lose' && (
-        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>💥 נגמרו הניסיונות — זהו הסדר הנכון</p>
+        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>נגמרו הניסיונות — זהו הסדר הנכון</p>
       )}
 
-      <div className={`flex flex-col gap-2 ${result === 'wrong' ? 'seq-wrong' : ''}`} style={{ touchAction: 'none' }}>
+      <div ref={listRef} className={`flex flex-col gap-2 ${result === 'wrong' ? 'seq-wrong' : ''}`} style={{ touchAction: 'none' }}>
         {order.map((id, pos) => {
           const isDragging = draggingId === id
           return (

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from './supabase.js'
+import { hasSessionGems } from './activeColumn.js'
 import { WEAK_MIN_ATTEMPTS as MIN_ATTEMPTS, WEAK_RATE, type ReviewConcept } from './results/core.js'
 
 /* ── חישוב המושגים החלשים של כיתה בהדמיה — הבסיס להדמיית החזרה ──
@@ -87,12 +88,14 @@ export async function computeWeakConcepts(
   const studentIds = (members ?? []).map((m: { user_id: string }) => m.user_id)
   if (studentIds.length === 0) return []
 
-  const { data: sessRows } = await supabaseAdmin
+  let sessQ = supabaseAdmin
     .from('sessions')
     .select('id, user_id, started_at')
     .eq('quest_id', questId)
     .in('user_id', studentIds)
-    .order('started_at', { ascending: false })
+  /* משחק חוזר לא נכנס לניתוח */
+  if (await hasSessionGems()) sessQ = sessQ.eq('is_replay', false)
+  const { data: sessRows } = await sessQ.order('started_at', { ascending: false })
   const latestByStudent = new Map<string, string>()
   for (const s of (sessRows ?? []) as { id: string; user_id: string }[]) {
     if (!latestByStudent.has(s.user_id)) latestByStudent.set(s.user_id, s.id)

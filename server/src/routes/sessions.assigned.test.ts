@@ -26,7 +26,7 @@ vi.mock('../middleware/studentAuth.js', () => ({
 }))
 vi.mock('../lib/activeColumn.js', async (orig) => {
   const m = await orig<Record<string, unknown>>()
-  return { ...m, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true, hasQuestGrade: async () => true, hasQuestThumb: async () => true }
+  return { ...m, hasSessionGems: async () => false, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true, hasQuestGrade: async () => true, hasQuestThumb: async () => true }
 })
 vi.mock('../lib/subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),

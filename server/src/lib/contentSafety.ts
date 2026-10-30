@@ -84,6 +84,7 @@ function safetyCheckContent(gameData: GameData): string {
     for (const c of p?.choices ?? []) lines.push(`  תשובה: ${c.text}`)
     if (p?.explanationCorrect) lines.push(`  הסבר: ${p.explanationCorrect}`)
     if (p?.explanationIncorrect) lines.push(`  הסבר: ${p.explanationIncorrect}`)
+    if (p?.retryHint) lines.push(`  רמז: ${p.retryHint}`)
     if (p?.answer) lines.push(`  תשובה: ${p.answer}`)
     for (const a of p?.answers ?? []) lines.push(`  תשובה: ${a}`)
     if (p?.situation) lines.push(`  דילמה: ${p.situation}`)
@@ -91,7 +92,16 @@ function safetyCheckContent(gameData: GameData): string {
     for (const q of p?.questions ?? []) {
       lines.push(`  שאלת מבחן: ${q.question}`)
       for (const o of q.options ?? []) lines.push(`    אפשרות: ${o}`)
+      if (q.retryHint) lines.push(`    רמז: ${q.retryHint}`)
     }
+  }
+  /* סצנות הסיום (הסיפור נסגר / הסיפור נשאר פתוח) */
+  const gd = gameData as unknown as { endingGood?: { title?: string; narrative?: string; drHoloDialog?: string }; endingBad?: { title?: string; narrative?: string; drHoloDialog?: string } }
+  for (const [eid, e] of [['__endingGood__', gd.endingGood], ['__endingBad__', gd.endingBad]] as const) {
+    if (!e) continue
+    lines.push(`[${eid}] כותרת: ${e.title ?? ''}`)
+    if (e.narrative) lines.push(`  נרטיב: ${e.narrative}`)
+    if (e.drHoloDialog) lines.push(`  דיאלוג ד"ר הולו: ${e.drHoloDialog}`)
   }
   return lines.join('\n')
 }

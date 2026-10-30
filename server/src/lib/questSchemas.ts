@@ -33,6 +33,8 @@ export const puzzleObjectSchema = z.object({
   choices: z.array(choiceSchema).optional(),
   explanationCorrect: z.string().optional(),
   explanationIncorrect: z.string().optional(),
+  /* רמז אחרי טעות ראשונה, בלי לגלות את התשובה (ניסיון שני בבחירה מרובה) */
+  retryHint: z.string().optional(),
   /* tileSwap — גודל הרשת */
   gridSize: z.number().int().min(2).max(4).optional(),
   /* wordSearch — מילים בעברית */
@@ -64,6 +66,7 @@ export const puzzleObjectSchema = z.object({
         correctIndex: z.number().int().min(0),
         explanationCorrect: z.string().optional(),
         explanationIncorrect: z.string().optional(),
+        retryHint: z.string().optional(),
         /* יעד הלמידה שהשאלה בוחנת — תיוג פר-שאלה במבחן הסיכום */
         objectiveId: z.string().optional(),
       }),
@@ -619,6 +622,7 @@ function walkStudentText(gameData: GameData, cb: (sceneId: string, field: string
     emit(sc.id, 'question', sc.puzzle?.question)
     emit(sc.id, 'explanation', sc.puzzle?.explanationCorrect)
     emit(sc.id, 'explanation', sc.puzzle?.explanationIncorrect)
+    emit(sc.id, 'explanation', sc.puzzle?.retryHint)
     for (const q of sc.puzzle?.questions ?? []) emit(sc.id, 'quiz', q.question)
   }
   const gd = gameData as unknown as { endingGood?: { narrative?: string; drHoloDialog?: string }; endingBad?: { narrative?: string; drHoloDialog?: string } }

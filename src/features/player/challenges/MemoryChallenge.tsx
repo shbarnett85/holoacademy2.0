@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { playSound } from '../../../shared/lib/sound'
+import { sounds } from '../gameFeel/engine'
 import type { Puzzle } from '../useGameEngine'
 import { scaleMemory } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
@@ -102,7 +102,7 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
         setOver(true)
         setTimeout(() => onResult({ correct: true, score: 1 }), 600) /* win יושמע בסיום */
       } else {
-        playSound('good') /* זוג שהותאם (צעד-ביניים) */
+        sounds.step() /* זוג שהותאם (צעד-ביניים) */
       }
     } else {
       /* טעות — הופכים בחזרה אחרי השהיה */
@@ -177,8 +177,15 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
   return (
     <div className="mt-4">
       <style>{`
-        @keyframes mem-in { from{transform:rotateY(90deg);opacity:0;} to{transform:rotateY(0);opacity:1;} }
-        .mem-face { animation: mem-in 0.3s ease; }
+        /* הקלפים מתהפכים בתלת-ממד, וזוג שנמצא קופץ */
+        .mem-card { perspective: 700px; }
+        .mem-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .38s cubic-bezier(.3,.8,.4,1); }
+        .mem-inner.up { transform: rotateY(180deg); }
+        .mem-side { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px 6px; border-radius: 0.6rem; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+        .mem-side.front { transform: rotateY(180deg); }
+        @keyframes mem-match { 0%,100% { transform: translateY(0) } 45% { transform: translateY(-9px) scale(1.04) } }
+        .mem-matched { animation: mem-match .45s cubic-bezier(.3,1.4,.5,1); }
+        @media (prefers-reduced-motion: reduce) { .mem-inner { transition: none; } .mem-matched { animation: none; } }
       `}</style>
       <p className="text-sm mb-2" style={{ opacity: 0.75 }}>{puzzle.question}</p>
 
@@ -187,7 +194,7 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
 
       {/* חריץ קבוע להודעת הכישלון — כך הופעתה לא מזיזה את הלוח */}
       <p className="text-sm text-center" style={{ color: '#ff9bb3', minHeight: 20, margin: '0 0 6px', visibility: over && mistakes >= mistakeBudget ? 'visible' : 'hidden' }}>
-        💥 נגמרו הפסילות — אלו הזוגות הנכונים
+        נגמרו הפסילות — אלו הזוגות הנכונים
       </p>
 
       <div ref={wrapRef}>
@@ -203,43 +210,42 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
                 <button
                   key={card.id}
                   onClick={() => flip(idx)}
+                  className={`mem-card ${isMatched ? 'mem-matched' : ''}`}
+                  data-mem-state={isMatched ? 'matched' : isUp ? 'up' : 'down'}
                   style={{
                     /* מידות קבועות — שני צידי הקלף זהים, התוכן לעולם לא מרחיב */
                     height: '100%',
                     minWidth: 0,
-                    overflow: 'hidden',
-                    borderRadius: '0.6rem',
+                    padding: 0,
+                    background: 'none',
+                    border: 'none',
                     cursor: isUp || over ? 'default' : 'pointer',
-                    padding: '4px 6px',
                     fontSize: font.size,
                     lineHeight: 1.25,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
                     color: 'var(--holo-text)',
-                    background: isMatched
-                      ? 'rgba(0,255,150,0.12)'
-                      : isUp
-                        ? 'rgba(0,136,255,0.22)'
-                        : 'rgba(5,10,25,0.7)',
-                    border: isMatched
-                      ? '1px solid rgba(0,255,150,0.5)'
-                      : isUp
-                        ? '1px solid var(--holo-cyan)'
-                        : '1px solid rgba(0,246,255,0.2)',
-                    boxShadow: isUp ? '0 0 12px rgba(0,246,255,0.3)' : 'none',
-                    transition: 'background 0.2s, border 0.2s',
                   }}
                 >
-                  {isUp ? (
-                    /* line-clamp = רשת ביטחון: טקסט שגם בפונט המינימלי לא נכנס נחתך עם … */
-                    <span className="mem-face" style={{ display: '-webkit-box', WebkitLineClamp: font.clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {card.text}
+                  <span className={`mem-inner ${isUp ? 'up' : ''}`} style={{ display: 'block' }}>
+                    <span
+                      className="mem-side back"
+                      style={{ background: 'rgba(5,10,25,0.7)', border: '1px solid rgba(0,246,255,0.2)' }}
+                    >
+                      <span style={{ fontSize: Math.min(22, layout.cardH - 12), opacity: 0.5 }}>❔</span>
                     </span>
-                  ) : (
-                    <span style={{ fontSize: Math.min(22, layout.cardH - 12), opacity: 0.5 }}>❔</span>
-                  )}
+                    <span
+                      className="mem-side front"
+                      style={{
+                        background: isMatched ? 'rgba(0,255,150,0.12)' : 'rgba(0,136,255,0.22)',
+                        border: isMatched ? '1px solid rgba(0,255,150,0.5)' : '1px solid var(--holo-cyan)',
+                        boxShadow: '0 0 12px rgba(0,246,255,0.3)',
+                      }}
+                    >
+                      {/* line-clamp = רשת ביטחון: טקסט שגם בפונט המינימלי לא נכנס נחתך עם … */}
+                      <span style={{ display: '-webkit-box', WebkitLineClamp: font.clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {isUp ? card.text : ''}
+                      </span>
+                    </span>
+                  </span>
                 </button>
               )
             })}

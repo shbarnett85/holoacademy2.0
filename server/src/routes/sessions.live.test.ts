@@ -35,7 +35,7 @@ vi.mock('../middleware/studentAuth.js', () => ({
 }))
 vi.mock('../lib/activeColumn.js', async (orig) => {
   const m = await orig<Record<string, unknown>>()
-  return { ...m, hasSessionLive: async () => h.flags.live }
+  return { ...m, hasSessionGems: async () => false, hasClassEffects: async () => false, hasSessionLive: async () => h.flags.live }
 })
 
 import { errorHandler } from '../middleware/errors.js'

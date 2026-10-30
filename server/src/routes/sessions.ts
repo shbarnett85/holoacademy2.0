@@ -7,12 +7,14 @@ import { requireStudent } from '../middleware/studentAuth.js'
 import { warn } from '../lib/log.js'
 import { questSubjectOut } from '../lib/subjects.js'
 import { recalibrateProfile, ensureSubjectLevels } from '../lib/profileCalibration.js'
-import { hasSessionLive, hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt, hasQuestGrade, hasQuestThumb } from '../lib/activeColumn.js'
+import { hasSessionLive, hasSessionCrystals, hasProgressSnapshots, hasQuestSubject, hasQuestVariants, hasQuestSubjectId, hasSubjectLevels, hasAssignmentDueAt, hasQuestGrade, hasQuestThumb, hasSessionGems, hasClassEffects } from '../lib/activeColumn.js'
 import { THUMB_COLUMNS, thumbsFor } from '../lib/lessonThumbStore.js'
 import { lessonGradeRange } from '../../../src/shared/lib/lessonGrade.js'
 import { lessonState, isLate } from '../../../src/shared/lib/lessonState.js'
 import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibration.js'
 import { parseAnswers, parseMoral, parseGateEvents, toGateEventRow, writeAnswerTelemetry } from '../lib/answerWriter.js'
+import { effectLevelOf, GEM_TOTAL, wholeGems } from '../../../src/shared/lib/gemModel.js'
+import { classGemsFor, classGemsForLessons } from '../lib/classGems.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
 export const sessionsRouter = Router()
@@ -41,11 +43,11 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     for (const r of asgRows) { const cur = latestAsg.get(r.quest_id); if (!cur || r.created_at > cur.created_at) latestAsg.set(r.quest_id, r) }
     const assignedAtMap = new Map([...latestAsg].map(([id, r]) => [id, r.created_at]))
 
-    const [withGrade, withThumb] = await Promise.all([hasQuestGrade(), hasQuestThumb()])
+    const [withGrade, withThumb, withGems] = await Promise.all([hasQuestGrade(), hasQuestThumb(), hasSessionGems()])
     const [questResult, sessionResult] = await Promise.all([
       supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by, difficulty_settings' + (withGrade ? ', grade_min, grade_max' : '') + (withThumb ? ', ' + THUMB_COLUMNS : '')).in('id', questIds),
       supabaseAdmin.from('sessions')
-        .select('quest_id, completed_at, crystals, total_score, max_score')
+        .select('quest_id, completed_at, crystals, total_score, max_score' + (withGems ? ', gems' : ''))
         .eq('user_id', req.student!.userId)
         .in('quest_id', questIds),
     ])
@@ -81,15 +83,17 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     }
 
     /* מיפוי quest_id → מצב session הטוב ביותר */
-    type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null }
+    type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null; gems?: number | null }
     const sessionsByQuest = new Map<string, SessionRow[]>()
-    for (const s of (sessionResult.data ?? []) as SessionRow[]) {
+    for (const s of (sessionResult.data ?? []) as unknown as SessionRow[]) {
       const arr = sessionsByQuest.get(s.quest_id) ?? []
       arr.push(s)
       sessionsByQuest.set(s.quest_id, arr)
     }
 
     const dueAtOf = (questId: string): string | null => latestAsg.get(questId)?.due_at ?? null
+    /* המסע: השיעורים שכל הכיתה סגרה בהם את הסיפור (סימון משותף). נכשל — פשוט בלי הסימון */
+    const closedLessons = withGems ? await classGemsForLessons(classId, questIds).catch(() => new Set<string>()) : new Set<string>()
     const quests = questRows.map((q) => {
       const gd = q.game_data as GameData
       const entryScene = gd?.scenes?.find((s) => s.id === gd.entrySceneId) ?? gd?.scenes?.[0]
@@ -97,7 +101,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
       const sessions = sessionsByQuest.get(q.id) ?? []
       const completedSession = sessions
         .filter((s) => s.completed_at)
-        .sort((a, b) => (b.crystals ?? 0) - (a.crystals ?? 0))[0] ?? null
+        .sort((a, b) => (b.gems ?? b.crystals ?? 0) - (a.gems ?? a.crystals ?? 0))[0] ?? null
       /* "באיחור" = ההשלמה הראשונה של התלמיד הייתה אחרי מועד ההגשה (isLate — פונקציה אחת) */
       const firstDone = sessions.filter((s) => s.completed_at).sort((a, b) => String(a.completed_at).localeCompare(String(b.completed_at)))[0] ?? null
       const sessionStatus = completedSession ? 'completed'
@@ -124,6 +128,9 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         late: isLate(firstDone?.completed_at, dueAtOf(q.id)),
         sessionStatus,
         crystals: completedSession?.crystals ?? null,
+        /* הגבישים של המשחק הטוב ביותר — המסע והכרטיס. שיעור שנעצר באמצע: בלי גבישים */
+        gems: completedSession ? (completedSession.gems ?? null) : null,
+        classClosed: closedLessons.has(q.id),
         maxScore: completedSession?.max_score ?? null,
       }
     })
@@ -141,14 +148,23 @@ const EVENT_TYPES = [
 
 /* ודא שה-session שייך לתלמיד המחובר */
 async function loadOwnSession(req: Request, sessionId: string) {
+  const withGems = await hasSessionGems()
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('id, user_id, quest_id, completed_at')
+    .select('id, user_id, quest_id, completed_at' + (withGems ? ', is_replay' : ''))
     .eq('id', sessionId)
     .single()
-  if (error || !data) throw new AppError(404, 'session לא נמצא')
-  if (data.user_id !== req.student!.userId) throw new AppError(403, 'אין גישה ל-session זה')
-  return data as { id: string; user_id: string; quest_id: string; completed_at: string | null }
+  const row = data as unknown as { id: string; user_id: string; quest_id: string; completed_at: string | null; is_replay?: boolean } | null
+  if (error || !row) throw new AppError(404, 'session לא נמצא')
+  if (row.user_id !== req.student!.userId) throw new AppError(403, 'אין גישה ל-session זה')
+  return row
+}
+
+/* עוצמת האפקטים של הכיתה של התלמיד/ה. בלי כיתה/בלי עמודה — בינוני */
+async function effectsLevelOfClass(classId: string | null | undefined) {
+  if (!classId || !(await hasClassEffects())) return effectLevelOf(null)
+  const { data } = await supabaseAdmin.from('classes').select('effects_level').eq('id', classId).maybeSingle()
+  return effectLevelOf((data as { effects_level?: string | null } | null)?.effects_level)
 }
 
 /* ספירת אתגרים בהדמיה — לקביעת max_score */
@@ -176,6 +192,8 @@ sessionsRouter.post('/start', async (req, res, next) => {
     const { questId, assignmentId } = parsed.data
     const userId = req.student!.userId
     const withCrystals = await hasSessionCrystals()
+    const withGems = await hasSessionGems()
+    const effectsLevel = await effectsLevelOfClass(req.student!.classId)
 
     /* resume — session פתוח (ללא completed_at) לאותו תלמיד+הדמיה */
     const { data: open } = await supabaseAdmin
@@ -197,9 +215,18 @@ sessionsRouter.post('/start', async (req, res, next) => {
         inventory: o.inventory ?? [],
         visitedScenes: o.visited_scenes ?? [],
         crystals: withCrystals ? (o.crystals ?? 0) : 0,
-        variantGameData,
+        variantGameData, effectsLevel,
+        isReplay: o.is_replay === true,
       })
       return
+    }
+
+    /* משחק חוזר = כבר יש לתלמיד/ה משחק שהגיע לסוף באותו שיעור (gems נכתב רק למשחק כזה; יציאה באמצע לא נספרת).
+       לא נכנס לאנליטיקה, לכיול ולזיהוי הדפוסים — משפר רק את שכבת המשחק. */
+    let isReplay = false
+    if (withGems) {
+      const { data: done } = await supabaseAdmin.from('sessions').select('id').eq('user_id', userId).eq('quest_id', questId).not('gems', 'is', null).limit(1)
+      isReplay = (done ?? []).length > 0
     }
 
     /* max_score לפי מספר האתגרים בהדמיה */
@@ -217,11 +244,12 @@ sessionsRouter.post('/start', async (req, res, next) => {
     }
     if (assignmentId) payload.assignment_id = assignmentId
     if (withCrystals) payload.crystals = 0
+    if (withGems) payload.is_replay = isReplay
 
     const { data: created, error } = await supabaseAdmin.from('sessions').insert(payload).select('id').single()
     if (error || !created) throw new AppError(500, 'יצירת session נכשלה: ' + (error?.message ?? ''))
     const variantGameData = await loadVariantGameData(questId, userId)
-    res.status(201).json({ sessionId: created.id, resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0, variantGameData })
+    res.status(201).json({ sessionId: created.id, resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0, variantGameData, effectsLevel, isReplay })
   } catch (err) {
     next(err)
   }
@@ -333,6 +361,17 @@ sessionsRouter.post('/:id/live', async (req, res, next) => {
   }
 })
 
+/* ── GET /api/sessions/class-gems/:questId — גבישי הכיתה: הסכום, היעד וכמה מהם של התלמיד/ה. בלי שמות ובלי כמה סיימו ──
+   הכיתה נלקחת מהטוקן בלבד, ושיעור שלא נשלח לכיתה הזאת מחזיר available:false. */
+sessionsRouter.get('/class-gems/:questId', async (req, res, next) => {
+  try {
+    if (!z.string().uuid().safeParse(req.params.questId).success) throw new AppError(400, 'בקשה לא תקינה')
+    res.json(await classGemsFor({ studentId: req.student!.userId, classId: req.student!.classId ?? null }, req.params.questId))
+  } catch (err) {
+    next(err)
+  }
+})
+
 /* ── GET /api/sessions/:id — שליפת snapshot ל-resume ── */
 sessionsRouter.get('/:id', async (req, res, next) => {
   try {
@@ -405,6 +444,10 @@ const completeSchema = z.object({
   answers: z.unknown().optional(),
   moralChoices: z.unknown().optional(),
   gateEvents: z.unknown().optional(),
+  /* שכבת המשחק: הנקודות שנצברו, המקסימום, והאם המשחק הגיע לסוף. יציאה באמצע (finished=false) לא נספרת כמשחק לגבישים */
+  gemPoints: z.number().min(0).max(1000).optional().catch(undefined),
+  gemPossible: z.number().min(0).max(1000).optional().catch(undefined),
+  finished: z.boolean().optional().catch(undefined),
 })
 
 sessionsRouter.post('/:id/complete', async (req, res, next) => {
@@ -416,6 +459,26 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
     const tAnswers = parseAnswers(parsed.data.answers)
     const tMoral = parseMoral(parsed.data.moralChoices)
     const tGate = parseGateEvents(parsed.data.gateEvents)
+
+    /* שכבת המשחק: השרת מחשב את הגבישים השלמים מהנקודות. מה שנשמר בעמודת crystals הישנה זהה, לתאימות */
+    const withGems = await hasSessionGems()
+    const gemPatch: Record<string, unknown> = {}
+    if (withGems && parsed.data.finished === true && parsed.data.gemPoints !== undefined && parsed.data.gemPossible !== undefined) {
+      const possible = parsed.data.gemPossible
+      const points = Math.min(parsed.data.gemPoints, possible)
+      gemPatch.gem_points = points
+      gemPatch.gems = Math.min(GEM_TOTAL, wholeGems(points, possible))
+    }
+
+    /* משחק חוזר: מעדכן רק את שכבת המשחק. בלי events, בלי כיול, בלי snapshot ובלי answers */
+    if (session.is_replay === true) {
+      const patch: Record<string, unknown> = { completed_at: new Date().toISOString(), total_score: totalScore, ...gemPatch }
+      if (crystalsFull !== undefined && (await hasSessionCrystals())) patch.crystals = crystalsFull
+      const { error } = await supabaseAdmin.from('sessions').update(patch).eq('id', session.id)
+      if (error) throw new AppError(500, 'סיום ה-session נכשל: ' + error.message)
+      res.json({ ok: true, profileUpdated: false, replay: true })
+      return
+    }
 
     /* מדדים לכיול — שיעור הצלחה פר סוג + זמן ממוצע לסצנה (זמני קריאה) */
     const perType = perTypeFromChallenges(challenges ?? [])
@@ -479,7 +542,7 @@ sessionsRouter.post('/:id/complete', async (req, res, next) => {
       }
     }
 
-    const patch: Record<string, unknown> = { completed_at: new Date().toISOString(), total_score: totalScore }
+    const patch: Record<string, unknown> = { completed_at: new Date().toISOString(), total_score: totalScore, ...gemPatch }
     if (crystalsFull !== undefined && (await hasSessionCrystals())) patch.crystals = crystalsFull
     const { error } = await supabaseAdmin.from('sessions').update(patch).eq('id', session.id)
     if (error) throw new AppError(500, 'סיום ה-session נכשל: ' + error.message)
