@@ -13,6 +13,7 @@ interface Props {
   onSaved: (scene: Scene) => void
   /* יצירה מחדש של התמונה — מנוהל ב-QuestPreview (מעדכן את ה-store) */
   onRegenerateImage: (sceneId: string) => void
+  fixedLab?: boolean
   regenerating: boolean
   /* יעדי הלמידה של ההדמיה — לבורר תיוג האתגר (רק כשהוגדרו יעדים ביצירה) */
   objectives?: { id: string; text: string }[]
@@ -49,6 +50,7 @@ export default function SceneEditModal({
   onClose,
   onSaved,
   onRegenerateImage,
+  fixedLab = false,
   regenerating,
   objectives = [],
   readingScale = null,
@@ -128,7 +130,7 @@ export default function SceneEditModal({
     const t = title.trim()
     if (!t) throw new Error('כותרת הסצנה לא יכולה להיות ריקה')
     if (t.length > 80) throw new Error('כותרת הסצנה ארוכה מדי (עד 80 תווים)')
-    const payload: Record<string, unknown> = { sceneId: scene.id, title: t, narrative, imagePrompt }
+    const payload: Record<string, unknown> = { sceneId: scene.id, title: t, narrative, ...(fixedLab ? {} : { imagePrompt }) }
     if (dialog !== (scene.drHoloDialog ?? '')) payload.drHoloDialog = dialog
     if (hasPuzzle) {
       const puzzlePayload: Record<string, unknown> = {
@@ -372,7 +374,7 @@ export default function SceneEditModal({
             )}
 
             {/* memory — מושג + הגדרה */}
-            {puzzleType === 'memory' && (
+            {(puzzleType === 'memory' || puzzleType === 'matchPairs') && (
               <div className="mt-3 flex flex-col gap-2">
                 <span style={{ ...labelStyle, marginBottom: 0 }}>זוגות מושג ↔ הגדרה</span>
                 {pairs.map((p, i) => (
@@ -502,7 +504,8 @@ export default function SceneEditModal({
           </div>
         )}
 
-        {/* פרומפט תמונה + thumbnail */}
+        {/* פרומפט תמונה + thumbnail. למעבדה הקבועה אין תמונה משלה */}
+        {!fixedLab && (
         <div className="mb-4">
           <div className="flex items-center gap-2 mb-1">
             <label style={{ ...labelStyle, marginBottom: 0 }}>פרומפט לתמונה (imagePrompt)</label>
@@ -551,6 +554,7 @@ export default function SceneEditModal({
             />
           </div>
         </div>
+        )}
 
         {error && (
           <p className="text-sm mb-3" style={{ color: 'var(--t5)' }}>

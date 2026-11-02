@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { labMoodsOf } from '../../../src/shared/lib/holoMoods.js'
 import { isSubjectCode } from '../../../src/shared/lib/subjects.js'
 
 /* ── סכמות zod לולידציה של ה-GameData המוחזר מ-Claude ── */
@@ -116,6 +117,8 @@ export const gameDataSchema = z
     isHistorical: z.boolean().optional(),
     endingGood: endingSchema.optional(),
     endingBad: endingSchema.optional(),
+    /* מצבי הרוח של ד"ר הולו במסכי המעבדה. לא מפיל ולידציה: ערך לא תקין הופך ל"רגיל" (applyLabPolicy) */
+    holoMoods: z.unknown().optional(),
   })
   .superRefine((data, ctx) => {
     const add = (message: string) => ctx.addIssue({ code: 'custom', message })
@@ -161,6 +164,13 @@ export const gameDataSchema = z
         case 'memory':
           if (!p.pairs || p.pairs.length < 2) add(`${where}: זיכרון חייב מערך "pairs" עם לפחות 2 זוגות {a,b}`)
           break
+        case 'matchPairs': {
+          if (!p.pairs || p.pairs.length < 3) add(`${where}: התאמת זוגות חייבת מערך "pairs" עם לפחות 3 זוגות {a,b}`)
+          const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
+          if (p.pairs && (new Set(p.pairs.map((x) => norm(x.a))).size !== p.pairs.length || new Set(p.pairs.map((x) => norm(x.b))).size !== p.pairs.length))
+            add(`${where}: בהתאמת זוגות כל מושג וכל הסבר חייבים להיות שונים זה מזה, אחרת יש יותר מתשובה נכונה אחת`)
+          break
+        }
         case 'wordCompletion': {
           const blanks = (p.sentence?.match(/___/g) ?? []).length
           if (blanks === 0) add(`${where}: השלמת מילים חייבת "sentence" המכיל את הסימן ___ במקום החסר`)
@@ -301,7 +311,7 @@ const stripQuotes = (s?: string): string => (s ?? '').replace(/["'`׳״]/g, '').
    חובה לבדוק "לא נכון" לפני "נכון" — "לא נכון" מכיל את "נכון" כתת-מחרוזת. */
 export function assertedTrueFalseAnswer(explanationCorrect?: string, explanationIncorrect?: string): 'true' | 'false' | null {
   const ei = stripQuotes(explanationIncorrect)
-  const m = ei.match(/התשובה הנכונה היא\s+(לא נכון|נכון)/)
+  const m = ei.match(/התשובה הנכונה היא:?\s+(לא נכון|נכון)/)
   if (m) return m[1] === 'לא נכון' ? 'false' : 'true'
   const ec = stripQuotes(explanationCorrect)
   /* "נכון מאוד שזה לא נכון" / "נכון מאוד שבחרתם לא נכון" → מצהיר על "לא נכון" */
@@ -383,6 +393,7 @@ const PUZZLE_DEFAULT_QUESTION: Record<string, string> = {
   slidingPuzzle: 'השלימו את התמונה',
   wordSearch: 'מצאו את כל המילים המוסתרות',
   memory: 'התאימו בין הזוגות',
+  matchPairs: 'התאימו כל מושג להסבר שלו',
   sequenceOrder: 'סדרו את הפריטים בסדר הנכון',
   wordCompletion: 'השלימו את המילים החסרות',
   hangman: 'נחשו את המילה',
@@ -624,6 +635,8 @@ function walkStudentText(gameData: GameData, cb: (sceneId: string, field: string
     emit(sc.id, 'explanation', sc.puzzle?.explanationIncorrect)
     emit(sc.id, 'explanation', sc.puzzle?.retryHint)
     for (const q of sc.puzzle?.questions ?? []) emit(sc.id, 'quiz', q.question)
+    for (const c of sc.puzzle?.choices ?? []) emit(sc.id, 'option', c.text)
+    for (const pr of sc.puzzle?.pairs ?? []) { emit(sc.id, 'pair', pr.a); emit(sc.id, 'pair', pr.b) }
   }
   const gd = gameData as unknown as { endingGood?: { narrative?: string; drHoloDialog?: string }; endingBad?: { narrative?: string; drHoloDialog?: string } }
   emit('__endingGood__', 'narrative', gd.endingGood?.narrative)
@@ -642,6 +655,8 @@ const KNOWN_ERROR_PATTERNS: { re: RegExp; problem: string; correction: string }[
   { re: /\{DR_HOLO\}/, problem: 'ה-placeholder {DR_HOLO} דלף לטקסט המוצג לתלמיד (מותר רק ב-imagePrompt)', correction: 'ד"ר הולו' },
   /* מינוח (CLAUDE.md "מינוח"): היחידה נקראת "שיעור". "הדמיה/הדמיות/הדמיית" (גם עם תחילית) אינן בשימוש; "הדמיון" ו"הדמים" הן מילים אחרות ולא נתפסות. */
   { re: /הדמי(?:ה|ות|ית|יה|יות|יית)/, problem: 'המינוח הישן של היחידה אינו בשימוש — היחידה נקראת "שיעור"', correction: 'שיעור (זכר — תקן את כל המשפט: פעלים, תארים, כינויים). עולם מדומה בסיפור: "סימולציה"; מעבר בין שלבים: "שלב חדש"; המחשה חזותית: "המחשה"' },
+  /* אחרי מספר: "60 שקלים", גם אם בדיבור יומיומי אומרים "60 שקל". מספר 1 לא נתפס ("שקל אחד") */
+  { re: /(?<![\d.,])(?:[2-9]|\d+[.,]\d+|[1-9]\d+)\s+שקל(?![א-ת])/, problem: 'אחרי מספר כותבים "שקלים" ברבים', correction: '60 שקלים (ולא 60 שקל)' },
   { re: /(?<![א-ת])אחת\s+אבן(?![א-ת])/, problem: 'סדר מילים הפוך (מספר לפני שם העצם) — לא עברית תקינה', correction: 'אבן אחת' },
   /* ביטויי-הכרזה קלישאתיים של ד"ר הולו (הנוסחאות הקבועות שבוטלו): המהלך הפדגוגי
      נשמר, ההכרזה עליו אסורה — עשה את המהלך ישירות. */
@@ -719,3 +734,36 @@ export function lintRepetition(gameData: GameData): { sceneId: string; problem: 
   })
   return out
 }
+
+/* מדיניות המעבדה: הפתיחה והסיכום מתרחשים במעבדה הקבועה, וד"ר הולו מוקרן מעל התמונה בנגן. לכן בשיעור חדש
+   אין תמונת פתיחה וסיום ואין {DR_HOLO} באף פרומפט, גם אם המודל העתיק אותם. מצבי הרוח עוברים ולידציה. לתמונת פתיחה יש חריג אחד: פאזל ההחלפה משתמש בתמונת הסצנה */
+export function applyLabPolicy(gd: GameData): void {
+  const raw = gd as unknown as {
+    scenes: { id: string; imagePrompt?: string; drHoloExpression?: string; puzzle?: { type?: string } }[]
+    entrySceneId: string
+    holoMoods?: unknown
+    endingGood?: { imagePrompt?: string; drHoloExpression?: string }
+    endingBad?: { imagePrompt?: string; drHoloExpression?: string }
+  }
+  for (const s of raw.scenes) {
+    delete s.drHoloExpression
+    if (s.id === raw.entrySceneId && !needsSceneImage(s)) delete s.imagePrompt
+    else if (s.imagePrompt) s.imagePrompt = s.imagePrompt.replace(/\s*\{DR_HOLO\}\s*/g, ' ').replace(/\s+([,.])/g, '$1').trim()
+  }
+  for (const e of [raw.endingGood, raw.endingBad]) {
+    if (e) { delete e.imagePrompt; delete e.drHoloExpression }
+  }
+  raw.holoMoods = labMoodsOf(raw.holoMoods)
+}
+
+/* התמונה הראשונה שהתלמיד רואה בשיעור היא establishing shot, ולכן אסור שיהיו בה דמויות.
+   זו סצנת התוכן שאחרי המעבדה, אותה סצנה שמוצגת בפורטל בפתיחה (labPortalImages), וגם המעבדה עצמה כשיש בה פאזל החלפה */
+export function isEstablishingScene(scene: { id: string; puzzle?: { type?: string } }, gd: { scenes: { id: string; nextSceneId?: string | null; choices?: { nextSceneId?: string | null }[] }[]; entrySceneId: string }): boolean {
+  if (scene.id === gd.entrySceneId) return needsSceneImage(scene)
+  const entry = gd.scenes.find((s) => s.id === gd.entrySceneId)
+  const firstId = entry?.nextSceneId ?? entry?.choices?.find((c) => c.nextSceneId)?.nextSceneId ?? gd.scenes.find((s) => s.id !== gd.entrySceneId)?.id
+  return scene.id === firstId
+}
+
+/* סצנת המעבדה צריכה תמונה רק בפאזל החלפה (הוא בנוי מתמונת הסצנה) */
+export const needsSceneImage = (scene: { puzzle?: { type?: string } }): boolean => scene.puzzle?.type === 'tileSwap' || scene.puzzle?.type === 'slidingPuzzle'

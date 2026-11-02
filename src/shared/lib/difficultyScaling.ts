@@ -40,6 +40,7 @@ export function difficultyLabel(level: number): string {
    קבועים מרוכזים כאן לכיוונון קל. */
 export const FAIL_BUDGET = {
   memoryMistakes: 10,
+  matchPairsMistakes: 4,
   tileSwapBadSwaps: 5,
   wordCompletionAttempts: 3,
   sequenceOrderAttempts: 3,
@@ -188,6 +189,20 @@ export function scaleMemory(level: number): { pairCount: number; maxMistakes: nu
       : l <= 12
         ? 'התאמת מושג↔הגדרה מדויקת הדורשת הבנה (לא חזרה מילולית).'
         : 'התאמת מושג↔הגדרה הדורשת ידע אמיתי — לא זיכרון מיקום בלבד. כלול מושגים קרובים/דומים מאוד כך שצריך להבין לעומק את ההגדרה כדי להתאים נכון.'
+  return { pairCount, maxMistakes, guidance }
+}
+
+/* ── התאמת זוגות (ליניארי): 3 זוגות שונים בעליל → 6 זוגות קרובים (6 שורות הן מה שנכנס בלי גלילה). הכול גלוי, ולכן הקושי הוא בידע ובמספר הזוגות ── */
+export function scaleMatchPairs(level: number): { pairCount: number; maxMistakes: number; guidance: string } {
+  const l = clampLevel(level)
+  const pairCount = Math.round(lerp20(l, 3, 6))
+  const maxMistakes = FAIL_BUDGET.matchPairsMistakes
+  const guidance =
+    l <= 6
+      ? 'המושגים שונים זה מזה בעליל, וההסבר פשוט וקונקרטי.'
+      : l <= 12
+        ? 'התאמה שדורשת הבנה: ההסבר מנוסח במילים אחרות ולא חוזר על המושג.'
+        : 'מושגים קרובים מאוד שקל להתבלבל ביניהם, כך שצריך להבין לעומק את ההבדל כדי להתאים נכון.'
   return { pairCount, maxMistakes, guidance }
 }
 

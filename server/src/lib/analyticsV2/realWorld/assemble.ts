@@ -27,7 +27,7 @@ import {
 /* סוגי אתגר ברירת-בחירה (הטיית מיקום): trueFalse מחוץ לסדרה — הסדר שלו קבוע ו"בחירת הראשון" אינה הטיית מיקום */
 export const POSITION_BIAS_TYPES: readonly string[] = ['multipleChoice', 'finalQuiz']
 /* סוגי אתגר רב-ניסיוניים / עם כפתור ויתור (התמדה). multipleChoice / trueFalse / finalQuiz — ניסיון יחיד ולכן לא נספרים */
-export const PERSISTENCE_TYPES: readonly string[] = ['memory', 'tileSwap', 'wordSearch', 'wordCompletion', 'sequenceOrder', 'hangman']
+export const PERSISTENCE_TYPES: readonly string[] = ['memory', 'matchPairs', 'tileSwap', 'wordSearch', 'wordCompletion', 'sequenceOrder', 'hangman']
 /* ספי הכיול 60/80 (CALIBRATION) לרמת מושג נגזרת */
 const CONCEPT_STEP_UP = 0.8
 const CONCEPT_STEP_DOWN = 0.6

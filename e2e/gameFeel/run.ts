@@ -5,7 +5,6 @@
      shots     צילום כל סוג אתגר בשלוש העוצמות, ב-1366×768 ובטלפון לרוחב
      perf      האטת מעבד פי 4 (CDP): FPS במעוף גביש ובקונפטי, וירידה אוטומטית לעדין
      reduced   prefers-reduced-motion: אין אנימציה רצה, אין חלקיקים, הגבישים מתמלאים מיד
-     hologram  ד"ר הולו בארבע ההבעות, ובמסך השיעור
    הרצה:  npx tsx e2e/gameFeel/run.ts --out <dir> [--section flow,shots,...]   יוצא עם קוד 1 אם משהו נכשל.
    ─────────────────────────────────────────────────────────── */
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -17,7 +16,7 @@ import { calibrate, defaultProfileForGrade, perTypeFromChallenges } from '../../
 const args = process.argv.slice(2)
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d }
 const OUT = opt('out', 'e2e/out/gamefeel')
-const SECTIONS = opt('section', 'flow,shots,gate,perf,reduced,hologram').split(',')
+const SECTIONS = opt('section', 'flow,shots,gate,perf,reduced').split(',')
 const ONLY_TYPES = opt('types', '').split(',').filter(Boolean)
 mkdirSync(OUT, { recursive: true })
 
@@ -491,36 +490,8 @@ async function reduced(browser: Browser): Promise<void> {
   for (const [k, v] of Object.entries(seen)) check(v.length === 0, `${k}: ${v.length} אנימציות רצות${v.length ? ` (${[...new Set(v)].slice(0, 6).join(', ')})` : ''}`)
 }
 
-/* ── hologram ── */
-async function hologram(browser: Browser): Promise<void> {
-  console.log('\n== hologram ==')
-  const ctx = await newCtx(browser, 1366, 768, false, 2)
-  const { page } = await open(ctx, lesson(['multipleChoice']), 'medium')
-  await page.waitForTimeout(1800)
-  await shot(page, 'hologram-scene-1366')
-  const spot = page.locator('[data-dr-holo]').first()
-  check(await spot.count() === 1, 'ד"ר הולו על המסך')
-  const loaded = await page.evaluate(() => { const i = document.querySelector<HTMLImageElement>('[data-dr-holo] img'); return !!i && i.complete && i.naturalWidth > 0 })
-  check(loaded, 'נכס ההבעה נטען (לא נפל לסמל)')
-  for (const mood of ['neutral', 'happy', 'thinking', 'surprised']) {
-    await page.evaluate((m) => (window as any).__holoFx.setMood(m), mood)
-    await page.waitForTimeout(350)
-    await page.locator('[data-dr-holo]').first().screenshot({ path: path.join(OUT, `hologram-${mood}.png`) })
-  }
-  await page.evaluate(() => (window as any).__holoFx.setMood('neutral'))
-  /* מותר להבהב רק נדיר */
-  const flicker = await page.evaluate(() => {
-    const a = document.getAnimations().find((x) => (x as CSSAnimation).animationName === 'dr-holo-flicker')
-    return a ? (a.effect as KeyframeEffect).getTiming().duration : null
-  })
-  results.hologramFlicker = flicker
-  await page.close()
-  await ctx.close()
-}
-
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required'] })
 if (SECTIONS.includes('flow')) await flow(browser)
-if (SECTIONS.includes('hologram')) await hologram(browser)
 if (SECTIONS.includes('reduced')) await reduced(browser)
 if (SECTIONS.includes('shots')) await shots(browser)
 if (SECTIONS.includes('gate')) await gate(browser)

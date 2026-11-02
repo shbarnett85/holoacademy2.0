@@ -5,6 +5,7 @@ import type { Puzzle } from './useGameEngine'
 import TileSwapChallenge from './challenges/TileSwapChallenge'
 import WordSearchChallenge from './challenges/WordSearchChallenge'
 import MemoryChallenge from './challenges/MemoryChallenge'
+import MatchPairsChallenge from './challenges/MatchPairsChallenge'
 import WordCompletionChallenge from './challenges/WordCompletionChallenge'
 import SequenceOrderChallenge from './challenges/SequenceOrderChallenge'
 import HangmanChallenge from './challenges/HangmanChallenge'
@@ -61,6 +62,9 @@ interface Result {
   secondTry?: boolean
 }
 
+/* אתגרים שהפתרון שלהם מוצג בתוך האתגר עצמו: האתגר נשאר על המסך עד הלחיצה על "המשך" (כלל 11 של תחושת משחק) */
+const SOLUTION_IN_CHALLENGE = new Set(['tileSwap', 'slidingPuzzle', 'wordSearch', 'memory', 'matchPairs', 'wordCompletion', 'sequenceOrder', 'hangman'])
+
 /* רוחב המודאל לפי סוג האתגר — חלקם דורשים שטח רחב יותר */
 function maxWidthFor(type?: string): string {
   switch (type) {
@@ -68,6 +72,7 @@ function maxWidthFor(type?: string): string {
     case 'slidingPuzzle':
     case 'wordSearch':
     case 'memory':
+    case 'matchPairs':
     case 'sequenceOrder':
     case 'hangman':
     case 'finalQuiz':
@@ -182,6 +187,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   const type = puzzle.type
   const correctChoiceText = puzzle.choices?.find((c) => c.isCorrect)?.text
   const retryAllowed = hasSecondTry(type, isTrueFalse(type, puzzle.choices))
+  const keepsChallenge = SOLUTION_IN_CHALLENGE.has(type ?? '')
 
   /* ── פאנל התוצאה: הסבר מעמיק / סיכום מבחן / הצלחה-כישלון ── */
   function renderResult(res: Result) {
@@ -217,28 +223,37 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
       body = good ? 'מעולה! ממשיכים הלאה 🌟' : 'לא נורא — אפשר לנסות שוב במשחק הבא.'
     }
 
+    /* הפתרון מעל הפס: הפס קומפקטי ונשאר בתחתית הפאנל, כדי שהפתרון וכפתור ההמשך ייראו יחד */
+    const compact = keepsChallenge
     return (
       <div
-        ref={revealEl}
-        className="rounded-xl p-4 mt-4 text-start"
-        style={good
-          ? { background: 'rgba(0,255,150,0.08)', border: '1px solid rgba(0,255,150,0.45)' }
-          : { background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.45)' }}
+        ref={compact ? undefined : revealEl}
+        data-puzzle-result={compact ? 'bar' : 'panel'}
+        className={compact ? 'rounded-xl mt-3 text-start flex flex-wrap items-center gap-x-4 gap-y-2' : 'rounded-xl p-4 mt-4 text-start'}
+        style={{
+          ...(good
+            ? { background: 'rgba(0,255,150,0.08)', border: '1px solid rgba(0,255,150,0.45)' }
+            : { background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.45)' }),
+          ...(compact ? { padding: '0.55rem 0.8rem', position: 'sticky', bottom: 0, zIndex: 3, backgroundColor: good ? '#0a2a2a' : '#2a2412' } : {}),
+        }}
       >
-        <div className="font-bold mb-2" style={{ color: good ? '#5fffb0' : '#ffce5e' }}>{header}</div>
-        <p className="leading-relaxed" style={{ color: 'var(--holo-text)' }}>{body}</p>
-        <div className="text-center mt-4">
+        <div style={compact ? { flex: '1 1 7rem', minWidth: 0 } : undefined}>
+          <div className={compact ? 'font-bold' : 'font-bold mb-2'} style={{ color: good ? '#5fffb0' : '#ffce5e' }}>{header}</div>
+          {/* בפס: רק הסבר שנכתב לאתגר הזה. ההודעה הכללית לוקחת מקום מהפתרון */}
+          {(!compact || type === 'wordCompletion') && <p className={compact ? 'text-sm' : 'leading-relaxed'} style={{ color: 'var(--holo-text)', margin: 0 }}>{body}</p>}
+        </div>
+        <div className={compact ? 'text-center' : 'text-center mt-4'} style={compact ? { marginInline: 'auto' } : undefined}>
           {onCollect ? (
             /* האתגר הסתיים עם מפתח לאיסוף — כפתור איסוף ישיר במקום "המשך" (פחות לחיצות) */
             <button
               className="holo-button text-lg"
-              style={{ padding: '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
+              style={{ padding: compact ? '0.5rem 1.4rem' : '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
               onClick={onCollect}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
             </button>
           ) : (
-            <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>
+            <button className="holo-button text-lg" style={{ padding: compact ? '0.5rem 2rem' : '0.7rem 2.5rem' }} onClick={onContinue}>
               המשך ←
             </button>
           )}
@@ -290,6 +305,8 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
         return <WordSearchChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'memory':
         return <MemoryChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
+      case 'matchPairs':
+        return <MatchPairsChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'wordCompletion':
         return <WordCompletionChallenge puzzle={puzzle} onResult={handleResult} tel={tel} />
       case 'sequenceOrder':
@@ -334,12 +351,13 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
       className="holo-panel w-full text-center mx-auto"
       data-puzzle-panel
       data-final-challenge={isFinalChallenge ? 'true' : undefined}
+      data-solution-view={result && keepsChallenge ? 'true' : undefined}
       style={{
         maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: `calc(100dvh - var(--puzzle-vgutter, ${placement === 'stage' ? '6.4rem' : '12rem'}))`, overflowY: 'auto',
         ...(isFinalChallenge ? { borderColor: '#F3B76A', boxShadow: '0 0 22px rgba(243,183,106,.35)' } : {}),
       }}
     >
-        <span className="text-xs rounded-full px-3 py-1" style={isFinalChallenge
+        <span data-solution-hide className="text-xs rounded-full px-3 py-1" style={isFinalChallenge
           ? { background: 'rgba(243,183,106,.16)', border: '1px solid #F3B76A', color: '#F3B76A', fontWeight: 700 }
           : { background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
           {isFinalChallenge ? `${HUD_TEXT.bigChallenge} · ` : (type === 'finalQuiz' ? '📝 ' : '🧩 ')}{puzzleTypeLabel(type)}
@@ -354,17 +372,18 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             לא מפוצלת בין עמוד הטקסט לאתגר. רב-ברירה ונכון/לא-נכון מציגים את
             השאלה בעצמם למטה, ולכן שם הכותרת הזו מושמטת כדי לא לכפול אותה. */}
         {placement === 'stage' && puzzle.question && type !== 'multipleChoice' && type !== 'trueFalse' && (
-          <h3 className="holo-stage-instruction">{puzzle.question}</h3>
+          <h3 data-solution-hide className="holo-stage-instruction">{puzzle.question}</h3>
         )}
 
         {type === 'moralDilemma' ? (
           /* שאלת מוסר — מנהלת בעצמה בחירה→השלכה→המשך; כל בחירה מזכה בקריסטלים, אין כישלון */
           <MoralDilemmaChallenge puzzle={puzzle} tel={tel} onResolve={() => finish({ correct: true, score: 1 }, 1)} onContinue={onCollect ?? onContinue} />
-        ) : result === null ? (
+        ) : result === null || keepsChallenge ? (
           <>
             {renderChallenge()}
+            {result && renderResult(result)}
             {/* יציאה זמינה רק לפני מתן תשובה, ובאתגרים שאינם רצף שאלות */}
-            {type !== 'finalQuiz' && (
+            {!result && type !== 'finalQuiz' && (
               <button
                 className="text-sm mt-4 cursor-pointer block mx-auto"
                 style={{ background: 'none', border: 'none', color: 'var(--holo-text)', opacity: 0.5 }}

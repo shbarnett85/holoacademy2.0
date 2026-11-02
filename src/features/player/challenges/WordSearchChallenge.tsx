@@ -86,6 +86,7 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
   const [foundCells, setFoundCells] = useState<Set<string>>(new Set())
   const [foundWords, setFoundWords] = useState<Set<string>>(new Set())
   const [done, setDone] = useState<'win' | 'lose' | null>(null)
+  const [gaveUp, setGaveUp] = useState(false)
   const selecting = useRef(false)
 
   /* תום הזמן לפני מציאת כל המילים = כישלון; חושפים את כל מיקומי המילים */
@@ -184,13 +185,13 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
 
   return (
     <div className="mt-3">
-      <p className="text-sm mb-3" style={{ opacity: 0.7 }}>{puzzle.question}</p>
+      <p data-challenge-q className="text-sm mb-3" style={{ opacity: 0.7 }}>{puzzle.question}</p>
 
       {/* טיימר ספירה-לאחור — תום הזמן = כישלון */}
-      <Countdown seconds={scale.timeSec} running={done === null} onExpire={onTimeout} />
+      <div data-solution-hide><Countdown seconds={scale.timeSec} running={done === null} onExpire={onTimeout} /></div>
 
       {done === 'lose' && (
-        <p className="text-sm text-center mb-3" style={{ color: '#ff9bb3' }}>⏳ נגמר הזמן — המילים מסומנות ברשת</p>
+        <p className="text-sm text-center mb-3" style={{ color: '#ff9bb3' }}>{gaveUp ? 'המילים מסומנות ברשת' : '⏳ נגמר הזמן — המילים מסומנות ברשת'}</p>
       )}
 
       <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start justify-center">
@@ -269,7 +270,14 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
+            onClick={() => {
+              tel?.act('gave_up')
+              setGaveUp(true)
+              setDone('lose')
+              setFoundCells(new Set(answerCells)) /* חשיפת המילים, כמו בתום הזמן */
+              setFoundWords(new Set(words))
+              onResult({ correct: false })
+            }}
           >
             ויתור על האתגר 🏳️
           </button>

@@ -86,10 +86,10 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
         }
       `}</style>
 
-      <p className="text-sm mb-3" style={{ opacity: 0.85 }}>🔍 {puzzle.question}</p>
+      <p data-challenge-q className="text-sm mb-3" style={{ opacity: 0.85 }}>🔍 {puzzle.question}</p>
 
       {/* מד ניסיונות הולוגרפי — ליבת קריסטל שמתפוגגת + רסיסים */}
-      <div key={shakeKey} className={`flex flex-col items-center gap-2 mb-4 ${done !== 'win' && wrong > 0 ? 'hang-shake' : ''}`}>
+      <div key={shakeKey} data-solution-hide className={`flex flex-col items-center gap-2 mb-4 ${done !== 'win' && wrong > 0 ? 'hang-shake' : ''}`}>
         <div
           style={{
             width: '4.5rem', height: '4.5rem',

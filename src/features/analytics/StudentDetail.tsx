@@ -104,7 +104,7 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
   const v2 = isV2 ? (p as ProfileV2 | null) : null
   const v1 = !isV2 ? (p as ProfileV1 | null) : null
   /* סדר תצוגת סוגי האתגרים בפרופיל ה-per-type */
-  const PUZZLE_ORDER = ['multipleChoice', 'trueFalse', 'finalQuiz', 'wordCompletion', 'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory']
+  const PUZZLE_ORDER = ['multipleChoice', 'trueFalse', 'finalQuiz', 'wordCompletion', 'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory', 'matchPairs']
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

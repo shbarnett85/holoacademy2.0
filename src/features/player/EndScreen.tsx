@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { GEM_TOTAL, gemFill, gemsValue, storyState, wholeGems, type JourneyLesson } from '../../shared/lib/gemModel'
 import { GemDefs, GemSocket } from '../../shared/ui/Gem'
-import DrHoloHologram from './DrHoloHologram'
+import { labMoodsOf } from '../../shared/lib/holoMoods'
+import LabStage from './lab/LabStage'
+import { CLASSROOM_SRC, labPortalImages } from './lab/labComposition'
 import { confetti, cfg, prefersReducedMotion, sounds } from './gameFeel/engine'
 import { growthCounts } from './gameFeel/points'
 import { END_TEXT } from './gameFeel/text'
@@ -18,7 +20,7 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export default function EndScreen({ gameData, questId, questTitle, results, gemPoints, gemPossible, hasSession, saved, onPlayAgain, onExit, footer }: {
+export default function EndScreen({ gameData, questId, questTitle, results, gemPoints, gemPossible, hasSession, saved, onPlayAgain, onExit, onHome, footer }: {
   gameData: GameData
   questId?: string
   questTitle: string
@@ -31,6 +33,8 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   saved?: Promise<void> | null
   onPlayAgain: () => void
   onExit?: () => void
+  /* לחיצה על הפורטל בסיפור שנסגר: המסך הראשי של מי שמשחק (תלמיד, מורה, או האתר למבקר) */
+  onHome?: () => void
   /* פוטר למבקרים (שיתוף, הזמנה למורים) */
   footer?: ReactNode
 }) {
@@ -39,10 +43,11 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const state = storyState(whole, gemPossible)
   const closed = state !== 'open'
   const ending: EndingScene | undefined = closed ? gameData.endingGood : gameData.endingBad
-  const labImage = gameData.scenes.find((s) => s.id === gameData.entrySceneId)?.imageUrl
-  const endImage = ending?.imageUrl ?? labImage
   const reduced = prefersReducedMotion()
   const popIn = !reduced && cfg().holo
+  const portalSrc = closed ? CLASSROOM_SRC : labPortalImages(gameData.scenes, gameData.entrySceneId).opening
+  const radiant = state === 'radiant'
+  const moods = labMoodsOf(gameData.holoMoods)
 
   const moralIds = useMemo(() => new Set(gameData.scenes.filter((s) => s.puzzle?.type === 'moralDilemma').map((s) => s.id)), [gameData])
   const { firstTry, retried } = growthCounts(results, moralIds)
@@ -50,12 +55,16 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const [classGems, setClassGems] = useState<ClassGems | null>(null)
   const [lessons, setLessons] = useState<(JourneyLesson & { subjectCode: string | null })[] | null>(null)
 
-  /* קונפטי וצליל סוף: פעם אחת */
+  /* צליל סוף פעם אחת. הקונפטי: פרץ בכניסה, ואז גל קטן כל עוד המסך פתוח (לא בלשונית מוסתרת) */
   useEffect(() => {
     sounds.end(state === 'open' ? 'open' : state === 'radiant' ? 'radiant' : 'closed')
     if (state === 'open') return
     const n = cfg().confetti
+    if (!n) return
     confetti(state === 'radiant' ? n * 2 : n)
+    const wave = Math.ceil((state === 'radiant' ? n : n * 0.6) / 3)
+    const t = window.setInterval(() => { if (!document.hidden) confetti(wave) }, 1400)
+    return () => window.clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -97,22 +106,28 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         .end-gem-pop { animation: end-gem-in .5s cubic-bezier(.2,1.5,.4,1) both; }
         @keyframes end-radiant { 0%,100% { filter: drop-shadow(0 0 4px rgba(47,243,255,.5)); } 50% { filter: drop-shadow(0 0 14px rgba(47,243,255,.95)) drop-shadow(0 0 22px rgba(242,65,218,.45)) brightness(1.2); } }
         .end-gems-radiant svg { animation: end-radiant 2.2s ease-in-out infinite; }
+        /* טלפון לרוחב: החלון צר ונמוך, ולכן הכול נכנס בלי גלילה */
+        @media (max-height: 500px) {
+          [data-end-screen] .holo-panel { gap: 4px !important; padding: 8px !important; }
+          [data-end-screen] .holo-panel h1 { font-size: 16px !important; }
+          [data-end-screen] .holo-panel p, [data-end-screen] [data-growth] { font-size: 11px !important; line-height: 1.25 !important; }
+          [data-end-screen] [data-end-gems] { gap: 3px !important; }
+          [data-end-screen] [data-end-gems] svg { width: 24px !important; height: 24px !important; }
+          [data-end-screen] [data-end-count] { font-size: 12px !important; }
+          [data-end-screen] .holo-button { padding: 0.2rem 0.6rem !important; font-size: 12px !important; min-height: 32px; }
+        }
         @media (prefers-reduced-motion: reduce) {
           .holo-summary-whiteout { animation: none; opacity: 0; }
           .end-gem-pop, .end-gems-radiant svg { animation: none; }
         }
       `}</style>
       <div className="holo-summary-whiteout" aria-hidden />
-      {endImage && (
-        <>
-          <img src={endImage} alt="" style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 45%' }} />
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(6,11,22,.86)', backdropFilter: 'blur(4px)' }} />
-        </>
-      )}
+      <div style={{ position: 'fixed', inset: 0 }}>
+        <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.home : END_TEXT.playAgain} />
+      </div>
 
-      <div className="holo-panel" style={{ position: 'relative', width: 'min(100%, 46rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', boxShadow: 'var(--holo-glow)', padding: 'clamp(12px, 2.2vh, 22px)' }}>
+      <div className="holo-panel" style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', background: 'rgba(6, 12, 26, .78)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', boxShadow: 'var(--holo-glow)', padding: 'clamp(12px, 2.2vh, 22px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', justifyContent: 'center' }}>
-          <DrHoloHologram mood={closed ? 'happy' : 'thinking'} size="clamp(3.4rem, 11vh, 5.4rem)" />
           <div style={{ minWidth: 0, textAlign: 'start' }}>
             <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? '#F3B76A' : '#2FF3FF' }}>{kicker}</div>
             <h1 className="holo-text-glow" style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2, textWrap: 'balance' }}>{title}</h1>

@@ -12,6 +12,7 @@ import {
   scaleTileSwap,
   scaleWordSearch,
   scaleMemory,
+  scaleMatchPairs,
   scaleWordCompletion,
   scaleSequenceOrder,
   scaleMoralDilemma,
@@ -65,6 +66,12 @@ describe('עקרון המנעד הענק — קצוות רחוקים ומורג�
       expect(n).toBeGreaterThanOrEqual(prev)
       prev = n
     }
+  })
+
+  it('matchPairs: זוגות 3→6, טעויות קבועות (FAIL_BUDGET)', () => {
+    expect(scaleMatchPairs(1).pairCount).toBe(3)
+    expect(scaleMatchPairs(20).pairCount).toBe(6)
+    for (const l of ALL_LEVELS) expect(scaleMatchPairs(l).maxMistakes).toBe(FAIL_BUDGET.matchPairsMistakes)
   })
 
   it('memory: זוגות 2→14, פסילות קבועות (FAIL_BUDGET)', () => {

@@ -54,6 +54,10 @@ export function listTextSlots(gd: GameData): TextSlot[] {
       add(p, 'sentence', `s:${id}:sentence`, id, 'sentence')
       add(p, 'situation', `s:${id}:situation`, id, 'situation')
       ;((p.choices as Obj[] | undefined) ?? []).forEach((c) => add(c, 'text', `s:${id}:opt:${String(c.id)}`, id, 'option'))
+      ;((p.pairs as Obj[] | undefined) ?? []).forEach((c, i) => {
+        add(c, 'a', `s:${id}:pair${i}:a`, id, 'pair')
+        add(c, 'b', `s:${id}:pair${i}:b`, id, 'pair')
+      })
       ;((p.moralChoices as Obj[] | undefined) ?? []).forEach((c, i) => {
         add(c, 'text', `s:${id}:mc${i}:text`, id, 'moralChoice', true)
         add(c, 'consequence', `s:${id}:mc${i}:con`, id, 'consequence')

@@ -87,6 +87,7 @@ function safetyCheckContent(gameData: GameData): string {
     if (p?.retryHint) lines.push(`  רמז: ${p.retryHint}`)
     if (p?.answer) lines.push(`  תשובה: ${p.answer}`)
     for (const a of p?.answers ?? []) lines.push(`  תשובה: ${a}`)
+    for (const pr of p?.pairs ?? []) lines.push(`  זוג: ${pr.a} — ${pr.b}`)
     if (p?.situation) lines.push(`  דילמה: ${p.situation}`)
     for (const mc of p?.moralChoices ?? []) { lines.push(`  בחירה: ${mc.text}`); lines.push(`  השלכה: ${mc.consequence}`) }
     for (const q of p?.questions ?? []) {

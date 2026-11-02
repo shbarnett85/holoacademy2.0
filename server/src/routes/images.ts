@@ -7,8 +7,10 @@ import { engineFor } from '../lib/modelRouter.js'
 import { generateImage, styledPrompt, HISTORICAL_NEGATIVE } from '../lib/together.js'
 import { uploadBase64Image } from '../lib/storage.js'
 import { refreshQuestThumb } from '../lib/lessonThumbStore.js'
+import { reviewSceneImage } from '../lib/imageReview.js'
 import { AppError } from '../middleware/errors.js'
 import { DR_HOLO_PLACEHOLDER, drHoloWithExpression } from '../prompts/constants.js'
+import { isEstablishingScene, needsSceneImage } from '../lib/questSchemas.js'
 import { requireCreator, ensureQuestAccess } from '../lib/creatorAccess.js'
 
 export const imagesRouter = Router()
@@ -38,13 +40,13 @@ const REWRITE_INSTRUCTION = `Rewrite this image prompt for a text-to-image model
 /* cache בזיכרון לפי hash — לא משלמים פעמיים על אותו פרומפט ב-retry */
 const rewriteCache = new Map<string, string>()
 
-async function enhanceHistoricalPrompt(imagePrompt: string): Promise<string> {
-  const key = createHash('sha1').update(imagePrompt).digest('hex')
+async function rewritePrompt(instruction: string, imagePrompt: string): Promise<string> {
+  const key = createHash('sha1').update(instruction).update(imagePrompt).digest('hex')
   const cached = rewriteCache.get(key)
   if (cached) return cached
 
   try {
-    const uc = `${REWRITE_INSTRUCTION}\n\nPrompt: ${imagePrompt}`
+    const uc = `${instruction}\n\nPrompt: ${imagePrompt}`
     let rewritten = ''
     if (engineFor('imageprompt') === 'gemini') {
       rewritten = (await callGeminiText(uc, 3000)).trim() /* thinking נצרך מהתקציב */
@@ -67,10 +69,53 @@ async function enhanceHistoricalPrompt(imagePrompt: string): Promise<string> {
   return imagePrompt
 }
 
+const enhanceHistoricalPrompt = (imagePrompt: string) => rewritePrompt(REWRITE_INSTRUCTION, imagePrompt)
+
+/* ── דיוק מדעי: אותה חומרה כמו דיוק היסטורי ──
+   מודל התמונות טועה כשיש כמה גופים בתמונה (שמש קטנה מול כוכב לכת, שני כדורי ארץ), ולכן מפשטים את הקומפוזיציה עוד לפני היצירה */
+const ACCURACY_INSTRUCTION = `This prompt goes to a text-to-image model for a children's science lesson image, and that model makes factual errors when several bodies share one image. If the prompt shows space, nature, the body, or any scientific subject, rewrite it so the image cannot teach something false:
+- Keep exactly one main subject. Replace a group or lineup (several planets, a whole system, a diagram, a size comparison) with the single most relevant one.
+- A celestial body floats alone in empty space with stars behind it: no other planet, moon, sun or horizon in the frame, and nothing touching, overlapping or colliding.
+- The asteroid belt is scattered rocks in empty space, never a ring around planets.
+- No screens, displays, labels, numbers or text.
+If the prompt has no scientific subject, return it unchanged. Output only the prompt, nothing else.`
+
+/* ── establishing shot: בתמונה הראשונה של השיעור אין דמויות ──
+   הפרומפט השמור יכול לתאר אנשים (שיעור ישן, או שהמודל התעלם מההנחיה), ולכן משכתבים. כשל בשכתוב: הסיומת וה-negative עדיין נשלחים */
+const ESTABLISHING_INSTRUCTION = `Rewrite this image prompt for a text-to-image model as a wide establishing shot of the place only. Remove every person, character, crowd, animal and creature, and any mention of what they do. Keep the location, era, architecture, landscape, light and mood. Output only the rewritten prompt, nothing else.`
+const ESTABLISHING_SUFFIX = 'wide establishing shot, an empty place, no people, no figures, no characters, no animals'
+const ESTABLISHING_NEGATIVE = 'people, person, man, woman, child, crowd, figure, character, silhouette, animal, creature'
+
+async function scenePrompt(raw: string, expression: string | null | undefined, opts: { historical?: boolean; establishing?: boolean }): Promise<string> {
+  const resolved = opts.establishing ? raw.split(DR_HOLO_PLACEHOLDER).join(' ') : resolveDrHolo(raw, expression)
+  const base = await rewritePrompt(ACCURACY_INSTRUCTION, opts.historical ? await enhanceHistoricalPrompt(resolved) : resolved)
+  if (!opts.establishing) return base
+  return `${(await rewritePrompt(ESTABLISHING_INSTRUCTION, base)).replace(/[.\s]+$/, '')}, ${ESTABLISHING_SUFFIX}`
+}
+
+const withNegative = (extra: string | undefined, establishing: boolean | undefined): string | undefined =>
+  establishing ? [extra, ESTABLISHING_NEGATIVE].filter(Boolean).join(', ') : extra
+
+/* תמונת סצנה עם בקרה: טעות בתמונה מקבלת ניסיון אחד נוסף עם הטעות כהנחיה. נשארה טעות: התמונה נשמרת, והמורה מקבל אזהרה */
+async function generateCheckedScene(prompt: string, style: string | undefined, negative: string | undefined, ctx: { establishing?: boolean; lessonTitle?: string }): Promise<{ b64: string; problems: string[] }> {
+  const first = await generateImage(styledPrompt(prompt, style), 1280, 720, negative)
+  const review = await reviewSceneImage(first, { prompt, ...ctx })
+  if (review.ok) return { b64: first, problems: [] }
+  console.log('[images] טעות בתמונה, ניסיון נוסף:', review.problems.join(' | '))
+  const fixed = `${prompt.replace(/[.\s]+$/, '')}. Must avoid: ${review.problems.join('; ').slice(0, 500)}`
+  const second = await generateImage(styledPrompt(fixed, style), 1280, 720, negative)
+  const again = await reviewSceneImage(second, { prompt, ...ctx })
+  if (!again.ok) console.log('[images] נשארה טעות בתמונה:', again.problems.join(' | '))
+  return { b64: second, problems: again.problems }
+}
+
+const IMAGE_WARNING = (title: string) => `ייתכן שיש טעות בתמונה של הסצנה "${title}". כדאי לבדוק אותה וליצור אותה מחדש.`
+
 interface ImageTask {
+  title?: string
   kind: 'scene' | 'item'
+  establishing?: boolean
   sceneId: string
-  ending?: 'good' | 'bad' /* תמונת סיום במקום סצנה רגילה */
   prompt: string
   drHoloExpression?: string
   width: number
@@ -80,9 +125,11 @@ interface ImageTask {
 
 interface SceneRef {
   id: string
+  title?: string
   imagePrompt?: string
   imageUrl?: string
   drHoloExpression?: string
+  puzzle?: { type?: string }
   collectableItem?: { id: string; imagePrompt?: string; imageUrl?: string }
 }
 
@@ -101,7 +148,10 @@ interface GameDataRef {
   endingBad?: EndingRef
 }
 
-/* sceneId סינתטי לתמונות הסיום (אינן ב-scenes[]) */
+const FIXED_LAB_MESSAGE = 'מסכי הפתיחה והסיכום מתרחשים במעבדה קבועה, ולכן אין להם תמונה משלהם'
+const isFixedLabScene = (scene: SceneRef, gd: GameDataRef): boolean => scene.id === gd.entrySceneId && !needsSceneImage(scene)
+
+/* sceneId סינתטי של סצנות הסיום (אינן ב-scenes[]) */
 const ENDING_SCENE_ID = { good: '__endingGood__', bad: '__endingBad__' } as const
 
 /* ── שמירה בטוחה של קישורי תמונות: מיזוג אל game_data *טרי* ──
@@ -109,7 +159,7 @@ const ENDING_SCENE_ID = { good: '__endingGood__', bad: '__endingBad__' } as cons
    כותבת factCheck+תיקוני לשון, מורה עורך סצנה). כתיבת ה-game_data שנטען בתחילת
    הבקשה הייתה דורסת את כולם (lost update — כך כל אצוות הספרייה איבדה את ה-factCheck).
    לכן: טוענים מחדש את השורה, ממזגים אליה **רק** את קישורי התמונות שנוצרו, ושומרים. */
-interface ProducedImage { sceneId: string; kind: 'scene' | 'item'; ending?: 'good' | 'bad'; url: string }
+interface ProducedImage { sceneId: string; kind: 'scene' | 'item'; url: string }
 
 async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): Promise<string | null> {
   if (produced.length === 0) return null
@@ -118,15 +168,10 @@ async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): P
   if (fetchErr || !fresh?.game_data) return 'טעינת game_data טרי נכשלה: ' + (fetchErr?.message ?? '')
   const gd = fresh.game_data as GameDataRef
   for (const p of produced) {
-    if (p.ending) {
-      const ending = p.ending === 'good' ? gd.endingGood : gd.endingBad
-      if (ending) ending.imageUrl = p.url
-    } else {
-      const scene = gd.scenes.find((s) => s.id === p.sceneId)
-      if (!scene) continue
-      if (p.kind === 'scene') scene.imageUrl = p.url
-      else if (scene.collectableItem) scene.collectableItem.imageUrl = p.url
-    }
+    const scene = gd.scenes.find((s) => s.id === p.sceneId)
+    if (!scene) continue
+    if (p.kind === 'scene') scene.imageUrl = p.url
+    else if (scene.collectableItem) scene.collectableItem.imageUrl = p.url
   }
   const { error } = await supabaseAdmin.from('quests').update({ game_data: gd }).eq('id', questId)
   return error ? 'שמירת הקישורים נכשלה: ' + error.message : null
@@ -153,7 +198,7 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
 
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, art_style, game_data, created_by')
+      .select('id, title, art_style, game_data, created_by')
       .eq('id', req.params.id)
       .single()
 
@@ -162,40 +207,31 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
 
     const gameData = quest.game_data as GameDataRef
 
-    /* תמונת סיום (endingGood/endingBad) — sceneId סינתטי, לא ב-scenes[] */
-    const endingWhich = sceneId === ENDING_SCENE_ID.good ? 'good' : sceneId === ENDING_SCENE_ID.bad ? 'bad' : null
-    if (endingWhich) {
-      const ending = endingWhich === 'good' ? gameData.endingGood : gameData.endingBad
-      if (!ending?.imagePrompt) throw new AppError(400, 'אין imagePrompt לתמונה זו')
-      const rawPrompt = resolveDrHolo(ending.imagePrompt, ending.drHoloExpression)
-      const base = gameData.isHistorical ? await enhanceHistoricalPrompt(rawPrompt) : rawPrompt
-      const extraNeg = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
-      const b64 = await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
-      /* public_id ייחודי בכל יצירה-מחדש → URL חדש לגמרי שלא נמצא במטמון (אחרת אותו URL
-         מוגש מהמטמון של הדפדפן עם התמונה הישנה, ובמיוחד חוזר אחרי "שמור"). */
-      const imageUrl = await uploadBase64Image(b64, `holoacademy/${quest.id}`, `ending_${endingWhich}_${uniqueSuffix()}`)
-      /* מיזוג אל game_data טרי — לא דורסים עריכות/בדיקת-עובדות שנכתבו בזמן היצירה */
-      const upErr = await saveImageUrlsFresh(quest.id, [{ sceneId, kind: 'scene', ending: endingWhich, url: imageUrl }])
-      if (upErr) throw new AppError(500, upErr)
-      res.json({ sceneId, kind: 'scene', imageUrl })
-      return
+    /* מסכי הפתיחה והסיכום מתרחשים במעבדה הקבועה, ולכן אין להם תמונה משלהם */
+    if (sceneId === ENDING_SCENE_ID.good || sceneId === ENDING_SCENE_ID.bad) {
+      throw new AppError(400, FIXED_LAB_MESSAGE)
     }
 
     const scene = gameData.scenes.find((s) => s.id === sceneId)
     if (!scene) throw new AppError(404, 'סצנה לא נמצאה')
+    if (kind === 'scene' && isFixedLabScene(scene, gameData)) throw new AppError(400, FIXED_LAB_MESSAGE)
 
     const rawPromptSrc = kind === 'item' ? scene.collectableItem?.imagePrompt : scene.imagePrompt
     if (!rawPromptSrc) throw new AppError(400, 'אין imagePrompt לתמונה זו')
 
-    /* החלפת {DR_HOLO} (זהות + הבעת הסצנה) לפני ה-enhancement, כדי שהשכתוב יראה את התיאור המלא */
-    const rawPrompt = resolveDrHolo(rawPromptSrc, scene.drHoloExpression)
-    const base = gameData.isHistorical ? await enhanceHistoricalPrompt(rawPrompt) : rawPrompt
-    const extraNeg = gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined
+    const establishing = kind === 'scene' && isEstablishingScene(scene, gameData)
+    const base = kind === 'scene' ? await scenePrompt(rawPromptSrc, scene.drHoloExpression, { historical: gameData.isHistorical, establishing }) : rawPromptSrc
+    const extraNeg = withNegative(gameData.isHistorical ? HISTORICAL_NEGATIVE : undefined, establishing)
 
-    const b64 =
-      kind === 'item'
-        ? await generateImage(styledPrompt(base, quest.art_style), 512, 512, extraNeg)
-        : await generateImage(styledPrompt(base, quest.art_style), 1280, 720, extraNeg)
+    let warning: string | undefined
+    let b64: string
+    if (kind === 'item') {
+      b64 = await generateImage(styledPrompt(rawPromptSrc, quest.art_style), 512, 512, extraNeg)
+    } else {
+      const checked = await generateCheckedScene(base, quest.art_style, extraNeg, { establishing, lessonTitle: quest.title })
+      b64 = checked.b64
+      if (checked.problems.length) warning = IMAGE_WARNING(scene.title ?? scene.id)
+    }
 
     /* public_id ייחודי בכל יצירה-מחדש → URL חדש (לא מהמטמון; לא חוזר לישנה אחרי "שמור") */
     const uniq = uniqueSuffix()
@@ -208,7 +244,7 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
     /* תמונת הסצנה התחלפה — התמונה הממוזערת של השיעור (אם זו תמונת הכרטיס) נוצרת מחדש ברקע */
     if (kind === 'scene') void refreshQuestThumb(quest.id)
 
-    res.json({ sceneId, kind, imageUrl })
+    res.json({ sceneId, kind, imageUrl, warning })
   } catch (err) {
     next(err)
   }
@@ -224,7 +260,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
 
     const { data: quest, error } = await supabaseAdmin
       .from('quests')
-      .select('id, art_style, game_data, created_by')
+      .select('id, title, art_style, game_data, created_by')
       .eq('id', req.params.id)
       .single()
 
@@ -247,9 +283,11 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
        regenerateAll — כולן (יצירה-מחדש בסגנון חדש). */
     const tasks: ImageTask[] = []
     for (const scene of gameData.scenes) {
-      if (scene.imagePrompt && (regenerateAll || !scene.imageUrl)) {
+      if (scene.imagePrompt && !isFixedLabScene(scene, gameData) && (regenerateAll || !scene.imageUrl)) {
         tasks.push({
           kind: 'scene',
+          title: scene.title,
+          establishing: isEstablishingScene(scene, gameData),
           sceneId: scene.id,
           prompt: scene.imagePrompt,
           drHoloExpression: scene.drHoloExpression,
@@ -268,23 +306,6 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
           width: 512,
           height: 512,
           publicId: `item_${item.id}${uniq}`,
-        })
-      }
-    }
-
-    /* תמונות הסיום הייעודיות (endingGood/endingBad) — מסכי הסיכום, שונות מסצנת הפתיחה */
-    for (const which of ['good', 'bad'] as const) {
-      const ending = which === 'good' ? gameData.endingGood : gameData.endingBad
-      if (ending?.imagePrompt && (regenerateAll || !ending.imageUrl)) {
-        tasks.push({
-          kind: 'scene',
-          sceneId: ENDING_SCENE_ID[which],
-          ending: which,
-          prompt: ending.imagePrompt,
-          drHoloExpression: ending.drHoloExpression,
-          width: 1280,
-          height: 720,
-          publicId: `ending_${which}${uniq}`,
         })
       }
     }
@@ -318,15 +339,18 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
     await runPool(
       tasks.map((task) => async () => {
         try {
-          /* החלפת {DR_HOLO} (זהות + הבעת הסצנה) לפני ה-enhancement, ואז שכתוב היסטורי במידת הצורך */
-          const resolved = resolveDrHolo(task.prompt, task.drHoloExpression)
-          const base = gameData.isHistorical
-            ? await enhanceHistoricalPrompt(resolved)
-            : resolved
-          const b64 = await generateImage(styledPrompt(base, artStyle), task.width, task.height, extraNegative)
+          let b64: string
+          if (task.kind === 'item') {
+            b64 = await generateImage(styledPrompt(task.prompt, artStyle), task.width, task.height, extraNegative)
+          } else {
+            const base = await scenePrompt(task.prompt, task.drHoloExpression, { historical: gameData.isHistorical, establishing: task.establishing })
+            const checked = await generateCheckedScene(base, artStyle, withNegative(extraNegative, task.establishing), { establishing: task.establishing, lessonTitle: quest.title })
+            b64 = checked.b64
+            if (checked.problems.length) warnings.push(IMAGE_WARNING(task.title ?? task.sceneId))
+          }
           const url = await uploadBase64Image(b64, folder, task.publicId)
 
-          produced.push({ sceneId: task.sceneId, kind: task.kind, ending: task.ending, url })
+          produced.push({ sceneId: task.sceneId, kind: task.kind, url })
           completed++
           send({ sceneId: task.sceneId, kind: task.kind, imageUrl: url, completed, total })
         } catch (err) {

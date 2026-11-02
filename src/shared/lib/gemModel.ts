@@ -23,6 +23,7 @@ export const CLEAN_SUCCESS: Readonly<Record<string, CleanRule>> = {
   finalQuiz: 'secondTry',
   trueFalse: 'single',
   memory: 'halfBudget',
+  matchPairs: 'halfBudget',
   sequenceOrder: 'firstSubmit',
   hangman: 'halfBudget',
   wordCompletion: 'halfBudget',

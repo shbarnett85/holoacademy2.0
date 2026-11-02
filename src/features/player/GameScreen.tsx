@@ -8,10 +8,13 @@ import PuzzleModal from './PuzzleModal'
 import { type Placement } from './stageRouting'
 import { useScenePages } from './useScenePages'
 import LoadingQuest from './LoadingQuest'
-import PortalTransition from './PortalTransition'
+import SceneImageStage from './SceneImageStage'
 import WormholeTransition from './WormholeTransition'
 import EndScreen from './EndScreen'
-import DrHoloHologram from './DrHoloHologram'
+import { preloadSummaryClips } from './drHoloClips'
+import LabStage from './lab/LabStage'
+import { labMoodsOf } from '../../shared/lib/holoMoods'
+import { CLASSROOM_SRC, LAB, labPortalImages } from './lab/labComposition'
 import { GateUnlock, StreakBadge } from './FeelBits'
 import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
@@ -20,7 +23,7 @@ import { GemDefs } from '../../shared/ui/Gem'
 import { GEM_TOTAL, effectLevelOf } from '../../shared/lib/gemModel'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { initSound } from '../../shared/lib/sound'
-import { KEN_BURNS_SECONDS, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
+import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -92,7 +95,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      סינכרונית, כך שאין פריים ביניים. */
   const [doneSceneId, setDoneSceneId] = useState<string | null>(null)
   /* דילוג הוא **פר-סצנה** (מזהה, לא בוליאני): בוליאני דלף לסצנה הבאה — הדילוג
-     מתאפס רק ב-effect שרץ אחרי סיום הפורטל, ובינתיים הסצנה החדשה עלתה עם
+     מתאפס רק ב-effect שרץ אחרי סיום המעבר, ובינתיים הסצנה החדשה עלתה עם
      instant=true, ה-Typewriter נולד "גמור", onDone ירה מיד, והכפתור הופיע על
      חלון ריק לפני שההקלדה התחילה. הצמדה ל-scene.id הופכת ערך ישן לחסר-תוקף
      באופן סינכרוני — אותו דפוס שתיקן את doneSceneId. */
@@ -208,32 +211,37 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* שמירת מצב ביניים ל-resume בכל מעבר סצנה — מקומי בלבד (sessionStorage), ללא רשת */
   const crystalsFull = engine.crystalsFull
   const sceneId = scene.id
-  /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
-  useEffect(() => { for (const m of ['neutral', 'happy', 'thinking', 'surprised']) new Image().src = `/dr-holo/${m}.webp` }, [])
-
-  /* מעבר הפורטל: הסצנה מתחלפת *מיד* (engine), אז שומרים את תמונת הסצנה היוצאת (prevImg)
-     ברגע שה-sceneId משתנה — PortalTransition מנפיש את היוצאת בשלב 1 ואת החדשה (scene.imageUrl)
-     בשלב 2. שתיהן יציבות למשך כל האנימציה (אין stale-closure / אותה שקופית פעמיים). */
-  const [prevImg, setPrevImg] = useState<string | undefined>(undefined)
-  const lastImgRef = useRef<string | undefined>(scene.imageUrl)
+  const labMoods = useMemo(() => labMoodsOf(gameData.holoMoods), [gameData])
+  /* יציאה מהמעבדה: הסצנה במנוע כבר הוחלפה, והמעבדה נשארת מעליה עד סוף הצלילה. עדינה: דהייה בלבד. תנועה מופחתת: בלי כלום */
+  const [labExit, setLabExit] = useState<'dive' | 'reveal' | null>(null)
+  /* הפורטל בפתיחה עושה בדיוק מה שהכפתור הזמין עושה עכשיו: אותו כפתור, ולכן אין לוגיקה שנייה. עדיין אין כפתור: לא קורה כלום */
+  const actionsRef = useRef<HTMLDivElement | null>(null)
+  const [prevSceneId, setPrevSceneId] = useState(scene.id)
+  if (prevSceneId !== scene.id) {
+    setPrevSceneId(scene.id)
+    if (prevSceneId === gameData.entrySceneId && !prefersReducedMotion()) setLabExit(feelLevel() === 'gentle' ? 'reveal' : 'dive')
+  }
+  /* רשת ביטחון: האנימציה לא חייבת להסתיים (לשונית מוסתרת, ביטול). הסצנה כבר הוחלפה, ולכן אסור שהמעבדה תישאר מעליה */
   useEffect(() => {
-    setPrevImg(lastImgRef.current) /* התמונה שהוצגה ברנדר הקודם = היוצאת */
-    lastImgRef.current = scene.imageUrl
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sceneId])
+    if (!labExit) return
+    const t = window.setTimeout(() => setLabExit(null), LAB.camera.diveMs + LAB.camera.revealMs + 1500)
+    return () => window.clearTimeout(t)
+  }, [labExit])
+  /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
+  useEffect(() => { for (const m of [labMoods.opening, labMoods.closed, labMoods.open]) new Image().src = `/dr-holo/${m}.webp` }, [labMoods])
 
-  /* רצף ההופעה המדורג מתחיל רק בסיום הפורטל (onComplete → bump). revealTick=0 בטעינה
-     הראשונה (סצנה ראשונה ללא פורטל) מריץ את הרצף מיד. */
+  /* רצף ההופעה המדורג מתחיל רק בסיום המעבר (onComplete → bump). revealTick=0 בטעינה
+     הראשונה (סצנה ראשונה בלי מעבר) מריץ את הרצף מיד. */
   const [revealTick, setRevealTick] = useState(0)
 
-  /* transitioning=true כל עוד מעבר (פורטל/חור-תולעת) פעיל. בזמן הזה הסצנה החדשה כבר
-     הוחלפה במנוע אבל מוסתרת מתחת ל-overlay — מסתירים את פאנל הטקסט כדי שה-Typewriter
-     לא יתחיל להקליד (ולהשמיע צליל) במהלך אנימציית המעבר. מתאפס ב-onComplete. */
-  const [transitioning, setTransitioning] = useState(false)
-  useEffect(() => {
-    if (engine.transitionKey > 0) setTransitioning(true)
-  }, [engine.transitionKey])
-  const onTransitionDone = useCallback(() => { setTransitioning(false); setRevealTick((t) => t + 1) }, [])
+  /* transitioning=true כל עוד מעבר (סריקה/חור-תולעת) פעיל. בזמן הזה הסצנה החדשה כבר הוחלפה במנוע, ופאנל הטקסט מוסתר.
+     נגזר סינכרונית מהמפתח ולא נקבע ב-effect: בלי זה הפאנל הספיק להתרנדר רנדר אחד עם הטקסט החדש, סימן אותו
+     כנקרא, וכפתור "המשך" הופיע לאורך כל המעבר ועוד לפני שהטקסט הוצג. */
+  const [settledKey, setSettledKey] = useState(0)
+  const transitioning = engine.transitionKey !== settledKey
+  const transitionKeyRef = useRef(engine.transitionKey)
+  useEffect(() => { transitionKeyRef.current = engine.transitionKey }, [engine.transitionKey])
+  const onTransitionDone = useCallback(() => { setSettledKey(transitionKeyRef.current); setRevealTick((t) => t + 1) }, [])
 
   /* preload של קבצי הסאונד בכניסה למשחק (אין lag באירוע הראשון) */
   useEffect(() => { initSound() }, [])
@@ -241,6 +249,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* שלב הקריאה: אלמנטים "חיים" עוצרים בזמן קריאת טקסט */
   useEffect(() => { setReading(!puzzleOpen && !engine.finished) }, [puzzleOpen, engine.finished])
   useEffect(() => () => setReading(false), [])
+  /* האתגר האחרון התחיל: מסך הסיכום קרוב, ומתחילים לטעון את הקטעים שלו */
+  const lastChallengeOpen = puzzleOpen && !!scene.puzzle && [...gameData.scenes].reverse().find((s) => s.puzzle)?.id === scene.id
+  useEffect(() => { if (lastChallengeOpen) { preloadSummaryClips([labMoods.closed, labMoods.open]); new Image().src = CLASSROOM_SRC } }, [lastChallengeOpen, labMoods])
 
   /* פתיחת שער: מפתח מסתובב, שער נפתח, וצליל */
   useEffect(() => { if (engine.unlockBubble) sounds.gate() }, [engine.unlockBubble])
@@ -254,7 +265,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneId])
 
-  /* רצף ההופעה המדורג — מופעל מ-revealTick (בסיום הפורטל): panel → (אחרי PANEL_MAT_MS) → typing.
+  /* רצף ההופעה המדורג — מופעל מ-revealTick (בסיום המעבר): panel → (אחרי PANEL_MAT_MS) → typing.
      ההקלדה מדווחת onDone → buttons. ביקור חוזר/reduced-motion → מיד buttons.
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
@@ -322,12 +333,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     if (preloadedRef.current) return
     preloadedRef.current = true
     for (const s of gameData.scenes) {
-      if (s.imageUrl) new Image().src = s.imageUrl
+      /* הפתיחה והסיכום במעבדה הקבועה: התמונות הישנות שלהם נשארות במסד, אבל לא נטענות */
+      if (s.imageUrl && (s.id !== gameData.entrySceneId || s.puzzle)) new Image().src = s.imageUrl
       if (s.collectableItem?.imageUrl) new Image().src = s.collectableItem.imageUrl
     }
-    /* תמונות הסיום — כדי שמסך הסיכום ייפתח מיד */
-    if (gameData.endingGood?.imageUrl) new Image().src = gameData.endingGood.imageUrl
-    if (gameData.endingBad?.imageUrl) new Image().src = gameData.endingBad.imageUrl
   }, [gameData])
 
   /* מסך הסיום: סצנת הסיום לפי מצב הסיפור */
@@ -344,6 +353,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         saved={saved}
         onPlayAgain={() => onPlayAgain?.(saved)}
         onExit={visitorMode ? undefined : handleExit}
+        onHome={handleExit}
         footer={visitorMode ? (
           <>
             <div className="flex justify-center gap-3 flex-wrap">
@@ -387,6 +397,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* סצנה בלי טקסט — אין על מה לחכות; אחרת ממתינים לסיום ההקלדה של **הסצנה הזו** */
   const textDone = !(scene.narrative || scene.drHoloDialog) || doneSceneId === scene.id
   const onStage = puzzleOpen && !!scene.puzzle
+  /* הפתיחה מתרחשת במעבדה הקבועה */
+  const inLab = scene.id === gameData.entrySceneId
+  const labLayout = inLab || labExit === 'dive'
   /* האתגר האחרון בשיעור: סצנת השיא (בלי המשך ובלי בחירות), או מבחן הסיכום, או האתגר האחרון במערך */
   const lastPuzzleScene = [...gameData.scenes].reverse().find((s) => s.puzzle)
   const isFinalChallenge = !!scene.puzzle && (scene.puzzle.type === 'finalQuiz' || scene.id === lastPuzzleScene?.id)
@@ -496,7 +509,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
       {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
       <div
-        key={scene.id}
         className="scene-fade flex-1 flex flex-col items-center justify-center p-6 gap-6 relative"
         style={{
           zIndex: 1,
@@ -523,7 +535,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         {/* פס התוכן: פאנל צדדי קבוע + במה מרכזית. שניהם שכבות **מעל** תמונת הרקע
             (שממלאת inset:0), ולכן הרקע נשאר full-bleed ואינו מתכווץ. */}
         <div
-          className="holo-scene-band z-10"
+          className={`holo-scene-band z-10 ${labLayout ? 'holo-scene-band--lab' : ''}`}
           style={{
             opacity: eyeMode ? 0 : 1,
             pointerEvents: eyeMode ? 'none' : 'auto',
@@ -533,8 +545,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         {/* הפאנל — תמיד באותו צד (התחלה ב-RTL). מתעמעם כשהבמה פעילה כדי שהתלמיד
             ירגיש שהסיפור מושהה, ולא שהוא עבר למסך אחר. */}
         <div
+          key={scene.id}
           className="holo-side-panel"
           style={{
+            visibility: labExit === 'dive' ? 'hidden' : undefined,
             opacity: onStage ? 0.62 : 1,
             filter: onStage ? 'saturate(.85)' : 'none',
             transition: 'opacity .35s ease, filter .35s ease, flex-basis .35s ease',
@@ -587,7 +601,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               לא משנה גודל כשהם מופיעים. עמוד ביניים: "המשך ›" + "1/2". אחרי העמוד האחרון: כפתורי הסצנה.
               שער כפול: גם הטקסט הושלם **וגם** רצף החשיפה הגיע לשלב הכפתורים — כך שום נתיב לא מציג כפתור
               לפני שהטקסט נגמר בפועל. */}
-          <div className="holo-panel-actions" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          <div ref={actionsRef} className="holo-panel-actions" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {pages.length > 1 && (
             <span className="holo-page-indicator" data-page-indicator aria-label={`עמוד ${pageIdx + 1} מתוך ${pages.length}`}>
               {pageIdx + 1}/{pages.length}
@@ -655,52 +669,40 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             לפי סוג האתגר — בדיוק מה שהעקביות המרחבית באה למנוע. */}
         {/* ── עמוד התמונה: מלבן סגור ── התמונה ממלאת אותו ב-cover (חותכים אם צריך,
             בלי פסים ובלי עיוות), ו-overflow:hidden כולא גם אותה וגם את סחיפת ה-Ken
-            Burns וגם את מעבר-הסצנה בתוך המלבן — כך עמוד הטקסט לא מושפע. */}
+            Burns וגם את מעבר-הסצנה בתוך המלבן — כך עמוד הטקסט לא מושפע.
+            העמוד לא נבנה מחדש בין סצנות: התמונה היוצאת וד"ר הולו נשארים על המסך לאורך המעבר.
+            חור-התולעת (כניסה/יציאה) הוא רגע של המסך כולו ולכן מרונדר בשורש — ראו למטה. */}
         <div className="holo-image-page">
-          {scene.imageUrl && (
-            <div className="holo-image-fill">
-              <img
-                src={scene.imageUrl}
-                alt=""
-                style={{
-                  position: 'absolute', inset: 0, width: '100%', height: '100%',
-                  objectFit: 'cover',
-                  /* התמונות נוצרות ב-1280×720 (16:9). cover מתאים את הצלע הצרה וחותך
-                     את השנייה, וכמות החיתוך תלויה ביחס המסך: טלפון לרוחב 667×375 הוא
-                     16:9 בדיוק → **אפס חיתוך**; 844×390 (19.5:9) חותך 17.9% מהגובה;
-                     דסקטופ/טאבלט חותכים 25-29% מהרוחב. המיקוד מוטה מעט למעלה (45%)
-                     ולא 50% — בחיתוך אנכי זה שומר על ראשי הדמויות ועל קו הרקיע, שהם
-                     מרכז העניין בסצנה, במקום לחתוך אותם באופן סימטרי. */
-                  objectPosition: 'center 45%',
-                  animation: prefersReducedMotion()
-                    ? undefined
-                    : `holo-kenburns ${KEN_BURNS_SECONDS}s ease-in-out infinite ${(scene.id.charCodeAt(scene.id.length - 1) % 2 === 1) ? 'alternate-reverse' : 'alternate'}`,
-                }}
-              />
-            </div>
-          )}
-          {/* ── מעבר סצנה רגיל (פורטל) — כלוא במלבן התמונה ──
-              absolute בתוך העמוד; ה-overflow:hidden כולא את ה-crossfade, ועמוד
-              הטקסט לא מושפע. חור-התולעת (כניסה/יציאה מהמעבדה) הוא רגע קולנועי
-              של המסך כולו ולכן מרונדר בשורש — ראו למטה. */}
-          {engine.transitionType !== 'wormhole' && (
-            <PortalTransition
-              trigger={engine.transitionKey}
-              oldImageUrl={prevImg}
-              newImageUrl={scene.imageUrl}
-              onComplete={onTransitionDone}
+          <SceneImageStage
+            sceneId={scene.id}
+            src={inLab ? undefined : scene.imageUrl}
+            trigger={engine.transitionKey}
+            dir={engine.transitionDir}
+            wormhole={engine.transitionType === 'wormhole'}
+            dimmed={onStage || choicesOnStage}
+            onComplete={onTransitionDone}
+          />
+
+          {/* ד"ר הולו: עותק וירטואלי, ולכן תמיד הולוגרמה. נבנה מקווי סריקה בכניסה לשיעור, ומגיב לתשובות */}
+          {(inLab || labExit) && (
+            <LabStage
+              state="opening"
+              portalSrc={labPortalImages(gameData.scenes, gameData.entrySceneId).opening}
+              mood={labMoods.opening}
+              leaving={labExit ?? undefined}
+              onDiveEnd={() => setLabExit('reveal')}
+              onRevealEnd={() => setLabExit(null)}
+              onPortalClick={() => actionsRef.current?.querySelector('button')?.click()}
+              portalLabel="המשך"
             />
           )}
 
-          {/* ד"ר הולו: עותק וירטואלי, ולכן תמיד הולוגרמה. נבנה מקווי סריקה בכניסה לשיעור, ומגיב לתשובות */}
-          <div className="holo-dr-holo-spot"><DrHoloHologram build /></div>
-
           {/* שכבת כהיה **מקומית** למלבן — האתגר קריא, והתמונה נשארת נוכחת מאחוריו */}
-          {onStage && <div className="holo-stage-scrim" />}
-          {onStage && <div className="holo-stage">{puzzleEl('stage')}</div>}
-          {choicesOnStage && <div className="holo-stage-scrim" />}
+          {onStage && <div key={`scrim-${scene.id}`} className="holo-stage-scrim" />}
+          {onStage && <div key={`stage-${scene.id}`} className="holo-stage">{puzzleEl('stage')}</div>}
+          {choicesOnStage && <div key={`choices-scrim-${scene.id}`} className="holo-stage-scrim" />}
           {choicesOnStage && (
-            <div className="holo-stage" data-choices-stage>
+            <div key={`choices-${scene.id}`} className="holo-stage" data-choices-stage>
               <div className="holo-panel text-center" style={{ width: '100%', maxWidth: '30rem' }}>
                 <div className="holo-stage-instruction">לאן ממשיכים?</div>
                 <div className="flex flex-col gap-3 mt-3">{choiceButtons}</div>
@@ -741,9 +743,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
       {/* כפתור העין במשחק נמצא עכשיו בתוך ה-TopHUD (שורה כחולה עליונה) */}
 
-      {/* מעברים: חור תולעת בקצוות (כניסה/יציאה מהמעבדה); fade-to-black בין שקופיות רגילות */}
-      {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהמעבדה (wormhole), פורטל ניאון בין
-          שקופית לשקופית (fade). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
+      {/* מעבר סצנה: חור-תולעת חלקיקים בכניסה/יציאה מהשיעור (wormhole), סריקה בין תמונה לתמונה
+          (SceneImageStage). בסיום כל אחד (onComplete) מתחיל הרצף המדורג (DigitalEntrance). */}
       {/* המעבר עבר אל תוך עמוד התמונה — ראו .holo-image-page */}
 
       {/* חור-התולעת — מלוא המסך (fixed), מעל שני העמודים וה-HUD */}

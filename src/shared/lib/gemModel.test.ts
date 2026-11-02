@@ -25,7 +25,7 @@ describe('נקודות לאתגר', () => {
     expect(challengePoints({ type: 'trueFalse', solved: true })).toBe(1)
     expect(challengePoints({ type: 'trueFalse', solved: false })).toBe(0)
   })
-  it.each(['memory', 'hangman', 'wordCompletion', 'tileSwap'])('%s: עד מחצית מהטעויות המותרות 1, יותר 0.5, כישלון 0', (type) => {
+  it.each(['memory', 'matchPairs', 'hangman', 'wordCompletion', 'tileSwap'])('%s: עד מחצית מהטעויות המותרות 1, יותר 0.5, כישלון 0', (type) => {
     expect(challengePoints({ type, solved: true, mistakes: 0, allowed: 6 })).toBe(1)
     expect(challengePoints({ type, solved: true, mistakes: 3, allowed: 6 })).toBe(1)
     expect(challengePoints({ type, solved: true, mistakes: 4, allowed: 6 })).toBe(0.5)

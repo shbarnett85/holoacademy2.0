@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { sounds } from '../gameFeel/engine'
 import type { Puzzle } from '../useGameEngine'
 import { scaleMemory } from '../../../shared/lib/difficultyScaling'
+import { memoryGrid } from './memoryGrid'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
@@ -40,7 +41,7 @@ function buildDeck(pairs: { a: string; b: string }[]): Card[] {
 const GAP = 6
 const BOARD_MAX_W = 576 /* ‎36rem — לא נותנים ללוח להשתולל על מסך רחב */
 const CARD_MAX_H = 120
-const RESERVE_BELOW = 72 /* כפתור הוויתור + ריפוד הפאנל מתחת ללוח */
+const RESERVE_BELOW = 124 /* כפתור הוויתור + ריפוד הפאנל והבמה מתחת ללוח */
 const BASE_FONT = 15
 const MIN_FONT = 10 /* מתחת לזה לא יורדים — עדיף חיתוך עם … מקלף שגדל */
 
@@ -143,25 +144,12 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
     return () => { clearTimeout(t); ro.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
 
-  /* ── הרשת: עמודות = מחלק של מספר הקלפים (מלבן שלם), הזוג שנבחר הוא זה
-     שמצמיד את יחס הקלף ל-1.55~ בשטח הנתון — מסך רחב-ונמוך (מובייל רוחבי)
-     מקבל אוטומטית יותר עמודות ופחות שורות. המידות קבועות: הן לא תלויות
-     בתוכן ולא משתנות בהיפוך. ── */
+  /* ── הרשת: ריבוע, או המלבן הקרוב ביותר לריבוע (memoryGrid). המידות קבועות:
+     הן לא תלויות בתוכן ולא משתנות בהיפוך. ── */
   const layout = useMemo(() => {
-    const N = deck.length
     const w = Math.min(box?.w ?? 480, BOARD_MAX_W)
     const h = box?.h ?? 320
-    let cols = 2
-    let bestScore = Infinity
-    for (let c = 2; c <= 8; c++) {
-      if (N % c !== 0) continue
-      const rows = N / c
-      const cw = (w - GAP * (c - 1)) / c
-      const ch = Math.min((h - GAP * (rows - 1)) / rows, CARD_MAX_H)
-      const score = Math.abs(cw / ch - 1.55) + (cw < 56 ? 10 : 0) /* קנס לקלף צר מקריא */
-      if (score < bestScore) { bestScore = score; cols = c }
-    }
-    const rows = N / cols
+    const { cols, rows } = memoryGrid(deck.length, w, h)
     const cardW = Math.floor((w - GAP * (cols - 1)) / cols)
     const cardH = Math.min(Math.floor((h - GAP * (rows - 1)) / rows), CARD_MAX_H)
     return { cols, cardW, cardH, boardW: w }
@@ -187,17 +175,18 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
         .mem-matched { animation: mem-match .45s cubic-bezier(.3,1.4,.5,1); }
         @media (prefers-reduced-motion: reduce) { .mem-inner { transition: none; } .mem-matched { animation: none; } }
       `}</style>
-      <p className="text-sm mb-2" style={{ opacity: 0.75 }}>{puzzle.question}</p>
+      <p data-challenge-q className="text-sm mb-2" style={{ opacity: 0.75 }}>{puzzle.question}</p>
 
       {/* מד פסילות שנותרו */}
       <FailPips remaining={mistakeBudget - mistakes} total={mistakeBudget} label="פסילות" />
 
       {/* חריץ קבוע להודעת הכישלון — כך הופעתה לא מזיזה את הלוח */}
-      <p className="text-sm text-center" style={{ color: '#ff9bb3', minHeight: 20, margin: '0 0 6px', visibility: over && mistakes >= mistakeBudget ? 'visible' : 'hidden' }}>
-        נגמרו הפסילות — אלו הזוגות הנכונים
+      <p className="text-sm text-center" style={{ color: '#ff9bb3', minHeight: 20, margin: '0 0 6px', visibility: revealAll ? 'visible' : 'hidden' }}>
+        {mistakes >= mistakeBudget ? 'נגמרו הפסילות — אלו הזוגות הנכונים' : 'אלו הזוגות הנכונים'}
       </p>
 
-      <div ref={wrapRef}>
+      {/* רוחב מפורש: הפאנל על הבמה מתכווץ לתוכן, ולפני שהלוח מצויר התוכן הוא רק הכותרת — הלוח נמדד צר מדי ונשאר צר */}
+      <div ref={wrapRef} style={{ width: `min(${BOARD_MAX_W}px, 52vw)`, maxWidth: '100%', marginInline: 'auto' }}>
         {box && (
           <div
             className="mx-auto"
@@ -258,7 +247,12 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
+            onClick={() => {
+              tel?.act('gave_up')
+              setOver(true)
+              setRevealAll(true) /* חשיפת הזוגות, כמו במיצוי הפסילות */
+              onResult({ correct: false })
+            }}
           >
             ויתור על האתגר 🏳️
           </button>

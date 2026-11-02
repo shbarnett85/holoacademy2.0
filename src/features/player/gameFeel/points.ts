@@ -1,7 +1,7 @@
 /* הנקודות של אתגר שהסתיים, לפי מה שנרשם בטלמטריה. קריאה בלבד: לוגיקת האתגרים לא משתנה.
    "הטעויות המותרות" מחושבות באותה דרך שהאתגר עצמו מחשב אותן. */
 import { challengePoints } from '../../../shared/lib/gemModel'
-import { scaleMemory, scaleTileSwap, scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
+import { scaleMatchPairs, scaleMemory, scaleTileSwap, scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import type { InteractionEvent } from '../../../shared/lib/answerTelemetry'
 import type { ChallengeResult } from '../useGameEngine'
 
@@ -10,6 +10,7 @@ interface PuzzleMeta { type?: string; difficulty?: number; maxWrong?: number; gr
 export function allowedMistakes(p: PuzzleMeta): number {
   switch (p.type) {
     case 'memory': return scaleMemory(p.difficulty ?? 5).maxMistakes
+    case 'matchPairs': return scaleMatchPairs(p.difficulty ?? 5).maxMistakes
     case 'wordCompletion': return scaleWordCompletion(p.difficulty ?? 5).maxAttempts
     case 'hangman': return Math.max(3, Math.min(10, p.maxWrong ?? 6))
     case 'tileSwap':
@@ -24,7 +25,8 @@ export function allowedMistakes(p: PuzzleMeta): number {
 
 export function countMistakes(type: string | undefined, events: readonly InteractionEvent[]): number {
   switch (type) {
-    case 'memory': return events.filter((e) => e.k === 'pair' && e.match === false).length
+    case 'memory':
+    case 'matchPairs': return events.filter((e) => e.k === 'pair' && e.match === false).length
     case 'wordCompletion': return events.filter((e) => e.k === 'attempt' && e.correct === false).length
     case 'hangman': return events.filter((e) => e.k === 'letter' && e.correct === false).length
     case 'sequenceOrder': return events.filter((e) => e.k === 'submit' && e.correct === false).length

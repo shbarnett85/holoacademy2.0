@@ -109,7 +109,7 @@ export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props
         @keyframes wc-shake { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 75%{transform:translateX(7px);} }
         .wc-shake { animation: wc-shake 0.4s ease; }
       `}</style>
-      <p className="text-sm mb-3" style={{ opacity: 0.6 }}>{puzzle.question}</p>
+      <p data-challenge-q className="text-sm mb-3" style={{ opacity: 0.6 }}>{puzzle.question}</p>
 
       {/* מד ניסיונות שנותרו */}
       <FailPips remaining={remaining} total={maxAttempts} label="ניסיונות" />

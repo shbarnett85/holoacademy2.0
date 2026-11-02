@@ -15,6 +15,7 @@ interface PagesState { text: string; pages: string[] }
 export function useScenePages(text: string, areaRef: RefObject<HTMLElement | null>, enabled = true): string[] {
   const [state, setState] = useState<PagesState>(() => ({ text, pages: [text] }))
   const lastKey = useRef('')
+  const minHeight = useRef<{ scope: string; h: number } | null>(null)
 
   useLayoutEffect(() => {
     const area = areaRef.current
@@ -25,8 +26,15 @@ export function useScenePages(text: string, areaRef: RefObject<HTMLElement | nul
       const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)
       const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
       const width = area.clientWidth - padX
-      const maxH = area.clientHeight - padY - SAFETY_PX
-      if (width <= 0 || maxH <= 0) return /* עדיין לא מצויר */
+      const measuredH = area.clientHeight - padY - SAFETY_PX
+      if (width <= 0 || measuredH <= 0) return /* עדיין לא מצויר */
+
+      /* הכפתור בעמוד האחרון יכול להישבר לשתי שורות ולקצר את התיבה: אז נוצר עוד עמוד, במקומו מופיע "המשך" הקצר,
+         התיבה גדלה בחזרה, והחלוקה נכנסת ללולאה אינסופית שבה הכפתור לא לחיץ (8/8 ↔ 8/9). לכן לאותו טקסט ואותו חלון
+         הגובה רק יורד, והחלוקה מתייצבת */
+      const scope = `${text}|${width}|${window.innerWidth}x${window.innerHeight}`
+      if (minHeight.current?.scope !== scope || measuredH < minHeight.current.h) minHeight.current = { scope, h: measuredH }
+      const maxH = minHeight.current.h
 
       /* אלמנט מדידה **בתוך הזרימה** (בלי רוחב מפורש): מקבל בדיוק את רוחב הפסקה האמיתית בשבר הפיקסל.
          רוחב מחושב מ-clientWidth (מעוגל לשלם) היה צר ב-0.2px, ושורה אחת נשברה אחרת — עמוד של 12 שורות

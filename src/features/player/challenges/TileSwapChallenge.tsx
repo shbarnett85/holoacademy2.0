@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { TILE_SAMPLE, sameLookTiles, tileBackground, tileFits, tilesSolved } from './tileView'
 import { sounds } from '../gameFeel/engine'
 import type { Puzzle } from '../useGameEngine'
 import { scaleTileSwap } from '../../../shared/lib/difficultyScaling'
@@ -45,6 +46,47 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
   const [done, setDone] = useState<'win' | 'lose' | null>(null)
   /* רגע הניצחון: תצוגה גדולה של התמונה השלמה (lightbox) לפני פאנל ההצלחה */
   const [showcase, setShowcase] = useState(false)
+  const [gaveUp, setGaveUp] = useState(false)
+  /* היחס האמיתי של התמונה: הלוח ריבועי, והתמונה נחתכת אליו ולא נמעכת. עד שנטענה: היחס של תמונות הסצנה */
+  const [aspect, setAspect] = useState(16 / 9)
+  /* אריחים שנראים אותו דבר (שמיים שחורים) מתחלפים בלי הבדל: אי אפשר לדעת מה מקומו של כל אחד */
+  const [look, setLook] = useState<Set<number>[] | null>(null)
+
+  useEffect(() => {
+    if (!imageUrl) return
+    let cancelled = false
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      if (cancelled || !img.naturalWidth) return
+      const ratio = img.naturalWidth / img.naturalHeight
+      setAspect(ratio)
+      try {
+        const side = n * TILE_SAMPLE
+        const c = document.createElement('canvas')
+        c.width = side
+        c.height = side
+        const g = c.getContext('2d', { willReadFrequently: true })
+        if (!g) return
+        const cut = Math.min(img.naturalWidth, img.naturalHeight)
+        g.imageSmoothingQuality = 'high'
+        g.drawImage(img, (img.naturalWidth - cut) / 2, (img.naturalHeight - cut) / 2, cut, cut, 0, 0, side, side)
+        const found = sameLookTiles(g.getImageData(0, 0, side, side).data, n)
+        /* תמונה אחידה לגמרי: אין מה לפתור, ולכן נשארים עם הסדר המדויק */
+        if (found.some((s) => s.size === count)) return
+        setLook(found)
+        /* הערבוב יצא פתור מבחינת העין: מערבבים שוב, כל עוד לא נגעו בלוח */
+        setOrder((cur) => {
+          if (!tilesSolved(cur, found)) return cur
+          let next = cur
+          for (let i = 0; i < 50 && tilesSolved(next, found); i++) next = shuffled(count)
+          return next
+        })
+      } catch { /* תמונה שאוסרת קריאה (CORS): נשארים עם הסדר המדויק */ }
+    }
+    img.src = imageUrl
+    return () => { cancelled = true }
+  }, [imageUrl, n, count])
 
   function clickTile(pos: number) {
     if (done) return
@@ -60,9 +102,13 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
     ;[next[selected], next[pos]] = [next[pos], next[selected]]
     setSelected(null)
     setOrder(next)
-    tel?.act('swap', { from: selected, to: pos, tiles: [order[selected], order[pos]], bad: !(next[selected] === selected || next[pos] === pos) && !next.every((v, i) => v === i) })
-    if (next.every((v, i) => v === i)) {
+    const solved = tilesSolved(next, look)
+    /* "החלפה גרועה" — אף אחד משני האריחים שהוחלפו לא נחת במקום שמתאים לו */
+    const landedHome = tileFits(next[selected], selected, look) || tileFits(next[pos], pos, look)
+    tel?.act('swap', { from: selected, to: pos, tiles: [order[selected], order[pos]], bad: !landedHome && !solved })
+    if (solved) {
       setDone('win')
+      setOrder(Array.from({ length: count }, (_, i) => i)) /* גם אריחים דומים חוזרים למקום המדויק: כוכב קטן נשאר איפה שהיה */
       if (imageUrl && !prefersReduced()) {
         /* זוהר קצר על הרשת → תצוגה גדולה של התמונה השלמה → פאנל ההצלחה */
         setTimeout(() => setShowcase(true), 520)
@@ -72,8 +118,6 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
       }
       return
     }
-    /* "החלפה גרועה" — אף אחד משני האריחים שהוחלפו לא נחת במקומו הסופי */
-    const landedHome = next[selected] === selected || next[pos] === pos
     if (!landedHome) {
       const b = badSwaps + 1
       setBadSwaps(b)
@@ -130,13 +174,13 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
         </div>,
         document.body,
       )}
-      <p className="text-sm mb-3" style={{ opacity: 0.75 }}>{puzzle.question}</p>
+      <p data-challenge-q className="text-sm mb-3" style={{ opacity: 0.75 }}>{puzzle.question}</p>
 
       {/* מד החלפות גרועות שנותרו */}
       <FailPips remaining={remaining} total={maxBadSwaps} label="החלפות" />
 
       {done === 'lose' && (
-        <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>💥 נגמרו ההחלפות — זו התמונה השלמה</p>
+        <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>{gaveUp ? 'זו התמונה השלמה' : '💥 נגמרו ההחלפות — זו התמונה השלמה'}</p>
       )}
 
       {/* dir="ltr" מפורש: לוגיקת האינדקסים (col = value % n, אינדקס 0 = שמאל) מניחה LTR.
@@ -148,7 +192,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           display: 'grid',
           gridTemplateColumns: `repeat(${n}, 1fr)`,
           gap: '3px',
-          width: 'min(78vw, 300px)',
+          width: 'min(78vw, 300px, max(190px, calc(100dvh - 518px)))', /* הלוח מתכווץ כדי שלא תהיה גלילה בפאנל */
           aspectRatio: '1 / 1',
           borderRadius: '0.6rem',
           overflow: 'hidden',
@@ -159,6 +203,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           const row = Math.floor(value / n)
           const col = value % n
           const isSel = selected === pos
+          const bg = tileBackground(col, row, n, aspect)
           return (
             <button
               key={pos}
@@ -174,8 +219,8 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
                 transition: 'transform 0.15s, background-position 0.25s ease',
                 backgroundColor: 'rgba(0,40,70,0.6)',
                 backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
-                backgroundSize: `${n * 100}% ${n * 100}%`,
-                backgroundPosition: `${(col / (n - 1)) * 100}% ${(row / (n - 1)) * 100}%`,
+                backgroundSize: bg.size,
+                backgroundPosition: bg.position,
                 color: 'var(--holo-text)',
                 fontSize: '1.1rem',
                 fontWeight: 700,
@@ -194,7 +239,14 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           <button
             className="text-sm cursor-pointer rounded-md px-3 py-1"
             style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
-            onClick={() => { tel?.act('gave_up'); onResult({ correct: false }) }}
+            onClick={() => {
+              tel?.act('gave_up')
+              setGaveUp(true)
+              setDone('lose')
+              setSelected(null)
+              setOrder(Array.from({ length: count }, (_, i) => i)) /* חשיפת התמונה הפתורה, כמו במיצוי ההחלפות */
+              onResult({ correct: false })
+            }}
           >
             ויתור על האתגר 🏳️
           </button>

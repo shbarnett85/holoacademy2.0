@@ -220,6 +220,7 @@ function puzzleValidForType(p: PuzzleObj): boolean {
     case 'wordSearch':
       return !!p.words && p.words.length >= 3
     case 'memory':
+    case 'matchPairs':
       return !!p.pairs && p.pairs.length >= 2
     case 'wordCompletion':
       return !!p.sentence && p.sentence.includes('___') && ((!!p.answers && p.answers.length > 0) || !!p.answer)

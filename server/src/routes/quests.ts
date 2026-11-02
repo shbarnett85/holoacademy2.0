@@ -34,7 +34,7 @@ import { subjectName as subjectName_, isSubjectCode } from '../../../src/shared/
 import { loadEffectiveProfile } from '../lib/profileCalibration.js'
 import { debug, info, warn, error as logError } from '../lib/log.js'
 /* המודולים שפוצלו מהקובץ הזה (E4) — סכמות/קריאות-מודל/בטיחות/בדיקת-עובדות/וריאציות */
-import { extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, shuffleAnswerPositions, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
+import { applyLabPolicy, extractJson, validateGameData, repairRawPuzzles, checkAnswerConsistency, healStaleFactCheck, collectOpenWarnings, shuffleAnswerPositions, generateRequestSchema, type GameData } from '../lib/questSchemas.js'
 import { callClaude, callHaiku } from '../lib/claudeCalls.js'
 import { runInputSafetyCheck, runOutputSafetyCheck, logContentSafety, SAFETY_BLOCK_MESSAGE, SAFETY_TECH_MESSAGE } from '../lib/contentSafety.js'
 import { runFactCheck, scopedFactFix, factWarning, factCheckInBackground, type FactCheckMeta } from '../lib/factCheck.js'
@@ -1004,6 +1004,7 @@ async function generateLinearParallel(params: QuestGenerationParams): Promise<Ga
     isHistorical: !!skel.isHistorical,
     endingGood: cx.endingGood,
     endingBad: cx.endingBad,
+    holoMoods: cx.holoMoods,
   }
 
   /* 5. ולידציה — כשל → fallback לסדרתי */
@@ -1196,6 +1197,9 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
     } catch (err) {
       logError('[gen] בדיקת הפנייה לתלמיד נכשלה:', err instanceof Error ? err.message : err)
     }
+
+    /* בלי תמונות פתיחה וסיום, בלי {DR_HOLO}, ומצבי רוח מהרשימה הסגורה */
+    applyLabPolicy(gameData)
 
     /* כלל "אורך טקסט לתלמיד" (CLAUDE.md): סצנה שחורגת מגובה המסך — קיצור (בקשה אחת, עם העובדות שהאתגר נשען עליהן),
        אחרת פיצול (סצנה ליניארית בלבד), אחרת סימון (התצוגה תחלק לעמודים). **לפני** בדיקת הבטיחות — כדי שהטקסט הסופי

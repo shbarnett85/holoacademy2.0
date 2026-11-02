@@ -46,6 +46,9 @@ const SHARE = args.includes('--share')
    שהחדשה הצליחה במלואה (תוכן+תמונות+מטא) היא מודחת — is_public/is_official
    כבויים — כך שה-showcase לעולם לא נשאר בלי הדמיה תקינה לנושא. */
 const REWRITE = args.includes('--rewrite')
+/* --only "כותרת|כותרת": רק הנושאים האלה. בלי --share החדשה נשארת טיוטה והישנה לא מודחת: ה-DB משותף עם הפרודקשן, ושם כלום לא משתנה */
+const onlyIdx = args.indexOf('--only')
+const ONLY = onlyIdx !== -1 ? args[onlyIdx + 1].split('|').map((t) => t.trim()) : null
 
 const secs = (from: number) => ((Date.now() - from) / 1000).toFixed(0)
 
@@ -115,6 +118,7 @@ async function main() {
 
   for (const t of topics) {
     if (produced >= LIMIT) break
+    if (ONLY && !ONLY.includes(t.title)) continue
 
     /* idempotent — דילוג על נושא שכבר נוצר (אלא אם --rewrite) */
     const { data: existing } = await supabaseAdmin.from('quests').select('id').eq('title', t.title).limit(1)
@@ -161,7 +165,8 @@ async function main() {
     console.log(`  ✓ תוכן: ${done.scenes} סצנות (${secs(t0)}ש׳) — מייצר תמונות…`)
 
     const img = await generateImages(questId, token)
-    console.log(`  ✓ תמונות: ${img.completed}/${img.total}${img.warnings.length ? ` · אזהרות: ${img.warnings.length}` : ''}`)
+    console.log(`  ✓ תמונות: ${img.completed}/${img.total}${img.warnings.length ? ` · אזהרות: ${img.warnings.join(' ; ')}` : ''}`)
+    console.log(`  מזהה: ${questId}`)
 
     /* מטא שכבות + סימון רשמי (דיפנסיבי — אם המיגרציה טרם רצה, מדלגים בשקט) */
     const { error: metaErr } = await supabaseAdmin
@@ -184,7 +189,7 @@ async function main() {
 
     /* --rewrite: החדשה הצליחה במלואה — מדיחים את הישנה מה-showcase ומהספרייה.
        לא מוחקים: sessions/events מפנים אליה והאנליטיקה ההיסטורית נשמרת. */
-    if (oldId) {
+    if (oldId && SHARE) {
       const { error: demoteErr } = await supabaseAdmin
         .from('quests')
         .update({ is_public: false, is_official: false })

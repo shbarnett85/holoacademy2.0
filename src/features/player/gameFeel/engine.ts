@@ -28,7 +28,8 @@ export const FPS_PROBE_MS = 3000
 /* גובה הזום של תמונת הסצנה: מחזור של 26 שניות */
 export const KEN_BURNS_SECONDS = 26
 
-export type HoloMood = 'neutral' | 'happy' | 'thinking' | 'surprised'
+export type { HoloMood } from '../../../shared/lib/holoMoods'
+import type { HoloMood } from '../../../shared/lib/holoMoods'
 
 const isBrowser = typeof window !== 'undefined'
 const reducedQuery = isBrowser && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null

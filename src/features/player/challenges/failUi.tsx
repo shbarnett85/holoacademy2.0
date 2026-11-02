@@ -12,7 +12,7 @@ export function FailPips({ remaining, total, label }: { remaining: number; total
   const safeTotal = Math.max(0, total)
   const safeRemaining = Math.max(0, Math.min(safeTotal, remaining))
   return (
-    <div className="flex flex-col items-center gap-1 mb-3">
+    <div data-solution-hide className="flex flex-col items-center gap-1 mb-3">
       <div className="flex gap-1 flex-wrap justify-center" dir="ltr" style={{ maxWidth: '14rem' }}>
         {Array.from({ length: safeTotal }).map((_, i) => (
           <span

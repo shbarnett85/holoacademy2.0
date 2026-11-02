@@ -30,6 +30,7 @@ export const PUZZLE_TYPES = [
   { key: 'tileSwap', label: 'פאזל החלפת חלקים' },
   { key: 'wordSearch', label: 'תפזורת' },
   { key: 'memory', label: 'משחק הזיכרון' },
+  { key: 'matchPairs', label: 'התאמת זוגות' },
   { key: 'wordCompletion', label: 'השלם את החסר' },
   { key: 'sequenceOrder', label: 'חידת סדר' },
   { key: 'hangman', label: 'פיצוח קוד' },

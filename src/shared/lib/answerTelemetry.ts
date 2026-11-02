@@ -373,6 +373,12 @@ function buildPresentationRows(tel: PuzzleTelemetry, input: FinishInput): Presen
       pairs: st.events.filter((e) => e.k === 'pair').map((p) => ({ a: p.a, b: p.b, match: p.match, t: p.t })),
       mistakes: st.events.filter((e) => e.k === 'pair' && e.match === false).length,
     }
+  } else if (puzzleType === 'matchPairs') {
+    attemptNo = Math.max(1, countOf(st, 'pair'))
+    interaction = {
+      pairs: st.events.filter((e) => e.k === 'pair').map((p) => ({ a: p.a, b: p.b, match: p.match, t: p.t })),
+      mistakes: st.events.filter((e) => e.k === 'pair' && e.match === false).length,
+    }
   } else if (puzzleType === 'wordCompletion') {
     const attempts = st.events.filter((e) => e.k === 'attempt')
     attemptNo = Math.max(1, attempts.length)

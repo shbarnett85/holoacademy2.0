@@ -14,7 +14,7 @@
 
 export const PROFILE_PUZZLE_TYPES = [
   'multipleChoice', 'trueFalse', 'finalQuiz', 'wordCompletion',
-  'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory',
+  'sequenceOrder', 'hangman', 'tileSwap', 'wordSearch', 'memory', 'matchPairs',
 ] as const
 export type ProfilePuzzleType = (typeof PROFILE_PUZZLE_TYPES)[number]
 

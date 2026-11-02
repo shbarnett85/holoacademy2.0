@@ -1,4 +1,21 @@
 import { describe, it, expect } from 'vitest'
+import { lintKnownErrors as lintShekels } from './questSchemas.js'
+
+describe('lintKnownErrors: שקלים', () => {
+  const lint = (narrative: string, choice = 'x') => lintShekels({ entrySceneId: 's', scenes: [{ id: 's', title: 't', narrative, puzzle: { type: 'multipleChoice', question: 'q', choices: [{ id: 'a', text: choice, isCorrect: true }] } }] } as never)
+    .filter((f) => f.problem.includes('שקלים'))
+  it('תופס מספר עם "שקל", גם בתשובה', () => {
+    expect(lint('החולצה עולה 80 שקל')).toHaveLength(1)
+    expect(lint('הנחה של 20 שקל על הכול')).toHaveLength(1)
+    expect(lint('טקסט', '60 שקל')).toHaveLength(1)
+    expect(lint('המחיר 2.5 שקל')).toHaveLength(1)
+  })
+  it('לא תופס את הצורה הנכונה, שקל אחד או שקל בלי מספר', () => {
+    expect(lint('החולצה עולה 80 שקלים')).toHaveLength(0)
+    expect(lint('עלה 1 שקל')).toHaveLength(0)
+    expect(lint('כל שקל חשוב')).toHaveLength(0)
+  })
+})
 import {
   assertedTrueFalseAnswer,
   markedTrueFalseAnswer,
@@ -45,6 +62,10 @@ describe('assertedTrueFalseAnswer — "לא נכון" לא נקרא בטעות �
   })
   it('explanationIncorrect "התשובה הנכונה היא נכון" → true', () => {
     expect(assertedTrueFalseAnswer(undefined, 'התשובה הנכונה היא נכון. כי...')).toBe('true')
+  })
+  it('עם נקודתיים אחרי "היא" (כך הוחמץ היפוך בשיעור האחוזים)', () => {
+    expect(assertedTrueFalseAnswer(undefined, 'התשובה הנכונה היא: נכון. 25% הם רבע')).toBe('true')
+    expect(assertedTrueFalseAnswer(undefined, 'התשובה הנכונה היא: לא נכון.')).toBe('false')
   })
   it('explanationCorrect "נכון מאוד שזה לא נכון" → false', () => {
     expect(assertedTrueFalseAnswer('נכון מאוד שזה לא נכון! השמש היא כוכב', undefined)).toBe('false')

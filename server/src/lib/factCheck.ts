@@ -33,6 +33,8 @@ function factCheckContent(gameData: GameData, sceneIds?: string[]): string {
       }
     }
     for (const q of s.puzzle?.questions ?? []) lines.push(`  שאלת מבחן: ${q.question}`)
+    /* זוג הוא טענה: המושג וההסבר חייבים להתאים באמת */
+    for (const pr of s.puzzle?.pairs ?? []) lines.push(`  זוג נכון: ${pr.a} — ${pr.b}`)
   }
   /* הסיומים היו שטח מת של הבדיקה — "שתחוסכו" ישב ב-endingGood ואיש לא בדק
      אותו. מזהים פסאודו (__endingGood__/__endingBad__), כמו אצל התמונות. */

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { LAB } from '../player/lab/labComposition'
 import { apiFetch } from '../../shared/lib/api'
 import { useEscToClose } from '../../shared/ui/useModalA11y'
 import { ART_STYLES, type GeneratedQuest, type HubInfo } from './creatorStore'
@@ -98,15 +99,14 @@ const fieldStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--t300)' }
 
 /* כרטיס מסך סיום — הסיפור נסגר / הסיפור נשאר פתוח */
-function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: {
+function EndingCard({ which, ending, onEdit }: {
   which: 'good' | 'bad'; ending: EndingScene
-  onEdit: () => void; onRegenerateImage: (id: string) => void; regenerating: boolean
+  onEdit: () => void
 }) {
   const [hov, setHov] = useState(false)
   const good = which === 'good'
   const accent = good ? 'var(--t209)' : 'var(--t14)'
   const rgb = good ? '255,180,84' : '155,140,255'
-  const synthId = good ? '__endingGood__' : '__endingBad__'
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
@@ -138,35 +138,20 @@ function EndingCard({ which, ending, onEdit, onRegenerateImage, regenerating }: 
         )}
       </div>
       <div style={{ position: 'relative', width: 120, flexShrink: 0, borderRadius: 11, overflow: 'hidden', border: `1px solid ${window.HoloTint(rgb, .3)}`, alignSelf: 'stretch', minHeight: 90 }}>
-        {ending.imageUrl ? (
-          <>
-            <img src={ending.imageUrl} alt={ending.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: regenerating ? 0.4 : 1 }} />
-            <button title="צור תמונה מחדש" disabled={regenerating}
-              onClick={(e) => { e.stopPropagation(); onRegenerateImage(synthId) }}
-              style={{ position: 'absolute', bottom: 6, left: 6, width: 26, height: 26, borderRadius: 8, fontSize: 13, cursor: 'pointer', background: 'var(--t214)', border: '1px solid var(--t2)', color: 'var(--t19)', display: 'grid', placeItems: 'center' }}>
-              {regenerating ? '…' : '🔄'}
-            </button>
-          </>
-        ) : (
-          <div style={{ width: '100%', height: '100%', minHeight: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${window.HoloTint(rgb, .06)}, var(--t215))` }}>
-            <span style={{ ...micro, fontSize: 8, color: `${window.HoloTint(rgb, .4)}` }}>אין תמונה</span>
-          </div>
-        )}
+        <img src={LAB.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       </div>
     </div>
   )
 }
 
 /* מודאל עריכת מסך סיום */
-function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerateImage, regenerating }: {
+function EndingEditModal({ questId, which, ending, onClose, onSaved }: {
   questId: string; which: 'good' | 'bad'; ending: EndingScene
   onClose: () => void; onSaved: (patch: Partial<EndingScene>) => void
-  onRegenerateImage: (id: string) => void; regenerating: boolean
 }) {
   const [title, setTitle] = useState(ending.title ?? '')
   const [narrative, setNarrative] = useState(ending.narrative ?? '')
   const [dialog, setDialog] = useState(ending.drHoloDialog ?? '')
-  const [imagePrompt, setImagePrompt] = useState(ending.imagePrompt ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const good = which === 'good'
@@ -179,10 +164,10 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
     try {
       const res = await apiFetch(`/api/quests/${questId}/scene`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sceneId: synthId, title, narrative, drHoloDialog: dialog, imagePrompt }),
+        body: JSON.stringify({ sceneId: synthId, title, narrative, drHoloDialog: dialog }),
       })
       if (!res.ok) { const b = await res.json().catch(() => null); throw new Error(b?.error ?? 'שמירה נכשלה') }
-      onSaved({ title, narrative, drHoloDialog: dialog, imagePrompt })
+      onSaved({ title, narrative, drHoloDialog: dialog })
       onClose()
     } catch (err) { setError(err instanceof Error ? err.message : 'שגיאה') } finally { setSaving(false) }
   }
@@ -205,20 +190,6 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved, onRegenerat
         <div className="mb-4">
           <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 5 }}><DrHoloEmblem size={15} /> דיאלוג ד"ר הולו</label>
           <textarea value={dialog} onChange={(e) => setDialog(e.target.value)} rows={3} style={fieldStyle} placeholder="מה ד&quot;ר הולו אומר בסיום…" />
-        </div>
-        <div className="mb-4">
-          <label style={labelStyle}>פרומפט לתמונת הסיום (imagePrompt)</label>
-          <div className="flex gap-3 items-start">
-            {ending.imageUrl && (
-              <div className="relative shrink-0">
-                <img src={ending.imageUrl} alt={ending.title} className="rounded-lg" style={{ width: '7rem', height: '4.2rem', objectFit: 'cover', border: '1px solid var(--t219)', opacity: regenerating ? 0.4 : 1 }} />
-                <button disabled={regenerating} onClick={() => onRegenerateImage(synthId)} className="holo-button mt-1 w-full" style={{ padding: '0.25rem', fontSize: '0.75rem' }}>
-                  {regenerating ? 'יוצר…' : 'צור מחדש 🔄'}
-                </button>
-              </div>
-            )}
-            <textarea value={imagePrompt} onChange={(e) => setImagePrompt(e.target.value)} rows={4} style={fieldStyle} placeholder="English image prompt…" />
-          </div>
         </div>
         {error && <p className="text-sm mb-3" style={{ color: 'var(--t5)' }}>⚠️ {error}</p>}
         <div className="flex gap-3 justify-end">
@@ -324,9 +295,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       const { imageUrl } = await res.json()
       /* תמונות סיום מזוהות לפי ה-sceneId הסינתטי — הן לא ב-scenes[], ולכן patchScene לא
          ימצא אותן; מנתבים אותן ל-patchEnding (אחרת תמונת הסיום לא מתעדכנת בתצוגה). */
-      if (sceneId === '__endingGood__') patchEnding?.('good', { imageUrl: bustCache(imageUrl) })
-      else if (sceneId === '__endingBad__') patchEnding?.('bad', { imageUrl: bustCache(imageUrl) })
-      else patchScene(sceneId, { imageUrl: bustCache(imageUrl) })
+      patchScene(sceneId, { imageUrl: bustCache(imageUrl) })
     } catch (err) {
       setImgWarnings([err instanceof Error ? err.message : 'יצירת התמונה נכשלה'])
     } finally {
@@ -511,15 +480,11 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {endingGood && (
               <EndingCard which="good" ending={endingGood}
-                onEdit={() => setEditingEnding('good')}
-                onRegenerateImage={regenerateImage}
-                regenerating={regeneratingSceneId === '__endingGood__'} />
+                onEdit={() => setEditingEnding('good')} />
             )}
             {endingBad && (
               <EndingCard which="bad" ending={endingBad}
-                onEdit={() => setEditingEnding('bad')}
-                onRegenerateImage={regenerateImage}
-                regenerating={regeneratingSceneId === '__endingBad__'} />
+                onEdit={() => setEditingEnding('bad')} />
             )}
           </div>
         </div>
@@ -593,6 +558,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
         <SceneEditModal
           questId={questId}
           scene={editingScene}
+          fixedLab={editingScene.id === scenes[0]?.id && editingScene.puzzle?.type !== 'tileSwap'}
           onClose={() => setEditingSceneId(null)}
           onSaved={handleSceneSaved}
           onRegenerateImage={regenerateImage}
@@ -610,8 +576,6 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           ending={editingEnding === 'good' ? endingGood! : endingBad!}
           onClose={() => setEditingEnding(null)}
           onSaved={(patch) => { patchEnding?.(editingEnding, patch); flashToast('מסך הסיום עודכן ✓') }}
-          onRegenerateImage={regenerateImage}
-          regenerating={regeneratingSceneId === (editingEnding === 'good' ? '__endingGood__' : '__endingBad__')}
         />
       )}
 

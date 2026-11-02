@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LAB } from '../player/lab/labComposition'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 
 export interface SceneData {
@@ -38,6 +39,8 @@ function SceneRow({ scene, n, last, onRegenerateImage, regenerating, onEdit }: {
   scene: SceneData; n: number; last: boolean
   onRegenerateImage?: (id: string) => void; regenerating: boolean; onEdit?: (id: string) => void
 }) {
+  /* הסצנה הראשונה היא המעבדה הקבועה: אין לה תמונה משלה (חוץ מפאזל החלפה, שבנוי מתמונת הסצנה) */
+  const fixedLab = n === 1 && scene.puzzle?.type !== 'tileSwap'
   const [hov, setHov] = useState(false)
   const locked = !!scene.requiresItemId
   const summary = scene.puzzle?.type === 'finalQuiz'
@@ -114,7 +117,9 @@ function SceneRow({ scene, n, last, onRegenerateImage, regenerating, onEdit }: {
       <div
         onClick={onEdit ? () => onEdit(scene.id) : undefined}
         style={{ position: 'relative', alignSelf: 'stretch', width: 'clamp(150px, 26%, 240px)', flexShrink: 0, borderRadius: 14, overflow: 'hidden', border: `1px solid ${window.HoloTint(rgb, .3)}`, cursor: onEdit ? 'pointer' : 'default', boxShadow: hov ? `0 0 24px ${window.HoloTint(rgb, .18)}` : 'none', transition: 'box-shadow .2s' }}>
-        {scene.imageUrl ? (
+        {fixedLab ? (
+          <img src={LAB.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : scene.imageUrl ? (
           <>
             <img src={scene.imageUrl} alt={scene.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: regenerating ? 0.4 : 1 }} />
             {onRegenerateImage && (

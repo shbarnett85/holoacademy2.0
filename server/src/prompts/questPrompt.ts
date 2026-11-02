@@ -9,6 +9,7 @@ import {
   scaleTileSwap,
   scaleWordSearch,
   scaleMemory,
+  scaleMatchPairs,
   scaleWordCompletion,
   scaleSequenceOrder,
   scaleHangman,
@@ -96,6 +97,7 @@ const PUZZLE_TYPE_NAMES: Record<string, string> = {
   tileSwap: 'פאזל הזזה',
   wordSearch: 'חיפוש מילים',
   memory: 'משחק זיכרון',
+  matchPairs: 'התאמת זוגות (מושג ↔ הסבר)',
   wordCompletion: 'השלמת מילים',
   sequenceOrder: 'חידת סדר',
   hangman: 'זיהוי קוד',
@@ -113,7 +115,7 @@ export function puzzleDataSpec(type: string, level: number): string {
       return `"type":"trueFalse" — "question" (היגד) + "choices":[{id:"t",text:"נכון",isCorrect},{id:"f",text:"לא נכון",isCorrect}] + "explanationCorrect" + "explanationIncorrect". **קושי: ${scaleTrueFalse(level).guidance}**`
     case 'tileSwap': {
       const { gridSize } = scaleTileSwap(level)
-      return `"type":"tileSwap" — "question" (הוראה קצרה, למשל "סדרו את התמונה"). הרשת תהיה **${gridSize}x${gridSize}** (נקבע אוטומטית לפי הקושי). הפאזל נבנה מתמונת הסצנה — ה-imagePrompt חייב להיות עשיר וברור.`
+      return `"type":"tileSwap" — "question" (הוראה קצרה, למשל "סדרו את התמונה"). הרשת תהיה **${gridSize}x${gridSize}** (נקבע אוטומטית לפי הקושי). הפאזל נבנה מתמונת הסצנה, ממרכז התמונה בלבד (חיתוך ריבועי). **בחרו פאזל רק לסצנה שתמונתה מלאה בפרטים שונים בכל חלק שלה, ולא לתמונה עם שטחים אחידים גדולים (חלל, שמיים, ים, קיר ריק), כי אריחים זהים אי אפשר למקם.** ה-imagePrompt חייב להיות עשיר וברור.`
     }
     case 'wordSearch': {
       const { wordCount, guidance } = scaleWordSearch(level)
@@ -122,6 +124,10 @@ export function puzzleDataSpec(type: string, level: number): string {
     case 'memory': {
       const { pairCount, guidance } = scaleMemory(level)
       return `"type":"memory" — "question" (הוראה) + "pairs": מערך של **בדיוק ${pairCount} זוגות** {a,b}. a = מושג, b = הגדרה/תרגום **קצר** (1-4 מילים) כדי שייכנס בקלף. ${guidance}`
+    }
+    case 'matchPairs': {
+      const { pairCount, guidance } = scaleMatchPairs(level)
+      return `"type":"matchPairs" — "question" (הוראה, למשל "התאימו כל מושג להסבר שלו") + "pairs": מערך של **בדיוק ${pairCount} זוגות** {a,b}. a = מושג קצר (1-4 מילים), b = הסבר של המושג (עד 8 מילים). הכול גלוי לתלמיד, ולכן האתגר בודק ידע בלבד: **ההסבר לא חוזר על מילים מהמושג**, לכל הסבר מתאים מושג אחד בלבד, וההסברים דומים באורכם, כדי שאי אפשר יהיה לנחש לפי המראה. ${guidance}`
     }
     case 'wordCompletion': {
       const { wordBankSize, blankCount, guidance } = scaleWordCompletion(level)
@@ -247,7 +253,7 @@ function puzzleListText(prefs: PuzzlePreferences | undefined, level: number): st
     .map(([type]) => puzzleDataSpec(type, level))
     .filter(Boolean)
     .map((s) => `- ${s}`)
-  return `\n## סוגי אתגרים נדרשים\nשלב את האתגרים הבאים בסצנות (כל אתגר בשדה puzzle עם "type" מתאים):\n${lines.join('\n')}\n\n### מפרט נתוני האתגרים (חובה למלא בעברית, בהקשר חומר הלימוד, ובהתאמה לרמת הקושי!)\n**חובה מוחלטת: לכל puzzle — בכל סוג, ובכל סצנה כולל הסצנות המאוחרות — חייב להיות שדה "question" לא-ריק בעברית** (שאלה בחידות תוכן, או הוראה קצרה בחידות מבוססות-משחק כמו tileSwap/wordSearch/memory/sequenceOrder). אל תשמיט את "question" לעולם.\n${specs.join('\n')}`
+  return `\n## סוגי אתגרים נדרשים\nשלב את האתגרים הבאים בסצנות (כל אתגר בשדה puzzle עם "type" מתאים):\n${lines.join('\n')}\n\n### מפרט נתוני האתגרים (חובה למלא בעברית, בהקשר חומר הלימוד, ובהתאמה לרמת הקושי!)\n**חובה מוחלטת: לכל puzzle — בכל סוג, ובכל סצנה כולל הסצנות המאוחרות — חייב להיות שדה "question" לא-ריק בעברית** (שאלה בחידות תוכן, או הוראה קצרה בחידות מבוססות-משחק כמו tileSwap/wordSearch/memory/matchPairs/sequenceOrder). אל תשמיט את "question" לעולם.\n**כסף: אחרי מספר כותבים "שקלים" ("60 שקלים", "20 שקלים הנחה"), לא "60 שקל". זה חל על כל טקסט: נרטיב, שאלות, תשובות והסברים.**\n${specs.join('\n')}`
 }
 
 /* הנחיות מבחן הסיכום — אתגר finalQuiz אחד בסצנת השיא */
@@ -264,10 +270,6 @@ function finalQuizInstructions(prefs: PuzzlePreferences | undefined, level: numb
 - מבחן הסיכום שוקל נתח משמעותי מהקריסטלים — ודא שהוא מקיף ומאתגר.`
 }
 
-/* imagePrompt קבוע לסצנת המעבדה — לא נותנים ל-AI להמציא אותו.
-   {DR_HOLO} מוחלף בתיאור הדמות הקבוע בשלב יצירת התמונות */
-export const LAB_IMAGE_PROMPT_TEMPLATE =
-  'futuristic holographic laboratory, {DR_HOLO} standing before a large glowing circular portal, through the portal a vivid view of {quest world}, cyan and blue holographic interfaces floating around, cinematic lighting'
 
 /* הנחיות מבנה מעבדה-פורטל — כש-ד"ר הולו פעיל */
 function labStructureInstructions(): string {
@@ -276,14 +278,14 @@ function labStructureInstructions(): string {
 1. **הסצנה הראשונה (entrySceneId) היא תמיד מעבדת ד"ר הולו**:
    - הדוקטור מסביר אך ורק: לאן יוצאים, מה נלמד, ומה המשימה.
    - **אסור** לו להסביר את מנגנון הקריסטלים או חוקים של המערכת — התלמידים מכירים אותם. מותר אזכור אגבי אחד לכל היותר ("מכשיר הקריסטלים שלי מוכן — צא לדרך!").
-   - ה-imagePrompt של סצנת המעבדה חייב להיות בדיוק התבנית הבאה, כשאת {quest world} מחליפים ב-2-6 מילים באנגלית שמתארות את עולם השיעור:
-     "${LAB_IMAGE_PROMPT_TEMPLATE}"
-   - הוסף לסצנת המעבדה גם "drHoloExpression" התואם לטון הבריפינג (למשל "a worried, urgent expression" אם המשימה דחופה, או "a warm, encouraging smile" אם הפתיחה רגועה).
+   - **לסצנת המעבדה אין imagePrompt ואין drHoloExpression**: המעבדה היא תמונה קבועה של המערכת, ובפורטל שלה מוצגת תמונה של הסצנה הבאה.
+   - **סצנת התוכן הראשונה (זו שאחרי המעבדה) היא establishing shot של העולם: ב-imagePrompt שלה אסור שיהיו דמויות בכלל**. בלי אנשים, בלי בעלי חיים ובלי קהל, רק המקום עצמו. הנרטיב יכול לספר על דמויות כרגיל.
    - **קריטי: לסצנת המעבדה חייב להיות "nextSceneId" שמצביע לסצנת התוכן הראשונה** (או choices במבנה Hub). אסור שתישאר ללא קישור קדימה — אחרת המשחק ידלג ישר לסיום. כל סצנה חייבת להיות נגישה מסצנת הכניסה.
-2. **שתי סצנות סיום** בשדות "endingGood" ו-"endingBad" ברמה העליונה של ה-JSON (לא בתוך scenes). מבנה כל סיום: { "title", "narrative", "drHoloDialog" (עברית), "imagePrompt" (אנגלית, **חייב** להכיל ${`{DR_HOLO}`} במרכז, **שונה מתמונת הפתיחה**), "drHoloExpression" (אנגלית, תואם לסוג הסיום) }:
-   - "endingGood" — **הסיפור נסגר** (התלמיד אסף מספיק תובנות): חזרה למעבדה — הדוקטור נרגש וחולק את התובנה/מוסר ההשכל **העמוק** של החומר. תמונה: מעבדה חוגגת באור חם, אורות הולוגרפיים, גבישים זוהרים במלואם; הבעה שמחה/גאה (למשל "a joyful, proud smile").
-   - "endingBad" — **הסיפור נשאר פתוח** (חסרות עוד תובנות): חזרה למעבדה — הדוקטור חם ומעודד. מה כבר הושג בסיפור, מה עוד לא נפתר ("חסרות עוד תובנות כדי…"), והזמנה לשחק שוב. **אין כאן כישלון ואין כאן הפסד**: לא "נכשלתם", לא "הפסדתם", לא טון מאשים או קודר. אין כאן מנצחים ומפסידים — אלה סיפור שנסגר וסיפור שעוד פתוח. תמונה: מעבדה שקטה בתאורת ערב, דלת או פורטל פתוחים אל המשך הסיפור; הבעה מהורהרת ומזמינה (למשל "a thoughtful, encouraging smile").
-   - התייחסות לקריסטלים מותרת ורצויה בסיומים — שם זה חלק מהעלילה.`
+2. **שתי סצנות סיום** בשדות "endingGood" ו-"endingBad" ברמה העליונה של ה-JSON (לא בתוך scenes). מבנה כל סיום: { "title", "narrative", "drHoloDialog" (עברית) }. **לסיומים אין imagePrompt**: הם מתרחשים במעבדה הקבועה:
+   - "endingGood" — **הסיפור נסגר** (התלמיד אסף מספיק תובנות): חזרה למעבדה — הדוקטור נרגש וחולק את התובנה/מוסר ההשכל **העמוק** של החומר.
+   - "endingBad" — **הסיפור נשאר פתוח** (חסרות עוד תובנות): חזרה למעבדה — הדוקטור חם ומעודד. מה כבר הושג בסיפור, מה עוד לא נפתר ("חסרות עוד תובנות כדי…"), והזמנה לשחק שוב. **אין כאן כישלון ואין כאן הפסד**: לא "נכשלתם", לא "הפסדתם", לא טון מאשים או קודר. אין כאן מנצחים ומפסידים — אלה סיפור שנסגר וסיפור שעוד פתוח.
+   - התייחסות לקריסטלים מותרת ורצויה בסיומים — שם זה חלק מהעלילה.
+3. **מצבי הרוח של ד"ר הולו**: בשדה "holoMoods" ברמה העליונה של ה-JSON בחר מצב רוח לכל מסך, לפי הטון של הטקסט שלו: { "opening" (סצנת המעבדה), "closed" (endingGood), "open" (endingBad) }. **רק מהרשימה הסגורה** — neutral (רגיל), happy (שמח), celebrating (חוגג), amused (משועשע), surprised (מופתע), thinking (חושב), sad (עצוב), angry (כועס), scared (מפוחד). ב-"open" תמיד sad: מבט למטה ואכזבה קלה שמזמינה לנסות שוב. ב-"closed" רק happy או celebrating.`
 }
 
 /* ── קולו של ד"ר הולו: מהלכים פדגוגיים (roles), לא נוסחאות ──
@@ -384,8 +386,6 @@ function narrativeStructureInstructions(questType?: string): string {
       "id": "scene_lab",
       "title": "האורח מאתונה",
       "narrative": "בפתח המעבדה עומד גבר בגלימה יוונית. 'מישהו זייף את ההצבעה באתונה,' הוא לוחש.",
-      "imagePrompt": "futuristic holographic laboratory, {DR_HOLO} standing before a large glowing circular portal, through the portal a vivid view of ancient athens agora, cyan and blue holographic interfaces floating around, cinematic lighting",
-      "drHoloExpression": "a worried, urgent expression",
       "drHoloDialog": "האקלסיה היא אסיפת כל האזרחים — שם מכריעים בהרמת יד.",
       "nextSceneId": "scene_agora"
     },
@@ -393,7 +393,7 @@ function narrativeStructureInstructions(questType?: string): string {
       "id": "scene_agora",
       "title": "האגורה — איסוף קצה חוט",
       "narrative": "אתם יוצאים מהפורטל אל האגורה ההומה. סוחר לוחש על אסימונים חשודים.",
-      "imagePrompt": "a bustling ancient Greek agora marketplace, citizens in togas, stalls with pottery, 5th century BC, historically accurate, in its original pristine state",
+      "imagePrompt": "wide establishing shot of an empty ancient Greek agora marketplace at dawn, stalls with pottery, marble colonnades, no people, 5th century BC, historically accurate, in its original pristine state",
       "drHoloDialog": "עצמו עיניים: כיכר עמוסה, בלי מכונת הצבעה אחת. הכול נשען על אמון.",
       "puzzle": {
         "type": "multipleChoice",
@@ -425,8 +425,9 @@ function narrativeStructureInstructions(questType?: string): string {
   ],
   "entrySceneId": "scene_lab",
   "isHistorical": true,
-  "endingGood": { "title": "הדמוקרטיה ניצלה", "narrative": "חזרתם למעבדה. המזייף נחשף וההצבעה הייתה הוגנת.", "drHoloDialog": "הצלתם היום לא רק הצבעה — הראיתם למה השקיפות היא הלב של הדמוקרטיה.", "imagePrompt": "Victory celebration inside Dr. Holo's glowing holographic laboratory, warm golden light, holographic confetti and triumphant light beams, five crystals shining at full brightness, {DR_HOLO} standing proudly at the center", "drHoloExpression": "a joyful, triumphant smile, beaming with pride" },
-  "endingBad": { "title": "הסיפור עוד פתוח", "narrative": "חזרתם למעבדה עם חלק מהראיות. המזייף עדיין לא נחשף, וההצבעה עוד לא הוכרעה.", "drHoloDialog": "חסרות עוד תובנות כדי לחשוף את המזייף. בואו נחזור לאגורה ונשלים אותן.", "imagePrompt": "Quiet holographic laboratory in soft evening light, an open glowing portal leading back to the ancient agora, a few crystals softly shining, calm and inviting atmosphere, {DR_HOLO} standing at the center", "drHoloExpression": "a thoughtful, encouraging smile" }
+  "endingGood": { "title": "הדמוקרטיה ניצלה", "narrative": "חזרתם למעבדה. המזייף נחשף וההצבעה הייתה הוגנת.", "drHoloDialog": "הצלתם היום לא רק הצבעה — הראיתם למה השקיפות היא הלב של הדמוקרטיה." },
+  "endingBad": { "title": "הסיפור עוד פתוח", "narrative": "חזרתם למעבדה עם חלק מהראיות. המזייף עדיין לא נחשף, וההצבעה עוד לא הוכרעה.", "drHoloDialog": "חסרות עוד תובנות כדי לחשוף את המזייף. בואו נחזור לאגורה ונשלים אותן." },
+  "holoMoods": { "opening": "scared", "closed": "celebrating", "open": "sad" }
 }
 
 (בשיעור עם מפתחות/מנעולים המבנה דומה אך מסועף — ראו HUB STRUCTURE; גם שם הבחירה הנעולה מובילה אל סצנת שיא נפרדת.)`
@@ -464,10 +465,16 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
 4. לכל imagePrompt של שיעור היסטורי צרף בסוף: ", historically accurate, in its original pristine state"
 5. בשדה "isHistorical" (ברמת ה-JSON העליונה, ליד scenes) קבע true אם השיעור מתרחש בעבר, אחרת false.
 
-## דמות ד"ר הולו ב-imagePrompt (קריטי!)
-כשד"ר הולו מופיע ויזואלית בתוך סצנה, ה-imagePrompt חייב להכיל את ה-placeholder המדויק {DR_HOLO} במקום שבו הדוקטור אמור להופיע — **אסור לתאר את הדוקטור במילים שלך** (לא מראה, לא בגדים, לא גיל, **ולא הבעת פנים**). פשוט שלב את {DR_HOLO} בתיאור הסצנה. לדוגמה: "{DR_HOLO} pointing at an ancient scroll in a sunlit library". אם הדוקטור לא מופיע בתמונה — אל תכלול את ה-placeholder.
-**הבעת פנים — drHoloExpression (חובה כשהדוקטור מופיע):** הזהות של הדוקטור (פנים, זקן, משקפיים, חלוק) קבועה ומוזרקת אוטומטית; אבל **הבעת הפנים חייבת להתאים לטון הנרטיב של הסצנה**. בכל סצנה שה-imagePrompt שלה מכיל {DR_HOLO}, הוסף שדה "drHoloExpression" באנגלית קצרה שמתארת את ההבעה לפי תוכן הסצנה — אם הטקסט אומר שהוא מודאג, ההבעה מודאגת; אם נרגש, ההבעה נרגשת. דוגמאות: "a worried, tense expression", "an excited, joyful smile", "a serious, focused look", "an alarmed, startled face", "a warm, reassuring smile". אל תוסיף את השדה בסצנה שאין בה {DR_HOLO}.
-**חשוב מאוד: ה-placeholder {DR_HOLO} מותר אך ורק בשדה imagePrompt!** בכל שדה טקסט שמוצג לתלמיד (narrative, drHoloDialog, question, סצנות הסיום) כתוב תמיד "ד״ר הולו" בעברית — לעולם אל תכתוב {DR_HOLO} בטקסט, הוא יוצג כמחרוזת גולמית מכוערת.
+## דיוק מדעי ב-imagePrompt (קריטי!)
+אותה חומרה כמו דיוק היסטורי: תלמידים לומדים מהתמונה, ואסור שתלמד דבר שגוי. מודל התמונות טועה בקלות כשיש כמה גופים בתמונה, ולכן:
+1. **נושא מרכזי אחד בכל תמונה**: כוכב לכת אחד, ולא "ארבעת כוכבי הלכת בשורה". אסור לתאר כמה גופים שמים יחד, דיאגרמות, השוואות גודל או מערכת שלמה במבט אחד.
+2. גוף שמימי בתמונה: מרחף לבדו בחלל, עם כוכבים ברקע. אין גופים נוגעים, חופפים או מתנגשים, ואין אופק של גוף אחר בתמונה.
+3. מה שלא ניתן לצייר נכון: מתארים מקום או עצם אחד שמייצג אותו. למשל את חגורת האסטרואידים כסלעים בודדים בחלל הריק, ולא כטבעת סביב כוכבי לכת.
+4. אותו דבר בכל מדע: אנטומיה נכונה, בעלי חיים בסביבה הנכונה להם, בלי תופעות שלא קיימות.
+5. אין מסכים, מדי זמן, שלטים או כל דבר עם ספרות ואותיות.
+
+## ד"ר הולו לא מצויר בתמונות (קריטי!)
+ד"ר הולו מופיע רק במעבדה, בפתיחה ובסיכום, ולכן **אסור לתאר או להזכיר אותו ב-imagePrompt**, ואין drHoloExpression. ה-imagePrompt מתאר רק את עולם הסצנה.
 
 ## כללי שפה — חובה
 - כל הטקסט המוצג למשתמש (כותרות, תיאורים, שאלות, תשובות) בעברית טבעית ותקינה.
@@ -489,7 +496,6 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
       "title": "כותרת בעברית",
       "narrative": "טקסט סיפורי בעברית",
       "imagePrompt": "English visual description of the scene environment for image generation",
-      "drHoloExpression": "facial expression matching the scene tone — only when imagePrompt contains {DR_HOLO}",
       "drHoloDialog": "דברי ד\\"ר הולו בעברית — הקול המלווה שמסביר, מכוון ומעודד (ראו \\"קולו של ד\\"ר הולו\\")",
       "puzzle": {
         "type": "multipleChoice",
@@ -511,15 +517,16 @@ export const GENERATION_SYSTEM = `אתה מעצב משחקי לומדה פדגו
   ],
   "entrySceneId": "scene_1",
   "isHistorical": true,
-  "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "celebratory victory screen in the lab containing {DR_HOLO}", "drHoloExpression": "a joyful, triumphant smile" },
-  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "quiet lab in soft evening light with an open glowing portal containing {DR_HOLO}", "drHoloExpression": "a thoughtful, encouraging smile" }
+  "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "..." },
+  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "..." },
+  "holoMoods": { "opening": "neutral", "closed": "happy", "open": "sad" }
 }
 
 הערות:
 - "choices" ברמת הסצנה = בחירות ניווט (לא תשובות לחידה!). השתמש בהן בסצנת ה-Hub ובסוף כל מסלול. סצנה רגילה בתוך מסלול יכולה להשתמש ב-"nextSceneId" פשוט.
 - "requiredItemIds" על בחירת ניווט = הבחירה נעולה עד שכל החפצים ברשימה נאספו.
 - "unlockText" חובה על כל בחירה נעולה — תיאור רגע הפתיחה בעברית, תואם למכשול ולמפתח.
-- "imagePrompt" חובה בכל סצנה — תיאור ויזואלי של הסביבה באנגלית בלבד, ללא דמויות טקסט.
+- "imagePrompt" חובה בכל סצנה חוץ מסצנת המעבדה — תיאור ויזואלי של הסביבה באנגלית בלבד, ללא דמויות טקסט.
 - **אסור לכלול ב-imagePrompt שמות סגנון אמנותי** (pixar / anime / comic / storybook / watercolor וכו') או הוראות סגנון — הסגנון שבחר המורה מוזרק אוטומטית בשרת. מודל התמונות מצייר שמות מותג כטקסט בתוך התמונה.
 - **אסור לבקש טקסט בתמונות**: אל תכלול ב-imagePrompt שלטים, תוויות, כיתובים, כרזות עם מלל, לוחות כתובים, אותיות או מילים ("a sign reading...", "name label", "text saying..."). מודל התמונות מג'בר טקסט. תאר סצנות ויזואליות בלבד — המידע המילולי חי בנרטיב, לא בתמונה.
 - "collectableItem" רק בסצנות מפתח (אם הוגדרו), אחרת השמט את השדה.
@@ -684,7 +691,7 @@ ${params.subjectName ? `- מקצוע: ${params.subjectName}\n` : ''}- נושא �
 /* כללי תמונה תמציתיים לכתיבת סצנה בודדת */
 function sceneImageRules(): string {
   return `## תמונה (imagePrompt)
-- imagePrompt באנגלית בלבד, תיאור הסביבה. אם ד"ר הולו מופיע בסצנה — שלב את ה-placeholder המדויק {DR_HOLO} (אל תתאר אותו במילים) + הוסף שדה "drHoloExpression" באנגלית קצרה שתואמת לטון הסצנה. אם לא מופיע — בלי {DR_HOLO} ובלי drHoloExpression.
+- imagePrompt באנגלית בלבד, תיאור הסביבה בלבד. ד"ר הולו מופיע רק במעבדה, ולכן אסור להזכיר אותו ב-imagePrompt, ואין drHoloExpression. בסצנת התוכן הראשונה (זו שאחרי המעבדה): בלי דמויות בכלל, רק המקום עצמו.
 - בשיעור היסטורי: תאר מבנים/אתרים **כפי שנראו בתקופה — חדשים ושלמים**, לא הריסות מודרניות, וצרף ", historically accurate, in its original pristine state".`
 }
 
@@ -744,14 +751,16 @@ ${formOfAddressInstructions(params.formOfAddress ?? 'plural')}
 ${puzzleSpec ? `## חידת השיא\n${puzzleSpec}` : ''}
 ${sceneImageRules()}
 
-## הסיומים (תמונה ייעודית לכל אחד, **שונה מהפתיחה**)
-- endingGood: הסיפור נסגר — מעבדה זוהרת, ד"ר הולו גאה/שמח. endingBad: הסיפור נשאר פתוח — "חסרות עוד תובנות כדי…" והזמנה לשחק שוב; מעבדה שקטה עם פורטל פתוח, ד"ר הולו מהורהר ומזמין. בלי כישלון, בלי הפסד ובלי טון קודר.
-- לכל סיום: title, narrative, drHoloDialog, imagePrompt (עם {DR_HOLO}), drHoloExpression.
+## הסיומים (במעבדה הקבועה, בלי תמונה)
+- endingGood: הסיפור נסגר. endingBad: הסיפור נשאר פתוח — "חסרות עוד תובנות כדי…" והזמנה לשחק שוב.
+- לכל סיום: title, narrative, drHoloDialog.
+- holoMoods: מצב רוח של ד"ר הולו לכל מסך: opening (הפתיחה), closed (endingGood), open (endingBad). רק מהרשימה: neutral, happy, celebrating, amused, surprised, thinking, sad, angry, scared. open תמיד sad, ו-closed רק happy או celebrating.
 
 ## פלט — JSON בלבד
-{ "climax": { "id": "${climax.id}", "title": "...", "narrative": "...", "imagePrompt": "...", "drHoloExpression": "...", "drHoloDialog": "דברי ד\\"ר הולו בעברית — עיגון התובנה המרכזית", ${ptype ? '"puzzle": {...}, ' : ''}"nextSceneId": null },
-  "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." },
-  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "...", "imagePrompt": "...containing {DR_HOLO}", "drHoloExpression": "..." } }
+{ "climax": { "id": "${climax.id}", "title": "...", "narrative": "...", "imagePrompt": "...", "drHoloDialog": "דברי ד\\"ר הולו בעברית — עיגון התובנה המרכזית", ${ptype ? '"puzzle": {...}, ' : ''}"nextSceneId": null },
+  "endingGood": { "title": "...", "narrative": "...", "drHoloDialog": "..." },
+  "endingBad": { "title": "...", "narrative": "...", "drHoloDialog": "..." },
+  "holoMoods": { "opening": "neutral", "closed": "happy", "open": "sad" } }
 החזר JSON תקין בלבד.`
 }
 

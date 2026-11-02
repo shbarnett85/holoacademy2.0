@@ -142,6 +142,8 @@ export interface GameData {
   entrySceneId: string
   endingGood?: EndingScene
   endingBad?: EndingScene
+  /* מצבי הרוח של ד"ר הולו במסכי המעבדה (shared/lib/holoMoods). חסר בשיעורים קיימים */
+  holoMoods?: unknown
   /* רמת קריאה (1-10) שמוזרקת בשרת (יצירה=קושי המורה; וריאציה=רמת התלמיד) — קובעת קצב הקלדה */
   readingScale?: number
 }
@@ -213,7 +215,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
   const [shakeGate, setShakeGate] = useState(false)
   const [gateGlow, setGateGlow] = useState(false)
   /* מתחילים מ-1 + 'wormhole' → מעבר חור-תולעת *בכניסה להדמיה* (מהתפריט). מעברים פנימיים
-     (כולל מהמעבדה/אליה) הם 'fade' = פורטל ניאון; חור-תולעת רק בגבול הדמיה↔תפריט (כניסה ויציאה). */
+     (כולל מהמעבדה/אליה) הם 'fade' = סריקה (SceneImageStage); חור-תולעת רק בגבול הדמיה↔תפריט (כניסה ויציאה). */
   const [transitionKey, setTransitionKey] = useState(1)
   const [transitionType, setTransitionType] = useState<'fade' | 'wormhole'>('wormhole')
   const [transitionDir, setTransitionDir] = useState<'forward' | 'back'>('forward')
@@ -285,7 +287,7 @@ export function useGameEngine(gameData: GameData, options?: EngineOptions) {
       /* כניסה/יציאה ממעבדת ד"ר הולו (סצנת הכניסה) = פורטל; שקופית→שקופית = wipe קל.
          כיוון ה-wipe מודע ל-RTL: קדימה (סצנה חדשה) = ימין←שמאל; חזרה (סצנה שכבר ביקרנו,
          כמו חזרה ל-Hub) = הפוך. */
-      /* כל מעבר *בתוך* ההדמיה (כולל מהמעבדה/אליה) = פורטל ניאון ('fade'); חור-תולעת שמור
+      /* כל מעבר *בתוך* ההדמיה (כולל מהמעבדה/אליה) = סריקה ('fade'); חור-תולעת שמור
          לגבול הדמיה↔תפריט בלבד (כניסה במאתחל, יציאה ב-finishQuest). */
       setTransitionType('fade')
       setTransitionDir(visitedScenes.includes(sceneId) ? 'back' : 'forward')

@@ -7,6 +7,7 @@ export const PUZZLE_TYPE_LABELS: Record<string, string> = {
   slidingPuzzle: 'פאזל החלפת חלקים',
   wordSearch: 'תפזורת',
   memory: 'משחק הזיכרון',
+  matchPairs: 'התאמת זוגות',
   wordCompletion: 'השלם את החסר',
   sequenceOrder: 'חידת סדר',
   hangman: 'פיצוח קוד',

@@ -36,13 +36,14 @@ export const END_TEXT = {
   narrativeClosed: 'אספתם מספיק תובנות, והסיפור נסגר.',
   narrativeOpen: 'חסרות עוד תובנות כדי לסגור את הסיפור. אפשר לשחק שוב ולגלות אותן.',
   gemsCount: (whole: number, hasPartial: boolean): string => {
-    const base = whole === 0 ? 'עוד אין גביש שלם' : whole === 1 ? 'אספתם גביש שלם אחד' : `אספתם ${whole} גבישים שלמים`
+    const base = whole === 0 ? 'עוד אין גביש הבנה' : whole === 1 ? 'אספתם גביש הבנה אחד' : `אספתם ${whole} גבישי הבנה`
     return hasPartial ? `${base}, והגביש הבא כבר התחיל להתמלא` : base
   },
   firstTry: (n: number): string => (n === 1 ? 'אתגר אחד הצליח בניסיון הראשון' : `${n} אתגרים הצליחו בניסיון הראשון`),
   retried: (n: number): string => (n === 1 ? 'פעם אחת ניסיתם שוב והצלחתם' : `${n} פעמים ניסיתם שוב והצלחתם`),
   needMore: 'אפשר לשחק שוב ולגלות את מה שחסר.',
   enough: 'אספתם מספיק תובנות כדי לסגור את הסיפור',
+  home: 'חזרה למסך הראשי',
   playAgain: 'שחקו שוב',
   back: 'חזרה לשיעורים',
   classTitle: 'גבישי הכיתה בשיעור הזה',
