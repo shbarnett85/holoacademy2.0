@@ -79,7 +79,7 @@ const addUser = (id: string, role: string, v2: unknown, extra: { isGuest?: boole
   })
 }
 addUser('u-live', 'teacher', LIVE_V2)
-addUser('u-demo-org', 'teacher', null, { seesSynthetic: true })
+addUser('u-demo-org', 'teacher', { ...LIVE_V2, homeroomClassId: 'c-demo', seesSynthetic: true }, { seesSynthetic: true })
 addUser('u-admin', 'admin', ADMIN_V2)
 addUser('u-super', 'super_admin', null)
 addUser('u-guest', 'teacher', null, { isGuest: true })
@@ -127,10 +127,10 @@ describe('GET /api/staff/students — v2Linked', () => {
     expect((r.body.students as { id: string }[]).map((s) => s.id)).toEqual(['s-live'])
   })
 
-  it('ארגון הדגמה: תלמידי ה-DB הפיקטיביים אינם בעולם ההדגמה של האנליטיקה — v2Linked=false, הסיבה demo_org, והרשימה עצמה נשארת', async () => {
+  it('ארגון הדגמה: האנליטיקה רצה על תלמידי ה-DB הפיקטיביים של הארגון עצמו — יש קישור, והרשימה עצמה נשארת', async () => {
     const r = await get('/students', 'u-demo-org')
     expect(r.status).toBe(200)
-    expect(link(r.body)).toEqual({ v2Linked: false, v2UnlinkedReason: 'demo_org' })
+    expect(link(r.body)).toEqual(LINKED)
     expect((r.body.students as { id: string; secret: string | null }[]).map((s) => [s.id, s.secret])).toEqual([['s-demo', '4321']])
   })
 
@@ -175,11 +175,11 @@ describe('GET /api/staff/students — v2Linked', () => {
 })
 
 describe('GET /api/staff/classes — v2Linked בכל שורת כיתה', () => {
-  it('מורה אמיתי: true; ארגון הדגמה: false עם הסיבה; אורח: true', async () => {
+  it('מורה אמיתי: true; ארגון הדגמה: true (הכיתות הפיקטיביות שלו באנליטיקה); אורח: true', async () => {
     const live = (await get('/classes', 'u-live')).body.classes as Record<string, unknown>[]
     expect(live.map((c) => [c.id, c.v2Linked, c.v2UnlinkedReason])).toEqual([['c-live', true, null]])
     const demo = (await get('/classes', 'u-demo-org')).body.classes as Record<string, unknown>[]
-    expect(demo.map((c) => [c.id, c.v2Linked, c.v2UnlinkedReason])).toEqual([['c-demo', false, 'demo_org']])
+    expect(demo.map((c) => [c.id, c.v2Linked, c.v2UnlinkedReason])).toEqual([['c-demo', true, null]])
     const guest = (await get('/classes', 'u-guest')).body.classes as Record<string, unknown>[]
     expect(guest.length).toBe(1)
     expect([guest[0].v2Linked, guest[0].v2UnlinkedReason]).toEqual([true, null])

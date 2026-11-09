@@ -23,7 +23,8 @@
     "ai-summary:accept": "tsx src/scripts/aiSummaryAccept.ts",
     "v2:accept": "tsx src/scripts/v2Acceptance.ts",
     "fixture:v2": "tsx src/scripts/analyticsFixture.ts",
-    "compat:smoke": "tsx src/scripts/compatSmoke.ts"
+    "compat:smoke": "tsx src/scripts/compatSmoke.ts",
+    "demo:world": "tsx src/scripts/demoMonthWorld.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.1",

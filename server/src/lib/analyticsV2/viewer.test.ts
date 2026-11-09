@@ -174,21 +174,17 @@ describe('מנהל / מנהל עירוני / מנהל-על', () => {
   })
 })
 
-describe('ארגון הדגמה: נשאר על ספק ההדגמה (עדשה מהתפקיד האמיתי, לא ניתנת לעקיפה)', () => {
-  it('מנהל / מחנך / מקצועי ממופים לעולם ההדגמה; שאילתת lens מתעלמת', async () => {
-    vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'admin', seesSynthetic: true }))
-    expect(await resolveV2Context(req({ role: 'admin', isGuest: false }, { lens: 'homeroom' }))).toMatchObject({ provider: 'demo', viewer: { lens: 'admin', guest: false } })
-    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true, grants: new Map([tg('x', { homeroom: true })]) }))
-    expect(await resolveV2Context(req(REAL, { lens: 'admin' }))).toMatchObject({ provider: 'demo', viewer: { lens: 'homeroom', guest: false, homeroomClassId: DEMO_HOMEROOM_CLASS } })
-    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true, grants: new Map([tg('x', { subjectIds: ['sid-history'] })]) }))
-    expect(await resolveV2Context(req(REAL, { lens: 'admin', subject: 'math' }))).toMatchObject({ provider: 'demo', viewer: { lens: 'subject_teacher', subjectCodes: ['history'], guest: false } })
-    expect(h.state.queries).toBe(0)
+describe('ארגון הדגמה: הספק החי על הכיתות הפיקטיביות של הארגון עצמו (seesSynthetic)', () => {
+  it('מחנך/ת של כיתה פיקטיבית: ספק חי, הכיתה הפיקטיבית נשמרת, והעדשה מהתפקיד ולא מהשאילתה', async () => {
+    h.state.classes = [klass('f', { name: 'דמו ח׳1', is_fictitious: true })]
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true, grants: new Map([tg('f', { homeroom: true })]) }))
+    const c = await resolveV2Context(req(REAL, { lens: 'admin' }))
+    expect(c?.provider).toBe('live')
+    expect(c?.viewer).toMatchObject({ lens: 'homeroom', guest: false, seesSynthetic: true, homeroomClassId: 'f' })
   })
-  it('מורה בלי מקצוע ובלי מחנכות: צופה ריק — אין ברירת מחדל "מתמטיקה"', async () => {
-    vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true, grants: new Map([tg('x', { unspecified: true })]) }))
-    const c = await resolveV2Context(req(REAL))
-    expect(c?.provider).toBe('demo')
-    expect(c?.viewer).toMatchObject({ lens: 'subject_teacher', subjectCodes: [], teachingClassIds: [] })
+  it('מנהל/ת: עדשת מנהל (אגרגטים בלבד), גם כשהשאילתה מבקשת אחרת', async () => {
+    vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'municipal_admin', seesSynthetic: true }))
+    expect(await resolveV2Context(req({ role: 'municipal_admin', isGuest: false }, { lens: 'homeroom' }))).toMatchObject({ provider: 'live', viewer: { lens: 'admin', seesSynthetic: true } })
   })
 })
 
@@ -201,7 +197,7 @@ describe('מתגי כיבוי', () => {
     vi.mocked(loadViewer).mockResolvedValue(withGrants(tg('A', { homeroom: true })))
     expect(await resolveV2Context(req(REAL))).toBeNull()
   })
-  it('ANALYTICS_V2_LIVE=0 מכבה רק את הספק החי (→ הלקוח מציג את הפאנל הקודם); אורח וארגון הדגמה נשארים', async () => {
+  it('ANALYTICS_V2_LIVE=0 מכבה את הספק החי (→ הלקוח מציג את הפאנל הקודם), גם בארגון הדגמה; אורח נשאר', async () => {
     process.env.ANALYTICS_V2_LIVE = '0'
     vi.mocked(loadViewer).mockResolvedValue(withGrants(tg('A', { homeroom: true })))
     expect(await resolveV2Context(req(REAL))).toBeNull()
@@ -209,19 +205,19 @@ describe('מתגי כיבוי', () => {
     expect(await resolveV2Context(req({ role: 'admin', isGuest: false }))).toBeNull()
     expect(await resolveV2Context(req(GUEST, { lens: 'homeroom' }))).not.toBeNull()
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true }))
-    expect((await resolveV2Context(req(REAL)))?.provider).toBe('demo')
+    expect(await resolveV2Context(req(REAL))).toBeNull()
   })
 })
 
 describe('resolveV2Viewer (עטיפה תואמת-לאחור): רק צופה של ספק ההדגמה', () => {
-  it('משתמש אמיתי → null (בלי שאילתות DB לחי); אורח וארגון הדגמה → צופה', async () => {
+  it('משתמש אמיתי וארגון הדגמה → null (בלי שאילתות DB לחי); אורח → צופה', async () => {
     vi.mocked(loadViewer).mockResolvedValue(withGrants(tg('A', { homeroom: true })))
     expect(await resolveV2Viewer(req(REAL))).toBeNull()
     expect(await resolveV2Viewer(req(REAL), { ignoreFlag: true })).toBeNull()
     expect(h.state.queries).toBe(0)
     expect((await resolveV2Viewer(req(GUEST, { lens: 'admin' })))?.lens).toBe('admin')
     vi.mocked(loadViewer).mockResolvedValue(viewer({ seesSynthetic: true, grants: new Map([tg('x', { homeroom: true })]) }))
-    expect((await resolveV2Viewer(req(REAL)))?.lens).toBe('homeroom')
+    expect(await resolveV2Viewer(req(REAL))).toBeNull()
   })
   it('ignoreFlag: טאב "תוצאות" אינו תלוי בדגל', async () => {
     process.env.ANALYTICS_V2 = '0'

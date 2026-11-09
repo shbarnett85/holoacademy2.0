@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { supabaseAdmin } from '../lib/supabase.js'
+import { ensureDemoMonth } from '../lib/demoMonth.js'
 import { AppError } from './errors.js'
 import { hasCanShare, hasApprovalStatus } from '../lib/activeColumn.js'
 
@@ -111,10 +112,26 @@ export async function requireStaff(req: Request, _res: Response, next: NextFunct
     const { ctx, reason, status } = await loadStaffContext(token)
     if (!ctx) throw new AppError(status ?? 401, reason ?? 'נדרשת התחברות צוות')
     req.staff = ctx
+    if (ctx.schoolId) void rollIfDemoOrg(ctx.schoolId)
     next()
   } catch (err) {
     next(err)
   }
+}
+
+/* ארגון הדגמה: הנתונים הפיקטיביים זזים לחודש הקודם לכניסה (demoMonth.ts). הבדיקה אם הארגון הוא ארגון הדגמה נשמרת 10 דקות */
+const demoOrgMemo = new Map<string, { demo: boolean; at: number }>()
+async function rollIfDemoOrg(schoolId: string): Promise<void> {
+  try {
+    const hit = demoOrgMemo.get(schoolId)
+    let demo = hit && Date.now() - hit.at < 600_000 ? hit.demo : undefined
+    if (demo === undefined) {
+      const { data } = await supabaseAdmin.from('schools').select('demo_data_enabled').eq('id', schoolId).maybeSingle()
+      demo = (data as { demo_data_enabled?: boolean } | null)?.demo_data_enabled === true
+      demoOrgMemo.set(schoolId, { demo, at: Date.now() })
+    }
+    if (demo) ensureDemoMonth(schoolId)
+  } catch { /* best-effort: לא משפיע על הבקשה */ }
 }
 
 /* גרסה שאינה זורקת — לנתיבים ציבוריים שמתנהגים אחרת כשיש צוות מחובר (GET /quests/:id) */

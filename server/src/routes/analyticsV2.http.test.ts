@@ -76,7 +76,8 @@ addUser('u-admin', 'admin', adminViewer)
 addUser('u-muni', 'municipal_admin', adminViewer)
 addUser('u-super', 'super_admin', null)
 addUser('u-guest', 'teacher', null, { isGuest: true })
-addUser('u-demo-org', 'teacher', null, { seesSynthetic: true })
+/* ארגון הדגמה: הספק החי, על הכיתות הפיקטיביות של הארגון (כאן: כיתה א׳ כמחנך/ת) */
+addUser('u-demo-org', 'teacher', { ...live([grant(CA.id, { homeroom: true })]), seesSynthetic: true }, { seesSynthetic: true })
 
 let server: Server
 let base = ''
@@ -293,10 +294,13 @@ describe('יומן גישה ברמת תלמיד', () => {
     await get('/student/stu-A-1', 'u-admin')
     expect(h.logCalls).toHaveLength(0)
   })
-  it('אורח וארגון הדגמה (ספק הדגמה, אין DB): אין רישום', async () => {
+  it('אורח (ספק הדגמה, אין DB): אין רישום', async () => {
     expect((await get('/roster?lens=homeroom', 'u-guest')).status).toBe(200)
-    expect((await get('/roster', 'u-demo-org')).status).toBe(200)
     expect(h.logCalls).toHaveLength(0)
+  })
+  it('ארגון הדגמה: הספק החי, ולכן צפייה בתלמיד/ה נרשמת ביומן כמו בכל חשבון (גם כשהתלמיד/ה פיקטיבי/ת)', async () => {
+    expect((await get('/student/stu-A-1', 'u-demo-org')).status).toBe(200)
+    expect(h.logCalls.length).toBeGreaterThan(0)
   })
   it('כשל בכתיבה ליומן: התגובה נחסמת (503) ואין בה נתוני תלמידים', async () => {
     h.auditFails = true
@@ -324,11 +328,11 @@ describe('בחירת ספק לפי הצופה', () => {
     const r = await get('/roster', 'u-home')
     expect(r.body).toMatchObject({ dataState: 'insufficient', data: { classes: [], students: [] } })
   })
-  it('ארגון הדגמה ומורה אורח מקבלים את עולם ההדגמה, ומשתמש אמיתי את הספק החי (מזהי כיתות שונים)', async () => {
+  it('מורה אורח מקבל את עולם ההדגמה; ארגון הדגמה ומשתמש אמיתי את הספק החי (מזהי כיתות שונים)', async () => {
     const demo = ((await get('/roster?lens=homeroom', 'u-guest')).body.data as { classes: { id: string }[] }).classes.map((c) => c.id)
     expect(demo).toEqual(['c-v2'])
-    const org = ((await get('/roster', 'u-demo-org')).body.data as { classes: { id: string }[] }).classes
-    expect(org).toEqual([])
+    const org = ((await get('/roster', 'u-demo-org')).body.data as { classes: { id: string }[] }).classes.map((c) => c.id)
+    expect(org).toEqual([CA.id])
     const real = ((await get('/roster', 'u-home')).body.data as { classes: { id: string }[] }).classes.map((c) => c.id)
     expect(real).toEqual([CA.id, CB.id])
   })

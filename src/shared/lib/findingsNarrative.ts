@@ -65,6 +65,8 @@ export const CAVEAT_TREND = 'המערכת מתארת מה שנצפה בנתונ�
 export const ANALYTICS_CAVEATS = { ageNorm: CAVEAT_AGE_NORM, crossSubject: CAVEAT_CROSS_SUBJECT, trend: CAVEAT_TREND } as const
 
 /* הודעות מצב קבועות (נתוני הדגמה; מיפוי תוכנית לימודים לדוגמה) */
+/* ארגון הדגמה: הכיתות, התלמידים והתוצאות פיקטיביים, והחודש האחרון שלהם הוא תמיד החודש הקודם */
+export const NOTICE_DEMO_ORG_DATA = 'נתוני דוגמה — הכיתות, התלמידים והתוצאות בדויים, והם מתעדכנים כל חודש כך שהחודש האחרון שלהם הוא החודש הקודם.'
 export const NOTICE_DEMO_DATA = 'נתוני הדגמה — בית ספר, כיתות ותלמידים בדויים. בחשבון אמיתי יוצגו כאן התלמידים שלכם.'
 export const NOTICE_CURRICULUM_SAMPLE = 'מיפוי לדוגמה: יעדי תוכנית הלימודים כאן הם נושאים כלליים להמחשה, ללא קודים או ציטוטים רשמיים של משרד החינוך.'
 

@@ -106,6 +106,9 @@ export function createAiSummaryDeps(given: Pick<SummaryCollaborators, 'providerF
       return { demo: viewer.seesSynthetic, classView: () => access.classView() }
     })
 
+  /* ארגון הדגמה (נתונים פיקטיביים, בספק החי) ומורה אורח: תבנית בלבד, בלי LLM ובלי שמירה */
+  const isDemoCtx = (ctx: { provider: string; viewer: { seesSynthetic?: boolean } }): boolean => ctx.provider === 'demo' || ctx.viewer.seesSynthetic === true
+
   return {
     async authorize({ req, target }: SummaryCtx): Promise<SummaryAuthorization> {
       switch (target.scope) {
@@ -113,21 +116,21 @@ export function createAiSummaryDeps(given: Pick<SummaryCollaborators, 'providerF
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'student')
           const env = await studentOf(req, ctx, target.id)
-          return { demo: ctx.provider === 'demo', audienceKey: audienceOfStudent(ctx.viewer, env.data), cheap: true }
+          return { demo: isDemoCtx(ctx), audienceKey: audienceOfStudent(ctx.viewer, env.data), cheap: true }
         }
         case 'class': {
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'classOverview')
           await classOf(req, ctx, target.id)
           /* רק מחנך הכיתה עובר את classOverview, ולכן הקהל תמיד מלא */
-          return { demo: ctx.provider === 'demo', audienceKey: FULL_AUDIENCE, cheap: true }
+          return { demo: isDemoCtx(ctx), audienceKey: FULL_AUDIENCE, cheap: true }
         }
         case 'class_subject': {
           const ctx = await v2(req)
           requireCap(ctx.viewer, 'classSubject')
           const subject = target.subject as NonNullable<SummaryTarget['subject']>
           await classSubjectOf(req, ctx, target.id, subject)
-          return { demo: ctx.provider === 'demo', audienceKey: isHomeroomOf(ctx.viewer, target.id) ? FULL_AUDIENCE : subjectAudience([subject]), cheap: true }
+          return { demo: isDemoCtx(ctx), audienceKey: isHomeroomOf(ctx.viewer, target.id) ? FULL_AUDIENCE : subjectAudience([subject]), cheap: true }
         }
         case 'submission': {
           const s = await submissionOf(req, target)

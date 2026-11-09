@@ -669,11 +669,12 @@ export const realResultsProvider: ResultsProvider = {
     return buildLiveView({ head, students, sessions, gameData: games.get(questId) ?? null, nowMs: Date.now(), available: await hasSessionLive() })
   },
 
-  /* מנהל/ת (ומנהל עירוני): שכבה × מקצוע, החודש הנוכחי. בלי פירוק לכיתה/מורה ובלי שמות. מורים ומנהל-על — 403 */
+  /* מנהל/ת (ומנהל עירוני): שכבה × מקצוע, החודש הנוכחי (בארגון הדגמה: הקודם). בלי פירוק לכיתה/מורה ובלי שמות. מורים ומנהל-על — 403 */
   async overview(req: Request): Promise<Overview> {
     const viewer = await loadViewer(req)
     if (!isAggregateOnly(viewer)) throw new AppError(403, ERR_OVERVIEW_ADMIN_ONLY)
-    const month = israelMonthRange(Date.now())
+    /* ארגון הדגמה: החודש האחרון של הנתונים הפיקטיביים הוא החודש הקודם (demoMonth.ts), ולכן הטבלה מציגה אותו */
+    const month = viewer.seesSynthetic ? israelMonthRange(israelMonthRange(Date.now()).start.getTime() - 1) : israelMonthRange(Date.now())
     const periodLabel = monthYearOf(month.year, month.month1)
     const empty = (): Overview => buildOverview({ periodLabel, sends: [], started: new Set() })
     if (!viewer.schoolId) return empty()

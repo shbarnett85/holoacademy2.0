@@ -57,15 +57,11 @@ describe('מי רואה את האנליטיקה החדשה', () => {
     expect(t!.teachingClassIds.sort()).toEqual(['c-v1', 'c-v2'])
   })
 
-  it('ארגון הדגמה: העדשה נגזרת מהתפקיד האמיתי ולא ניתנת לעקיפה בשאילתה', async () => {
+  it('ארגון הדגמה: כבר לא בעולם ההדגמה — הספק החי על הכיתות הפיקטיביות שלו, ולכן אין לו צופה של ספק ההדגמה', async () => {
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'admin', seesSynthetic: true }))
-    expect((await resolveV2Viewer(req({ role: 'admin', isGuest: false }, { lens: 'homeroom' })))).toMatchObject({ lens: 'admin', guest: false })
-
+    expect(await resolveV2Viewer(req({ role: 'admin', isGuest: false }, { lens: 'homeroom' }))).toBeNull()
     vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'teacher', seesSynthetic: true, grants: new Map([['x', { classId: 'x', homeroom: true, subjectIds: new Set(), unspecified: false }]]) }))
-    expect((await resolveV2Viewer(req({ role: 'teacher', isGuest: false }, { lens: 'admin' })))).toMatchObject({ lens: 'homeroom', guest: false })
-
-    vi.mocked(loadViewer).mockResolvedValue(viewer({ role: 'teacher', seesSynthetic: true, grants: new Map([['x', { classId: 'x', homeroom: false, subjectIds: new Set(['sid-history']), unspecified: false }]]) }))
-    expect((await resolveV2Viewer(req({ role: 'teacher', isGuest: false }, { lens: 'admin', subject: 'math' })))).toMatchObject({ lens: 'subject_teacher', subjectCodes: ['history'], guest: false })
+    expect(await resolveV2Viewer(req({ role: 'teacher', isGuest: false }, { lens: 'admin' }))).toBeNull()
   })
 
   it('kill-switch: ANALYTICS_V2=0 מכבה גם לאורח', async () => {

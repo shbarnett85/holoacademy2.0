@@ -39,7 +39,7 @@ export async function requireDemoScope(staff: StaffContext | undefined): Promise
   return { schoolId: staff.schoolId, actorId: staff.userId, role: staff.role }
 }
 
-interface QuestRow { id: string; title: string; game_data: unknown; created_by: string | null; subject_id?: string | null }
+export interface QuestRow { id: string; title: string; game_data: unknown; created_by: string | null; subject_id?: string | null }
 interface ClassRow { id: string; name: string }
 
 /* הכיתות הפיקטיביות בהיקף: מורה — אלה שמקושרות אליו; מנהל עירוני — כל הארגון */
@@ -100,11 +100,12 @@ async function ensureAssignment(classId: string, quest: QuestRow, actorId: strin
 }
 
 /* כותב סשן אחד — אותה צורה כמו /sessions/:id/complete. מחזיר true אם נכתב. */
-async function writeSession(studentId: string, classId: string, quest: QuestRow, sim: SimSession): Promise<boolean> {
+/* at: מועד התחלה מפורש (העולם החודשי של ארגון ההדגמה, demoMonth.ts). בלעדיו: dayOffset ימים אחורה מעכשיו */
+export async function writeSession(studentId: string, classId: string, quest: QuestRow, sim: SimSession, at?: Date): Promise<boolean> {
   if (sim.status === 'not_started') return false
   const { puzzles, sceneIds } = extractPuzzles(quest.game_data)
   const jitterMs = (hashStr(studentId + quest.id) % 8) * 3_600_000
-  const startedAt = new Date(Date.now() - sim.dayOffset * 86_400_000 - 2 * 3_600_000 - jitterMs)
+  const startedAt = at ?? new Date(Date.now() - sim.dayOffset * 86_400_000 - 2 * 3_600_000 - jitterMs)
 
   const synthetic = await hasSyntheticFlag()
   const sess: Record<string, unknown> = {
@@ -128,7 +129,8 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
   const perType = perTypeFromChallenges(sim.challenges)
   const perTypeSuccess: Record<string, number> = {}
   for (const [t, s] of Object.entries(perType)) if (s && s.total > 0) perTypeSuccess[t] = Math.round((s.solved / s.total) * 100) / 100
-  const base: Record<string, unknown> = { session_id: row.id, user_id: studentId, quest_id: quest.id }
+  /* created_at מפורש: האנליטיקה קוראת חלונות זמן לפי מועד האירוע, לא לפי מועד הזריעה */
+  const base: Record<string, unknown> = { session_id: row.id, user_id: studentId, quest_id: quest.id, created_at: sess.completed_at }
   if (synthetic) base.is_synthetic = true
   const events: Record<string, unknown>[] = []
   for (const c of sim.challenges) {
@@ -158,7 +160,7 @@ async function writeSession(studentId: string, classId: string, quest: QuestRow,
       displayed_order: a.displayedOrder, is_correct: a.outcome === 'correct',
       attempt_no: a.attemptNo, response_ms: a.responseMs === null ? null : Math.round(a.responseMs),
       outcome: a.outcome, interaction: capJsonBytes(a.interaction as Record<string, unknown> | null),
-      schema_version: ANSWER_SCHEMA_VERSION, is_synthetic: true,
+      schema_version: ANSWER_SCHEMA_VERSION, is_synthetic: true, created_at: sess.completed_at,
     }))
     await supabaseAdmin.from('answers').upsert(ansRows, { onConflict: 'client_event_id', ignoreDuplicates: true })
   }

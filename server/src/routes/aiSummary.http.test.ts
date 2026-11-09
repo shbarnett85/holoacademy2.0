@@ -107,7 +107,8 @@ function addUser(kind: Kind): string {
       : kind === 'mixed' ? live([grant(V1, { homeroom: true }), grant(V2, { subjects: ['math'] })])
         : kind === 'unspec' ? live([grant(V2, { unspecified: true })])
           : kind === 'admin' || kind === 'muni' ? adminViewer
-            : live([])
+            : kind === 'demoorg' ? { ...live([grant(V2, { homeroom: true })]), seesSynthetic: true }
+              : live([])
   h.users.set(id, {
     staff: { userId: id, role, schoolId: 'sch-1', isGuest: kind === 'guest', canShare: true },
     authz: { userId: id, role, schoolId: 'sch-1', grants, seesSynthetic: kind === 'demoorg' },
@@ -456,7 +457,7 @@ describe('אורח וארגון הדגמה: תבנית בלבד — בלי LLM, 
     expect(llm.calls).toHaveLength(1)
   })
 
-  it('ארגון הדגמה: v2 מעולם ההדגמה — demo=true, בלי LLM ובלי שמירה ובלי יומן; הגשה — העובדות מהתוצאות האמיתיות אך הסיכום תבניתי', async () => {
+  it('ארגון הדגמה: הספק החי על הנתונים הפיקטיביים — demo=true, בלי LLM ובלי שמירה; הגשה — העובדות מהתוצאות אך הסיכום תבניתי', async () => {
     const u = addUser('demoorg')
     const s = await post(u, 'student', S_V2)
     expect(s.body.data).toMatchObject({ demo: true, persisted: false })
@@ -473,7 +474,6 @@ describe('אורח וארגון הדגמה: תבנית בלבד — בלי LLM, 
     expect(sub.body.data.summary.writtenBy).toBe('template')
     expect(llm.calls).toHaveLength(0)
     expect(store.rows.size).toBe(0)
-    expect(h.logs).toHaveLength(0)
     expect(genderLookups).toEqual([])
   })
 })

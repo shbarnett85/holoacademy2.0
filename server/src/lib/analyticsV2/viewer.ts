@@ -2,7 +2,8 @@
    viewer — גזירת ההקשר של האנליטיקה החדשה מהבקשה: מי הצופה (V2Viewer) ואיזה ספק משרת אותו. משותף לנקודות הקצה של האנליטיקה
    ולטאב "תוצאות" בהדגמה. הצופה נגזר בשרת בלבד; פרמטרי שאילתה (lens / subject / classId) נקראים **רק** למורה אורח.
    · מורה אורח: ספק הדגמה, העדשה והמקצוע מבורר העדשה (?lens=&subject=).
-   · ארגון הדגמה (demo_data_enabled): ספק הדגמה, העדשה מהתפקיד האמיתי ולא ניתנת לעקיפה בשאילתה.
+   · ארגון הדגמה (demo_data_enabled): הספק החי על הכיתות והתלמידים הפיקטיביים של הארגון עצמו (seesSynthetic),
+     כמו בחשבון אמיתי; הנתונים מתגלגלים כל חודש (demoMonth.ts). עולם ההדגמה הכללי נשאר רק למורה אורח.
    · כל מורה / מנהל / מנהל עירוני אחר: ספק חי (grants פר-כיתה מ-class_teachers). מנהל-על: אין (נשאר בפאנל הקודם / ב-/admin).
    · כיבויים: ANALYTICS_V2=0 (גלובלי, גם לאורח) ו-ANALYTICS_V2_LIVE=0 (רק הספק החי → enabled:false → הלקוח מציג את הפאנל הקודם).
    · ביצועים: הצופה של משתמש אמיתי (authz.Viewer + ה-V2Viewer שנגזר ממנו) נשמר במטמון קצר לפי משתמש (ViewerMemo, 20 שניות, single-flight).
@@ -15,7 +16,7 @@ import { loadViewer, type Viewer } from '../authz.js'
 import { isDemoGuest } from '../../middleware/staffAuth.js'
 import { DEMO_HOMEROOM_CLASS, DEMO_SUBJECT_PERSONAS, type V2Viewer } from './access.js'
 import { demoViewerClasses } from './demoProvider.js'
-import { ViewerMemo, codesOfSubjectIds, toV2Viewer, viewerMemoTtlMs } from './liveViewer.js'
+import { ViewerMemo, toV2Viewer, viewerMemoTtlMs } from './liveViewer.js'
 
 export interface V2Context {
   viewer: V2Viewer
@@ -29,7 +30,6 @@ const flagOn = (): boolean => process.env.ANALYTICS_V2 !== '0'
 /* kill-switch של הספק החי בלבד: ANALYTICS_V2_LIVE=0 */
 const liveOn = (): boolean => process.env.ANALYTICS_V2_LIVE !== '0'
 
-const DEMO_BASE = { guest: false, source: 'demo' as const }
 
 /* ── מטמון הצופה האמיתי ── */
 const baseViewerMemo = new ViewerMemo<Viewer>()
@@ -67,15 +67,6 @@ function guestViewer(query: V2Query): V2Viewer {
   return { ...guest, lens, homeroomClassId: null, teachingClassIds: demoViewerClasses([subject]), subjectCodes: [subject] }
 }
 
-/* ארגון הדגמה: התפקיד האמיתי ממופה לעולם ההדגמה (מחנך → כיתת ההדגמה; מקצועי → כיתות העולם שיש בהן את מקצועותיו).
-   מי שאין לו מקצוע ואינו מחנך מקבל צופה ריק — אין ברירת מחדל למקצוע. */
-async function demoOrgViewer(base: Viewer): Promise<V2Viewer> {
-  if (base.role === 'admin' || base.role === 'municipal_admin') return { ...DEMO_BASE, lens: 'admin', homeroomClassId: null, teachingClassIds: [], subjectCodes: [] }
-  const grants = [...base.grants.values()]
-  if (grants.some((g) => g.homeroom)) return { ...DEMO_BASE, lens: 'homeroom', homeroomClassId: DEMO_HOMEROOM_CLASS, teachingClassIds: [], subjectCodes: [] }
-  const subjectCodes = await codesOfSubjectIds(grants.flatMap((g) => [...g.subjectIds]))
-  return { ...DEMO_BASE, lens: 'subject_teacher', homeroomClassId: null, teachingClassIds: subjectCodes.length ? demoViewerClasses(subjectCodes) : [], subjectCodes }
-}
 
 /* ignoreFlag: טאב "תוצאות" (הדגמה) אינו תלוי בדגל ANALYTICS_V2. demoOnly: רק צופים של ספק ההדגמה (בלי שאילתות DB לחי) */
 export async function resolveV2Context(req: Request, opts: { ignoreFlag?: boolean; demoOnly?: boolean } = {}): Promise<V2Context | null> {
@@ -87,7 +78,6 @@ export async function resolveV2Context(req: Request, opts: { ignoreFlag?: boolea
   if (req.staff?.role === 'super_admin') return null
   const base = await baseViewerOf(req)
   if (base.role === 'super_admin') return null
-  if (base.seesSynthetic) return { viewer: await demoOrgViewer(base), provider: 'demo', authz: base }
   if (opts.demoOnly || !liveOn()) return null
   return { viewer: await liveViewerFor(base), provider: 'live', authz: base }
 }

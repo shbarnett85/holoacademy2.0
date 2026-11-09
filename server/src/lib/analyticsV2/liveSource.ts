@@ -9,6 +9,7 @@
    · אין כאן רישום ביומן הגישה (logNamed) — הנתיב רושם (W4).
    ────────────────────────────────────────────────────────────────────────── */
 import { SUBJECTS, type SubjectCode } from '../../../../src/shared/lib/subjects.js'
+import { NOTICE_DEMO_ORG_DATA } from '../../../../src/shared/lib/findingsNarrative.js'
 import { grantsOf, scopeClassIds, type V2Viewer } from './access.js'
 import { AnalysisBuildError, AnalysisCache, getCatalog, getClassAnalysis } from './analysisCache.js'
 import { mergeAnalyses } from './analysisMerge.js'
@@ -102,7 +103,7 @@ export const liveSource: AnalyticsSource = {
   },
 
   configParts(v: V2Viewer) {
-    return { availableLenses: [v.lens], subjects: viewerSubjects(v), dataNotice: null, curriculumNotice: null }
+    return { availableLenses: [v.lens], subjects: viewerSubjects(v), dataNotice: v.seesSynthetic ? NOTICE_DEMO_ORG_DATA : null, curriculumNotice: null }
   },
 
   coverage(_v: V2Viewer, a: Analysis): SourceCoverage {
