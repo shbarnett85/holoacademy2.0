@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { SUBJECT_VISUAL, subjectTagColors } from '../lib/subjects'
+import { SUBJECTS, subjectTagColors, subjectVisual } from '../lib/subjects'
 import LessonCard from './LessonCard'
 import LessonThumb from './LessonThumb'
 
@@ -15,26 +15,26 @@ describe('כרטיס שיעור משותף', () => {
     expect(html).toContain('מסע טיפת המים')
     expect(html).toMatch(/data-subject-tag="science"[^>]*>[\s\S]*?מדעים/)
     expect(html).toMatch(/data-grade-tag[^>]*>שכבות ה׳–ו׳</)
-    for (const v of Object.values(SUBJECT_VISUAL)) expect(html).not.toContain(v.glyph)
+    for (const s of SUBJECTS) expect(html).not.toContain(subjectVisual(s.code).glyph)
   })
 
   it('מסגרת בצבע המקצוע, ותגית המקצוע באותו צבע עם טקסט בניגודיות AA', () => {
     const html = card()
     const t = subjectTagColors('science', 'dark')
-    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.science.dark}`)
+    expect(html).toContain(`border:3px solid ${subjectVisual('science').color}`)
     expect(html).toContain(`background:${t.bg};color:${t.fg}`)
   })
 
   it('"לא סווג": מסגרת אפורה ותגית "לא סווג"', () => {
     const html = card({ subjectCode: null })
-    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.unclassified.dark}`)
+    expect(html).toContain(`border:3px solid ${subjectVisual('unclassified').color}`)
     expect(html).toMatch(/data-subject-tag="unclassified"[^>]*>[\s\S]*?לא סווג/)
   })
 
   it('בלי תמונה: משטח בצבע המקצוע ועליו שם המקצוע, בלי <img> ובלי תגית כפולה', () => {
     const html = card({ thumbUrl: null })
     expect(html).not.toContain('<img')
-    expect(html).toContain(`background:${SUBJECT_VISUAL.science.dark}`)
+    expect(html).toContain(`background:${subjectVisual('science').color}`)
     expect(html).toMatch(/data-thumb-name[^>]*>מדעים</)
     expect(html).not.toContain('data-subject-tag')
     /* "לא סווג" בלי תמונה: משטח אפור עם "לא סווג" */

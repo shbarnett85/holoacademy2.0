@@ -50,56 +50,56 @@ export function legacySubjectToCode(name: string | null | undefined): SubjectCod
 export const LEGACY_SUBJECT_MAP: Readonly<Record<string, SubjectCode>> = LEGACY_NAME_TO_CODE
 
 /* ───────── שפה חזותית של מקצועות (CLAUDE.md "שפה חזותית של מקצועות") ─────────
-   לכל מקצוע צבע וסמל קבועים, ממקור אחד — לקליינט ולשרת. שני וריאנטים: `light` (מסכי מורה, מצב בהיר)
-   ו-`dark` (מסכי תלמיד, תמיד כהים; ומורה שבחר מצב כהה). הצבעים נגזרו אוטומטית כך שהמסגרת עומדת ב-3:1 לפחות
-   מול הרקעים האמיתיים בשני המצבים (`SUBJECT_SURFACES`) — בפועל ≥3.6 בבהיר ו-≥6 בכהה; `subjects.test.ts` מחשב מחדש ואוכף.
-   גוונים קרובים (למשל פירוז/אדום־ורוד) מובחנים בשם המקצוע שכתוב על התגית — צבע אף פעם לא לבד. "לא סווג" = אפור + סמל ניטרלי. */
-export interface SubjectVisual { glyph: string; light: string; dark: string }
+   לכל מקצוע צבע וסמל קבועים. **הצבעים עצמם נמצאים רק ב-`src/styles/tokens.css`** (`--subject-<code>`); כאן רק שם הטוקן,
+   הסמל, וצבע הטקסט שעל התגית (דיו או לבן, לפי הניגודיות הגבוהה יותר; `subjects.test.ts` מחשב מקובץ הטוקנים ואוכף 4.5:1).
+   הצבע משמש לתגיות ולמסגרות קטנות בלבד, ואף פעם לא לבד: שם המקצוע כתוב על התגית. חלק מהצבעים בהירים מכדי לשמש מסגרת
+   על רקע לבן, ולכן מסגרת הכרטיס היא בדיו וצבע המקצוע הוא פס או תגית. "אחר" ו"לא סווג" באותו אפור; "לא סווג" מובחן בתווית. */
+export interface SubjectVisual { glyph: string; token: `--subject-${string}`; onColor: 'ink' | 'surface' }
 
 export const UNCLASSIFIED_CODE = 'unclassified' as const
 export type SubjectVisualCode = SubjectCode | typeof UNCLASSIFIED_CODE
 
 export const SUBJECT_VISUAL: Readonly<Record<SubjectVisualCode, SubjectVisual>> = {
-  math: { glyph: '🔢', light: '#3e69e0', dark: '#7797ee' },
-  hebrew: { glyph: '📖', light: '#9f3ee0', dark: '#c17bef' },
-  history: { glyph: '🏛️', light: '#a2701a', dark: '#cc8b19' },
-  science: { glyph: '🔬', light: '#178c48', dark: '#16b659' },
-  english: { glyph: '🔤', light: '#19849a', dark: '#18a7c3' },
-  bible: { glyph: '📜', light: '#847915', dark: '#b6a616' },
-  geography: { glyph: '🗺️', light: '#348c17', dark: '#3eb616' },
-  civics: { glyph: '⚖️', light: '#de3579', dark: '#ed6ea1' },
-  literature: { glyph: '✍️', light: '#d322c1', dark: '#eb60dd' },
-  art: { glyph: '🎨', light: '#df3a3f', dark: '#ee7276' },
-  music: { glyph: '🎵', light: '#543ee0', dark: '#9b8ef1' },
-  pe: { glyph: '⚽', light: '#16886c', dark: '#16b68e' },
-  arabic: { glyph: '🗣️', light: '#638415', dark: '#86b616' },
-  french: { glyph: '🥖', light: '#1f7ec1', dark: '#3ca0e7' },
-  other: { glyph: '🧩', light: '#bd5e1f', dark: '#e67a33' },
-  unclassified: { glyph: '❔', light: '#707b89', dark: '#909aa7' },
+  math: { glyph: '🔢', token: '--subject-math', onColor: 'ink' },
+  hebrew: { glyph: '📖', token: '--subject-hebrew', onColor: 'ink' },
+  history: { glyph: '🏛️', token: '--subject-history', onColor: 'ink' },
+  science: { glyph: '🔬', token: '--subject-science', onColor: 'surface' },
+  english: { glyph: '🔤', token: '--subject-english', onColor: 'surface' },
+  bible: { glyph: '📜', token: '--subject-bible', onColor: 'surface' },
+  geography: { glyph: '🗺️', token: '--subject-geography', onColor: 'surface' },
+  civics: { glyph: '⚖️', token: '--subject-civics', onColor: 'ink' },
+  literature: { glyph: '✍️', token: '--subject-literature', onColor: 'ink' },
+  art: { glyph: '🎨', token: '--subject-art', onColor: 'ink' },
+  music: { glyph: '🎵', token: '--subject-music', onColor: 'ink' },
+  pe: { glyph: '⚽', token: '--subject-pe', onColor: 'ink' },
+  arabic: { glyph: '🗣️', token: '--subject-arabic', onColor: 'surface' },
+  french: { glyph: '🥖', token: '--subject-french', onColor: 'surface' },
+  other: { glyph: '🧩', token: '--subject-other', onColor: 'ink' },
+  unclassified: { glyph: '❔', token: '--subject-unclassified', onColor: 'ink' },
 }
 
-/* הרקעים שעליהם יושבת המסגרת, לבדיקת הניגודיות (הפינה הכהה ביותר של רקע האולפן הבהיר; הפינה הבהירה ביותר של הרקע הכהה) */
-export const SUBJECT_SURFACES = {
-  light: ['#ffffff', '#f2f5f8', '#e8ecf1'],
-  dark: ['#04060f', '#070a18', '#0c1430', '#0a163c', '#0b1220', '#151d36'],
-} as const
-export const MIN_FRAME_CONTRAST = 3
-
+/* נשאר לתאימות עם קריאות קיימות: יש פלטה אחת, והפרמטר לא משפיע */
 export type SubjectVisualMode = 'light' | 'dark'
 
-/* code = null/לא מוכר → "לא סווג" (אפור). מחזיר את הצבע של המצב המבוקש, את הסמל ואת השם בעברית */
-export function subjectVisual(code: string | null | undefined, mode: SubjectVisualMode = 'light'): { code: SubjectVisualCode; color: string; glyph: string; label: string } {
+/* code = null/לא מוכר → "לא סווג" (אפור). color = הפניה לטוקן (var(--subject-…)), לשימוש ב-style בלבד */
+export function subjectVisual(code: string | null | undefined, mode?: SubjectVisualMode): { code: SubjectVisualCode; color: string; glyph: string; label: string } {
+  void mode
   const known = isSubjectCode(code)
   const c: SubjectVisualCode = known ? code : UNCLASSIFIED_CODE
   const v = SUBJECT_VISUAL[c]
-  return { code: c, color: v[mode], glyph: v.glyph, label: known ? subjectName(code) : UNCLASSIFIED_LABEL }
+  return { code: c, color: `var(${v.token})`, glyph: v.glyph, label: known ? subjectName(code) : UNCLASSIFIED_LABEL }
 }
 
 /* ───────── תגית מקצוע: צבע המקצוע ברקע, שם המקצוע עליו ─────────
-   צבע לעולם לא מופיע לבד — השם כתוב על התגית. הטקסט בלבן או בשחור (הטוב מבין השניים לכל צבע — שחור טהור, כי מול גוון בינוני רק הוא מבטיח 4.5:1 לכל צבע), כך שיחס הניגודיות מול רקע התגית
-   הוא לפחות 4.5:1 (AA) לכל 16 הצבעים בשני הווריאנטים (`subjects.test.ts` אוכף). אותם צבעים משמשים גם למסגרת הכרטיס. */
-export const TAG_TEXT_COLORS = { onDark: '#ffffff', onLight: '#000000' } as const
+   bg = צבע המקצוע, fg = דיו או לבן (הטוב מבין השניים לכל צבע). צבע לעולם לא מופיע לבד. */
+export function subjectTagColors(code: string | null | undefined, mode?: SubjectVisualMode): { bg: string; fg: string; label: string; code: SubjectVisualCode } {
+  void mode
+  const v = subjectVisual(code)
+  const fg = SUBJECT_VISUAL[v.code].onColor === 'ink' ? 'var(--color-ink)' : 'var(--color-surface)'
+  return { bg: v.color, fg, label: v.label, code: v.code }
+}
 
+/* WCAG 2.x: יחס ניגודיות בין שני צבעי hex (לבדיקות ולכלי המדידה) */
 function hexToRgb(hex: string): [number, number, number] {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number]
 }
@@ -111,11 +111,4 @@ export function contrastRatio(a: string, b: string): number {
   const x = relativeLuminance(a)
   const y = relativeLuminance(b)
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
-}
-
-/* צבעי התגית של מקצוע: bg = צבע המקצוע (או אפור ל"לא סווג"), fg = הטקסט בעל הניגודיות הגבוהה יותר */
-export function subjectTagColors(code: string | null | undefined, mode: SubjectVisualMode = 'light'): { bg: string; fg: string; label: string; code: SubjectVisualCode } {
-  const v = subjectVisual(code, mode)
-  const fg = contrastRatio(v.color, TAG_TEXT_COLORS.onDark) >= contrastRatio(v.color, TAG_TEXT_COLORS.onLight) ? TAG_TEXT_COLORS.onDark : TAG_TEXT_COLORS.onLight
-  return { bg: v.color, fg, label: v.label, code: v.code }
 }

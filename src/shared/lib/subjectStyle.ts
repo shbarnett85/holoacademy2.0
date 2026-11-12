@@ -1,25 +1,18 @@
 /* עיצוב קבוע לכל מקצוע — צבע + אייקון, זהה בכל המערכת (עיקרון 11 בעקרונות הממשק למורה).
-   מקור הצבעים והסמלים: `subjects.ts` (`SUBJECT_VISUAL`, משותף לקליינט ולשרת) — כאן רק בחירת הווריאנט לפי ערכת הנושא
-   הפעילה. צבע לעולם לא נושא משמעות לבד: תמיד מלווה באייקון ובשם המקצוע. */
+   מקור הסמלים: `subjects.ts` (`SUBJECT_VISUAL`); מקור הצבעים: `src/styles/tokens.css` (`--subject-<code>`).
+   יש פלטה אחת לכל המסכים. צבע לעולם לא נושא משמעות לבד: תמיד מלווה בשם המקצוע. */
 import { subjectVisual, type SubjectVisualMode } from './subjects'
-import { useTheme } from './useTheme'
 
 export interface SubjectStyle { color: string; icon: string; label: string }
 
-/* מסכי מורה: בהיר כברירת מחדל (כמו theme.js); כהה רק למי שבחר מצב כהה */
-function activeMode(): SubjectVisualMode {
-  if (typeof window === 'undefined' || !window.HoloTheme) return 'light'
-  return window.HoloTheme.isLight() ? 'light' : 'dark'
-}
-
-/* code = null/לא מוכר → "לא סווג". mode — מפורש (מסכי תלמיד: 'dark'); ללא mode — לפי הערכה הפעילה */
-export function subjectStyle(code: string | null | undefined, mode: SubjectVisualMode = activeMode()): SubjectStyle {
-  const v = subjectVisual(code, mode)
+/* code = null/לא מוכר → "לא סווג". הפרמטר mode נשאר לתאימות ואינו משפיע */
+export function subjectStyle(code: string | null | undefined, mode?: SubjectVisualMode): SubjectStyle {
+  void mode
+  const v = subjectVisual(code)
   return { color: v.color, icon: v.glyph, label: v.label }
 }
 
-/* בתוך קומפוננטה: מתעדכן ברינדור מחדש בכל החלפת ערכה */
+/* בתוך קומפוננטה (נשאר כ-hook לתאימות עם הקריאות הקיימות) */
 export function useSubjectStyle(code: string | null | undefined): SubjectStyle {
-  const light = useTheme()
-  return subjectStyle(code, light ? 'light' : 'dark')
+  return subjectStyle(code)
 }

@@ -1,0 +1,89 @@
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║  טוקני העיצוב של HoloAcademy — מקור האמת היחיד לצבע, לקו ולצל.        ║
+   ╚══════════════════════════════════════════════════════════════════════╝
+   "הספרייה ההולוגרפית": כל שיעור הוא ספר הרפתקה, ודוקטור הולו הוא הספרן הראשי.
+   תפקידי הצבע (הנחיה, לא כלל מוחלט):
+     · המכונה (לילך): רקע הממשק, כותרות ופסי כותרת, אזורי יצירת השיעור ואזורי הצעות ה-AI.
+     · דוקטור הולו (תכלת הולוגרמה): הדמות והקריסטלים בלבד. לא לטקסט.
+     · החיבור בין אדם למכונה (תכלת בהיר): כל כפתור בחירה ופעולה. לא מופיע על אלמנט שאינו לחיץ.
+     · האנושיות (כתום ואפרסק): שמות ואווטארים של תלמידים, ה-HUD, התקדמות, אזורי המורה.
+   כללים:
+     · אין ערך צבע קשיח (hex / rgb / hsl) מחוץ לקובץ הזה. `styles/noHardcodedColors.test.ts` אוכף.
+     · קוד שמצייר ב-canvas קורא את הערכים מכאן בזמן ריצה (`styles/tokens.ts`: tokenValue / tokenRgb).
+     · שקיפות נגזרת מטוקן: `alpha('--color-ink', 12)` או color-mix ב-CSS. לא rgba קשיח.
+     · ניגודיות AA (4.5:1) לטקסט רגיל: `styles/tokens.test.ts` מחשב מהקובץ הזה ואוכף. */
+:root {
+  /* ── המכונה ── */
+  --color-machine-bg: #D9D2EC;     /* רקע הממשק */
+  --color-machine: #B9A2E8;        /* פסי כותרת וסרגל ניווט. טקסט עליו: דיו בלבד */
+  --color-machine-deep: #6A3FB5;   /* כותרות על רקע לוונדר, לבן או machine-tint */
+  --color-machine-tint: #F1EBFC;   /* אזורים שבהם ה-AI מציע */
+  --color-crystal-empty: #9A80D4;  /* מקום ריק של קריסטל */
+
+  /* ── דוקטור הולו ── */
+  --color-holo: #3AB0F2;           /* הדמות והקריסטלים. לא לטקסט */
+
+  /* ── החיבור: כפתורים ── */
+  --color-action: #B3E4FF;         /* כל כפתור. הטקסט בדיו */
+  --color-action-pressed: #8FD0F7;
+
+  /* ── האנושיות ── */
+  --color-human: #FF7A45;          /* התקדמות, מילוי. לא לטקסט על לבן */
+  --color-human-soft: #FFD2BA;     /* שם ואווטאר */
+  --color-human-tint: #FFF1E8;     /* ממצאים על תלמידים */
+  --color-human-deep: #8A3A16;     /* טקסט מודגש באזורי תלמיד ומורה */
+
+  /* ── בסיס ── */
+  --color-ink: #1E1830;            /* טקסט, קווי מתאר וצללים. אין שחור טהור */
+  --color-surface: #FFFFFF;
+  --color-muted: #4F4866;
+
+  /* ── משוב (תמיד עם סימן ומילה, לא צבע לבד) ── */
+  --color-correct: #1E8457;        /* הוכהה מ-#1F8A5B כדי שטקסט לבן עליו יעבור 4.5:1 */
+  --color-wrong: #D7263D;
+
+  /* ── קריסטלים: צבעי הפעימה והמילוי המלא ── */
+  --color-crystal-pulse: #FFE2CF;      /* הקריסטל מתבהר לכתום-לבן בפעימה (3 ומעלה) */
+  --color-crystal-full-top: #FFFFFF;   /* מעבר המילוי של 5 קריסטלים מלאים */
+  --color-crystal-full-mid: #FFD2BA;
+  --color-crystal-full-bottom: #FF9A6E;
+
+  /* ── מקצועות: למסגרות קטנות ולתגיות בלבד. אין צבע מקצוע בתכלת ── */
+  --subject-math: #E9B949;         /* חרדל, כדי שלא ייראה כמו כתום המותג */
+  --subject-hebrew: #A3B83E;
+  --subject-history: #4FA36A;
+  --subject-science: #2A8179;      /* הוכהה מ-#2F8F86 (ניגודיות טקסט התגית) */
+  --subject-english: #3C5BA9;
+  --subject-bible: #596DD2;        /* הוכהה מ-#5B6FD6 */
+  --subject-geography: #8362C0;    /* הוכהה מ-#8E6BD1 */
+  --subject-civics: #C26BC0;
+  --subject-literature: #E07AA0;
+  --subject-art: #B07A4F;
+  --subject-music: #7D8C9A;
+  --subject-pe: #C96A4A;
+  --subject-arabic: #1F6F6A;
+  --subject-french: #2A3F7A;
+  --subject-other: #9A9A9A;
+  --subject-unclassified: #9A9A9A; /* אותו אפור; "לא סווג" מובחן במסגרת מקווקוות ובתווית */
+
+  /* ── נגזרים מהטוקנים (בלי ערך צבע חדש) ── */
+  --color-line: color-mix(in srgb, var(--color-ink) 16%, transparent);        /* קו מפריד דק בתוך משטח */
+  --color-line-strong: color-mix(in srgb, var(--color-ink) 38%, transparent);
+  --color-ink-wash: color-mix(in srgb, var(--color-ink) 6%, transparent);     /* רקע עדין לשורה או לשדה */
+  --color-scrim: color-mix(in srgb, var(--color-ink) 55%, transparent);       /* מסך כהה מאחורי חלון */
+  --color-correct-tint: color-mix(in srgb, var(--color-correct) 12%, var(--color-surface));
+  --color-wrong-tint: color-mix(in srgb, var(--color-wrong) 10%, var(--color-surface));
+  --color-disabled: color-mix(in srgb, var(--color-ink) 12%, var(--color-surface)); /* כפתור מנוטרל */
+
+  /* ── קו וצל ── */
+  --border-student: 3px solid var(--color-ink);
+  --shadow-student: 6px 6px 0 var(--color-ink);   /* פאנלים במסך התלמיד */
+  --shadow-button: 3px 3px 0 var(--color-ink);
+  --border-staff: 2px solid var(--color-ink);
+  --shadow-staff: 3px 3px 0 var(--color-ink);     /* מסכי מורה ומנהל */
+
+  /* ── רדיוסים ── */
+  --radius-student: 18px;   /* משטחי תוכן במסך התלמיד (16 עד 20) */
+  --radius-button: 12px;
+  --radius-staff: 12px;
+}

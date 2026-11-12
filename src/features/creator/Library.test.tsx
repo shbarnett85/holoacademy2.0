@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { LIBRARY_ASSIGN_TEXT } from '../../shared/lib/findingsNarrative'
-import { SUBJECTS, SUBJECT_VISUAL } from '../../shared/lib/subjects'
+import { SUBJECTS, subjectVisual } from '../../shared/lib/subjects'
 
 vi.mock('./StudioTopBar', () => ({ default: () => null }))
 
@@ -136,12 +136,12 @@ describe('כרטיס שיעור בספרייה שלי', () => {
     expect(text(html)).toContain('המהפכה הצרפתית')
     expect(html).toMatch(/data-subject-tag="history"[^>]*>[\s\S]*?היסטוריה/)
     expect(html).toMatch(/data-grade-tag[^>]*>שכבות ח׳–ט׳</)
-    expect(html).not.toContain(SUBJECT_VISUAL.history.glyph)
+    expect(html).not.toContain(subjectVisual('history').glyph)
   })
 
   it('מסגרת הכרטיס בצבע המקצוע', () => {
-    expect(card()).toContain(`border:3px solid ${SUBJECT_VISUAL.history.dark}`)
-    expect(card({ subject: 'מתמטיקה', subjectCode: 'math' })).toContain(`border:3px solid ${SUBJECT_VISUAL.math.dark}`)
+    expect(card()).toContain(`border:3px solid ${subjectVisual('history').color}`)
+    expect(card({ subject: 'מתמטיקה', subjectCode: 'math' })).toContain(`border:3px solid ${subjectVisual('math').color}`)
   })
 
   it('אותן פעולות מורה בדיוק — מחק · שתף · ערוך · הפעל (והסר מהספרייה רק לשיעור משותף); בלי "שחקו"', () => {
@@ -153,7 +153,7 @@ describe('כרטיס שיעור בספרייה שלי', () => {
 
   it('"לא סווג": מסגרת אפורה, תגית "לא סווג" וכפתור "שיוך למקצוע" אחד', () => {
     const html = card({ subject: null, subjectCode: null })
-    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.unclassified.dark}`)
+    expect(html).toContain(`border:3px solid ${subjectVisual('unclassified').color}`)
     expect(html).toMatch(/data-subject-tag="unclassified"[^>]*>[\s\S]*?לא סווג/)
     expect(html.match(/data-subject-assign/g)).toHaveLength(1)
     expect(html).toContain(`aria-label="${LIBRARY_ASSIGN_TEXT.selectLabel}"`)
@@ -164,7 +164,7 @@ describe('כרטיס שיעור בספרייה שלי', () => {
   it('שיעור בלי תמונה: משטח בצבע המקצוע ועליו שם המקצוע (בלי תגית כפולה)', () => {
     const html = card({ thumbUrl: null })
     expect(html).not.toContain('<img')
-    expect(html).toMatch(new RegExp(`data-has-image="false"[^>]*background:${SUBJECT_VISUAL.history.dark}`))
+    expect(html).toMatch(/data-has-image="false"[^>]*background:var\(--subject-history\)/)
     expect(html).toMatch(/data-thumb-name[^>]*>היסטוריה</)
     expect(html).not.toContain('data-subject-tag')
   })
@@ -182,7 +182,7 @@ describe('כרטיס בספרייה הציבורית', () => {
     expect(html).toContain('data-lesson-card')
     expect(html).toMatch(/data-subject-tag="science"[^>]*>[\s\S]*?מדעים/)
     expect(html).toMatch(/data-grade-tag[^>]*>שכבות ה׳–ו׳</)
-    expect(html).toContain(`border:3px solid ${SUBJECT_VISUAL.science.dark}`)
+    expect(html).toContain(`border:3px solid ${subjectVisual('science').color}`)
     expect(buttons(html).map(text)).toEqual(['דווח 🚩', 'השתמש (העתק אליי) 📥'])
     expect(text(html)).toContain('נוצר במקור על ידי דנה')
     expect(text(html)).toContain('✓ רשמי')
