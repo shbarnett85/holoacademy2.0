@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useEscToClose } from './useModalA11y'
 
-/* דיאלוג אישור/הודעה בשפת העיצוב ההולוגרפית — תחליף ל-window.confirm/alert
+/* דיאלוג אישור/הודעה בשפת העיצוב של המערכת — תחליף ל-window.confirm/alert
    הנייטיביים (ששוברים את השפה ואינם RTL). מבוסס Promise: הקורא await-י את
    הבחירה. Host יחיד (<HoloDialogHost/>) יושב ב-App ומאזין לבקשות. */
 
@@ -51,7 +51,7 @@ export function HoloDialogHost() {
     <div
       dir="rtl"
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(5,5,18,0.75)', backdropFilter: 'blur(4px)', zIndex: 200 }}
+      style={{ background: 'var(--color-scrim)', zIndex: 200 }}
       onClick={() => answer(false)}
       role="alertdialog"
       aria-modal="true"
@@ -59,18 +59,19 @@ export function HoloDialogHost() {
     >
       <div
         className="holo-panel w-full"
-        style={{ maxWidth: '26rem', boxShadow: 'var(--holo-glow)', borderColor: 'rgba(47,243,255,.45)', fontFamily: 'var(--font-display)' }}
+        style={{ maxWidth: '26rem', fontFamily: 'var(--font-display)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.6, color: 'var(--holo-text)', whiteSpace: 'pre-line' }}>{req.message}</p>
+        <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.6, color: 'var(--color-ink)', whiteSpace: 'pre-line' }}>{req.message}</p>
         <div className="flex gap-3 justify-start" style={{ marginTop: 18 }}>
           <button className="holo-button" autoFocus onClick={() => answer(true)}>
             {req.confirmLabel}
           </button>
           {req.kind === 'confirm' && (
             <button
+              className="holo-button"
               onClick={() => answer(false)}
-              style={{ background: 'rgba(47,243,255,.06)', border: '1px solid rgba(47,243,255,.3)', color: 'var(--holo-text)', borderRadius: 10, padding: '9px 20px', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14 }}
+              style={{ padding: '9px 20px', fontFamily: 'var(--font-display)', fontSize: 14 }}
             >
               {req.cancelLabel}
             </button>

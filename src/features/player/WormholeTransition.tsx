@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { playSound } from '../../shared/lib/sound'
+import { tokenRgb } from '../../styles/tokens'
 
 /* אפקט חור תולעת — חלקיקים נשאבים לערבולת מרכזית ומתפרצים החוצה.
    Canvas 2D בלבד, ~1100ms, ידידותי למחשבים חלשים.
@@ -46,6 +47,9 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
     }
 
     const maxR = Math.hypot(cx, cy)
+    /* הצבעים נקראים מהטוקנים בזמן ריצה: חלקיקי דיו וסגול עמוק על רקע הלילך */
+    const deep = tokenRgb('--color-machine-deep').join(',')
+    const ink = tokenRgb('--color-ink').join(',')
     const particles: Particle[] = []
     for (let i = 0; i < COUNT; i++) {
       particles.push({
@@ -53,7 +57,7 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
         radius: maxR * (0.25 + Math.random() * 0.85),
         spin: 2.5 + Math.random() * 3.5,
         size: 1 + Math.random() * 2.5,
-        color: Math.random() > 0.45 ? '0,246,255' : '136,85,255',
+        color: Math.random() > 0.45 ? deep : ink,
         burstAngle: Math.random() * Math.PI * 2,
         burstSpeed: (0.5 + Math.random()) * maxR,
       })
@@ -98,15 +102,12 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
         ctx!.fill()
       }
 
-      /* ליבת הערבולת — עיגול זוהר שגדל בשאיבה ומתפוגג בהתפרצות */
+      /* ליבת הערבולת — עיגול שטוח שגדל בשאיבה ומתכווץ בהתפרצות */
       const coreR = burst === 0 ? 6 + inhale * 22 : 28 * (1 - burst)
       if (coreR > 0) {
-        const grad = ctx!.createRadialGradient(cx, cy, 0, cx, cy, coreR)
-        grad.addColorStop(0, `rgba(232,244,255,${0.9 * globalAlpha})`)
-        grad.addColorStop(1, 'rgba(0,246,255,0)')
         ctx!.beginPath()
         ctx!.arc(cx, cy, coreR, 0, Math.PI * 2)
-        ctx!.fillStyle = grad
+        ctx!.fillStyle = `rgba(${deep},${0.9 * globalAlpha})`
         ctx!.fill()
       }
 
@@ -128,15 +129,14 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
         ref={canvasRef}
         style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 80 }}
       />
-      {/* הבזק אור לבן ברגע ה"קפיצה" — מסונכרן לשיא (~0.8s מתוך 1.1s), מעל החלקיקים.
+      {/* כיסוי מלא בצבע רקע הממשק ברגע ה"קפיצה" — מסונכרן לשיא (~0.8s מתוך 1.1s), מעל החלקיקים.
           key={trigger} מאתחל את האנימציה בכל מעבר. */}
       <div
         key={trigger}
         style={{
           position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 81,
-          /* רקע אטום לגמרי — בפלטו (opacity:1) המסך כולו לבן, בלי שוליים שקופים.
-             הגוון הרדיאלי העדין נשמר בקצוות להרגשת "ליבה" בזמן העלייה/דעיכה. */
-          background: 'radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 55%, #eafcff 100%)',
+          /* רקע אטום ושטוח — בפלטו (opacity:1) המסך כולו מכוסה, בלי שוליים שקופים */
+          background: 'var(--color-machine-bg)',
           opacity: 0,
           animation: trigger > 0 ? 'wormhole-flash 0.55s ease-out 0.72s 1 both' : 'none',
         }}
@@ -144,8 +144,8 @@ export default function WormholeTransition({ trigger, onComplete }: { trigger: n
       <style>{`
         @keyframes wormhole-flash {
           0% { opacity: 0; }
-          /* פלטו לבן מלא: 14%-28% מתוך 550ms = ~77ms של מסך לבן שלם.
-             זה חלון ההחלפה — הסצנה מוחלפת מאחורי הלבן. */
+          /* פלטו מלא: 14%-28% מתוך 550ms = ~77ms של מסך מכוסה.
+             זה חלון ההחלפה — הסצנה מוחלפת מאחורי הכיסוי. */
           14% { opacity: 1; }
           28% { opacity: 1; }
           100% { opacity: 0; }

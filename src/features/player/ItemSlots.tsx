@@ -13,11 +13,7 @@ export function ItemSlots({ inventory, justCollected, onUseItem }: { inventory: 
           60% { transform: translateY(0) scale(1.3); opacity: 1; }
           100% { transform: translateY(0) scale(1); }
         }
-        @keyframes slot-glow {
-          0%, 100% { box-shadow: 0 0 6px rgba(0,246,255,0.3); }
-          50% { box-shadow: 0 0 22px rgba(0,246,255,0.9); }
-        }
-        .item-new { animation: item-land 0.9s cubic-bezier(0.2, 0.8, 0.3, 1.1), slot-glow 1.2s ease 0.9s; }
+        .item-new { animation: item-land 0.9s cubic-bezier(0.2, 0.8, 0.3, 1.1); }
         @media (prefers-reduced-motion: reduce) { .item-new { animation: none; } }
       `}</style>
       <div className="flex" style={{ gap: 'var(--hud-slot-gap, 0.5rem)' }} dir="ltr">
@@ -29,7 +25,8 @@ export function ItemSlots({ inventory, justCollected, onUseItem }: { inventory: 
               key={i}
               onClick={() => item && onUseItem(item.id)}
               title={item?.name ?? ''}
-              className={isNew ? 'item-new' : ''}
+              /* תא עם חפץ הוא כפתור לכל דבר; תא ריק אינו לחיץ, ולכן בלי תכלת */
+              className={`${item ? 'holo-button holo-button--sm' : ''}${isNew ? ' item-new' : ''}`}
               style={{
                 width: 'var(--hud-slot, 2.8rem)',
                 height: 'var(--hud-slot, 2.8rem)',
@@ -40,15 +37,10 @@ export function ItemSlots({ inventory, justCollected, onUseItem }: { inventory: 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: item ? 'rgba(0,136,255,0.18)' : 'transparent',
-                border: item ? '2px solid rgba(0,246,255,0.55)' : '2px dashed rgba(0,246,255,0.18)',
-                boxShadow: item ? '0 0 10px rgba(0,246,255,0.25)' : 'none',
-                transition: 'transform 0.15s',
+                ...(item ? {} : { background: 'transparent', border: '2px dashed var(--color-line-strong)' }),
                 overflow: 'hidden',
                 padding: 0,
               }}
-              onMouseEnter={(e) => item && (e.currentTarget.style.transform = 'scale(1.15)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
             >
               {item?.imageUrl ? (
                 /* תמונת החפץ העגולה — fallback לאמוג'י אם אין */

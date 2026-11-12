@@ -5,9 +5,11 @@ import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
 import LessonCard from '../../shared/ui/LessonCard'
 import { GemDefs, GemSocket } from '../../shared/ui/Gem'
+import { gemTier } from '../../shared/lib/gemTier'
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { MyJourney } from './Journey'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
+import { fieldStyle, infoChip, nameChip, panelStudent } from '../../styles/ui'
 
 
 type SortKey = 'newest' | 'oldest' | 'alpha' | 'alpha-desc' | 'score-high' | 'score-low'
@@ -48,13 +50,14 @@ interface AssignedQuest {
 function GemRow({ gems }: { gems: number }) {
   return (
     <div dir="ltr" role="img" aria-label={gems === 1 ? 'גביש אחד' : `${gems} גבישים`} style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-      {Array.from({ length: GEM_TOTAL }).map((_, i) => <GemSocket key={i} fill={i < gems ? 1 : 0} size={20} />)}
+      {Array.from({ length: GEM_TOTAL }).map((_, i) => <GemSocket key={i} fill={i < gems ? 1 : 0} size={20} tier={gemTier(gems)} />)}
     </div>
   )
 }
 
 /* ── כרטיס שיעור — הרכיב המשותף (shared/ui/LessonCard): תמונה, כותרת, תגית מקצוע, תגית שכבות. מתחתיו: מועד הגשה ו"שחקו" ── */
-const BADGE: React.CSSProperties = { borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-display)', backdropFilter: 'blur(6px)', lineHeight: 1.3 }
+/* תג מצב (לא לחיץ): לבן עם קו דיו, תמיד סימן ומילה */
+const BADGE: React.CSSProperties = { ...infoChip, borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-display)', lineHeight: 1.3 }
 
 function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onPlay: () => void }) {
   const [hov, setHov] = useState(false)
@@ -62,7 +65,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
   const gems = q.gems ?? q.crystals ?? 0
   /* "להגשה עד [תאריך]" — רק לשיעור שעוד לא הושלם; אחרי המועד: "המועד עבר" (השיעור לא ננעל) */
   const due = q.dueAt && status !== 'completed'
-    ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: '#fbbf24' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'rgba(255,255,255,.92)' })
+    ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: 'var(--color-human-deep)' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'var(--color-ink)' })
     : null
 
   return (
@@ -71,10 +74,10 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
         mode="dark" title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl}
         gradeMin={q.gradeMin} gradeMax={q.gradeMax} glow={hov} onClick={onPlay}
         badges={<>
-          {isNew && <span style={{ ...BADGE, background: 'rgba(4,16,24,.88)', border: '1px solid rgba(47,243,255,.7)', color: '#2ff3ff', animation: 'holo-status-pulse 2s ease-in-out infinite' }}>✦ חדש</span>}
-          {q.isReview && <span style={{ ...BADGE, background: 'rgba(20,12,40,.9)', border: '1px solid rgba(155,140,255,.65)', color: '#c9b6ff' }}>🔄 חיזוק</span>}
-          {status === 'completed' && <span style={{ ...BADGE, background: 'rgba(4,24,14,.9)', border: '1px solid rgba(16,185,80,.55)', color: '#22d46a' }}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</span>}
-          {status === 'in_progress' && <span style={{ ...BADGE, background: 'rgba(30,20,0,.9)', border: '1px solid rgba(255,180,0,.5)', color: '#fbbf24' }}>↻ בתהליך</span>}
+          {isNew && <span style={BADGE}>✦ חדש</span>}
+          {q.isReview && <span style={BADGE}>🔄 חיזוק</span>}
+          {status === 'completed' && <span style={BADGE}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</span>}
+          {status === 'in_progress' && <span style={BADGE}>↻ בתהליך</span>}
         </>}
         body={due ? <div style={{ fontSize: 13, fontWeight: 700, color: due.color, fontFamily: 'var(--font-display)' }}>{due.text}</div> : undefined}
         actions={
@@ -84,22 +87,18 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
                 ? <GemRow gems={gems} />
                 : <span style={{
                     fontSize: 12, padding: '2px 8px', borderRadius: 5, fontWeight: 600,
-                    background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.25)',
-                    color: 'rgba(47,243,255,.9)',
+                    background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)',
+                    color: 'var(--color-ink)',
                   }}>{q.sceneCount} סצנות</span>
               }
             </div>
             <button
+              className="holo-button"
               onClick={(e) => { e.stopPropagation(); onPlay() }}
               style={{
-                background: status === 'completed'
-                  ? 'linear-gradient(135deg,rgba(34,212,106,.9),rgba(16,160,70,.9))'
-                  : 'linear-gradient(135deg,#2ff3ff,#00b8d4)',
-                color: '#021018', fontWeight: 800, fontSize: 13,
-                padding: '7px 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+                fontWeight: 800, fontSize: 13,
+                padding: '7px 16px', borderRadius: 9,
                 fontFamily: 'var(--font-display)', flexShrink: 0,
-                boxShadow: hov ? (status === 'completed' ? '0 0 20px rgba(34,212,106,.6)' : '0 0 20px rgba(47,243,255,.6)') : 'none',
-                transition: 'box-shadow .2s',
               }}
             >
               {status === 'completed' ? '▶ שחקו שוב' : status === 'in_progress' ? '▶ המשיכו' : '▶ שחקו'}
@@ -111,27 +110,17 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
   )
 }
 
-/* ── chip לשורת סינון ── */
-function Chip({ label, active, color = 'cyan', onClick }: {
-  label: string; active: boolean; color?: 'cyan' | 'green' | 'yellow' | 'purple'; onClick: () => void
+/* ── chip לשורת סינון: כפתור בחירה; הנבחר ברקע דיו ── */
+function Chip({ label, active, onClick }: {
+  label: string; active: boolean; onClick: () => void
 }) {
-  const colors = {
-    cyan:   { on: 'rgba(47,243,255,.18)',  border: 'rgba(47,243,255,.7)',  text: '#2ff3ff' },
-    green:  { on: 'rgba(34,212,106,.15)',  border: 'rgba(34,212,106,.6)',  text: '#22d46a' },
-    yellow: { on: 'rgba(255,180,0,.14)',   border: 'rgba(255,180,0,.55)',  text: '#fbbf24' },
-    purple: { on: 'rgba(136,85,255,.15)',  border: 'rgba(136,85,255,.55)', text: '#c084fc' },
-  }
-  const c = colors[color]
   return (
     <button
+      className={`holo-button holo-button--sm${active ? ' is-selected' : ''}`}
       onClick={onClick}
       style={{
-        padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+        padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
         fontFamily: 'var(--font-display)', whiteSpace: 'nowrap',
-        background: active ? c.on : 'rgba(255,255,255,.04)',
-        border: `1px solid ${active ? c.border : 'rgba(255,255,255,.1)'}`,
-        color: active ? c.text : 'rgba(160,200,240,.5)',
-        transition: 'all .16s',
       }}
     >{label}</button>
   )
@@ -143,7 +132,7 @@ function LoadingDots() {
     <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '4rem 0' }}>
       {[0, 1, 2].map((i) => (
         <div key={i} style={{
-          width: 8, height: 8, borderRadius: '50%', background: 'var(--holo-cyan-bright)',
+          width: 8, height: 8, borderRadius: '50%', background: 'var(--color-ink)',
           animation: 'holo-dot-pulse 1.4s ease-in-out infinite',
           animationDelay: `${i * 0.22}s`, opacity: 0.7,
         }} />
@@ -163,12 +152,12 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'score-low',  label: 'ציון נמוך → גבוה' },
 ]
 
-const STATUS_CHIPS: { key: StatusFilter; label: string; color: 'cyan' | 'green' | 'yellow' | 'purple' }[] = [
-  { key: 'all',         label: 'הכל',       color: 'cyan'   },
-  { key: 'new',         label: '✦ חדשות',   color: 'cyan'   },
-  { key: 'not_started', label: 'טרם התחלתם', color: 'purple' },
-  { key: 'in_progress', label: '↻ בתהליך',  color: 'yellow' },
-  { key: 'completed',   label: '✓ הושלמו',  color: 'green'  },
+const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
+  { key: 'all',         label: 'הכל'        },
+  { key: 'new',         label: '✦ חדשות'    },
+  { key: 'not_started', label: 'טרם התחלתם' },
+  { key: 'in_progress', label: '↻ בתהליך'   },
+  { key: 'completed',   label: '✓ הושלמו'   },
 ]
 
 export default function StudentHome() {
@@ -266,12 +255,11 @@ export default function StudentHome() {
     return (
       <HoloBackdrop>
         <div style={{
-          background: 'linear-gradient(135deg,rgba(10,22,46,.95),rgba(4,9,20,.98))',
-          border: '1px solid rgba(255,80,120,.35)', borderRadius: 22,
+          ...panelStudent, borderRadius: 20,
           padding: '40px 44px', width: 340, textAlign: 'center',
         }}>
           <div style={{ fontSize: '2.4rem', marginBottom: 8 }}>🔒</div>
-          <p style={{ color: 'rgba(180,220,255,.75)', fontSize: 15 }}>לא מחוברים — חזרו לקישור הכיתה</p>
+          <p style={{ color: 'var(--color-ink)', fontSize: 15 }}>לא מחוברים — חזרו לקישור הכיתה</p>
         </div>
       </HoloBackdrop>
     )
@@ -293,46 +281,41 @@ export default function StudentHome() {
           width: '100%',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '1.6rem 0 1.4rem',
-          borderBottom: '1px solid rgba(47,243,255,.08)',
+          borderBottom: '1px solid var(--color-line-strong)',
           marginBottom: '1.4rem',
         }}>
           <div>
             <div style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
-              color: 'rgba(47,243,255,.45)', textTransform: 'uppercase', marginBottom: 3,
+              color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 3,
             }}>HoloAcademy</div>
             <h1 style={{
               margin: 0, fontFamily: 'var(--font-display)',
               fontSize: 'clamp(1.25rem,3.5vw,1.65rem)', fontWeight: 800,
-              color: 'var(--holo-text-bright)', textShadow: '0 0 22px rgba(47,243,255,.3)',
+              color: 'var(--color-machine-deep)',
             }}>
-              שלום, <span style={{ color: 'var(--holo-cyan-bright)' }}>{name}</span> 👋
+              שלום, <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span> 👋
             </h1>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
+              className="holo-button holo-button--sm"
               onClick={toggleMuted}
               title={muted ? 'הפעל סאונד' : 'השתק סאונד'}
               aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'}
               aria-pressed={muted}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 38, height: 38, borderRadius: 10, fontSize: '1.1rem',
-                cursor: 'pointer',
-                background: 'rgba(47,243,255,.05)', border: '1px solid rgba(47,243,255,.2)',
-                color: '#bfe9ff',
+                width: 38, height: 38, padding: 0, borderRadius: 10, fontSize: '1.1rem',
               }}
             >{muted ? '🔇' : '🔊'}</button>
             <button
+              className="holo-button holo-button--sm"
               onClick={() => { logout(); navigate('/') }}
               style={{
                 fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 10,
-                cursor: 'pointer', fontFamily: 'var(--font-display)',
-                background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)',
-                color: 'rgba(160,200,240,.55)', transition: 'border-color .18s,color .18s',
+                fontFamily: 'var(--font-display)',
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,80,120,.4)'; e.currentTarget.style.color = '#ff8099' }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = 'rgba(160,200,240,.55)' }}
             >יציאה</button>
           </div>
         </div>
@@ -340,10 +323,9 @@ export default function StudentHome() {
         {/* ── SEARCH & FILTER BAR ── */}
         {!loading && quests.length > 0 && (
           <div style={{
+            ...panelStudent, borderRadius: 16,
             width: '100%', marginBottom: '1.25rem',
-            background: 'linear-gradient(135deg,rgba(10,18,40,.85),rgba(4,8,18,.9))',
-            border: '1px solid rgba(47,243,255,.12)', borderRadius: 16,
-            padding: '14px 16px', backdropFilter: 'blur(14px)',
+            padding: '14px 16px',
             display: 'flex', flexDirection: 'column', gap: 10,
           }}>
             {/* שורה 1: חיפוש + מיון */}
@@ -352,7 +334,7 @@ export default function StudentHome() {
               <div style={{ flex: 1, position: 'relative' }}>
                 <span style={{
                   position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                  fontSize: 14, color: 'rgba(47,243,255,.4)', pointerEvents: 'none',
+                  fontSize: 14, color: 'var(--color-muted)', pointerEvents: 'none',
                 }}>🔍</span>
                 <input
                   type="text"
@@ -360,26 +342,25 @@ export default function StudentHome() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   style={{
+                    ...fieldStyle,
                     width: '100%', paddingRight: 36, paddingLeft: 12, paddingTop: 8, paddingBottom: 8,
-                    background: 'rgba(4,9,20,.6)', border: '1px solid rgba(47,243,255,.2)',
-                    borderRadius: 10, color: 'var(--holo-text-bright)',
                     fontFamily: 'var(--font-display)', fontSize: 13,
-                    outline: 'none', transition: 'border-color .18s',
+                    outline: 'none',
                   }}
-                  onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(47,243,255,.55)')}
-                  onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(47,243,255,.2)')}
+                  onFocus={(e) => { e.currentTarget.style.outline = '3px solid var(--color-machine-deep)'; e.currentTarget.style.outlineOffset = '2px' }}
+                  onBlur={(e) => { e.currentTarget.style.outline = 'none' }}
                 />
               </div>
 
               {/* מיון */}
               <select
+                className="holo-button holo-button--sm"
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 style={{
-                  padding: '8px 12px', borderRadius: 10, cursor: 'pointer',
-                  background: 'rgba(4,9,20,.7)', border: '1px solid rgba(47,243,255,.2)',
-                  color: 'rgba(160,200,240,.8)', fontFamily: 'var(--font-display)', fontSize: 12,
-                  outline: 'none', flexShrink: 0,
+                  padding: '8px 12px', borderRadius: 10,
+                  fontFamily: 'var(--font-display)', fontSize: 12,
+                  flexShrink: 0,
                 }}
               >
                 {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
@@ -391,39 +372,36 @@ export default function StudentHome() {
               {/* סטטוס */}
               {STATUS_CHIPS.map(c => (
                 <Chip key={c.key} label={c.label} active={statusFilter === c.key}
-                  color={c.color} onClick={() => setStatus(statusFilter === c.key ? 'all' : c.key)} />
+                  onClick={() => setStatus(statusFilter === c.key ? 'all' : c.key)} />
               ))}
 
               {/* מפריד */}
               {(subjects.length > 0 || teachers.length > 0) && (
-                <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,.1)', margin: '0 2px' }} />
+                <div style={{ width: 1, height: 20, background: 'var(--color-line-strong)', margin: '0 2px' }} />
               )}
 
               {/* מקצועות */}
               {subjects.map(s => (
-                <Chip key={s} label={s} active={subjectFilter === s} color="purple"
+                <Chip key={s} label={s} active={subjectFilter === s}
                   onClick={() => setSubject(subjectFilter === s ? 'all' : s)} />
               ))}
 
               {/* מורים */}
               {teachers.map(t => (
-                <Chip key={t} label={`👤 ${t}`} active={teacherFilter === t} color="cyan"
+                <Chip key={t} label={`👤 ${t}`} active={teacherFilter === t}
                   onClick={() => setTeacher(teacherFilter === t ? 'all' : t)} />
               ))}
 
               {/* נקה סינון */}
               {hasFilters && (
                 <button
+                  className="holo-button holo-button--sm"
                   onClick={() => { setSearch(''); setStatus('all'); setSubject('all'); setTeacher('all') }}
                   style={{
-                    padding: '5px 12px', borderRadius: 8, cursor: 'pointer',
+                    padding: '5px 12px', borderRadius: 8,
                     fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-display)',
-                    background: 'transparent', border: '1px solid rgba(255,80,120,.3)',
-                    color: 'rgba(255,120,140,.7)', marginRight: 'auto',
-                    transition: 'all .16s',
+                    marginRight: 'auto',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,80,120,.1)'; e.currentTarget.style.color = '#ff8099' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,120,140,.7)' }}
                 >✕ נקה סינון</button>
               )}
             </div>
@@ -445,11 +423,11 @@ export default function StudentHome() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>
             <span style={{
               fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-              color: 'rgba(47,243,255,.5)', textTransform: 'uppercase', fontFamily: 'var(--font-display)',
+              color: 'var(--color-machine-deep)', textTransform: 'uppercase', fontFamily: 'var(--font-display)',
             }}>השיעורים שלכם</span>
-            <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left,rgba(47,243,255,.18),transparent)' }} />
+            <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
             {!loading && (
-              <span style={{ fontSize: 11, color: 'rgba(120,160,200,.4)', fontFamily: 'var(--font-display)' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
                 {displayed.length}{displayed.length !== quests.length ? `/${quests.length}` : ''} שיעורים
               </span>
             )}
@@ -457,8 +435,8 @@ export default function StudentHome() {
 
           {dbgError && (
             <div style={{
-              padding: '12px 16px', marginBottom: 14, borderRadius: 12, fontSize: 13, color: '#ff8099',
-              background: 'rgba(255,80,80,.08)', border: '1px solid rgba(255,80,80,.25)',
+              padding: '12px 16px', marginBottom: 14, borderRadius: 12, fontSize: 13, color: 'var(--color-ink)',
+              background: 'var(--color-wrong-tint)', border: '2px solid var(--color-wrong)',
             }}>⚠️ {dbgError}</div>
           )}
 
@@ -467,35 +445,33 @@ export default function StudentHome() {
           {/* ריק — אין שיעורים כלל */}
           {!loading && !dbgError && quests.length === 0 && (
             <div style={{
+              ...panelStudent, borderRadius: 20,
               textAlign: 'center', padding: '3.5rem 2rem',
-              background: 'linear-gradient(135deg,rgba(10,22,46,.7),rgba(4,9,20,.8))',
-              border: '1px solid rgba(47,243,255,.1)', borderRadius: 22, backdropFilter: 'blur(10px)',
             }}>
-              <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem', filter: 'drop-shadow(0 0 12px rgba(47,243,255,.3))' }}>🚀</div>
-              <p style={{ color: 'rgba(160,200,240,.55)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
+              <div style={{ fontSize: '3.2rem', marginBottom: '0.9rem' }}>🚀</div>
+              <p style={{ color: 'var(--color-ink)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
                 עדיין לא הוקצו לכם שיעורים
               </p>
-              <p style={{ color: 'rgba(120,160,200,.35)', fontSize: 12, marginTop: 4 }}>המורה יעדכן בקרוב ✨</p>
+              <p style={{ color: 'var(--color-muted)', fontSize: 12, marginTop: 4 }}>המורה יעדכן בקרוב ✨</p>
             </div>
           )}
 
           {/* ריק — אחרי סינון */}
           {!loading && quests.length > 0 && displayed.length === 0 && (
             <div style={{
+              ...panelStudent,
               textAlign: 'center', padding: '2.5rem 2rem',
-              background: 'rgba(10,18,40,.5)', border: '1px solid rgba(47,243,255,.08)',
-              borderRadius: 18, backdropFilter: 'blur(8px)',
             }}>
               <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
-              <p style={{ color: 'rgba(160,200,240,.5)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
+              <p style={{ color: 'var(--color-ink)', fontSize: 14, margin: 0, fontFamily: 'var(--font-display)' }}>
                 לא נמצאו שיעורים התואמים לסינון
               </p>
               <button
+                className="holo-button holo-button--sm"
                 onClick={() => { setSearch(''); setStatus('all'); setSubject('all'); setTeacher('all') }}
                 style={{
-                  marginTop: 12, padding: '6px 16px', borderRadius: 9, cursor: 'pointer',
-                  background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.3)',
-                  color: '#2ff3ff', fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 600,
+                  marginTop: 12, padding: '6px 16px', borderRadius: 9,
+                  fontSize: 12, fontFamily: 'var(--font-display)', fontWeight: 600,
                 }}
               >נקה סינון</button>
             </div>

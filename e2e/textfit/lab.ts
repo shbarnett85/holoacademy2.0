@@ -48,12 +48,21 @@ export async function openLabScene(ctx: BrowserContext, scene: LabScene, settleM
     { id: 's1', title: scene.title ?? 'סצנת בדיקה', narrative: scene.narrative, drHoloDialog: scene.drHoloDialog, imagePrompt: 'lab', puzzle: scene.puzzle, choices: scene.choices, nextSceneId: scene.choices ? undefined : 's2' },
     { id: 's2', title: 'סצנה שנייה', narrative: 'סצנת סיום קצרה.', imagePrompt: 'lab' },
   ]
-  const quest = { id, title: 'מעבדת מדידה', game_data: { scenes, entrySceneId: 's1', readingScale: scene.textLevel ?? 6 } }
+  /* מאז שמסך הפתיחה הוא המעבדה (חלון טקסט צר יותר), הסצנה הנמדדת אינה סצנת הכניסה: לפניה סצנת פתיחה קצרה, ועוברים ממנה בלחיצה */
+  scenes.unshift({ id: 's0', title: 'פתיחה', narrative: 'יוצאים לדרך.', drHoloDialog: undefined, imagePrompt: 'lab', puzzle: undefined, choices: undefined, nextSceneId: 's1' } as (typeof scenes)[number])
+  const quest = { id, title: 'מעבדת מדידה', game_data: { scenes, entrySceneId: 's0', readingScale: scene.textLevel ?? 6 } }
   await page.route(`**/api/quests/${id}`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ quest }) }))
   await page.route('**/api/sessions/**', (route) => route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"x"}' }))
   await page.route('**/api/funnel/**', (route) => route.fulfill({ status: 204, body: '' }))
   await page.goto(`${DEFAULT_BASE}/play/${id}`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('.holo-side-panel', { timeout: 20000 })
+  /* מהמעבדה אל הסצנה הנמדדת: לוחצים "המשך" עד שהמעבדה נעלמת */
+  for (let i = 0; i < 30; i++) {
+    if (!(await page.locator('.holo-scene-band--lab').count())) break
+    const b = page.locator('.holo-side-panel button:visible:not([disabled])').last()
+    if (await b.isVisible().catch(() => false)) await b.click({ timeout: 1500 }).catch(() => undefined)
+    await page.waitForTimeout(400)
+  }
   await page.waitForTimeout(settleMs)
   return page
 }

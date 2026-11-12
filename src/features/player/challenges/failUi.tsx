@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useIsPhonePortrait } from '../../../shared/lib/useIsMobile'
+import { progressFill, progressTrack } from '../../../styles/ui'
 
 /* ──────────────────────────────────────────────────────────────────────────
-   מדי כישלון הולוגרפיים משותפים לכל סוגי האתגרים — שפה ויזואלית אחידה:
-   - FailPips: רסיסי יהלום ◆/◇ שמסמנים כמה ניסיונות/פסילות נותרו (כמו ב-hangman).
-   - Countdown: בר זמן יורד + שעון mm:ss (חיפוש מילים).
+   מדי כישלון משותפים לכל סוגי האתגרים — שפה ויזואלית אחידה:
+   - FailPips: רסיסי יהלום ◆/◇ בדיו (מלא = נותר, קו מתאר בלבד = נוצל), כמו ב-hangman.
+   - Countdown: בר זמן יורד (מילוי כתום על מסילה עם קו דיו) + שעון mm:ss (חיפוש מילים).
    ────────────────────────────────────────────────────────────────────────── */
 
 /* מד פסילות/ניסיונות — נותרו remaining מתוך total */
@@ -19,16 +20,14 @@ export function FailPips({ remaining, total, label }: { remaining: number; total
             key={i}
             style={{
               fontSize: '0.95rem',
-              color: i < safeRemaining ? 'var(--holo-cyan)' : 'rgba(255,120,150,0.55)',
-              textShadow: i < safeRemaining ? '0 0 6px rgba(0,246,255,0.8)' : 'none',
-              transition: 'color 0.3s',
+              color: 'var(--color-ink)',
             }}
           >
             {i < safeRemaining ? '◆' : '◇'}
           </span>
         ))}
       </div>
-      <span className="text-xs" style={{ color: safeRemaining <= 1 ? '#ff9bb3' : 'var(--holo-text)', opacity: 0.7 }}>
+      <span className="text-xs" style={{ color: safeRemaining <= 1 ? 'var(--color-wrong)' : 'var(--color-muted)' }}>
         {label}: {safeRemaining}/{safeTotal}
       </span>
     </div>
@@ -73,20 +72,13 @@ export function Countdown({ seconds, running, onExpire }: { seconds: number; run
     <div className="flex flex-col items-center gap-1 mb-3">
       <div className="flex items-center gap-2" dir="ltr">
         <span style={{ fontSize: '1rem' }}>⏳</span>
-        <span className="text-sm font-bold" style={{ color: low ? '#ff9bb3' : 'var(--holo-cyan)', textShadow: low ? 'none' : '0 0 6px rgba(0,246,255,0.7)' }}>
+        <span className="text-sm font-bold" style={{ color: low ? 'var(--color-wrong)' : 'var(--color-ink)' }}>
           {mmss(left)}
         </span>
       </div>
-      <div className="rounded-full overflow-hidden" style={{ height: '0.4rem', width: '12rem', background: 'rgba(0,0,0,0.4)' }}>
-        <div
-          style={{
-            height: '100%',
-            width: `${frac * 100}%`,
-            background: low ? 'linear-gradient(90deg,#ff5c8a,#ff9bb3)' : 'linear-gradient(90deg, var(--holo-blue), var(--holo-cyan))',
-            boxShadow: low ? '0 0 8px rgba(255,92,138,0.7)' : '0 0 8px rgba(0,246,255,0.6)',
-            transition: 'width 1s linear, background 0.4s',
-          }}
-        />
+      {/* המסילה גבוהה מעט מבעבר: קו המתאר בדיו תופס 2px מכל צד */}
+      <div style={{ ...progressTrack, height: '0.7rem', width: '12rem' }}>
+        <div style={{ ...progressFill, width: `${frac * 100}%`, transition: 'width 1s linear' }} />
       </div>
     </div>
   )

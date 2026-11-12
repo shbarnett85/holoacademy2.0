@@ -23,10 +23,10 @@ export interface SceneLayout {
 export type RefScreenKey = 'laptop-620' | 'laptop-768' | 'tablet' | 'phone-landscape'
 
 export const REF_LAYOUTS: Record<RefScreenKey, SceneLayout> = {
-  'laptop-620': { key: 'laptop-620', label: "נייד בית ספרי (viewport 1366×620)", viewport: { w: 1366, h: 620 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 371.78, textHeightPx: 348.57, actionRowPx: 99.07 },
-  'laptop-768': { key: 'laptop-768', label: "נייד, מסך מלא 1366×768", viewport: { w: 1366, h: 768 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 371.78, textHeightPx: 496.57, actionRowPx: 99.07 },
-  'tablet': { key: 'tablet', label: "טאבלט 1024×768", viewport: { w: 1024, h: 768 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 259.78, textHeightPx: 496.57, actionRowPx: 99.07 },
-  'phone-landscape': { key: 'phone-landscape', label: "טלפון לרוחב 740×360", viewport: { w: 740, h: 360 }, rootPx: 16, fontPx: 18, linePx: 29.25, textWidthPx: 190.6, textHeightPx: 171.2, actionRowPx: 68.8 },
+  'laptop-620': { key: 'laptop-620', label: "נייד בית ספרי (viewport 1366×620)", viewport: { w: 1366, h: 620 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 367.78, textHeightPx: 344.57, actionRowPx: 99.07 },
+  'laptop-768': { key: 'laptop-768', label: "נייד, מסך מלא 1366×768", viewport: { w: 1366, h: 768 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 367.78, textHeightPx: 492.57, actionRowPx: 99.07 },
+  'tablet': { key: 'tablet', label: "טאבלט 1024×768", viewport: { w: 1024, h: 768 }, rootPx: 23.04, fontPx: 25.92, linePx: 42.12, textWidthPx: 255.78, textHeightPx: 492.57, actionRowPx: 99.07 },
+  'phone-landscape': { key: 'phone-landscape', label: "טלפון לרוחב 740×360", viewport: { w: 740, h: 360 }, rootPx: 16, fontPx: 18, linePx: 29.25, textWidthPx: 186.6, textHeightPx: 167.2, actionRowPx: 68.8 },
 }
 
 export const HEEBO_WEIGHT = 400

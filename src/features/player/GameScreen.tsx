@@ -40,7 +40,7 @@ function SceneText({ text, onAdvance, start = true, onDone }: { text: string; on
   useEffect(() => { if (start) onDoneRef.current?.() }, [start, text])
   return (
     <div className="relative cursor-pointer" onClick={() => { if (start) onAdvance?.() }}>
-      <p className="text-lg leading-relaxed" style={{ color: 'var(--holo-text)', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
+      <p className="text-lg leading-relaxed" style={{ color: 'var(--color-ink)', whiteSpace: 'pre-line', margin: 0 }}>{text}</p>
     </div>
   )
 }
@@ -82,6 +82,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     startFpsProbe()
   }, [effectsLevel])
   const [puzzleOpen, setPuzzleOpen] = useState(false)
+  /* שם התלמיד/ה לפס העליון: נקרא פעם אחת. בלי session של תלמיד (מורה, מבקר, מקרן) אין שם */
+  const studentName = useMemo<string | null>(() => {
+    try { return sessionStorage.getItem('holo_student_name') } catch { return null }
+  }, [])
   /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
      ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
   /* גלילה שנצמדת לנקודת הכתיבה כל עוד ההקלדה רצה */
@@ -369,14 +373,14 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               >
                 שתפו בוואטסאפ 💬
               </button>
-              <button className="holo-button" style={{ background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }} onClick={() => navigate('/')}>
+              <button className="holo-button" onClick={() => navigate('/')}>
                 עוד שיעורים 🎮
               </button>
             </div>
             {/* פוטר המרה למבקרים — הרגע חוו את ה-wow; זו נקודת ההצטרפות הטבעית של מורה */}
-            <div className="text-start" style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(255,154,46,.09)', border: '1px solid rgba(255,154,46,.35)', width: '100%' }}>
-              <div style={{ fontWeight: 800, fontSize: 14.5, color: '#ffcf7d' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
-              <div style={{ fontSize: 12.5, opacity: 0.78, marginTop: 4, lineHeight: 1.6 }}>
+            <div className="text-start" style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--color-human-tint)', border: '2px solid var(--color-human-deep)', color: 'var(--color-ink)', width: '100%' }}>
+              <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--color-human-deep)' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
+              <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.6 }}>
                 מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה שיעור שלם — סצנות, אתגרים ותמונות — תוך דקות.
               </div>
               <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => { trackFunnel('cta_create'); navigate('/staff/login') }}>
@@ -454,7 +458,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         style={{
           padding: '0.8rem 1.5rem',
           opacity: locked ? 0.75 : 1,
-          ...(locked ? { background: 'rgba(0,60,100,0.5)', border: '1px solid rgba(0,246,255,0.3)' } : {}),
         }}
         onClick={() => engine.chooseChoice(c)}
       >
@@ -482,10 +485,10 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           75% { transform: translateX(-6px); }
         }
         .gate-shake { animation: gate-shake 0.45s ease; }
+        /* השער נפתח: טבעת שטוחה מופיעה פעם אחת סביב הכפתור (בלי זוהר) */
         @keyframes gate-open-glow {
-          0% { box-shadow: 0 0 10px rgba(0,246,255,0.4); }
-          50% { box-shadow: 0 0 50px rgba(0,246,255,1); }
-          100% { box-shadow: 0 0 10px rgba(0,246,255,0.4); }
+          0%, 100% { outline: 0px solid var(--color-human); outline-offset: 2px; }
+          50% { outline: 6px solid var(--color-human); outline-offset: 2px; }
         }
         .gate-glow { animation: gate-open-glow 0.8s ease; }
         @keyframes scene-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -496,18 +499,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           from { transform: scale(1) translate(0, 0); }
           to   { transform: scale(1.07) translate(-1.6%, -1.1%); }
         }
-        /* materialize — הופעת פאנל הטקסט: מטשטש→חד + הבזק זוהר הולוגרפי (opacity בלבד,
-           ללא scale/translate). הקופסה כבר בגודלה הסופי, ה"דף" מתגבש ואז מתמלא בהקלדה. */
-        @keyframes holo-materialize {
-          0%   { opacity: 0; filter: blur(14px); box-shadow: 0 0 0 rgba(47,243,255,0); }
-          55%  { opacity: 1; filter: blur(0); }
-          72%  { box-shadow: 0 0 46px rgba(47,243,255,.6), inset 0 0 26px rgba(47,243,255,.18); }
-          100% { opacity: 1; filter: blur(0); }
-        }
-        .holo-materialize { animation: holo-materialize var(--mat-ms, 480ms) cubic-bezier(.2,.7,.3,1); }
       `}</style>
 
-      {/* אזור הסצנה — תמונת רקע מלאה אם קיימת, אחרת גרדיאנט */}
+      {/* אזור הסצנה — רקע הממשק, ועליו עמוד הטקסט ועמוד התמונה */}
       <div
         className="scene-fade flex-1 flex flex-col items-center justify-center p-6 gap-6 relative"
         style={{
@@ -516,22 +510,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
              מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
           paddingBottom: '1rem', /* אין יותר פס תחתון — הגובה מוחזר לבמה */
           paddingTop: '4rem', /* מרווח מתחת לפס העליון (TopHUD) כדי שהתוכן לא ייחתך */
-          background:
-            'radial-gradient(ellipse at 30% 20%, rgba(0,136,255,0.15), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,0.12), transparent 60%), var(--holo-bg)',
+          background: 'var(--color-machine-bg)',
         }}
       >
         {/* התמונה עברה אל **עמוד התמונה** (מלבן סגור בתוך הפס) — היא לא
             גולשת יותר מאחורי עמוד הטקסט. ראו .holo-image-page. */}
-        {/* רשת נקודות עדינה */}
-        <div
-          style={{
-            position: 'absolute', inset: 0, opacity: eyeMode ? 0 : 0.05, pointerEvents: 'none',
-            backgroundImage: 'radial-gradient(circle, var(--holo-cyan) 1px, transparent 1px)',
-            backgroundSize: '35px 35px',
-            transition: 'opacity 0.5s ease',
-          }}
-        />
-
         {/* פס התוכן: פאנל צדדי קבוע + במה מרכזית. שניהם שכבות **מעל** תמונת הרקע
             (שממלאת inset:0), ולכן הרקע נשאר full-bleed ואינו מתכווץ. */}
         <div
@@ -590,7 +573,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {engine.message && (
             <div
               className="holo-panel mx-auto"
-              style={{ position: 'absolute', insetInline: '0.4rem', bottom: '0.3rem', zIndex: 3, padding: '0.5rem 0.9rem', borderColor: 'rgba(255,200,0,0.4)', background: 'rgba(7,13,28,0.94)' }}
+              style={{ position: 'absolute', insetInline: '0.4rem', bottom: '0.3rem', zIndex: 3, padding: '0.5rem 0.9rem', borderRadius: 12, border: '2px solid var(--color-human-deep)', background: 'var(--color-human-tint)', color: 'var(--color-human-deep)' }}
             >
               {engine.message}
             </div>
@@ -630,7 +613,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             {engine.canCollect && (
               <button
                 className="holo-button text-lg"
-                style={{ padding: '0.8rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
+                style={{ padding: '0.8rem 2rem' }}
                 onClick={collectAndAdvance}
               >
                 {scene.collectableItem!.icon} אספו את {scene.collectableItem!.name}
@@ -646,7 +629,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 /* שער נעול לינארי — אין כפתור; הלחיצה על החפץ ב-HUD היא הפעולה */
                 <div
                   className={`holo-panel ${engine.shakeGate ? 'gate-shake' : ''} ${engine.gateGlow ? 'gate-glow' : ''}`}
-                  style={{ padding: '0.8rem 2rem', borderColor: 'rgba(255,200,0,0.35)' }}
+                  style={{ padding: '0.8rem 2rem', borderRadius: 12, border: '2px solid var(--color-human-deep)', background: 'var(--color-human-tint)', color: 'var(--color-human-deep)' }}
                 >
                   🔒 השער נעול — השתמשו בחפץ מהתיק
                 </div>
@@ -727,16 +710,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {engine.unlockBubble && (
         <div
           className="fixed inset-0 flex items-center justify-center p-6 cursor-pointer"
-          style={{ background: 'rgba(5,5,18,0.6)', backdropFilter: 'blur(3px)', zIndex: 48 }}
+          style={{ background: 'var(--color-scrim)', zIndex: 48 }}
           onClick={() => engine.skipUnlock()}
         >
-          <div
-            className="holo-panel max-w-md w-full text-center"
-            style={{ boxShadow: '0 0 40px rgba(0,246,255,0.7)', borderColor: 'var(--holo-cyan)' }}
-          >
+          <div className="holo-panel max-w-md w-full text-center">
             <GateUnlock />
             <p className="text-lg mt-2">{engine.unlockBubble}</p>
-            <p className="text-xs mt-3" style={{ opacity: 0.4 }}>לחצו להמשך</p>
+            <p className="text-xs mt-3" style={{ color: 'var(--color-muted)' }}>לחצו להמשך</p>
           </div>
         </div>
       )}
@@ -755,6 +735,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       <TopHUD
         title={scene.title}
         onExit={handleExit}
+        studentName={studentName}
+        /* ההתקדמות בשיעור: כמה סצנות שונות כבר נראו (כולל הנוכחית) מתוך כל סצנות השיעור. ערך נגזר בלבד */
+        progress={{ current: new Set([...engine.visitedScenes, scene.id]).size, total: gameData.scenes.length }}
         hudSlot={<>
           <GemBar value={engine.gemValue} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />

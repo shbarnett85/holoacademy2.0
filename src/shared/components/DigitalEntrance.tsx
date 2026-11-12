@@ -11,12 +11,12 @@ interface DigitalEntranceProps {
 }
 
 /* ── DigitalEntrance ──────────────────────────────────────────────────────────
-   עטיפה גורפת לכל תיבת-תוכן (panel/box) בהדמיה: כניסה "דיגיטלית" — glitch-opacity
+   עטיפה גורפת לכל תיבת-תוכן (panel/box) בשיעור: כניסה "דיגיטלית" — opacity
    + scale + blur — במקום fade פשוט. עוטף את המכל החיצוני בלבד (לא קלפים/טיילים),
-   כדי לא להעמיס רינדור ולא להתנגש באנימציות פנימיות.
+   כדי לא להעמיס רינדור ולא להתנגש באנימציות פנימיות. בלי שכבות צבע: התוכן עצמו שטוח.
    - prefers-reduced-motion → fade עדין בלבד (ללא glitch/scale/blur).
    - instant → ללא אנימציה (מצב dilug של ה-staged reveal).
-   - RTL נשמר (אין transform אופקי-תלוי-כיוון; scanline/glow סימטריים).
+   - RTL נשמר (אין transform אופקי-תלוי-כיוון).
    ─────────────────────────────────────────────────────────────────────────── */
 const DigitalEntrance: React.FC<DigitalEntranceProps> = ({ children, className = '', delay = 0, instant = false }) => {
   const reduce = useReducedMotion();
@@ -61,11 +61,6 @@ const DigitalEntrance: React.FC<DigitalEntranceProps> = ({ children, className =
       transition={{ duration: 0.8, delay, ease: 'easeOut', times: [0, 0.15, 0.4, 1] }}
       className={`relative ${className}`}
     >
-      {/* שתי שכבות הצבע ההולוגרפי — **סטטיות**. קודם הן נשאו animate-pulse-mild
-          (פעימת opacity אינסופית), שיצרה תחושת "עלייה" מתמדת מאחורי הטקסט
-          והתחרתה בקריאה. האפקט עצמו נשאר, רק בלי התנועה. */}
-      <div className="de-holo-layer absolute inset-0 bg-[linear-gradient(rgba(18,16,50,0)_0%,rgba(0,246,255,0.06)_50%,rgba(18,16,50,0)_100%)] bg-[length:100%_4px] pointer-events-none rounded-xl"></div>
-      <div className="de-holo-layer absolute -inset-[1px] bg-gradient-to-r from-cyan-500/0 via-cyan-500/25 to-[#C039BE]/25 rounded-2xl blur-md -z-10 pointer-events-none"></div>
       {children}
     </motion.div>
   );

@@ -4,7 +4,7 @@ import { SUBJECTS, subjectTagColors, subjectVisual } from '../lib/subjects'
 import LessonCard from './LessonCard'
 import LessonThumb from './LessonThumb'
 
-/* רינדור בצד שרת (בלי חלון): useTheme מחזיר "כהה" — הצבעים כאן הם הווריאנט הכהה של המקצוע (הבהיר נבדק ב-subjects.test.ts) */
+/* רינדור בצד שרת (בלי חלון). פלטה אחת לכל המסכים: צבעי המקצוע הם הפניות לטוקנים (הניגודיות נבדקת ב-subjects.test.ts) */
 const card = (props: Partial<React.ComponentProps<typeof LessonCard>> = {}): string =>
   renderToStaticMarkup(<LessonCard mode="dark" title="מסע טיפת המים" subjectCode="science" thumbUrl="https://img.example/t.jpg" gradeMin={5} gradeMax={6} {...props} />)
 
@@ -21,13 +21,14 @@ describe('כרטיס שיעור משותף', () => {
   it('מסגרת בצבע המקצוע, ותגית המקצוע באותו צבע עם טקסט בניגודיות AA', () => {
     const html = card()
     const t = subjectTagColors('science', 'dark')
-    expect(html).toContain(`border:3px solid ${subjectVisual('science').color}`)
+    expect(html).toContain('border:3px solid var(--color-ink)')
+    expect(html).toMatch(/data-subject-stripe[^>]*background:var\(--subject-science\)/)
     expect(html).toContain(`background:${t.bg};color:${t.fg}`)
   })
 
   it('"לא סווג": מסגרת אפורה ותגית "לא סווג"', () => {
     const html = card({ subjectCode: null })
-    expect(html).toContain(`border:3px solid ${subjectVisual('unclassified').color}`)
+    expect(html).toContain('border:3px dashed var(--color-ink)')
     expect(html).toMatch(/data-subject-tag="unclassified"[^>]*>[\s\S]*?לא סווג/)
   })
 

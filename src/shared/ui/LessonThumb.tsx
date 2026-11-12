@@ -10,7 +10,6 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { subjectTagColors, subjectVisual, type SubjectVisualMode } from '../lib/subjects'
-import { useTheme } from '../lib/useTheme'
 import SubjectTag from './SubjectTag'
 
 export interface LessonThumbProps {
@@ -30,14 +29,10 @@ export interface LessonThumbProps {
   children?: ReactNode | ((s: { hasImage: boolean }) => ReactNode)
 }
 
-/* משטח מאחורי התמונה: כמו הרקע הרגיל של כל מצב */
-const SURFACE: Record<SubjectVisualMode, string> = { light: '#ffffff', dark: '#0b1220' }
-
 export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 88, height = 66, radius = 12, frame = 3, tag = 'overlay', alt = '', style, children }: LessonThumbProps) {
-  const light = useTheme()
-  const resolved: SubjectVisualMode = mode === 'auto' ? (light ? 'light' : 'dark') : mode
-  const v = subjectVisual(subjectCode, resolved)
-  const c = subjectTagColors(subjectCode, resolved)
+  const resolved: SubjectVisualMode = mode === 'dark' ? 'dark' : 'light'
+  const v = subjectVisual(subjectCode)
+  const c = subjectTagColors(subjectCode)
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const hasImage = !!url && failedUrl !== url
 
@@ -48,8 +43,9 @@ export default function LessonThumb({ url, subjectCode, mode = 'auto', width = 8
   return (
     <div data-lesson-thumb data-subject={v.code} data-has-image={hasImage ? 'true' : 'false'} style={{
       position: 'relative', width, height, flexShrink: 0, boxSizing: 'border-box', overflow: 'hidden', borderRadius: radius,
-      border: frame > 0 ? `${frame}px solid ${v.color}` : 'none',
-      background: hasImage ? SURFACE[resolved] : v.color,
+      /* המסגרת בדיו; צבע המקצוע מופיע בתגית (ובמשטח, כשאין תמונה) */
+      border: frame > 0 ? `${Math.min(frame, 2)}px solid var(--color-ink)` : 'none',
+      background: hasImage ? 'var(--color-surface)' : v.color,
       ...style,
     }}>
       {hasImage ? (

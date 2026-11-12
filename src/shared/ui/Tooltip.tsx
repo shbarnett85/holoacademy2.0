@@ -57,12 +57,10 @@ export default function Tooltip({ text, block, children }: { text?: string; bloc
             left: pos ? pos.x : -9999, top: pos ? pos.y : -9999,
             transform: `translateX(-50%) ${pos?.above ? 'translateY(-100%)' : ''}`,
             zIndex: 9999, pointerEvents: 'none', maxWidth: MAX_W,
-            background: 'rgba(8,14,30,0.97)', color: '#dcebff',
-            border: '1px solid rgba(47,243,255,0.45)', borderRadius: 10,
+            background: 'var(--color-ink)', color: 'var(--color-surface)',
+            borderRadius: 10,
             padding: '9px 12px', fontSize: 12.5, lineHeight: 1.6, textAlign: 'right',
             fontFamily: 'var(--font-display, inherit)',
-            boxShadow: '0 8px 28px -8px rgba(0,0,0,0.85), 0 0 18px rgba(47,243,255,0.22)',
-            backdropFilter: 'blur(6px)',
             opacity: pos ? 1 : 0, transition: 'opacity 0.12s ease',
           }}
         >
@@ -70,10 +68,9 @@ export default function Tooltip({ text, block, children }: { text?: string; bloc
           {/* חץ — מצביע אל האלמנט (למעלה כשהבועה מתחת, ולהיפך) */}
           <span style={{
             position: 'absolute', left: '50%', marginLeft: -5, width: 10, height: 10,
-            background: 'rgba(8,14,30,0.97)',
-            borderLeft: '1px solid rgba(47,243,255,0.45)', borderTop: '1px solid rgba(47,243,255,0.45)',
+            background: 'var(--color-ink)',
             transform: 'rotate(45deg)',
-            ...(pos?.above ? { bottom: -6, borderLeft: 'none', borderTop: 'none', borderRight: '1px solid rgba(47,243,255,0.45)', borderBottom: '1px solid rgba(47,243,255,0.45)' } : { top: -6 }),
+            ...(pos?.above ? { bottom: -5 } : { top: -5 }),
           }} />
         </div>,
         document.body,

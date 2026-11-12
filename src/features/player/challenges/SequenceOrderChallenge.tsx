@@ -5,6 +5,7 @@ import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 import { prefersReducedMotion, sounds } from '../gameFeel/engine'
+import { MathText } from '../../../shared/ui/MathText'
 
 interface Props {
   puzzle: Puzzle
@@ -197,24 +198,26 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
       <style>{`
         @keyframes seq-wrong { 0%,100%{transform:translateX(0);} 25%{transform:translateX(-7px);} 75%{transform:translateX(7px);} }
         .seq-wrong { animation: seq-wrong 0.4s ease; }
-        /* סוויפ הסדר הנכון — כל פריט נדלק בתורו (delay פר-מיקום), מלמעלה למטה */
+        /* סוויפ הסדר הנכון — כל פריט מקבל בתורו (delay פר-מיקום) את צבע ה-correct, מלמעלה למטה.
+           עד שמגיע תורו הפריט לבן, והצבע מתחלף בבת אחת (בלי שלב ביניים שבו הטקסט חיוור). בלי זוהר */
         @keyframes seq-sweep {
-          0%   { box-shadow: none; transform: translateY(0) scale(1); }
-          45%  { box-shadow: 0 0 26px rgba(47,243,255,0.9), inset 0 0 14px rgba(47,243,255,0.25); transform: translateY(-3px) scale(1.02); }
-          100% { box-shadow: 0 0 10px rgba(0,255,150,0.45); transform: translateY(0) scale(1); }
+          0%   { background: var(--color-surface); color: var(--color-ink); transform: translateY(0) scale(1); }
+          1%   { background: var(--color-correct); color: var(--color-surface); }
+          45%  { transform: translateY(-3px) scale(1.02); }
+          100% { background: var(--color-correct); color: var(--color-surface); transform: translateY(0) scale(1); }
         }
         .seq-sweep { animation: seq-sweep 0.6s ease both; }
-        @media (prefers-reduced-motion: reduce) { .seq-sweep { animation: none; box-shadow: 0 0 10px rgba(0,255,150,0.45); } }
+        @media (prefers-reduced-motion: reduce) { .seq-sweep { animation: none; } }
       `}</style>
 
       <p data-challenge-q className="text-sm mb-1" style={{ opacity: 0.8 }}>{puzzle.question}</p>
-      <p data-solution-hide className="text-xs mb-3" style={{ color: 'var(--holo-cyan)', opacity: 0.85 }}>{hint}</p>
+      <p data-solution-hide className="text-xs mb-3" style={{ color: 'var(--color-muted)' }}>{hint}</p>
 
       {/* מד נסיונות הגשה שנותרו */}
       <FailPips remaining={remaining} total={maxAttempts} label="ניסיונות" />
 
       {finished === 'lose' && (
-        <p className="text-sm text-center mb-1" style={{ color: '#ff9bb3' }}>נגמרו הניסיונות — זהו הסדר הנכון</p>
+        <p className="text-sm text-center mb-1" style={{ color: 'var(--color-wrong)' }}>נגמרו הניסיונות — זהו הסדר הנכון</p>
       )}
 
       <div ref={listRef} className={`flex flex-col ${finished ? 'gap-1' : 'gap-1.5'} ${result === 'wrong' ? 'seq-wrong' : ''}`} style={{ touchAction: 'none' }}>
@@ -236,7 +239,8 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.7rem',
-                padding: finished ? '0.2rem 0.8rem' : '0.4rem 0.9rem',
+                /* קו המתאר עבה ב-1px מבעבר, ולכן הריפוד האנכי קטן ב-1px: גובה השורה לא השתנה */
+                padding: finished ? 'calc(0.2rem - 1px) 0.8rem' : 'calc(0.4rem - 1px) 0.9rem',
                 borderRadius: '0.7rem',
                 cursor: finished ? 'default' : isDragging ? 'grabbing' : 'grab',
                 userSelect: 'none',
@@ -244,16 +248,18 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
                 position: 'relative',
                 zIndex: isDragging ? 2 : undefined,
                 willChange: draggingId ? 'transform' : undefined,
-                background: isDragging ? 'rgba(0,136,255,0.3)' : 'rgba(5,10,25,0.7)',
-                border: `1px solid ${isDragging ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.25)'}`,
-                boxShadow: isDragging ? '0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(0,246,255,0.5)' : 'none',
+                /* שורה שאפשר לגרור = לחיצה: המתכון של כפתור (בגרסה הקטנה). בגרירה: לחוץ, בלי צל.
+                   בסיום השורות כבר לא לחיצות: הסדר הנכון ב-correct עם ✓ */
+                background: finished ? 'var(--color-correct)' : isDragging ? 'var(--color-action-pressed)' : 'var(--color-action)',
+                border: '2px solid var(--color-ink)',
+                boxShadow: finished || isDragging ? 'none' : '2px 2px 0 var(--color-ink)',
                 scale: isDragging ? '1.02' : '1',
                 /* translate ולא transform לשורה הנגררת: scale חל אחרי transform ומגדיל גם את המרחק, והשורה הייתה מתרחקת מהאצבע */
                 ...(finished ? {} : isDragging ? { translate: '0 var(--seq-drag-y, 0px)' } : { transform: `translateY(${shift * travel}px)` }),
                 opacity: draggingId && !isDragging ? 0.75 : 1,
                 /* transform עם מעבר רק בזמן גרירה ורק לשורות שמפנות מקום: השורה הנגררת צמודה לאצבע, וברגע העזיבה ההיצמדות נעשית מהמיקום שנמדד */
                 transition: `background 0.15s, border 0.15s, scale 0.12s, opacity 0.15s${draggingId && !isDragging ? ', transform 0.18s cubic-bezier(.2,.8,.2,1)' : ''}`,
-                color: 'var(--holo-text)',
+                color: finished ? 'var(--color-surface)' : 'var(--color-ink)',
               }}
             >
               {/* מספר המיקום הנוכחי */}
@@ -261,14 +267,15 @@ export default function SequenceOrderChallenge({ puzzle, onResult, tel }: Props)
                 className="shrink-0 flex items-center justify-center"
                 style={{
                   width: finished ? '1.35rem' : '1.7rem', height: finished ? '1.35rem' : '1.7rem', borderRadius: '50%',
-                  background: 'rgba(0,246,255,0.15)', border: '1px solid rgba(0,246,255,0.4)',
-                  color: 'var(--holo-cyan)', fontWeight: 700, fontSize: '0.85rem',
+                  background: 'var(--color-surface)', border: '1px solid var(--color-ink)',
+                  color: 'var(--color-ink)', fontWeight: 700, fontSize: '0.85rem',
                 }}
               >
                 {shownPos + 1}
               </span>
-              <span className="flex-1 text-start">{textById.get(id) ?? id}</span>
-              {!finished && <span style={{ opacity: 0.4, fontSize: '1.1rem' }} title="גררו">⣿</span>}
+              <span className="flex-1 text-start"><MathText text={textById.get(id) ?? id} /></span>
+              {!finished && <span style={{ opacity: 0.6, fontSize: '1.1rem' }} title="גררו">⣿</span>}
+              {finished && <span aria-hidden style={{ fontWeight: 700 }}>✓</span>}
             </div>
           )
         })}

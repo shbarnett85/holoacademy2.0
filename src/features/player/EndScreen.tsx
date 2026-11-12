@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { GEM_TOTAL, gemFill, gemsValue, storyState, wholeGems, type JourneyLesson } from '../../shared/lib/gemModel'
 import { GemDefs, GemSocket } from '../../shared/ui/Gem'
+import { gemTier } from '../../shared/lib/gemTier'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
 import LabStage from './lab/LabStage'
 import { CLASSROOM_SRC, labPortalImages } from './lab/labComposition'
@@ -11,6 +12,7 @@ import { confetti, cfg, prefersReducedMotion, sounds } from './gameFeel/engine'
 import { growthCounts } from './gameFeel/points'
 import { END_TEXT } from './gameFeel/text'
 import { SubjectJourney } from './Journey'
+import { progressFill, progressTrack } from '../../styles/ui'
 import type { ChallengeResult, EndingScene, GameData } from './useGameEngine'
 
 interface ClassGems { available: boolean; classGems?: number; mine?: number; target?: number }
@@ -101,11 +103,9 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
       <style>{`
         @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
         .holo-summary-whiteout { position: fixed; inset: 0; z-index: 81; pointer-events: none;
-          background: radial-gradient(circle at 50% 50%, #ffffff 0%, #ffffff 55%, #eafcff 100%); animation: holo-whiteout 0.45s ease-out both; }
+          background: var(--color-surface); animation: holo-whiteout 0.45s ease-out both; }
         @keyframes end-gem-in { from { opacity: 0; transform: translateY(12px) scale(.5); } }
         .end-gem-pop { animation: end-gem-in .5s cubic-bezier(.2,1.5,.4,1) both; }
-        @keyframes end-radiant { 0%,100% { filter: drop-shadow(0 0 4px rgba(47,243,255,.5)); } 50% { filter: drop-shadow(0 0 14px rgba(47,243,255,.95)) drop-shadow(0 0 22px rgba(242,65,218,.45)) brightness(1.2); } }
-        .end-gems-radiant svg { animation: end-radiant 2.2s ease-in-out infinite; }
         /* טלפון לרוחב: החלון צר ונמוך, ולכן הכול נכנס בלי גלילה */
         @media (max-height: 500px) {
           [data-end-screen] .holo-panel { gap: 4px !important; padding: 8px !important; }
@@ -118,7 +118,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         }
         @media (prefers-reduced-motion: reduce) {
           .holo-summary-whiteout { animation: none; opacity: 0; }
-          .end-gem-pop, .end-gems-radiant svg { animation: none; }
+          .end-gem-pop { animation: none; }
         }
       `}</style>
       <div className="holo-summary-whiteout" aria-hidden />
@@ -126,10 +126,10 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.home : END_TEXT.playAgain} />
       </div>
 
-      <div className="holo-panel" style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', background: 'rgba(6, 12, 26, .78)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', boxShadow: 'var(--holo-glow)', padding: 'clamp(12px, 2.2vh, 22px)' }}>
+      <div className="holo-panel" style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.2vh, 22px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', justifyContent: 'center' }}>
           <div style={{ minWidth: 0, textAlign: 'start' }}>
-            <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? '#F3B76A' : '#2FF3FF' }}>{kicker}</div>
+            <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? 'var(--color-human-deep)' : 'var(--color-machine-deep)' }}>{kicker}</div>
             <h1 className="holo-text-glow" style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2, textWrap: 'balance' }}>{title}</h1>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
             <div data-end-gems className={state === 'radiant' ? 'end-gems-radiant' : ''} dir="ltr" style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               {Array.from({ length: GEM_TOTAL }).map((_, i) => (
                 <span key={i} className={popIn ? 'end-gem-pop' : ''} style={{ animationDelay: `${i * 0.12}s`, display: 'block' }}>
-                  <GemSocket fill={gemFill(value, i)} size="clamp(34px, 8vh, 58px)" />
+                  <GemSocket fill={gemFill(value, i)} size="clamp(34px, 8vh, 58px)" tier={gemTier(whole)} />
                 </span>
               ))}
             </div>
@@ -151,7 +151,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
             <ul data-growth style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 2, fontSize: 14 }}>
               {firstTry > 0 && <li>{END_TEXT.firstTry(firstTry)}</li>}
               {retried > 0 && <li>{END_TEXT.retried(retried)}</li>}
-              <li style={{ color: closed ? undefined : '#F3B76A' }}>{closed ? END_TEXT.enough : END_TEXT.needMore}</li>
+              <li style={{ color: closed ? undefined : 'var(--color-human-deep)' }}>{closed ? END_TEXT.enough : END_TEXT.needMore}</li>
             </ul>
           </>
         )}
@@ -159,17 +159,17 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         {(showClass || showJourney) && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 15rem), 1fr))', gap: 10, width: '100%', textAlign: 'start' }}>
             {showClass && (
-              <div data-class-gems style={{ background: '#0F1B30', border: '1px solid #26406A', borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
-                <h2 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700 }}>{END_TEXT.classTitle}</h2>
-                <div style={{ height: 10, background: '#0A1322', borderRadius: 999, overflow: 'hidden', border: '1px solid #1B2D4B' }}>
-                  <i style={{ display: 'block', height: '100%', width: `${Math.min(100, ((classGems?.classGems ?? 0) / Math.max(1, classGems?.target ?? 1)) * 100)}%`, background: 'linear-gradient(270deg, #45B6E2, #2FF3FF)' }} />
+              <div data-class-gems style={{ background: 'var(--color-surface)', border: '1px solid var(--color-line-strong)', borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
+                <h2 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--color-machine-deep)' }}>{END_TEXT.classTitle}</h2>
+                <div style={{ ...progressTrack, height: 14, boxSizing: 'border-box' }}>
+                  <i style={{ ...progressFill, display: 'block', width: `${Math.min(100, ((classGems?.classGems ?? 0) / Math.max(1, classGems?.target ?? 1)) * 100)}%` }} />
                 </div>
                 <p style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.45 }}>{END_TEXT.classLine(classGems?.classGems ?? 0, classGems?.mine ?? 0, classGems?.target ?? 0)}</p>
               </div>
             )}
             {showJourney && currentLesson && lessons && (
-              <div data-end-journey style={{ background: '#0F1B30', border: '1px solid #26406A', borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
-                <h2 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700 }}>{END_TEXT.journeyTitle}</h2>
+              <div data-end-journey style={{ background: 'var(--color-surface)', border: '1px solid var(--color-line-strong)', borderRadius: 12, padding: '10px 12px', minWidth: 0 }}>
+                <h2 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--color-machine-deep)' }}>{END_TEXT.journeyTitle}</h2>
                 <SubjectJourney lessons={lessons} currentId={questId ?? ''} subjectCode={currentLesson.subjectCode} />
               </div>
             )}
@@ -179,7 +179,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button type="button" data-play-again className="holo-button" style={{ padding: '0.6rem 1.8rem' }} onClick={onPlayAgain}>{END_TEXT.playAgain}</button>
           {onExit && (
-            <button type="button" data-end-exit className="holo-button" style={{ padding: '0.6rem 1.4rem', background: 'transparent', border: '1px solid rgba(0,246,255,0.35)' }} onClick={onExit}>{END_TEXT.back}</button>
+            <button type="button" data-end-exit className="holo-button" style={{ padding: '0.6rem 1.4rem' }} onClick={onExit}>{END_TEXT.back}</button>
           )}
         </div>
         {footer}

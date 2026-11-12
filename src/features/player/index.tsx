@@ -96,8 +96,8 @@ export default function Player() {
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen p-6">
-        <div className="holo-panel text-center" style={{ borderColor: 'rgba(255,80,120,0.4)' }}>
-          <p style={{ color: '#ff7099' }}>{error}</p>
+        <div className="holo-panel text-center" style={{ borderColor: 'var(--color-wrong)' }}>
+          <p style={{ color: 'var(--color-ink)' }}>{error}</p>
         </div>
       </div>
     )

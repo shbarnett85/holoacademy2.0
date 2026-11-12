@@ -1,25 +1,8 @@
 @import "tailwindcss";
 @import "./styles/tokens.css";
 
-/* ── משתני צבע של מערכת העיצוב ההולוגרפית ── */
+/* ── הצבעים, הקווים והצללים: רק ב-styles/tokens.css. כאן נשארו הגופנים בלבד ── */
 :root {
-  --holo-bg: #0a0a1f;
-  --holo-surface: #12122e;
-  --holo-cyan: #00f6ff;
-  --holo-blue: #0088ff;
-  --holo-purple: #8855ff;
-  --holo-text: #e8f4ff;
-  --holo-glow: 0 0 20px rgba(0, 246, 255, 0.4);
-  --holo-glow-strong: 0 0 40px rgba(0, 246, 255, 0.6);
-
-  /* ── מערכת העיצוב החדשה (Claude Design) — מסכי פתיחה/כניסה/טעינה ── */
-  --holo-cyan-bright: #2ff3ff; /* גוון ה-cyan של הרפרנס */
-  --holo-magenta: #ff45e6;     /* מצב מורה / מבטא משני */
-  --holo-orange: #ff9a2e;      /* מבטא שלישי */
-  --holo-text-bright: #eaf6ff;
-  /* רקע עומק רדיאלי למסכים מלאים */
-  --holo-bg-deep: radial-gradient(120% 90% at 50% -10%, #0c1430 0%, #070a18 45%, #04060f 100%);
-  /* פונטים */
   --font-display: 'Rubik', 'Heebo', sans-serif;
   --font-mono: 'Space Mono', monospace;
 }
@@ -45,19 +28,19 @@
 @keyframes holo-status-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
 
 /* כניסת עמוד — fade + עלייה עדינה. מופעל בכל ניווט (כל route הוא קומפוננטה שמתמאונטת מחדש) */
-@keyframes holo-page-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+/* הסוף הוא transform: none (ולא translateY(0)), כדי שהעמוד לא יהפוך למכל של אלמנטים ב-position: fixed (חלונות קופצים) */
+@keyframes holo-page-enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 .holo-page-enter { animation: holo-page-enter 0.42s cubic-bezier(.22,.61,.36,1) both; }
 @keyframes holo-loader-pulse { 0%, 100% { opacity: 0.45; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.05); } }
 
 /* ── מעבר בין טאבים (מתוך variation/create-new) — כניסה למעלה עם זוהר, יציאה מהירה ── */
 @keyframes holo-tab-in {
-  0%   { opacity: 0; transform: translateY(14px) scaleY(.97); filter: brightness(1.6) blur(3px); }
-  40%  { opacity: 1; filter: brightness(1.1) blur(0); }
-  100% { opacity: 1; transform: translateY(0) scaleY(1); filter: none; }
+  0%   { opacity: 0; transform: translateY(14px) scaleY(.97); }
+  100% { opacity: 1; transform: none; }
 }
 @keyframes holo-tab-out {
-  0%   { opacity: 1; transform: translateY(0); filter: none; }
-  100% { opacity: 0; transform: translateY(-10px); filter: brightness(1.8) blur(4px); }
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
 }
 .holo-tab-enter { animation: holo-tab-in .32s cubic-bezier(.22,.7,.35,1) both; transform-origin: top center; }
 .holo-tab-exit  { animation: holo-tab-out .16s ease-in both; pointer-events: none; transform-origin: top center; }
@@ -90,69 +73,10 @@
   .holo-page-enter, .holo-tab-enter, .holo-tab-exit, .holo-screen-fade { animation: none; }
 }
 
-/* ── glow הלוגו (דף הבית) — מוקדי אור בצבעי התאורה של הלוגו:
-   ציאן בדלת השמאלית, מג׳נטה-סגול בימנית, זהב-שמש במרכז. שתי שכבות
-   בפאזה הפוכה יוצרות נשימה עדינה; opacity/transform בלבד. ── */
+/* ── עטיפת הלוגו (דף הבית). הזוהר והגליץ׳ הוסרו בעיצוב החדש; קבצי הלוגו עצמם לא השתנו ── */
 .holo-logo-glow { position: relative; display: block; width: fit-content; margin: 0 auto; }
 .holo-logo-glow > img { position: relative; z-index: 1; }
-.holo-logo-glow::before,
-.holo-logo-glow::after {
-  content: ''; position: absolute; inset: -14% -22%; z-index: 0; pointer-events: none;
-  filter: blur(26px); will-change: opacity, transform;
-}
-.holo-logo-glow::before {
-  background:
-    radial-gradient(34% 26% at 24% 34%, rgba(0, 213, 255, 0.4), transparent 72%),
-    radial-gradient(34% 26% at 76% 34%, rgba(242, 65, 218, 0.38), transparent 72%),
-    radial-gradient(26% 18% at 50% 25%, rgba(255, 186, 92, 0.42), transparent 70%);
-  animation: hlg-breathe 5.6s ease-in-out infinite;
-}
-.holo-logo-glow::after {
-  background:
-    radial-gradient(16% 12% at 50% 26%, rgba(255, 224, 160, 0.5), transparent 68%),
-    radial-gradient(10% 30% at 27% 36%, rgba(90, 235, 255, 0.3), transparent 70%),
-    radial-gradient(10% 30% at 73% 36%, rgba(250, 120, 235, 0.28), transparent 70%);
-  animation: hlg-breathe 5.6s ease-in-out -2.8s infinite;
-}
-@keyframes hlg-breathe {
-  0%, 100% { opacity: 0.65; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.06); }
-}
-
-/* ── גליץ' הולוגרפי: שתי שכבות-עתק של הלוגו (ציאן/מג׳נטה) שמתפרצות לרגע
-   קצר בכל מחזור — פרוסות clip-path אופקיות מוסטות הצידה, כמו שידור הולוגרמה
-   שמקרטע. clip-path/transform/opacity בלבד; רוב הזמן השכבות שקופות. ── */
-.holo-logo-glow .hlg-glitch {
-  position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  opacity: 0; will-change: clip-path, transform, opacity;
-}
-.holo-logo-glow .hlg-glitch img { width: 100%; height: 100%; display: block; }
-.holo-logo-glow .hlg-glitch--c {
-  filter: drop-shadow(0 0 2px rgba(0, 230, 255, 0.9)) hue-rotate(-18deg) saturate(1.6);
-  animation: hlg-glitch-a 4.4s steps(1, end) infinite;
-}
-.holo-logo-glow .hlg-glitch--m {
-  filter: drop-shadow(0 0 2px rgba(255, 60, 220, 0.9)) hue-rotate(28deg) saturate(1.6);
-  animation: hlg-glitch-b 4.4s steps(1, end) infinite;
-}
-@keyframes hlg-glitch-a {
-  0%, 88% { opacity: 0; transform: none; clip-path: inset(0 0 100% 0); }
-  88.5% { opacity: 0.9; transform: translateX(-7px); clip-path: inset(12% 0 74% 0); }
-  90% { opacity: 0.9; transform: translateX(5px); clip-path: inset(46% 0 38% 0); }
-  91.5% { opacity: 0.9; transform: translateX(-4px); clip-path: inset(68% 0 18% 0); }
-  93%, 100% { opacity: 0; transform: none; clip-path: inset(0 0 100% 0); }
-}
-@keyframes hlg-glitch-b {
-  0%, 88.7% { opacity: 0; transform: none; clip-path: inset(100% 0 0 0); }
-  89.2% { opacity: 0.85; transform: translateX(6px); clip-path: inset(30% 0 58% 0); }
-  90.7% { opacity: 0.85; transform: translateX(-6px); clip-path: inset(56% 0 30% 0); }
-  92.2% { opacity: 0.85; transform: translateX(4px); clip-path: inset(8% 0 84% 0); }
-  93.5%, 100% { opacity: 0; transform: none; clip-path: inset(100% 0 0 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .holo-logo-glow::before, .holo-logo-glow::after { animation: none; }
-  .holo-logo-glow .hlg-glitch { display: none; }
-}
+.holo-logo-glow .hlg-glitch { display: none; }
 
 /* ── דף הבית: שלושה טורים במסך אחד (RTL) ─────────────────────────────────
    grid-template-areas שולט בסדר — בדסקטופ: ימין=שלבים, מרכז=כניסה (רחב
@@ -209,25 +133,27 @@
   .home3-login { width: 100%; }
 }
 
-/* ── אולפן היצירה (Claude Design): neon slider + glass + scrollbar ── */
+/* ── שיעור חדש: סרגלי בחירה, שדות ופס גלילה פנימי ── */
 .cf input[type=range] {
-  -webkit-appearance: none; appearance: none; width: 100%; height: 3px; border-radius: 3px;
-  background: linear-gradient(to left, var(--holo-cyan-bright) var(--p, 50%), rgba(120,160,200,.18) var(--p, 50%));
+  -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 6px;
+  /* מילוי בשני צבעים עם עצירה חדה (לא מעבר צבע): החלק שנבחר בדיו, השאר בקו */
+  background: linear-gradient(to left, var(--color-ink) var(--p, 50%), var(--color-line) var(--p, 50%)); /* redesign-allow: hard-stop fill */
   outline: none; cursor: pointer;
 }
 .cf input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
-  background: #06121c; border: 2px solid var(--holo-cyan-bright);
-  box-shadow: 0 0 10px var(--holo-cyan-bright), inset 0 0 4px var(--holo-cyan-bright); cursor: grab; margin-top: -1px;
+  -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--color-action); border: 2px solid var(--color-ink);
+  box-shadow: 2px 2px 0 var(--color-ink); cursor: grab; margin-top: 0;
 }
 .cf input[type=range]::-moz-range-thumb {
-  width: 14px; height: 14px; border-radius: 50%; background: #06121c;
-  border: 2px solid var(--holo-cyan-bright); box-shadow: 0 0 10px var(--holo-cyan-bright);
+  width: 18px; height: 18px; border-radius: 50%; background: var(--color-action);
+  border: 2px solid var(--color-ink); box-shadow: 2px 2px 0 var(--color-ink);
 }
-.cf .cf-in:focus { border-color: rgba(47,243,255,.7); box-shadow: 0 0 0 3px rgba(47,243,255,.12), inset 0 0 16px rgba(47,243,255,.06); }
-.cf-scroll::-webkit-scrollbar { width: 4px; }
-.cf-scroll::-webkit-scrollbar-track { background: rgba(4,9,18,.4); border-radius: 4px; }
-.cf-scroll::-webkit-scrollbar-thumb { background: rgba(47,243,255,.28); border-radius: 4px; }
+.cf input[type=range]:active::-webkit-slider-thumb { background: var(--color-action-pressed); box-shadow: none; }
+.cf .cf-in:focus { border-color: var(--color-ink); outline: 3px solid var(--color-machine-deep); outline-offset: 1px; }
+.cf-scroll::-webkit-scrollbar { width: 6px; }
+.cf-scroll::-webkit-scrollbar-track { background: var(--color-ink-wash); border-radius: 4px; }
+.cf-scroll::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 4px; }
 
 /* ── בסיס גלובלי ── */
 * {
@@ -235,8 +161,8 @@
 }
 
 body {
-  background-color: var(--holo-bg);
-  color: var(--holo-text);
+  background-color: var(--color-machine-bg);
+  color: var(--color-ink);
   font-family: 'Heebo', sans-serif;
   min-height: 100vh;
   direction: rtl;
@@ -348,6 +274,8 @@ html.holo-playing { font-size: 144%; }
   gap: 0.5rem;
   padding-block: 0.3rem;
 }
+/* כשיש מחוון עמוד, הכפתור נצמד לתחתית האזור, כדי שהמחוון שמעליו לא ייגע בקו המתאר ובצל של הכפתור */
+.holo-panel-actions:has(.holo-page-indicator) { justify-content: flex-end; }
 /* "1/2" — מחוון עמוד, בפינת אזור הפעולות (לא מתנגש עם הכפתור הממורכז) */
 .holo-page-indicator {
   position: absolute;
@@ -355,34 +283,18 @@ html.holo-playing { font-size: 144%; }
   inset-inline-start: 0.5rem;
   font-size: 0.8rem;
   font-weight: 700;
-  color: rgba(190, 240, 255, 0.85);
+  color: var(--color-muted);
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
-/* מסגרת ציאן + זוהר + רקע כהה חצי-שקוף. הכהיה היא **מתחת לפאנל בלבד**
-   (הפאנל עצמו), ולא שכבה על כל התמונה — הרקע נשאר חי ונקי. */
-/* שכבות הצבע של DigitalEntrance חיות בתוך תוכן הגלילה, והגלילה האוטומטית
-   שעוקבת אחרי ההקלדה גוררת אותן למעלה ברציפות — "צבעים עולים" מאחורי הטקסט.
-   בתוך חלון הטקסט מסתירים אותן ומציירים scanline **סטטי** על המסגרת הקבועה
-   עצמה, שאינה גוללת. מחוץ לחלון (PuzzleModal) הן נשארות כרגיל. */
-.holo-side-panel .de-holo-layer { display: none; }
-.holo-side-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(rgba(18,16,50,0) 0%, rgba(0,246,255,0.06) 50%, rgba(18,16,50,0) 100%);
-  background-size: 100% 4px;
-}
-
+/* ── עמוד הטקסט: דף של ספר. משטח לבן, קו דיו וצל קשיח. הטקסט בדיו ── */
 .holo-side-panel {
   position: relative;
-  border: 1px solid rgba(47, 243, 255, 0.42);
-  border-radius: 1rem;
-  box-shadow: 0 0 26px rgba(47, 243, 255, 0.18), inset 0 0 40px rgba(4, 12, 26, 0.55);
-  background-color: rgba(9, 16, 34, 0.9);
-  backdrop-filter: blur(7px);
+  border: var(--border-student);
+  border-radius: var(--radius-student);
+  box-shadow: var(--shadow-student);
+  background-color: var(--color-surface);
+  color: var(--color-ink);
   padding: 0.5rem 0.7rem;
 }
 
@@ -395,9 +307,10 @@ html.holo-playing { font-size: 144%; }
   align-self: stretch;
   position: relative;
   overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgba(47, 243, 255, 0.22);
-  background: #050b18;
+  border-radius: var(--radius-student);
+  border: var(--border-student);
+  box-shadow: var(--shadow-student);
+  background: var(--color-machine-tint);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -408,15 +321,15 @@ html.holo-playing { font-size: 144%; }
 /* ד"ר הולו כהולוגרמה: בפינת עמוד התמונה, מעל התמונה ומתחת לאתגר עצמו. לא תופס לחיצות.
    בלי z-index: הוא היה יוצר stacking context, והמיזוג עם התמונה (screen) היה נשבר למלבן שחור */
 /* מסך הפתיחה: המעבדה ממלאת את כל המסך, הפורטל במרכז וחלון הטקסט מימינו, ברווח שבין הטבעת לקצה (הטבעת כ-19.3vw או 34.3vh לכל צד, ועוד 4% לקירוב המצלמה) */
-.holo-scene-band--lab .holo-image-page { position: fixed; inset: 0; flex: none; z-index: -1; border: 0; border-radius: 0; }
-.holo-scene-band--lab .holo-side-panel { flex: 0 0 auto; width: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); max-width: none; background: rgba(6, 12, 26, .72); }
+.holo-scene-band--lab .holo-image-page { position: fixed; inset: 0; flex: none; z-index: -1; border: 0; border-radius: 0; box-shadow: none; }
+.holo-scene-band--lab .holo-side-panel { flex: 0 0 auto; width: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); max-width: none; }
 /* גוף מלא: עיגון בתחתית התמונה, בצד, כ-80% מגובה התמונה. במסך נמוך הדמות גדלה, כדי שהפנים יהיו קריאים, ולא נחתכת */
 
 /* שכבת כהיה מקומית — רק בתוך מלבן התמונה, לא על כל המסך. האתגר קריא
    והתמונה נשארת נוכחת מאחוריו כהקשר. */
 .holo-stage-scrim {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: radial-gradient(120% 100% at 50% 50%, rgba(4,10,22,.72), rgba(4,10,22,.88));
+  background: color-mix(in srgb, var(--color-machine-bg) 84%, transparent);
   animation: holo-scrim-in .3s ease both;
 }
 @keyframes holo-scrim-in { from { opacity: 0 } to { opacity: 1 } }
@@ -435,9 +348,7 @@ html.holo-playing { font-size: 144%; }
   overflow: auto;
 }
 .holo-stage .holo-panel {
-  background-color: rgba(7, 13, 28, 0.88);
-  border-color: rgba(47, 243, 255, 0.45);
-  backdrop-filter: blur(7px);
+  background-color: var(--color-surface);
 }
 /* ההוראה כבר מוצגת בראש הפאנל: לא חוזרים עליה בתוך האתגר */
 .holo-stage [data-challenge-q] { display: none; }
@@ -450,8 +361,7 @@ html.holo-playing { font-size: 144%; }
   font-size: 1.02rem;
   font-weight: 700;
   line-height: 1.35;
-  color: #eaf9ff;
-  text-shadow: 0 0 12px rgba(47, 243, 255, 0.35);
+  color: var(--color-ink);
 }
 
 /* ── מובייל (≤480px) — התאמות רוחב-צר בלבד ────────────────────────────────
@@ -575,59 +485,123 @@ html {
   overflow-y: scroll;            /* הפס תמיד מרונדר — track אפרפר גם כשאין תוכן לגלול */
   scrollbar-gutter: stable;      /* שומר את רוחב הפס גם בדפדפנים שמסתירים אותו */
   scrollbar-width: thin;                                  /* Firefox */
-  scrollbar-color: rgba(120,160,200,.22) rgba(4,9,18,.5); /* Firefox: thumb/track אפרפרים */
+  scrollbar-color: var(--color-line-strong) var(--color-ink-wash); /* Firefox */
 }
 /* WebKit — פס עדין ואפרפר; מתבהר לציאן בריחוף. רכיבי גלילה פנימיים (.cf-scroll/.holo-scroll)
    שומרים על העיצוב הצר שלהם דרך הסלקטור הספציפי יותר. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: rgba(4,9,18,.5); }
+::-webkit-scrollbar-track { background: var(--color-ink-wash); }
 ::-webkit-scrollbar-thumb {
-  background: rgba(120,160,200,.20);
+  background: var(--color-line-strong);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(47,243,255,.45); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-muted); background-clip: padding-box; }
 
-/* ── משטח עם מסגרת זוהרת וטשטוש רקע ── */
+/* ── משטח תוכן במסך התלמיד: לבן, קו דיו, צל קשיח ── */
 .holo-panel {
-  background-color: var(--holo-surface);
-  border: 1px solid rgba(0, 246, 255, 0.25);
-  border-radius: 1rem;
-  backdrop-filter: blur(12px);
-  box-shadow: var(--holo-glow), inset 0 1px 0 rgba(0, 246, 255, 0.1);
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+  border: var(--border-student);
+  border-radius: var(--radius-student);
+  box-shadow: var(--shadow-student);
   padding: 1.5rem;
 }
+/* משטח במסכי מורה ומנהל: אותה שפה, שקטה יותר */
+.holo-panel--staff { border: var(--border-staff); border-radius: var(--radius-staff); box-shadow: var(--shadow-staff); }
 
-/* ── כפתור עם אפקט glow בהובר ── */
+/* ══ כפתור: החיבור בין אדם למכונה ═══════════════════════════════════════════
+   כל כפתור בחירה ופעולה: רקע action, טקסט בדיו, קו מתאר בדיו וצל קשיח.
+   לחוץ: action-pressed, הצל נעלם והכפתור זז 3px. נבחר: רקע דיו וטקסט לבן.
+   נכון / שגוי: correct / wrong, תמיד יחד עם סימן (✓ / ✗) ומילה, לא צבע לבד.
+   צבעי הכפתור מגיעים מכאן: לא לדרוס background / color / border / box-shadow ב-style. */
 .holo-button {
-  /* גרדיאנט מוכהה (~20% פחות bהירות מ-holo-blue/purple) כדי שהטקסט הלבן יעמוד
-     בקונטרסט WCAG AA (≥4.5:1) — הבהיר המקורי נתן ~3.3:1. */
-  background: linear-gradient(135deg, #0062cc, #6633cc);
-  color: #fff;
-  border: none;
-  border-radius: 0.5rem;
+  background: var(--color-action);
+  color: var(--color-ink);
+  border: var(--border-student);
+  border-radius: var(--radius-button);
+  box-shadow: var(--shadow-button);
   padding: 0.6rem 1.4rem;
   font-family: 'Heebo', sans-serif;
   font-weight: 700;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); /* קריאוּת על הגרדיאנט */
   cursor: pointer;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+}
+.holo-button:active:not(:disabled):not([aria-disabled="true"]),
+.holo-button.is-pressed {
+  background: var(--color-action-pressed);
+  box-shadow: none;
+  transform: translate(3px, 3px);
+}
+.holo-button.is-selected,
+.holo-button[aria-pressed="true"],
+.holo-button[aria-selected="true"] { background: var(--color-ink); color: var(--color-surface); }
+.holo-button.is-correct { background: var(--color-correct); color: var(--color-surface); }
+.holo-button.is-wrong { background: var(--color-wrong); color: var(--color-surface); }
+.holo-button:disabled,
+.holo-button[aria-disabled="true"] { background: var(--color-disabled); color: var(--color-muted); box-shadow: none; cursor: default; }
+.holo-button.is-correct:disabled, .holo-button.is-correct[aria-disabled="true"] { background: var(--color-correct); color: var(--color-surface); }
+.holo-button.is-wrong:disabled, .holo-button.is-wrong[aria-disabled="true"] { background: var(--color-wrong); color: var(--color-surface); }
+.holo-button.is-selected:disabled, .holo-button.is-selected[aria-disabled="true"] { background: var(--color-ink); color: var(--color-surface); }
+/* מסכי מורה ומנהל: קו 2px וצל 3px (אותו כפתור, שקט יותר) */
+/* הגופן נשאר זה של המסך (מסכי הצוות ב-Rubik): הכפתור לא מחליף גופן */
+.holo-button--staff { border: var(--border-staff); box-shadow: var(--shadow-staff); font-family: inherit; }
+/* כפתור קטן (שורת כלים, תג לחיץ) */
+.holo-button--sm { padding: 0.3rem 0.8rem; border-width: 2px; box-shadow: 2px 2px 0 var(--color-ink); }
+.holo-button--sm:active:not(:disabled):not([aria-disabled="true"]) { transform: translate(2px, 2px); box-shadow: none; }
+.holo-button:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 3px; }
+
+/* ניווט וקישורים: בדיו, לא בתכלת */
+.holo-link { color: var(--color-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
+.holo-link:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; border-radius: 4px; }
+
+/* כותרת מודגשת (שם המחלקה נשאר מהעיצוב הקודם; אין יותר זוהר) */
+.holo-text-glow { color: var(--color-machine-deep); }
+
+/* ══ קריסטלים (shared/ui/Gem.tsx) ═══════════════════════════════════════════
+   base: בלי זוהר ובלי הבזקים. warm (3 ומעלה): פעימה כל 1.6 שניות, הזוהר שמסביב כתום והקריסטל מתבהר לכתום-לבן.
+   full (5 מלאים): זוהר אפרסק-לבן קבוע והבזקים כתומים חזקים יותר כל 1.2 שניות.
+   זה המקום היחיד (יחד עם דוקטור הולו בניצחון מושלם) שבו יש זוהר. אף הבזק לא מהיר מפעם בשנייה.
+   הטשטוש ביחידות של ה-viewBox של הקריסטל (152 יחידות לרוחב). */
+.gem__glow, .gem__flash { opacity: 0; pointer-events: none; filter: blur(13px); transform-box: fill-box; transform-origin: center; }
+.gem__glow { fill: var(--color-human); transform: scale(1.14); }
+.gem__flash { fill: var(--color-human); transform: scale(1.3); }
+.gem__pulse { opacity: 0; pointer-events: none; --gem-base: var(--color-crystal-pulse); }
+.gem--warm .gem__glow { opacity: .5; }
+.gem--warm.gem--animated .gem__glow { opacity: 0; animation: gem-beat 1.6s ease-in-out infinite; }
+.gem--warm.gem--animated .gem__pulse { animation: gem-beat 1.6s ease-in-out infinite; }
+.gem--full .gem__glow { fill: var(--color-crystal-pulse); opacity: .95; }
+.gem--full .gem__flash { opacity: .45; }
+.gem--full.gem--animated .gem__flash { opacity: 0; animation: gem-beat 1.2s ease-in-out infinite; }
+@keyframes gem-beat { 0%, 62%, 100% { opacity: 0; } 30% { opacity: .95; } }
+@media (prefers-reduced-motion: reduce) {
+  /* בלי פעימות ובלי אנימציית צבע: זוהר כתום קבוע שעדיין מבחין בין המצבים */
+  .gem .gem__glow, .gem .gem__flash, .gem .gem__pulse { animation: none !important; }
+  .gem--warm .gem__glow { opacity: .5 !important; }
+  .gem--full .gem__flash { opacity: .45 !important; }
 }
 
-.holo-button:hover {
-  box-shadow: var(--holo-glow-strong);
-  transform: translateY(-1px);
+/* ══ ה-HUD שבראש מסך המשחק: רקע לבן, קו דיו; שם ואווטאר באפרסק; פס ההתקדמות בכתום ══ */
+.holo-hud-top { background: var(--color-surface); color: var(--color-ink); border-bottom: var(--border-student); }
+.holo-hud-name {
+  display: inline-flex; align-items: center; gap: .4rem; flex-shrink: 0; min-width: 0; max-width: 11rem;
+  padding: .12rem .6rem .12rem .15rem; border-radius: 999px;
+  background: var(--color-human-soft); color: var(--color-ink); border: 2px solid var(--color-ink);
+  font-weight: 700; font-size: var(--hud-name, .875rem); line-height: 1.2;
 }
-
-.holo-button:active {
-  transform: translateY(0);
+.holo-hud-avatar {
+  width: 1.5rem; height: 1.5rem; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-human); color: var(--color-ink); border: 2px solid var(--color-ink); font-weight: 900; font-size: .8rem;
 }
-
-/* ── טקסט זוהר ── */
-.holo-text-glow {
-  color: var(--holo-cyan);
-  text-shadow: 0 0 12px rgba(0, 246, 255, 0.7), 0 0 30px rgba(0, 246, 255, 0.3);
+.holo-hud-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.holo-hud-progress { position: absolute; inset-inline: 0; bottom: -3px; height: 6px; background: var(--color-surface); pointer-events: none; }
+.holo-hud-progress > i { display: block; height: 100%; background: var(--color-human); border-inline-end: 2px solid var(--color-ink); transition: width .4s ease; }
+.holo-hud-btn { flex-shrink: 0; }
+@media (max-width: 900px) {
+  /* במסך צר נשאר רק האווטאר; השם המלא נמצא ב-aria-label */
+  .holo-hud-name { padding: .1rem; border: none; background: none; }
+  .holo-hud-name > span:last-child { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -635,7 +609,7 @@ html {
    עיקרון 7+8: טבעת פוקוס גלויה, אין מידע במעבר עכבר בלבד (ה-hover דקורטיבי בלבד).
    ══════════════════════════════════════════════════════════════════════════ */
 [data-teacher-ui] :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 3px solid var(--t15);
+  outline: 3px solid var(--color-machine-deep);
   outline-offset: 2px;
 }
 /* מחליף את ברירת-המחדל של הדפדפן במקשי עכבר/מגע — הטבעת מופיעה רק במקלדת */
@@ -644,7 +618,7 @@ html {
 /* הדגשת hover דקורטיבית (שכבה שקופה, לא נוגעת ברקע ה-inline של הרכיב) */
 [data-teacher-ui] [data-tu-press] { position: relative; }
 [data-teacher-ui] [data-tu-press]::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--t20);
+  content: ''; position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--color-machine-deep) 10%, transparent);
   opacity: 0; transition: opacity .14s; pointer-events: none;
 }
 [data-teacher-ui] [data-tu-press]:not([aria-disabled="true"]):not(:disabled):hover::after { opacity: 1; }
@@ -658,7 +632,7 @@ html {
 /* קישור דילוג לתוכן — גלוי רק בפוקוס מקלדת */
 [data-teacher-ui] .tu-skip {
   position: absolute; top: -100px; inset-inline-start: 12px; z-index: 50; padding: 12px 18px; border-radius: 10px;
-  background: var(--t-studio-bg); color: var(--t68); border: 2px solid var(--t15); font-weight: 700; font-size: 16px; text-decoration: none;
+  background: var(--color-machine-bg); color: var(--color-ink); border: 2px solid var(--color-machine-deep); font-weight: 700; font-size: 16px; text-decoration: none;
 }
 [data-teacher-ui] .tu-skip:focus { top: 8px; }
 

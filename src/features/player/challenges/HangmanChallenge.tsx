@@ -17,7 +17,7 @@ const baseLetter = (ch: string) => FINAL_MAP[ch] ?? ch
 const HEB_KEYBOARD = 'אבגדהוזחטיכלמנסעפצקרשת'.split('')
 const isHebLetter = (ch: string) => /[א-ת]/.test(ch)
 
-/* זיהוי קוד / איש תלוי — ניחוש אות-אות בעברית, מד ניסיונות הולוגרפי */
+/* זיהוי קוד / איש תלוי — ניחוש אות-אות בעברית, עם מד ניסיונות */
 export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
   const answer = (puzzle.answer ?? '').trim()
   const maxWrong = Math.max(3, Math.min(10, puzzle.maxWrong ?? 6))
@@ -74,31 +74,28 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
         .hang-shake { animation: hang-shake 0.4s ease; }
         @keyframes slot-pop { 0%{transform:scale(0.5);opacity:0;} 100%{transform:scale(1);opacity:1;} }
         .slot-pop { animation: slot-pop 0.25s ease; }
-        @keyframes slot-chain { 0%, 100% { text-shadow: 0 0 10px rgba(0,246,255,.9); } 45% { text-shadow: 0 0 22px #2FF3FF, 0 0 34px #BFF9FF; color: #fff; transform: translateY(-3px); } }
+        @keyframes slot-chain { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-3px); } }
         .slot-chain { animation: slot-chain .5s ease-out both; }
         @media (prefers-reduced-motion: reduce) { .slot-pop, .slot-chain { animation: none; } }
-        /* זוהר ריחוף על כפתורי האותיות (חידת הקוד) */
-        .hang-key:not(:disabled):hover {
-          box-shadow: 0 0 14px rgba(0,246,255,0.6), 0 0 4px rgba(0,246,255,0.9) inset;
-          border-color: rgba(0,246,255,0.85);
-          background: rgba(0,136,255,0.3);
-          transform: translateY(-1px);
-        }
+        /* אות שכבר נוחשה: נכון / לא נכון מסומנים גם בסימן בפינה, לא רק בצבע */
+        .hang-key { position: relative; }
+        .hang-key.is-correct::after, .hang-key.is-wrong::after { position: absolute; top: 1px; inset-inline-end: 3px; font-size: .55rem; line-height: 1; font-weight: 700; }
+        .hang-key.is-correct::after { content: '✓'; }
+        .hang-key.is-wrong::after { content: '✗'; }
       `}</style>
 
       <p data-challenge-q className="text-sm mb-3" style={{ opacity: 0.85 }}>🔍 {puzzle.question}</p>
 
-      {/* מד ניסיונות הולוגרפי — ליבת קריסטל שמתפוגגת + רסיסים */}
+      {/* מד ניסיונות — ליבת קריסטל שמתפוגגת + רסיסים */}
       <div key={shakeKey} data-solution-hide className={`flex flex-col items-center gap-2 mb-4 ${done !== 'win' && wrong > 0 ? 'hang-shake' : ''}`}>
         <div
           style={{
             width: '4.5rem', height: '4.5rem',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '2.6rem',
-            filter: `drop-shadow(0 0 ${4 + coreLife * 16}px rgba(0,246,255,${0.3 + coreLife * 0.6}))`,
             opacity: done === 'lose' ? 0.15 : 0.35 + coreLife * 0.65,
             transform: `scale(${done === 'lose' ? 0.6 : 0.7 + coreLife * 0.3})`,
-            transition: 'opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease',
+            transition: 'opacity 0.4s ease, transform 0.4s ease',
           }}
         >
           🔮
@@ -109,16 +106,14 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
               key={i}
               style={{
                 fontSize: '0.9rem',
-                color: i < remaining ? 'var(--holo-cyan)' : 'rgba(255,120,150,0.5)',
-                textShadow: i < remaining ? '0 0 6px rgba(0,246,255,0.8)' : 'none',
-                transition: 'color 0.3s',
+                color: 'var(--color-ink)',
               }}
             >
               {i < remaining ? '◆' : '◇'}
             </span>
           ))}
         </div>
-        <span className="text-xs" style={{ opacity: 0.6 }}>נותרו {remaining} ניסיונות</span>
+        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>נותרו {remaining} ניסיונות</span>
       </div>
 
       {/* שלד המילה — RTL: אות ראשונה מימין */}
@@ -139,10 +134,10 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
                 animationDelay: done === 'win' ? `${i * 0.07}s` : undefined,
                 width: '2rem', height: '2.5rem',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderBottom: '2px solid var(--holo-cyan)',
+                /* אות שנחשפה רק בסוף (לא נוחשה): צבע wrong וגם קו מקווקו, לא צבע לבד */
+                borderBottom: lostReveal ? '2px dashed var(--color-wrong)' : '2px solid var(--color-ink)',
                 fontSize: '1.4rem', fontWeight: 700,
-                color: lostReveal ? '#ff9bb3' : 'var(--holo-text)',
-                textShadow: revealed && !lostReveal ? '0 0 10px rgba(0,246,255,0.9)' : 'none',
+                color: lostReveal ? 'var(--color-wrong)' : 'var(--color-ink)',
               }}
             >
               {revealed ? ch : ''}
@@ -160,19 +155,15 @@ export default function HangmanChallenge({ puzzle, onResult, tel }: Props) {
             return (
               <button
                 key={letter}
-                className="hang-key"
+                className={`hang-key holo-button holo-button--sm${used ? (wasWrong ? ' is-wrong' : ' is-correct') : ''}`}
                 onClick={() => guess(letter)}
                 disabled={used}
+                aria-label={used ? `${letter} (${wasWrong ? 'לא נכון' : 'נכון'})` : undefined}
                 style={{
                   width: '2.1rem', height: '2.4rem',
+                  padding: 0,
                   borderRadius: '0.4rem',
                   fontSize: '1.05rem', fontWeight: 700,
-                  cursor: used ? 'default' : 'pointer',
-                  color: 'var(--holo-text)',
-                  background: used ? 'rgba(5,10,25,0.5)' : 'rgba(0,136,255,0.18)',
-                  border: `1px solid ${wasWrong ? 'rgba(255,120,150,0.4)' : 'rgba(0,246,255,0.3)'}`,
-                  opacity: used ? 0.3 : 1,
-                  transition: 'opacity 0.25s, background 0.2s, box-shadow 0.2s, transform 0.15s',
                 }}
               >
                 {letter}

@@ -191,7 +191,7 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
       <div data-solution-hide><Countdown seconds={scale.timeSec} running={done === null} onExpire={onTimeout} /></div>
 
       {done === 'lose' && (
-        <p className="text-sm text-center mb-3" style={{ color: '#ff9bb3' }}>{gaveUp ? 'המילים מסומנות ברשת' : '⏳ נגמר הזמן — המילים מסומנות ברשת'}</p>
+        <p className="text-sm text-center mb-3" style={{ color: 'var(--color-wrong)' }}>{gaveUp ? 'המילים מסומנות ברשת' : '⏳ נגמר הזמן — המילים מסומנות ברשת'}</p>
       )}
 
       <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start justify-center">
@@ -206,6 +206,12 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
             touchAction: 'none',
             userSelect: 'none',
             width: 'min(82vw, 22rem)',
+            /* הרשת כולה היא משטח לחיץ אחד: הקווים בין התאים הם הרקע (דיו) שנראה דרך הרווחים, וצל קשיח אחד לכל הרשת */
+            background: 'var(--color-ink)',
+            border: '2px solid var(--color-ink)',
+            borderRadius: '0.5rem',
+            overflow: 'hidden',
+            boxShadow: done ? 'none' : 'var(--shadow-button)',
           }}
         >
           {grid.map((row, r) =>
@@ -227,10 +233,11 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
                     fontSize: 'clamp(0.7rem, 3.5vw, 1rem)',
                     fontWeight: 700,
                     borderRadius: '0.3rem',
-                    cursor: 'pointer',
-                    color: isFound ? '#5fffb0' : 'var(--holo-text)',
-                    background: isSel ? 'rgba(0,246,255,0.45)' : isFound ? 'rgba(0,255,150,0.15)' : 'rgba(5,10,25,0.6)',
-                    border: `1px solid ${isSel ? 'var(--holo-cyan)' : isFound ? 'rgba(0,255,150,0.5)' : 'rgba(0,246,255,0.15)'}`,
+                    cursor: done ? 'default' : 'pointer',
+                    /* תא לחיץ: action. מסומן בגרירה: דיו וטקסט לבן. אות של מילה שנמצאה: correct וטקסט לבן
+                       (הסימן ✓ והמילה עצמה ברשימה שלצד הרשת). אחרי הסיום התאים כבר לא לחיצים: לבן */
+                    color: isSel || isFound ? 'var(--color-surface)' : 'var(--color-ink)',
+                    background: isSel ? 'var(--color-ink)' : isFound ? 'var(--color-correct)' : done ? 'var(--color-surface)' : 'var(--color-action)',
                     transition: 'background 0.1s',
                   }}
                 >
@@ -243,7 +250,7 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
 
         {/* רשימת המילים למצוא */}
         <div className="text-start" style={{ minWidth: '7rem' }}>
-          <div className="text-xs font-bold mb-2" style={{ color: 'var(--holo-cyan)' }}>מצאו:</div>
+          <div className="text-xs font-bold mb-2" style={{ color: 'var(--color-machine-deep)' }}>מצאו:</div>
           <ul className="flex flex-row flex-wrap sm:flex-col gap-x-3 gap-y-1">
             {words.map((w) => {
               const done = foundWords.has(w)
@@ -252,9 +259,8 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
                   key={w}
                   style={{
                     fontSize: '0.9rem',
-                    color: done ? '#5fffb0' : 'var(--holo-text)',
+                    color: done ? 'var(--color-correct)' : 'var(--color-ink)',
                     textDecoration: done ? 'line-through' : 'none',
-                    opacity: done ? 0.7 : 1,
                   }}
                 >
                   {done ? '✓ ' : '• '}{w}
@@ -268,8 +274,8 @@ export default function WordSearchChallenge({ puzzle, onResult, tel }: Props) {
       {done === null && (
         <div className="flex justify-center mt-4">
           <button
-            className="text-sm cursor-pointer rounded-md px-3 py-1"
-            style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
+            className="holo-button holo-button--sm text-sm"
+            style={{ padding: 'calc(0.25rem - 1px) 0.75rem' }} /* אותו גובה כמו לפני ההמרה (הקו עבה ב-1px) */
             onClick={() => {
               tel?.act('gave_up')
               setGaveUp(true)

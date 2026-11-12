@@ -7,7 +7,7 @@ export default function DemoStudentBadge({ show }: { show?: boolean }) {
       title="תלמיד לדוגמה — נתוני הדגמה, לא תלמיד אמיתי"
       style={{
         display: 'inline-block', flexShrink: 0, whiteSpace: 'nowrap', fontSize: 10, fontWeight: 600, lineHeight: 1.5,
-        padding: '0 7px', borderRadius: 999, color: 'var(--t6)', border: '1px dashed var(--t21)', background: 'transparent',
+        padding: '0 7px', borderRadius: 999, color: 'var(--color-muted)', border: '1px dashed color-mix(in srgb, var(--color-machine-deep) 38%, transparent)', background: 'transparent',
       }}
     >
       תלמיד לדוגמה

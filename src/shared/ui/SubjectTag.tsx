@@ -8,10 +8,6 @@
    ────────────────────────────────────────────────────────────────────────── */
 import type { CSSProperties } from 'react'
 import { subjectTagColors, type SubjectVisualMode } from '../lib/subjects'
-import { useTheme } from '../lib/useTheme'
-
-/* משטח הטבעת: כמו הרקע הרגיל של כל מצב */
-const RING: Record<SubjectVisualMode, string> = { light: '#ffffff', dark: '#0b1220' }
 
 export interface SubjectTagProps {
   code: string | null | undefined
@@ -23,9 +19,8 @@ export interface SubjectTagProps {
 }
 
 export default function SubjectTag({ code, mode = 'auto', size = 'md', ring = true, style }: SubjectTagProps) {
-  const light = useTheme()
-  const resolved: SubjectVisualMode = mode === 'auto' ? (light ? 'light' : 'dark') : mode
-  const c = subjectTagColors(code, resolved)
+  void mode /* פלטה אחת: הפרמטר נשאר לתאימות */
+  const c = subjectTagColors(code)
   const sm = size === 'sm'
   return (
     <span data-subject-tag={c.code} style={{
@@ -33,7 +28,8 @@ export default function SubjectTag({ code, mode = 'auto', size = 'md', ring = tr
       padding: sm ? '1px 8px' : '3px 12px', borderRadius: 999, lineHeight: 1.35,
       fontFamily: 'var(--font-display)', fontSize: sm ? 14 : 16, fontWeight: 800, whiteSpace: 'nowrap',
       background: c.bg, color: c.fg,
-      boxShadow: ring ? `0 0 0 2px ${RING[resolved]}` : 'none',
+      /* קו מתאר בדיו מפריד את התגית מהתמונה ומהרקע */
+      border: ring ? '2px solid var(--color-ink)' : 'none',
       ...style,
     }}>
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</span>

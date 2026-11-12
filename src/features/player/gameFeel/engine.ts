@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from 'react'
 import { getAudioContext, isMuted } from '../../../shared/lib/sound'
 import { DEFAULT_EFFECT_LEVEL, type EffectLevel } from '../../../shared/lib/gemModel'
+import { tokenRgba, tokenValue } from '../../../styles/tokens'
 
 export interface LevelConfig {
   particles: number; trail: boolean; shake: boolean; streak: boolean; ladder: boolean; glow: boolean
@@ -155,8 +156,20 @@ function vibrate(ms: number): void {
 
 /* ── חלקיקים: canvas אחד על כל המסך ── */
 interface Part { x: number; y: number; vx: number; vy: number; g: number; drag?: number; life: number; max: number; size: number; color: string; shape: 'dot' | 'shard' | 'rect'; rot: number; vr: number }
-const PCOL = ['#F4FCFF', '#BFEAFA', '#7FD6F2', '#2FF3FF', '#45B6E2']
-const CCOL = ['#2FF3FF', '#F241DA', '#F3B76A', '#DDF5FF', '#45B6E2', '#7FD6F2']
+/* הצבעים נקראים מהטוקנים בזמן ריצה (canvas לא מכיר var()). נשמרים אחרי הקריאה המוצלחת הראשונה */
+function palette(tokens: readonly `--${string}`[]): () => string[] {
+  let cached: string[] | null = null
+  return () => {
+    if (cached) return cached
+    const colors = tokens.map((t) => tokenRgba(t, 1))
+    if (tokenValue(tokens[0])) cached = colors
+    return colors
+  }
+}
+/* שברי גביש ושובל המעוף: צבעי הקריסטל */
+const partColors = palette(['--color-holo', '--color-crystal-full-bottom', '--color-holo', '--color-human', '--color-crystal-empty'])
+/* קונפטי של סיפור שנסגר */
+const confettiColors = palette(['--color-holo', '--color-human', '--color-machine-deep', '--color-human-soft', '--color-machine', '--color-crystal-full-bottom'])
 let canvas: HTMLCanvasElement | null = null
 let ctx: CanvasRenderingContext2D | null = null
 let parts: Part[] = []
@@ -222,6 +235,7 @@ function tick(now: number): void {
 }
 export function burst(x: number, y: number, n: number, kind: 'shard' | 'dot'): void {
   if (prefersReducedMotion() || n <= 0 || !ensureCanvas()) return
+  const PCOL = partColors()
   for (let i = 0; i < n; i++) {
     const a = Math.random() * Math.PI * 2
     const sp = (kind === 'shard' ? 2 : 1.2) + Math.random() * (kind === 'shard' ? 4 : 2.4)
@@ -233,10 +247,12 @@ export function burst(x: number, y: number, n: number, kind: 'shard' | 'dot'): v
   }
 }
 function trailDot(x: number, y: number): void {
+  const PCOL = partColors()
   addPart({ x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8, vx: (Math.random() - 0.5) * 0.5, vy: (Math.random() - 0.5) * 0.5, g: 0, life: 0, max: 24, size: 1.4 + Math.random() * 2, color: PCOL[Math.floor(Math.random() * PCOL.length)], shape: 'dot', rot: 0, vr: 0 })
 }
 export function confetti(n: number): void {
   if (prefersReducedMotion() || n <= 0 || !ensureCanvas()) return
+  const CCOL = confettiColors()
   for (let i = 0; i < n; i++) {
     addPart({
       x: Math.random() * W, y: -12 - Math.random() * H * 0.45, vx: (Math.random() - 0.5) * 1.6, vy: 1.4 + Math.random() * 2.4, g: 0.025, drag: 0.995,
@@ -301,7 +317,7 @@ function arrive(): void {
   window.dispatchEvent(new Event(GEM_ARRIVED))
 }
 
-const GEM_SVG = '<svg viewBox="0 0 152 132" aria-hidden="true" style="width:100%;height:100%;display:block;overflow:visible;filter:drop-shadow(0 0 8px rgba(47,243,255,.6))"><use href="#holo-gem"/></svg>'
+const GEM_SVG = '<svg viewBox="0 0 152 132" aria-hidden="true" style="width:100%;height:100%;display:block;overflow:visible"><use href="#holo-gem"/></svg>'
 
 /* מעוף הגביש מהתשובה אל השקע שמתמלא. לא חוסם: המשחק ממשיך בלעדיו */
 export function flyGem(from: Element | null, gain: number): void {

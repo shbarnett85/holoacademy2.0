@@ -63,7 +63,12 @@ async function openGame(ctx: BrowserContext, quest: unknown): Promise<Page> {
   return page
 }
 const startBtn = (page: Page) => page.getByRole('button', { name: /פתרו את האתגר|התחילו את מבחן הסיכום/ })
-const choice = (page: Page, text: string | RegExp) => page.locator('.holo-stage button', { hasText: text }).first()
+/* תשובה שהיא שבר ("2/5") מוצגת כמונה מעל מכנה, ולכן מאתרים אותה לפי התווית של השבר */
+const choice = (page: Page, text: string | RegExp) => {
+  const m = typeof text === 'string' ? /^(\d+)\/(\d+)$/.exec(text) : null
+  if (m) return page.locator(`.holo-stage button:has([data-fraction][aria-label="${m[1]} חלקי ${m[2]}"])`).first()
+  return page.locator('.holo-stage button', { hasText: text }).first()
+}
 async function openChallenge(page: Page): Promise<void> {
   try { await startBtn(page).click({ timeout: 12000 }) } catch (e) {
     await page.screenshot({ path: path.join(OUT, '_debug.png') })
@@ -192,6 +197,9 @@ async function staff(browser: Browser): Promise<void> {
     await p.route('**/api/**', (r) => r.fulfill({ json: {} }))
     await p.route('**/api/admin/schools', (r) => r.fulfill({ json: { schools: [{ id: 's1', name: 'בית ספר הדקל', slug: 'dekel', is_active: true, userCount: 212, activeUserCount: 205 }, { id: 's2', name: 'בית ספר הגפן', slug: 'gefen', is_active: false, userCount: 96, activeUserCount: 0 }] } }))
     await p.route('**/api/admin/reports**', (r) => r.fulfill({ json: { reports: [] } }))
+    await p.route('**/api/admin/gen-stats', (r) => r.fulfill({ json: { days: [], anonConversion: null, anonActors: 0 } }))
+    await p.route('**/api/funnel/summary', (r) => r.fulfill({ json: { sinceDays: 30, counts: { showcase_click: 42, visitor_play_start: 31, visitor_finish: 17, cta_whatsapp: 4, cta_create: 6, teacher_whatsapp: 3 }, topQuests: [] } }))
+    await p.route('**/api/staff/teacher-requests', (r) => r.fulfill({ json: { requests: [] } }))
     await p.goto(`${DEFAULT_BASE}/admin`, { waitUntil: 'networkidle' }).catch(() => undefined); await p.waitForTimeout(1500); await shot(p, 'staff-13-superadmin')
     await c2.close()
   })

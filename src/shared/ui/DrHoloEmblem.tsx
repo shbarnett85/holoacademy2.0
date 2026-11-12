@@ -1,5 +1,5 @@
-/* אמבלם ד"ר הולו — פנים הולוגרפיות זוהרות עם משקפיים עגולים (מחליף את אמוג'י הרובוט).
-   צבע ציאן עם זוהר, line-art נקי. size = קוטר בפיקסלים. */
+/* אמבלם ד"ר הולו — פנים עם משקפיים עגולים, line-art נקי בצבע ההולוגרמה (--color-holo), בלי זוהר.
+   size = קוטר בפיקסלים. */
 export default function DrHoloEmblem({ size = 48 }: { size?: number }) {
   return (
     <svg
@@ -7,11 +7,11 @@ export default function DrHoloEmblem({ size = 48 }: { size?: number }) {
       height={size}
       viewBox="0 0 64 64"
       fill="none"
-      stroke="var(--holo-cyan, #2ff3ff)"
+      stroke="currentColor"
       strokeWidth={2.4}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ filter: 'drop-shadow(0 0 6px rgba(47,243,255,0.7))', display: 'block' }}
+      style={{ color: 'var(--color-holo)', display: 'block' }}
       aria-label="ד״ר הולו"
       role="img"
     >
@@ -30,8 +30,8 @@ export default function DrHoloEmblem({ size = 48 }: { size?: number }) {
       <path d="M17.5 30l-2.5-1.5" />
       <path d="M46.5 30l2.5-1.5" />
       {/* אישונים */}
-      <circle cx="24" cy="31" r="1.4" fill="var(--holo-cyan, #2ff3ff)" stroke="none" />
-      <circle cx="40" cy="31" r="1.4" fill="var(--holo-cyan, #2ff3ff)" stroke="none" />
+      <circle cx="24" cy="31" r="1.4" fill="currentColor" stroke="none" />
+      <circle cx="40" cy="31" r="1.4" fill="currentColor" stroke="none" />
       {/* חיוך */}
       <path d="M26 43c2 2.5 10 2.5 12 0" />
       {/* זקן קצר */}

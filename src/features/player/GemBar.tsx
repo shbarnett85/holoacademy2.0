@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GEM_TOTAL, gemFill } from '../../shared/lib/gemModel'
 import { GemIcon, GemSocket } from '../../shared/ui/Gem'
+import { gemTier } from '../../shared/lib/gemTier'
 import { cfg, GEM_ARRIVED, gemCompleted, prefersReducedMotion } from './gameFeel/engine'
 import { HUD_TEXT } from './gameFeel/text'
 
@@ -27,11 +28,9 @@ export function GemBar({ value }: { value: number }) {
     const socket = socketRefs.current[k]
     gemCompleted(socket)
     if (prefersReducedMotion()) return
+    /* רגע ההשלמה: קפיצה קטנה של הקריסטל (בלי זוהר; זוהר יש רק מ-3 קריסטלים, לפי מצב השורה) */
     if (cfg().glow && socket && typeof socket.animate === 'function') {
-      socket.animate(
-        [{ filter: 'none' }, { filter: 'drop-shadow(0 0 10px rgba(47,243,255,.95)) brightness(1.35)', offset: 0.3 }, { filter: 'none' }],
-        { duration: 850, easing: 'ease-out' },
-      )
+      socket.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.28)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 850, easing: 'ease-out' })
     }
     const counter = counterRef.current
     if (cfg().holo && counter && typeof counter.animate === 'function') {
@@ -99,7 +98,8 @@ export function GemBar({ value }: { value: number }) {
             {...(i === targetIdx ? { 'data-gem-target': '1' } : {})}
             style={{ display: 'block' }}
           >
-            <GemSocket fill={gemFill(display, i)} size="var(--hud-gem, 1.9rem)" />
+            {/* ב-HUD הקריסטלים לא פועמים: בזמן קריאה שום דבר לא זז. מצב השורה (3 ומעלה, 5) נראה בזוהר קבוע */}
+            <GemSocket fill={gemFill(display, i)} size="var(--hud-gem, 1.9rem)" tier={gemTier(whole)} animated={false} />
           </span>
         ))}
       </div>
@@ -107,7 +107,7 @@ export function GemBar({ value }: { value: number }) {
         ref={counterRef}
         data-gem-counter={whole}
         className="flex items-center"
-        style={{ gap: 5, padding: '2px 9px 2px 7px', borderRadius: 999, background: 'rgba(15,27,48,.9)', border: '1px solid rgba(47,243,255,.28)', fontFamily: 'var(--font-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+        style={{ gap: 5, padding: '2px 9px 2px 7px', borderRadius: 999, background: 'var(--color-surface)', color: 'var(--color-ink)', border: '2px solid var(--color-ink)', fontFamily: 'var(--font-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
       >
         <GemIcon size={18} />
         <span aria-hidden="true">{whole}</span>

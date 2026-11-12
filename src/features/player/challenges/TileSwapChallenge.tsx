@@ -110,7 +110,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
       setDone('win')
       setOrder(Array.from({ length: count }, (_, i) => i)) /* גם אריחים דומים חוזרים למקום המדויק: כוכב קטן נשאר איפה שהיה */
       if (imageUrl && !prefersReduced()) {
-        /* זוהר קצר על הרשת → תצוגה גדולה של התמונה השלמה → פאנל ההצלחה */
+        /* תצוגה גדולה של התמונה השלמה → פאנל ההצלחה */
         setTimeout(() => setShowcase(true), 520)
         setTimeout(() => { setShowcase(false); onResult({ correct: true, score: 1 }) }, 2500)
       } else {
@@ -137,8 +137,11 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
   return (
     <div className="mt-4">
       <style>{`
-        @keyframes tileswap-solved { 0%,100%{box-shadow:0 0 12px rgba(0,246,255,0.4);} 50%{box-shadow:0 0 36px rgba(0,246,255,1);} }
-        .tileswap-grid.solved { animation: tileswap-solved 0.8s ease; }
+        /* הקווים בין האריחים הם הרקע (דיו) שנראה דרך הרווחים. אריח לחיץ בלי תמונה: המתכון של כפתור */
+        .tileswap-grid { background: var(--color-ink); border: var(--border-student); }
+        .tileswap-grid.solved { gap: 0 !important; }
+        .tileswap-grid button { background-color: var(--color-action); color: var(--color-ink); }
+        .tileswap-grid button:active { background-color: var(--color-action-pressed); }
         @keyframes ts-lightbox-in { from{opacity:0;} to{opacity:1;} }
         @keyframes ts-img-in { from{transform:scale(0.8);opacity:0;} to{transform:scale(1);opacity:1;} }
         @keyframes ts-caption-in { from{transform:translateY(14px);opacity:0;} to{transform:translateY(0);opacity:1;} }
@@ -151,7 +154,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           style={{
             position: 'fixed', inset: 0, zIndex: 75, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 16,
-            background: 'rgba(2,6,16,0.85)', backdropFilter: 'blur(8px)',
+            background: 'var(--color-scrim)',
             animation: 'ts-lightbox-in 0.4s ease',
           }}
         >
@@ -159,15 +162,17 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
             src={imageUrl}
             alt=""
             style={{
-              maxWidth: '86vw', maxHeight: 'var(--tile-maxh, 66dvh)', borderRadius: 18,
-              border: '2px solid rgba(47,243,255,0.65)',
-              boxShadow: '0 0 70px rgba(47,243,255,0.45), 0 24px 80px rgba(0,0,0,0.6)',
+              maxWidth: '86vw', maxHeight: 'var(--tile-maxh, 66dvh)', borderRadius: 'var(--radius-student)',
+              border: 'var(--border-student)',
+              boxShadow: 'var(--shadow-student)',
               animation: 'ts-img-in 0.55s cubic-bezier(0.2,0.85,0.3,1)',
             }}
           />
+          {/* הכיתוב על משטח לבן עם קו דיו: טקסט בדיו, קריא מעל המסך הכהה */}
           <div style={{
-            fontSize: 21, fontWeight: 800, color: '#bffcff', fontFamily: 'var(--font-display)',
-            textShadow: '0 0 20px rgba(47,243,255,0.85)', animation: 'ts-caption-in 0.5s ease 0.25s both',
+            fontSize: 21, fontWeight: 800, color: 'var(--color-ink)', fontFamily: 'var(--font-display)',
+            background: 'var(--color-surface)', border: 'var(--border-student)', borderRadius: 'var(--radius-button)', padding: '2px 16px',
+            animation: 'ts-caption-in 0.5s ease 0.25s both',
           }}>
             ✨ הַתְּמוּנָה הוּשְׁלְמָה!
           </div>
@@ -180,7 +185,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
       <FailPips remaining={remaining} total={maxBadSwaps} label="החלפות" />
 
       {done === 'lose' && (
-        <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>{gaveUp ? 'זו התמונה השלמה' : '💥 נגמרו ההחלפות — זו התמונה השלמה'}</p>
+        <p className="text-sm mb-3" style={{ color: 'var(--color-wrong)' }}>{gaveUp ? 'זו התמונה השלמה' : '💥 נגמרו ההחלפות — זו התמונה השלמה'}</p>
       )}
 
       {/* dir="ltr" מפורש: לוגיקת האינדקסים (col = value % n, אינדקס 0 = שמאל) מניחה LTR.
@@ -196,7 +201,6 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           aspectRatio: '1 / 1',
           borderRadius: '0.6rem',
           overflow: 'hidden',
-          border: '1px solid rgba(0,246,255,0.3)',
         }}
       >
         {order.map((value, pos) => {
@@ -213,18 +217,20 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
                 aspectRatio: '1 / 1',
                 cursor: done ? 'default' : 'pointer',
                 padding: 0,
-                border: isSel ? '2px solid var(--holo-cyan)' : '1px solid rgba(0,246,255,0.15)',
+                /* בלי קו על האריח עצמו (הקווים הם הרווחים ברשת), כדי שחלון התמונה לא יזוז כשבוחרים.
+                   אריח נבחר: טבעת דיו ובתוכה טבעת לבנה (נראית על כל תמונה), והאריח מתכווץ מעט */
+                border: 'none',
                 outline: 'none',
                 transform: isSel ? 'scale(0.94)' : 'scale(1)',
                 transition: 'transform 0.15s, background-position 0.25s ease',
-                backgroundColor: 'rgba(0,40,70,0.6)',
+                /* בלי תמונה: אריח לחיץ ב-action (מה-style למעלה); אחרי הסיום כבר לא לחיץ, ולכן לבן */
+                backgroundColor: done ? 'var(--color-surface)' : undefined,
                 backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
                 backgroundSize: bg.size,
                 backgroundPosition: bg.position,
-                color: 'var(--holo-text)',
                 fontSize: '1.1rem',
                 fontWeight: 700,
-                boxShadow: isSel ? '0 0 14px rgba(0,246,255,0.7)' : 'none',
+                boxShadow: isSel ? 'inset 0 0 0px 3px var(--color-ink), inset 0 0 0px 6px var(--color-surface)' : 'none',
               }}
             >
               {/* fallback למספרים אם אין תמונת סצנה */}
@@ -237,8 +243,8 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
       <div className="flex justify-center gap-3 mt-4">
         {!done && (
           <button
-            className="text-sm cursor-pointer rounded-md px-3 py-1"
-            style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
+            className="holo-button holo-button--sm text-sm"
+            style={{ padding: 'calc(0.25rem - 1px) 0.75rem' }} /* אותו גובה כמו לפני ההמרה (הקו עבה ב-1px) */
             onClick={() => {
               tel?.act('gave_up')
               setGaveUp(true)

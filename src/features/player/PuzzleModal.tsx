@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Placement } from '../player/stageRouting'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import type { Puzzle } from './useGameEngine'
@@ -13,6 +13,8 @@ import FinalQuizChallenge from './challenges/FinalQuizChallenge'
 import MoralDilemmaChallenge from './challenges/MoralDilemmaChallenge'
 import { triggerErrorFlash } from './challenges/errorFlash'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
+import { MathText } from '../../shared/ui/MathText'
+import { panelCorrect, panelWrong } from '../../styles/ui'
 import { challengePoints, hasSecondTry } from '../../shared/lib/gemModel'
 import { bigEntrance, feelCorrect, revealEl, setMood } from './gameFeel/engine'
 import { pointsFromTelemetry } from './gameFeel/points'
@@ -61,6 +63,15 @@ interface Result {
   /* בחירה מרובה: הצליח/ה בניסיון השני */
   secondTry?: boolean
 }
+
+/* המילה שליד הסימן על תשובה שסומנה (נכון / לא נכון): תג קטן ונפרד, כדי שלא ייקרא כחלק מנוסח התשובה */
+const CHOICE_WORD: CSSProperties = {
+  display: 'inline-block', marginInlineStart: '.6em', padding: '0 .55em', borderRadius: 999, verticalAlign: 'middle',
+  background: 'var(--color-surface)', color: 'var(--color-ink)', border: '2px solid var(--color-ink)',
+  fontSize: '.78em', fontWeight: 800, lineHeight: 1.5, whiteSpace: 'nowrap',
+}
+/* כותרת המשוב: correct / wrong מוכהים מעט בדיו, כדי לעבור 4.5:1 גם על רקע המשוב העדין */
+const RESULT_HEAD = { good: 'var(--color-correct-text)', bad: 'var(--color-wrong-text)' } as const
 
 /* אתגרים שהפתרון שלהם מוצג בתוך האתגר עצמו: האתגר נשאר על המסך עד הלחיצה על "המשך" (כלל 11 של תחושת משחק) */
 const SOLUTION_IN_CHALLENGE = new Set(['tileSwap', 'slidingPuzzle', 'wordSearch', 'memory', 'matchPairs', 'wordCompletion', 'sequenceOrder', 'hangman'])
@@ -193,6 +204,8 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
   function renderResult(res: Result) {
     let header: string
     let body: string
+    /* ההסבר של שאלת בחירה חוזר על התשובה הנכונה: שבר בתוכו מוצג כמונה מעל מכנה, כמו על הכפתור (תצוגה בלבד) */
+    let echoesAnswer = false
     const good = res.points >= 0.5
 
     if (type === 'finalQuiz') {
@@ -208,6 +221,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     } else if (res.secondTry) {
       header = RETRY_TEXT.secondTryHeader
       body = puzzle.explanationCorrect ?? RETRY_TEXT.secondTryNote
+      echoesAnswer = true
     } else if (type === 'multipleChoice' || type === 'trueFalse' || type === 'wordCompletion' || !type) {
       header = good ? '✓ תשובה נכונה!' : '✗ לא בדיוק…'
       /* בכישלון מציגים את התשובה הנכונה: השלמת מילים → ה-answer; רב-ברירה → הבחירה הנכונה */
@@ -217,6 +231,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
         ? (puzzle.explanationCorrect ?? 'נכון מאוד!')
         : (puzzle.explanationIncorrect ??
           (correctText ? `התשובה הנכונה היא: ${correctText}` : 'נסו לזכור להבא!'))
+      echoesAnswer = true
     } else {
       /* אתגרים אינטראקטיביים (פאזל/חיפוש/זיכרון) */
       header = good ? '✓ כל הכבוד! פתרתם את האתגר' : '✗ האתגר לא הושלם'
@@ -231,23 +246,21 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
         data-puzzle-result={compact ? 'bar' : 'panel'}
         className={compact ? 'rounded-xl mt-3 text-start flex flex-wrap items-center gap-x-4 gap-y-2' : 'rounded-xl p-4 mt-4 text-start'}
         style={{
-          ...(good
-            ? { background: 'rgba(0,255,150,0.08)', border: '1px solid rgba(0,255,150,0.45)' }
-            : { background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.45)' }),
-          ...(compact ? { padding: '0.55rem 0.8rem', position: 'sticky', bottom: 0, zIndex: 3, backgroundColor: good ? '#0a2a2a' : '#2a2412' } : {}),
+          ...(good ? panelCorrect : panelWrong),
+          ...(compact ? { padding: '0.55rem 0.8rem', position: 'sticky', bottom: 0, zIndex: 3 } : {}),
         }}
       >
         <div style={compact ? { flex: '1 1 7rem', minWidth: 0 } : undefined}>
-          <div className={compact ? 'font-bold' : 'font-bold mb-2'} style={{ color: good ? '#5fffb0' : '#ffce5e' }}>{header}</div>
+          <div className={compact ? 'font-bold' : 'font-bold mb-2'} style={{ color: good ? RESULT_HEAD.good : RESULT_HEAD.bad }}>{header}</div>
           {/* בפס: רק הסבר שנכתב לאתגר הזה. ההודעה הכללית לוקחת מקום מהפתרון */}
-          {(!compact || type === 'wordCompletion') && <p className={compact ? 'text-sm' : 'leading-relaxed'} style={{ color: 'var(--holo-text)', margin: 0 }}>{body}</p>}
+          {(!compact || type === 'wordCompletion') && <p className={compact ? 'text-sm' : 'leading-relaxed'} style={{ color: 'var(--color-ink)', margin: 0 }}>{echoesAnswer ? <MathText text={body} /> : body}</p>}
         </div>
         <div className={compact ? 'text-center' : 'text-center mt-4'} style={compact ? { marginInline: 'auto' } : undefined}>
           {onCollect ? (
             /* האתגר הסתיים עם מפתח לאיסוף — כפתור איסוף ישיר במקום "המשך" (פחות לחיצות) */
             <button
               className="holo-button text-lg"
-              style={{ padding: compact ? '0.5rem 1.4rem' : '0.7rem 2rem', background: 'linear-gradient(135deg, #6633cc, #0062cc)' }}
+              style={{ padding: compact ? '0.5rem 1.4rem' : '0.7rem 2rem' }}
               onClick={onCollect}
             >
               {collectLabel ?? 'אספו את המפתח 🔑'}
@@ -273,21 +286,15 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
           return (
             <button
               key={c.id}
-              className="holo-button"
+              className={`holo-button${isRight ? ' is-correct' : isWrongPick ? ' is-wrong' : ''}`}
               disabled={done || c.id === wrongChoiceId}
               data-choice-state={isRight ? 'correct' : isWrongPick ? 'wrong' : undefined}
               aria-label={isRight ? `${c.text} (התשובה הנכונה)` : isWrongPick ? `${c.text} (לא נכון)` : undefined}
-              style={{
-                padding: '0.8rem',
-                ...(isRight
-                  ? { background: 'rgba(95,224,174,.16)', border: '1.5px solid #5FE0AE', boxShadow: 'none', color: 'var(--holo-text)', opacity: 1 }
-                  : isWrongPick
-                    ? { background: 'rgba(242,166,90,.09)', border: '1.5px solid #F2A65A', boxShadow: 'none', color: 'var(--holo-text)', opacity: 0.75 }
-                    : done ? { opacity: 0.55, boxShadow: 'none' } : {}),
-              }}
+              style={{ padding: '0.8rem' }}
               onClick={(e) => pickChoice(c, pos, e.currentTarget)}
             >
-              {isRight ? '✓ ' : isWrongPick ? '✗ ' : ''}{c.text}
+              {isRight ? '✓ ' : isWrongPick ? '✗ ' : ''}<MathText text={c.text} />
+              {(isRight || isWrongPick) && <span data-choice-word style={CHOICE_WORD}>{isRight ? 'תשובה נכונה' : 'תשובה שגויה'}</span>}
             </button>
           )
         })}
@@ -323,7 +330,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
               <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
               {choiceButtons()}
               {wrongChoiceId && (
-                <p ref={revealEl} className="text-start mt-3 leading-relaxed" data-retry-hint style={{ color: '#ffce5e' }}>
+                <p ref={revealEl} className="text-start mt-3 leading-relaxed" data-retry-hint style={{ color: 'var(--color-human-deep)' }}>
                   {puzzle.retryHint ?? retryHint(puzzle.explanationIncorrect, correctChoiceText)} {RETRY_TEXT.tryAgain}
                 </p>
               )}
@@ -334,7 +341,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
         return (
           <>
             <h3 className="text-xl font-bold mt-4">{puzzle.question}</h3>
-            <p className="mt-3" style={{ opacity: 0.6 }}>לא ניתן להציג אתגר זה.</p>
+            <p className="mt-3" style={{ color: 'var(--color-muted)' }}>לא ניתן להציג אתגר זה.</p>
             <button className="holo-button mt-4" onClick={() => handleResult({ correct: true })}>המשך ←</button>
           </>
         )
@@ -353,13 +360,13 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
       data-final-challenge={isFinalChallenge ? 'true' : undefined}
       data-solution-view={result && keepsChallenge ? 'true' : undefined}
       style={{
-        maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), boxShadow: 'var(--holo-glow)', maxHeight: `calc(100dvh - var(--puzzle-vgutter, ${placement === 'stage' ? '6.4rem' : '12rem'}))`, overflowY: 'auto',
-        ...(isFinalChallenge ? { borderColor: '#F3B76A', boxShadow: '0 0 22px rgba(243,183,106,.35)' } : {}),
+        maxWidth: placement === 'stage' ? 'none' : maxWidthFor(type), maxHeight: `calc(100dvh - var(--puzzle-vgutter, ${placement === 'stage' ? '6.4rem' : '12rem'}))`, overflowY: 'auto',
+        ...(isFinalChallenge ? { borderColor: 'var(--color-human)' } : {}),
       }}
     >
         <span data-solution-hide className="text-xs rounded-full px-3 py-1" style={isFinalChallenge
-          ? { background: 'rgba(243,183,106,.16)', border: '1px solid #F3B76A', color: '#F3B76A', fontWeight: 700 }
-          : { background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>
+          ? { background: 'var(--color-human-tint)', border: '1.5px solid var(--color-human-deep)', color: 'var(--color-human-deep)', fontWeight: 700 }
+          : { background: 'var(--color-machine-tint)', border: '1.5px solid var(--color-ink)', color: 'var(--color-ink)' }}>
           {isFinalChallenge ? `${HUD_TEXT.bigChallenge} · ` : (type === 'finalQuiz' ? '📝 ' : '🧩 ')}{puzzleTypeLabel(type)}
         </span>
 
@@ -385,8 +392,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
             {/* יציאה זמינה רק לפני מתן תשובה, ובאתגרים שאינם רצף שאלות */}
             {!result && type !== 'finalQuiz' && (
               <button
-                className="text-sm mt-4 cursor-pointer block mx-auto"
-                style={{ background: 'none', border: 'none', color: 'var(--holo-text)', opacity: 0.5 }}
+                className="holo-link text-sm mt-4 cursor-pointer block mx-auto"
                 onClick={handleClose}
               >
                 סגירה

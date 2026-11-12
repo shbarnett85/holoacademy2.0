@@ -13,8 +13,8 @@ interface Props {
 }
 
 /* ── שאלת מוסר (moralDilemma) ── דילמה ערכית ללא תשובה נכונה.
-   שתי פאזות: בחירה → השלכה. כל בחירה מתקבלת ומזכה בקריסטלים. עיצוב "דילמה"
-   (סגול/ענבר) שונה ויזואלית מחידת ידע ("מבחן" כחול-ציאן). */
+   שתי פאזות: בחירה → השלכה. כל בחירה מתקבלת ומזכה בקריסטלים. הדילמה וההשלכה מוצגות על
+   משטח machine-tint עם כותרת ב-machine-deep, וכך נבדלות מחידת ידע. האפשרויות הן כפתורים רגילים. */
 export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, tel }: Props) {
   const situation = puzzle.situation ?? puzzle.question
   const choices = puzzle.moralChoices ?? []
@@ -27,7 +27,6 @@ export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, t
     onResolve() /* רסיסי הקריסטל מוענקים מיד — כל בחירה מתקבלת */
   }
 
-  const DILEMMA = 'var(--holo-magenta, #c861ff)'
 
   return (
     <div className="mt-2 text-start">
@@ -39,10 +38,10 @@ export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, t
       {/* כותרת הדילמה */}
       <div
         className="rounded-xl p-4 mb-4"
-        style={{ background: 'rgba(150,60,220,0.10)', border: `1px solid ${DILEMMA}55`, boxShadow: `0 0 22px ${DILEMMA}22` }}
+        style={{ background: 'var(--color-machine-tint)', border: '1px solid var(--color-line-strong)' }}
       >
-        <div className="text-xs font-bold mb-2" style={{ color: DILEMMA, letterSpacing: '0.05em' }}>⚖️ דילמה — אין תשובה נכונה</div>
-        <p className="leading-relaxed" style={{ color: 'var(--holo-text)' }}>{situation}</p>
+        <div className="text-xs font-bold mb-2" style={{ color: 'var(--color-machine-deep)', letterSpacing: '0.05em' }}>⚖️ דילמה — אין תשובה נכונה</div>
+        <p className="leading-relaxed" style={{ color: 'var(--color-ink)' }}>{situation}</p>
       </div>
 
       {chosen === null ? (
@@ -52,18 +51,8 @@ export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, t
             <button
               key={i}
               onClick={() => choose(i)}
-              className="text-start"
-              style={{
-                padding: '0.85rem 1.1rem',
-                borderRadius: '0.7rem',
-                background: 'rgba(150,60,220,0.08)',
-                border: `1px solid ${DILEMMA}44`,
-                color: 'var(--holo-text)',
-                cursor: 'pointer',
-                transition: 'background 0.15s, border 0.15s, transform 0.1s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(150,60,220,0.2)'; e.currentTarget.style.borderColor = DILEMMA }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(150,60,220,0.08)'; e.currentTarget.style.borderColor = `${DILEMMA}44` }}
+              className="holo-button text-start"
+              style={{ padding: '0.85rem 1.1rem' }}
             >
               {c.text}
             </button>
@@ -74,11 +63,11 @@ export default function MoralDilemmaChallenge({ puzzle, onResolve, onContinue, t
         <div className="md-in">
           <div
             className="rounded-xl p-4"
-            style={{ background: 'rgba(150,60,220,0.12)', border: `1px solid ${DILEMMA}66` }}
+            style={{ background: 'var(--color-machine-tint)', border: '1px solid var(--color-line-strong)' }}
           >
-            <div className="text-sm mb-2" style={{ opacity: 0.7 }}>בחרתם: <b style={{ color: DILEMMA }}>{choices[chosen]?.text}</b></div>
-            <div className="font-bold mb-1" style={{ color: DILEMMA }}>מה שקרה בעקבות הבחירה:</div>
-            <p className="leading-relaxed" style={{ color: 'var(--holo-text)' }}>{choices[chosen]?.consequence}</p>
+            <div className="text-sm mb-2" style={{ color: 'var(--color-muted)' }}>בחרתם: <b style={{ color: 'var(--color-ink)' }}>{choices[chosen]?.text}</b></div>
+            <div className="font-bold mb-1" style={{ color: 'var(--color-machine-deep)' }}>מה שקרה בעקבות הבחירה:</div>
+            <p className="leading-relaxed" style={{ color: 'var(--color-ink)' }}>{choices[chosen]?.consequence}</p>
           </div>
           <div className="text-center mt-4">
             <button className="holo-button text-lg" style={{ padding: '0.7rem 2.5rem' }} onClick={onContinue}>

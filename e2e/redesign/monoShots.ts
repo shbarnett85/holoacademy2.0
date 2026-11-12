@@ -52,14 +52,6 @@ async function probe(name: string, url: string, wait: string) {
   return els
 }
 
-async function crop(name: string, sel: string, pad = 14) {
-  const el = page.locator(sel).first()
-  if (!(await el.count())) { console.log('missing', name); return }
-  await el.scrollIntoViewIfNeeded().catch(() => {})
-  const b = await el.boundingBox(); if (!b) return
-  await page.screenshot({ path: path.join(out, `${name}.png`), clip: { x: Math.max(0, b.x - pad), y: Math.max(0, b.y - pad), width: Math.min(1366, b.width + pad * 2), height: b.height + pad * 2 } })
-}
-
 await probe('creator', '/creator', 'text=שיעור חדש')
 await probe('students', '/manage/students', 'table, [role=table], text=קוד')
 await probe('manage', '/manage', 'text=כיתות')

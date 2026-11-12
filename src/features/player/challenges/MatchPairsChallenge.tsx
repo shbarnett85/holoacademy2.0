@@ -6,6 +6,7 @@ import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 import { alignPair, shuffledPairOrder } from './matchPairs'
+import { MathText } from '../../../shared/ui/MathText'
 
 interface Props {
   puzzle: Puzzle
@@ -103,15 +104,13 @@ export default function MatchPairsChallenge({ puzzle, onResult, tel }: Props) {
         onClick={() => pick(side, pair)}
         className={`mp-cell ${isWrong ? 'mp-wrong' : ''}`}
         style={{
-          background: isMatched ? 'rgba(0,255,150,0.12)' : isPicked ? 'rgba(0,136,255,0.34)' : 'rgba(5,10,25,0.62)',
-          border: `1px solid ${isMatched ? 'rgba(0,255,150,0.5)' : isPicked ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.22)'}`,
-          boxShadow: isPicked ? '0 0 12px rgba(0,246,255,0.45)' : 'none',
           cursor: isMatched || over ? 'default' : 'pointer',
           fontWeight: side === 'a' ? 700 : 500,
         }}
       >
-        {side === 'a' && isMatched && <span aria-hidden style={{ color: '#7dffc4', marginInlineEnd: 6 }}>✓</span>}
-        {text}
+        {/* זוג שנמצא: הסימן ✓ בשני הצדדים, לא צבע לבד */}
+        {isMatched && <span aria-hidden style={{ marginInlineEnd: 6 }}>✓</span>}
+        <MathText text={text} />
       </button>
     )
   }
@@ -120,7 +119,15 @@ export default function MatchPairsChallenge({ puzzle, onResult, tel }: Props) {
     <div style={{ width: 'min(470px, 52vw)', maxWidth: '100%', marginInline: 'auto' }}>
       <style>{`
         .mp-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 3fr); grid-auto-rows: minmax(40px, auto); gap: 4px 10px; }
-        .mp-cell { min-height: 40px; padding: 4px 10px; border-radius: .6rem; color: var(--holo-text); font-size: 15px; line-height: 1.25; text-align: start; transition: background .15s, border-color .15s; }
+        /* תא לחיץ: המתכון של כפתור (action, קו דיו, צל קשיח), בגרסה הקטנה כי השורות צפופות.
+           קו המתאר עבה ב-1px מבעבר, ולכן הריפוד קטן ב-1px: גודל התא והשטח לטקסט לא השתנו */
+        .mp-cell { min-height: 40px; padding: 3px 9px; border-radius: .6rem; font-size: 15px; line-height: 1.25; text-align: start;
+          background: var(--color-action); color: var(--color-ink); border: 2px solid var(--color-ink); box-shadow: 2px 2px 0 var(--color-ink);
+          transition: transform .08s ease, box-shadow .08s ease, background-color .08s ease; }
+        .mp-cell:active:not(:disabled) { background: var(--color-action-pressed); box-shadow: none; transform: translate(2px, 2px); }
+        .mp-cell[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); }
+        .mp-cell[data-pair-state="matched"] { background: var(--color-correct); color: var(--color-surface); box-shadow: none; }
+        .mp-cell:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; }
         @keyframes mp-nudge { 0%,100% { transform: translateX(0) } 30% { transform: translateX(-4px) } 70% { transform: translateX(4px) } }
         .mp-wrong { animation: mp-nudge .34s ease; }
         @media (prefers-reduced-motion: reduce) { .mp-wrong { animation: none; } }
@@ -128,7 +135,7 @@ export default function MatchPairsChallenge({ puzzle, onResult, tel }: Props) {
       <p data-challenge-q className="text-sm mb-2" style={{ opacity: 0.75 }}>{puzzle.question}</p>
       <FailPips remaining={mistakeBudget - mistakes} total={mistakeBudget} label="טעויות" />
       {over === 'lose' && (
-        <p className="text-sm text-center" style={{ color: '#ff9bb3', margin: '0 0 6px' }}>
+        <p className="text-sm text-center" style={{ color: 'var(--color-wrong)', margin: '0 0 6px' }}>
           {gaveUp ? 'אלו הזוגות הנכונים' : 'נגמרו הטעויות — אלו הזוגות הנכונים'}
         </p>
       )}
@@ -139,8 +146,8 @@ export default function MatchPairsChallenge({ puzzle, onResult, tel }: Props) {
       {!over && (
         <div className="flex justify-center mt-2">
           <button
-            className="text-sm cursor-pointer rounded-md px-3 py-1"
-            style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
+            className="holo-button holo-button--sm text-sm"
+            style={{ padding: 'calc(0.25rem - 1px) 0.75rem' }} /* אותו גובה כמו לפני ההמרה (הקו עבה ב-1px) */
             onClick={() => {
               tel?.act('gave_up')
               setGaveUp(true)

@@ -73,6 +73,9 @@
   --color-scrim: color-mix(in srgb, var(--color-ink) 55%, transparent);       /* מסך כהה מאחורי חלון */
   --color-correct-tint: color-mix(in srgb, var(--color-correct) 12%, var(--color-surface));
   --color-wrong-tint: color-mix(in srgb, var(--color-wrong) 10%, var(--color-surface));
+  /* נכון / שגוי כטקסט על רקע המשוב העדין (הטוקן הרגיל נותן שם פחות מ-4.5:1) */
+  --color-correct-text: color-mix(in srgb, var(--color-correct) 80%, var(--color-ink));
+  --color-wrong-text: color-mix(in srgb, var(--color-wrong) 80%, var(--color-ink));
   --color-disabled: color-mix(in srgb, var(--color-ink) 12%, var(--color-surface)); /* כפתור מנוטרל */
 
   /* ── קו וצל ── */

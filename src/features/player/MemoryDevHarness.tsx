@@ -37,11 +37,11 @@ export default function MemoryDevHarness() {
   } as unknown as Puzzle
 
   return (
-    <div dir="rtl" style={{ minHeight: '100dvh', background: 'var(--holo-bg-deep, #050a14)', color: 'var(--holo-text, #d5f6ff)', padding: 12, fontFamily: 'var(--font-display)' }}>
+    <div dir="rtl" style={{ minHeight: '100dvh', background: 'var(--color-machine-bg)', color: 'var(--color-ink)', padding: 12, fontFamily: 'var(--font-display)' }}>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 4 }}>
         {PRESETS.map((p) => (
-          <button key={p.key} onClick={() => { setPreset(p); setRunId((i) => i + 1) }}
-            style={{ padding: '5px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, background: p.key === preset.key ? 'rgba(0,213,255,.25)' : 'rgba(255,255,255,.06)', border: '1px solid rgba(0,213,255,.4)', color: 'inherit' }}>
+          <button key={p.key} className={`holo-button holo-button--sm${p.key === preset.key ? ' is-selected' : ''}`} onClick={() => { setPreset(p); setRunId((i) => i + 1) }}
+            style={{ padding: '5px 12px', fontSize: 12 }}>
             {p.label}
           </button>
         ))}

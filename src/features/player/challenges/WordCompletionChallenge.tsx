@@ -5,6 +5,8 @@ import { scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
+import { MathText } from '../../../shared/ui/MathText'
+import { fieldStyle } from '../../../styles/ui'
 
 interface Props {
   puzzle: Puzzle
@@ -115,36 +117,41 @@ export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props
       <FailPips remaining={remaining} total={maxAttempts} label="ניסיונות" />
 
       {failed && (
-        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>💥 נגמרו הניסיונות — אלו התשובות הנכונות</p>
+        <p className="text-sm text-center mb-2" style={{ color: 'var(--color-wrong)' }}>💥 נגמרו הניסיונות — אלו התשובות הנכונות</p>
       )}
       {wrong > 0 && !locked && (
-        <p className="text-sm text-center mb-2" style={{ color: '#ff9bb3' }}>✗ לא נכון — נסו מילה אחרת</p>
+        <p className="text-sm text-center mb-2" style={{ color: 'var(--color-wrong)' }}>✗ לא נכון — נסו מילה אחרת</p>
       )}
 
       {/* המשפט עם החללים — החלל הפעיל מודגש; חללים מלאים נעולים (נכונים תמיד) */}
-      <div key={shake} className={`holo-panel text-lg leading-loose ${wrong > 0 && !locked ? 'wc-shake' : ''}`} style={{ padding: '1rem', background: 'rgba(0,136,255,0.06)' }}>
-        {parts.map((seg, i) => (
-          <span key={i}>
-            {seg}
-            {i < blankCount && (
-              <span
-                style={{
-                  display: 'inline-block',
-                  minWidth: '5rem',
-                  margin: '0 0.3rem',
-                  padding: '0 0.5rem',
-                  borderBottom: `2px solid ${failed ? 'rgba(0,255,150,0.6)' : i === activeIdx ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.4)'}`,
-                  color: failed ? '#7dffc4' : values[i] ? '#7dffc4' : 'var(--holo-cyan)',
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  background: i === activeIdx && !locked ? 'rgba(0,246,255,0.08)' : 'transparent',
-                }}
-              >
-                {values[i] || ' '}
-              </span>
-            )}
-          </span>
-        ))}
+      {/* משטח בתוך משטח: בלי צל, קו דק. הרקע לבן, כדי שמילה ב-correct תהיה קריאה (AA) */}
+      <div key={shake} className={`holo-panel text-lg leading-loose ${wrong > 0 && !locked ? 'wc-shake' : ''}`} style={{ padding: '1rem', boxShadow: 'none', border: '1px solid var(--color-line-strong)' }}>
+        {parts.map((seg, i) => {
+          /* מילה שאושרה כנכונה (מהבנק, אחרי בדיקה מוצלחת, או תשובה שנחשפה): correct עם ✓. מילה שעדיין מוקלדת: בדיו */
+          const confirmed = failed || (!!values[i] && (bankMode || locked))
+          return (
+            <span key={i}>
+              {seg}
+              {i < blankCount && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    minWidth: '5rem',
+                    margin: '0 0.3rem',
+                    padding: '0 0.5rem',
+                    borderBottom: `2px solid ${confirmed ? 'var(--color-correct)' : i === activeIdx ? 'var(--color-ink)' : 'var(--color-line-strong)'}`,
+                    color: confirmed ? 'var(--color-correct)' : 'var(--color-ink)',
+                    fontWeight: 700,
+                    textAlign: 'center',
+                    background: i === activeIdx && !locked ? 'var(--color-ink-wash)' : 'transparent',
+                  }}
+                >
+                  {confirmed ? '✓ ' : ''}{values[i] ? <MathText text={values[i]} /> : ' '}
+                </span>
+              )}
+            </span>
+          )
+        })}
       </div>
 
       {/* בנק מילים (לחיצה = ניסיון), או הקלדה חופשית לכל חלל */}
@@ -155,16 +162,12 @@ export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props
             return (
               <button
                 key={i}
-                className="holo-button"
-                style={{
-                  padding: '0.5rem 1rem',
-                  opacity: locked || used ? 0.35 : 1,
-                  ...(used ? { borderColor: 'rgba(0,255,150,0.5)', color: '#7dffc4' } : {}),
-                }}
+                className={used ? 'holo-button is-correct' : 'holo-button'}
+                style={{ padding: '0.5rem 1rem' }}
                 disabled={locked || used}
                 onClick={() => attemptFromBank(w, i)}
               >
-                {used ? `✓ ${w}` : w}
+                {used ? '✓ ' : ''}<MathText text={w} />
               </button>
             )
           })}
@@ -181,14 +184,14 @@ export default function WordCompletionChallenge({ puzzle, onResult, tel }: Props
                 disabled={locked}
                 placeholder={blankCount > 1 ? `חלל ${i + 1}` : 'המילה החסרה…'}
                 className="rounded-lg p-2 text-center"
-                style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,246,255,0.3)', color: 'var(--holo-text)', minWidth: '9rem' }}
+                style={{ ...fieldStyle, minWidth: '9rem' }}
               />
             ))}
           </div>
           <div className="flex justify-center mt-4">
             <button
               className="holo-button"
-              style={{ padding: '0.5rem 1.6rem', opacity: locked || !allFilled ? 0.5 : 1 }}
+              style={{ padding: '0.5rem 1.6rem' }}
               disabled={locked || !allFilled}
               onClick={submitTyped}
             >

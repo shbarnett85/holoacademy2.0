@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PinScreen from './PinScreen'
 import EntryShell from '../../shared/ui/EntryShell'
+import { panelStudent } from '../../styles/ui'
+
+/* שוליים סביב החלון: מקום לצל הקשיח (6px ימינה ולמטה) בתוך המסגרת הגוללת של EntryShell */
+const PANEL_MARGIN = '2px 8px 8px 2px'
 
 interface Student {
   id: string
@@ -47,11 +51,11 @@ export default function ClassEntry() {
   if (error) {
     return (
       <EntryShell onClose={() => navigate('/')}>
-        <div style={{ background: 'linear-gradient(135deg,rgba(10,22,46,.95),rgba(4,9,20,.98))', border: '1px solid rgba(255,80,120,.4)', borderRadius: 22, padding: '40px 44px', width: 360, textAlign: 'center', boxShadow: '0 0 80px rgba(255,80,120,.12)' }}>
+        <div style={{ ...panelStudent, borderRadius: 20, margin: PANEL_MARGIN, padding: '40px 44px', width: 360, textAlign: 'center' }}>
           <div style={{ fontSize: '3rem' }}>🛸</div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, marginTop: 8, color: '#ff7099' }}>אופס!</h2>
-          <p style={{ marginTop: 10, color: 'rgba(180,220,255,.7)' }}>{error}</p>
-          <p style={{ marginTop: 6, fontSize: 13, color: 'rgba(160,200,240,.4)' }}>בדקו את הקישור שקיבלתם מהמורה</p>
+          <h2 style={{ fontSize: 22, fontWeight: 800, marginTop: 8, color: 'var(--color-wrong)' }}>אופס!</h2>
+          <p style={{ marginTop: 10, color: 'var(--color-ink)' }}>{error}</p>
+          <p style={{ marginTop: 6, fontSize: 13, color: 'var(--color-muted)' }}>בדקו את הקישור שקיבלתם מהמורה</p>
         </div>
       </EntryShell>
     )
@@ -60,7 +64,7 @@ export default function ClassEntry() {
   if (!info) {
     return (
       <EntryShell onClose={() => navigate('/')}>
-        <span className="holo-text-glow" style={{ fontSize: '1.25rem' }}>טוען…</span>
+        <div style={{ ...panelStudent, margin: PANEL_MARGIN, padding: '18px 28px' }}><span className="holo-text-glow" style={{ fontSize: '1.25rem' }}>טוען…</span></div>
       </EntryShell>
     )
   }
@@ -82,27 +86,25 @@ export default function ClassEntry() {
     <EntryShell onClose={() => navigate('/')}>
       <div
         style={{
-          background: 'linear-gradient(135deg,rgba(10,22,46,.97),rgba(4,9,20,.99))',
-          border: '1px solid rgba(47,243,255,.22)', borderRadius: 22, padding: '32px 36px',
+          ...panelStudent, borderRadius: 20, margin: PANEL_MARGIN, padding: '32px 36px',
           width: 380, maxHeight: '78vh', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 0 80px rgba(47,243,255,.12), 0 20px 60px rgba(0,0,0,.6)',
         }}
       >
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'rgba(47,243,255,.6)', marginBottom: 10 }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--color-muted)', marginBottom: 10 }}>
           ◇ {info.school.name} · כיתה {info.class.name}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 4 }}>מי אתם?</div>
-        <div style={{ fontSize: 13, color: 'rgba(160,200,240,.5)', marginBottom: 20 }}>בחרו את השם שלכם</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 4 }}>מי אתם?</div>
+        <div style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20 }}>בחרו את השם שלכם</div>
 
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {info.students.length === 0 && <p style={{ color: 'rgba(160,200,240,.5)' }}>אין תלמידים בכיתה זו.</p>}
+        {/* ריפוד 6px (עם שוליים שליליים, כך שהרוחב לא משתנה): מקום לצל הכפתורים ולטבעת הפוקוס בתוך האזור הגולל */}
+        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: 6, margin: -6 }}>
+          {info.students.length === 0 && <p style={{ color: 'var(--color-muted)' }}>אין תלמידים בכיתה זו.</p>}
           {info.students.map((s) => (
             <button
               key={s.id}
               onClick={() => setSelected(s)}
-              style={{ width: '100%', padding: '12px 16px', borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, color: '#ddeeff', background: 'rgba(4,9,18,.6)', border: '1px solid rgba(47,243,255,.15)', textAlign: 'right', transition: 'all .15s' }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(47,243,255,.12)'; e.currentTarget.style.borderColor = 'rgba(47,243,255,.5)'; e.currentTarget.style.color = '#fff' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(4,9,18,.6)'; e.currentTarget.style.borderColor = 'rgba(47,243,255,.15)'; e.currentTarget.style.color = '#ddeeff' }}
+              className="holo-button"
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, textAlign: 'right' }}
             >
               🧑‍🚀 {s.name}
             </button>
@@ -111,7 +113,8 @@ export default function ClassEntry() {
 
         <button
           onClick={() => navigate('/')}
-          style={{ marginTop: 18, fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'rgba(150,190,220,.5)', padding: '9px', borderRadius: 10, cursor: 'pointer', background: 'transparent', border: '1px solid rgba(120,180,220,.15)' }}
+          className="holo-link"
+          style={{ marginTop: 18, fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '9px' }}
         >
           חזרה
         </button>

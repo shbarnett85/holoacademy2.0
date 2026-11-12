@@ -4,12 +4,12 @@
    · תמונת השיעור (הממוזערת, lazy) במסגרת הכרטיס בצבע המקצוע; מעליה תגית המקצוע (שם המקצוע על הצבע) ותגית השכבות.
    · שיעור "לא סווג": מסגרת אפורה ותגית "לא סווג". שיעור בלי תמונה: משטח בצבע המקצוע ועליו שם המקצוע.
    · כותרת השיעור מתחת לתמונה; מתחתיה `body` (שבבי מידע) ו-`actions` — אצל התלמיד הכפתור "שחקו", אצל המורה פעולות המורה.
-   · mode: 'dark' = מסכי תלמיד (תמיד כהים); 'auto' = ערכת המורה הפעילה (טוקני הערכה var(--tN) למשטחים, כמו שאר מסכי המורה).
+   · mode: 'dark' = מסכי תלמיד (קו עבה וצל גדול); 'auto' = מסכי המורה (קו וצל שקטים יותר). הצבעים זהים: משטח לבן, מסגרת בדיו.
+   · צבע המקצוע: פס מתחת לתמונה ותגית עם שם המקצוע. "לא סווג": מסגרת מקווקוות ותגית "לא סווג".
    ────────────────────────────────────────────────────────────────────────── */
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { gradeLayersLabel } from '../lib/lessonGrade'
 import { subjectVisual, type SubjectVisualMode } from '../lib/subjects'
-import { useTheme } from '../lib/useTheme'
 import LessonThumb from './LessonThumb'
 import SubjectTag from './SubjectTag'
 
@@ -36,17 +36,12 @@ export interface LessonCardProps {
   style?: CSSProperties
 }
 
-/* משטחי הכרטיס לפי מצב. מורה: טוקני הערכה (מראות את teacherUi/tokens — אין import מ-features/ מתוך shared/) */
-const PALETTE = {
-  dark: { surface: '#0b1220', text: '#ffffff', soft: '#cfe1f2', border: 'rgba(255,255,255,.28)' },
-  light: { surface: 'var(--t25)', text: 'var(--t68)', soft: 'var(--t12)', border: 'var(--t22)' },
-} as const
-
 export default function LessonCard({ title, subjectCode, thumbUrl, gradeMin, gradeMax, mode = 'auto', badges, body, actions, onClick, glow, ariaLabel, imageAspect = '16 / 10', style }: LessonCardProps) {
-  const lightTheme = useTheme()
-  const resolved: SubjectVisualMode = mode === 'auto' ? (lightTheme ? 'light' : 'dark') : mode
-  const pal = mode === 'dark' ? PALETTE.dark : PALETTE.light
-  const v = subjectVisual(subjectCode, resolved)
+  /* mode="dark" = מסכי התלמיד (קו 3px וצל 6px); אחרת מסכי המורה (קו 2px וצל 3px). הצבעים זהים בשניהם */
+  const student = mode === 'dark'
+  const resolved: SubjectVisualMode = student ? 'dark' : 'light'
+  const v = subjectVisual(subjectCode)
+  const lineWidth = student ? 3 : 2
   const grades = gradeLayersLabel(gradeMin, gradeMax)
   const clickable = !!onClick
   const onKey = (e: KeyboardEvent<HTMLElement>): void => {
@@ -59,10 +54,12 @@ export default function LessonCard({ title, subjectCode, thumbUrl, gradeMin, gra
       role={clickable ? 'link' : undefined} tabIndex={clickable ? 0 : undefined} onClick={onClick} onKeyDown={onKey}
       style={{
         display: 'flex', flexDirection: 'column', flex: '1 1 auto', boxSizing: 'border-box', minWidth: 0, overflow: 'hidden',
-        borderRadius: 16, border: `3px solid ${v.color}`, background: pal.surface, color: pal.text,
-        cursor: clickable ? 'pointer' : 'default', transition: 'box-shadow .2s, transform .16s',
-        boxShadow: glow ? `0 0 28px color-mix(in srgb, ${v.color} 35%, transparent), 0 6px 22px rgba(0,0,0,.35)` : '0 2px 10px rgba(0,0,0,.18)',
-        transform: glow && clickable ? 'translateY(-2px)' : 'none',
+        borderRadius: student ? 16 : 12, background: 'var(--color-surface)', color: 'var(--color-ink)',
+        /* מסגרת בדיו; "לא סווג" מובחן במסגרת מקווקוות (ובתגית) */
+        border: `${lineWidth}px ${v.code === 'unclassified' ? 'dashed' : 'solid'} var(--color-ink)`,
+        boxShadow: student ? 'var(--shadow-student)' : 'var(--shadow-staff)',
+        cursor: clickable ? 'pointer' : 'default', transition: 'transform .16s',
+        transform: glow && clickable ? 'translate(-2px, -2px)' : 'none',
         /* עשרות כרטיסים: לא מציירים את מה שמחוץ למסך (הגובה המשוער שומר על פס הגלילה יציב) */
         contentVisibility: 'auto', containIntrinsicSize: 'auto 340px',
         ...style,
@@ -77,7 +74,7 @@ export default function LessonCard({ title, subjectCode, thumbUrl, gradeMin, gra
                   <span data-grade-tag style={{
                     display: 'inline-flex', alignItems: 'center', padding: '3px 12px', borderRadius: 999, boxSizing: 'border-box',
                     fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700, lineHeight: 1.35, whiteSpace: 'nowrap',
-                    background: pal.surface, color: pal.text, border: `2px solid ${pal.border}`,
+                    background: 'var(--color-surface)', color: 'var(--color-ink)', border: '2px solid var(--color-ink)',
                   }}>{grades}</span>
                 )}
               </div>
@@ -86,9 +83,11 @@ export default function LessonCard({ title, subjectCode, thumbUrl, gradeMin, gra
           )}
         </LessonThumb>
       </div>
+      {/* פס בצבע המקצוע: הצבע לעולם לא לבד, שם המקצוע כתוב בתגית שמעל התמונה */}
+      <div data-subject-stripe aria-hidden="true" style={{ flex: '0 0 auto', height: 10, background: v.color, borderBlock: `${lineWidth}px solid var(--color-ink)` }} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px 12px', flex: 1, minHeight: 0 }}>
         <h3 data-lesson-title style={{
-          margin: 0, fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 800, lineHeight: 1.35, color: pal.text,
+          margin: 0, fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 800, lineHeight: 1.35, color: 'var(--color-ink)',
           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere',
         }} title={title}>{title}</h3>
         {body}

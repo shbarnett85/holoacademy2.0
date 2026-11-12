@@ -3,9 +3,9 @@ import Home from '../../features/home'
 
 /* ── קליפת מסכי הכניסה ────────────────────────────────────────────────────────
    כל חלונות הכניסה (מי את/ה?, PIN, מורים ומנהלים, הרשמה, ברוכים הבאים) מוצגים
-   כשכבה מעל הדף הראשי המטושטש — בדיוק כמו חלון "קוד כיתה": הדף הראשי מרונדר
+   כשכבה מעל הדף הראשי — בדיוק כמו חלון "קוד כיתה": הדף הראשי מרונדר
    חי מתחת (מוקפא לאינטראקציה: inert + aria-hidden + pointer-events), ומעליו
-   אותה שכבת הכהיה/טשטוש (rgba(4,6,14,.75) + blur 8px — הערכים של קוד-כיתה).
+   שכבת הכהיה שטוחה (--color-scrim, בלי טשטוש).
    כך המעבר בין שלבי הזרימה מחליף רק את תוכן החלון — הרקע יציב ולא מהבהב
    (ה-showcase של הדף נשמר ב-cache מודול, אז רינדור-מחדש בין routes זהה פיקסלית).
    התנהגות אחידה: Escape וקליק מחוץ לחלון סוגרים (כשמוגדר onClose), פוקוס
@@ -44,11 +44,12 @@ export default function EntryShell({ children, onClose }: { children: ReactNode;
       <div aria-hidden ref={(el) => { el?.setAttribute('inert', '') }} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 /* stacking context — כולא את ה-z-index הפנימיים של הבית מתחת לשכבה */ }}>
         <Home />
       </div>
-      {/* שכבת ההכהיה/טשטוש — אותם ערכים כמו חלון קוד-כיתה */}
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'rgba(4,6,14,.75)', backdropFilter: 'blur(8px)' }} />
+      {/* שכבת ההכהיה: שטוחה, מטוקן */}
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'var(--color-scrim)' }} />
       {/* החלון — ממורכז; קליקים בתוכו לא זולגים לשכבת הסגירה */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, pointerEvents: 'none' }}>
-        <div ref={panelRef} role="dialog" aria-modal="true" style={{ pointerEvents: 'auto', maxHeight: '94vh', maxWidth: '100%', overflowY: 'auto', borderRadius: 22 }}>
+        {/* הריפוד בימין ולמטה משאיר מקום לצל הקשיח של החלון (אחרת overflow חותך אותו) */}
+        <div ref={panelRef} role="dialog" aria-modal="true" style={{ pointerEvents: 'auto', maxHeight: '94vh', maxWidth: '100%', overflowY: 'auto', borderRadius: 22, padding: '0 8px 8px 0' }}>
           {children}
         </div>
       </div>

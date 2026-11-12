@@ -25,7 +25,7 @@ export function StreakBadge() {
       role="status"
       style={{
         position: 'fixed', top: '4rem', insetInlineEnd: '1.2rem', zIndex: 84, pointerEvents: 'none',
-        fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: '#0A1322', background: '#2FF3FF', borderRadius: 999, padding: '6px 16px',
+        fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, color: 'var(--color-ink)', background: 'var(--color-human-soft)', border: '2px solid var(--color-ink)', borderRadius: 999, padding: '6px 16px',
         animation: prefersReducedMotion() ? undefined : 'holo-streak-badge 1.7s ease-out forwards',
       }}
     >
@@ -49,12 +49,12 @@ export function GateUnlock() {
         @media (prefers-reduced-motion: reduce) { .gate-key, .gate-door-r, .gate-door-l { animation: none; } }
       `}</style>
       <svg width="96" height="72" viewBox="0 0 96 72" fill="none">
-        <rect x="6" y="4" width="84" height="64" rx="6" stroke="#2FF3FF" strokeWidth="2" opacity=".55" />
-        <rect x="10" y="8" width="76" height="56" rx="3" fill="#BFF9FF" opacity=".18" />
-        <rect className="gate-door-r" x="10" y="8" width="38" height="56" fill="#15243F" stroke="#2FF3FF" strokeWidth="1.5" />
-        <rect className="gate-door-l" x="48" y="8" width="38" height="56" fill="#15243F" stroke="#2FF3FF" strokeWidth="1.5" />
-        <g className="gate-key" stroke="#F3B76A" strokeWidth="3" strokeLinecap="round">
-          <circle cx="36" cy="36" r="6" fill="#0A1322" />
+        <rect x="6" y="4" width="84" height="64" rx="6" strokeWidth="2" style={{ stroke: 'var(--color-ink)' }} />
+        <rect x="10" y="8" width="76" height="56" rx="3" style={{ fill: 'var(--color-machine-tint)' }} />
+        <rect className="gate-door-r" x="10" y="8" width="38" height="56" strokeWidth="1.5" style={{ fill: 'var(--color-machine)', stroke: 'var(--color-ink)' }} />
+        <rect className="gate-door-l" x="48" y="8" width="38" height="56" strokeWidth="1.5" style={{ fill: 'var(--color-machine)', stroke: 'var(--color-ink)' }} />
+        <g className="gate-key" strokeWidth="3" strokeLinecap="round" style={{ stroke: 'var(--color-human-deep)' }}>
+          <circle cx="36" cy="36" r="6" style={{ fill: 'var(--color-human-soft)' }} />
           <path d="M42 36 H60 M54 36 V42 M60 36 V41" />
         </g>
       </svg>

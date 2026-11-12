@@ -4,7 +4,7 @@ import { feelLevel, KEN_BURNS_SECONDS, prefersReducedMotion } from './gameFeel/e
 import { planSceneSwap, sceneSwapMs, type SceneSwapKind } from './sceneSwap'
 
 /* ── תמונת הסצנה והמעבר בין תמונות ──────────────────────────────────────────────
-   המעבר הוא סריקה: קו אור עובר על המלבן בכיוון הקריאה, ומאחוריו נחשפת התמונה החדשה. ד"ר הולו לא זז, כי הוא מקרין את העולם.
+   המעבר הוא סריקה: קו דיו עובר על המלבן בכיוון הקריאה, ומאחוריו נחשפת התמונה החדשה. ד"ר הולו לא זז, כי הוא מקרין את העולם.
    · התמונה היוצאת היא אותו אלמנט שהיה על המסך (key יציב), ולכן הזום האיטי שלה ממשיך בלי קפיצה.
    · כל שלב במעבר יש את התמונה הישנה או החדשה מאחור, ולכן אין פריים שחור.
    · מחכים לפענוח התמונה החדשה לפני שמתחילים (עד IMAGE_WAIT_MS), כדי שהסריקה לא תחשוף מלבן ריק.
@@ -20,9 +20,10 @@ const CSS = `
 .si-layer, .si-clip, .si-unclip, .si-settle, .si-push { position: absolute; inset: 0; }
 .si-clip { overflow: hidden; }
 .si-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 45%; }
-.si-empty { position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, rgba(0,136,255,.18), transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(136,85,255,.14), transparent 60%), #050b18; }
-.si-dim { position: absolute; inset: 0; background: radial-gradient(120% 100% at 50% 50%, rgba(4,10,22,.72), rgba(4,10,22,.88)); }
-.si-shade { position: absolute; inset: 0; background: #030813; opacity: 0; }
+.si-empty { position: absolute; inset: 0; background: var(--color-machine-tint); }
+/* אותו כיסוי כמו .holo-stage-scrim, כדי שהתמונה היוצאת לא תשנה גוון לפני הסריקה */
+.si-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-machine-bg) 84%, transparent); }
+.si-shade { position: absolute; inset: 0; background: var(--color-machine-bg); opacity: 0; }
 .si-skip { position: absolute; inset: 0; z-index: 3; cursor: pointer; }
 
 /* סריקה: שלושת החלקים נעים באותו משך ובאותה עקומה, ולכן הקו יושב בדיוק על קצה החשיפה */
@@ -40,21 +41,16 @@ const CSS = `
 .si-scan { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: si-clip var(--si-ms) var(--si-ease) both; will-change: transform; }
 .si-beam { position: absolute; inset-block: 0; width: 34%; animation: si-beam var(--si-ms) linear both; }
 @keyframes si-beam { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
-.si-edge { position: absolute; inset-block: 0; width: 3px; background: #E9FDFF; box-shadow: 0 0 10px 2px rgba(47,243,255,.95), 0 0 42px 10px rgba(47,243,255,.42); }
-/* קווי הסריקה דועכים במסכה, ולכן אין קצה חד בסוף השובל */
-.si-wash { position: absolute; inset-block: 0; width: 100%;
-  background: repeating-linear-gradient(0deg, rgba(190,250,255,.2) 0 1px, transparent 1px 4px), linear-gradient(var(--si-wash-dir), rgba(47,243,255,.4), rgba(47,243,255,.1) 45%, transparent);
-  -webkit-mask-image: linear-gradient(var(--si-wash-dir), #000 35%, transparent);
-          mask-image: linear-gradient(var(--si-wash-dir), #000 35%, transparent); }
+/* קו הסריקה: קו דיו שטוח על קצה החשיפה, בלי זוהר ובלי שובל */
+.si-edge { position: absolute; inset-block: 0; width: 4px; background: var(--color-ink); }
+.si-wash { display: none; }
 .si-beam--fwd { left: 0; }
-.si-beam--fwd .si-edge { left: -1.5px; }
-.si-beam--fwd .si-wash { left: 0; --si-wash-dir: to right; }
+.si-beam--fwd .si-edge { left: -2px; }
 .si-beam--back { right: 0; }
-.si-beam--back .si-edge { right: -1.5px; }
-.si-beam--back .si-wash { right: 0; --si-wash-dir: to left; }
+.si-beam--back .si-edge { right: -2px; }
 
-/* עוצמה מלאה: המסגרת נדלקת פעם אחת כשהסריקה מסתיימת */
-.si-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; box-shadow: inset 0 0 0 1px rgba(190,250,255,.75), inset 0 0 46px rgba(47,243,255,.5);
+/* עוצמה מלאה: מסגרת שטוחה מופיעה פעם אחת כשהסריקה מסתיימת */
+.si-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; border: 5px solid var(--color-machine-deep); border-radius: inherit;
   animation: si-frame calc(var(--si-ms) * .9) ease-out calc(var(--si-ms) * .62) both; }
 @keyframes si-frame { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
 

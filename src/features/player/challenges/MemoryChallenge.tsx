@@ -6,6 +6,7 @@ import { memoryGrid } from './memoryGrid'
 import { FailPips } from './failUi'
 import { triggerErrorFlash } from './errorFlash'
 import type { PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
+import { MathText } from '../../../shared/ui/MathText'
 
 interface Props {
   puzzle: Puzzle
@@ -169,8 +170,14 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
         .mem-card { perspective: 700px; }
         .mem-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .38s cubic-bezier(.3,.8,.4,1); }
         .mem-inner.up { transform: rotateY(180deg); }
-        .mem-side { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 4px 6px; border-radius: 0.6rem; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-        .mem-side.front { transform: rotateY(180deg); }
+        /* קו דיו 2px במקום 1px, והריפוד קטן ב-1px: השטח הפנימי של הקלף (שלפיו נבחר הפונט) לא השתנה */
+        .mem-side { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 3px 5px; border-radius: 0.6rem; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; border: 2px solid var(--color-ink); }
+        /* קלף סגור = לחיץ: המתכון של כפתור. קלף פתוח כבר לא לחיץ: משטח לבן. זוג שנמצא: correct עם ✓ */
+        .mem-side.back { background: var(--color-action); box-shadow: var(--shadow-button); }
+        .mem-card:active .mem-side.back { background: var(--color-action-pressed); }
+        .mem-side.front { transform: rotateY(180deg); background: var(--color-surface); color: var(--color-ink); }
+        .mem-side.front.is-correct { background: var(--color-correct); color: var(--color-surface); }
+        .mem-card:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; border-radius: 0.6rem; }
         @keyframes mem-match { 0%,100% { transform: translateY(0) } 45% { transform: translateY(-9px) scale(1.04) } }
         .mem-matched { animation: mem-match .45s cubic-bezier(.3,1.4,.5,1); }
         @media (prefers-reduced-motion: reduce) { .mem-inner { transition: none; } .mem-matched { animation: none; } }
@@ -181,7 +188,7 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
       <FailPips remaining={mistakeBudget - mistakes} total={mistakeBudget} label="פסילות" />
 
       {/* חריץ קבוע להודעת הכישלון — כך הופעתה לא מזיזה את הלוח */}
-      <p className="text-sm text-center" style={{ color: '#ff9bb3', minHeight: 20, margin: '0 0 6px', visibility: revealAll ? 'visible' : 'hidden' }}>
+      <p className="text-sm text-center" style={{ color: 'var(--color-wrong)', minHeight: 20, margin: '0 0 6px', visibility: revealAll ? 'visible' : 'hidden' }}>
         {mistakes >= mistakeBudget ? 'נגמרו הפסילות — אלו הזוגות הנכונים' : 'אלו הזוגות הנכונים'}
       </p>
 
@@ -211,27 +218,19 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
                     cursor: isUp || over ? 'default' : 'pointer',
                     fontSize: font.size,
                     lineHeight: 1.25,
-                    color: 'var(--holo-text)',
+                    color: 'var(--color-ink)',
                   }}
                 >
                   <span className={`mem-inner ${isUp ? 'up' : ''}`} style={{ display: 'block' }}>
-                    <span
-                      className="mem-side back"
-                      style={{ background: 'rgba(5,10,25,0.7)', border: '1px solid rgba(0,246,255,0.2)' }}
-                    >
-                      <span style={{ fontSize: Math.min(22, layout.cardH - 12), opacity: 0.5 }}>❔</span>
+                    <span className="mem-side back">
+                      <span style={{ fontSize: Math.min(22, layout.cardH - 12) }}>❔</span>
                     </span>
-                    <span
-                      className="mem-side front"
-                      style={{
-                        background: isMatched ? 'rgba(0,255,150,0.12)' : 'rgba(0,136,255,0.22)',
-                        border: isMatched ? '1px solid rgba(0,255,150,0.5)' : '1px solid var(--holo-cyan)',
-                        boxShadow: '0 0 12px rgba(0,246,255,0.3)',
-                      }}
-                    >
+                    <span className={`mem-side front ${isMatched ? 'is-correct' : ''}`}>
+                      {/* זוג שנמצא: הסימן ✓ בפינה, לא צבע לבד (מחוץ לזרימת הטקסט, כדי שהפונט שנבחר לא ישתנה) */}
+                      {isMatched && <span aria-hidden style={{ position: 'absolute', top: 2, insetInlineEnd: 5, fontSize: 12, lineHeight: 1, fontWeight: 700 }}>✓</span>}
                       {/* line-clamp = רשת ביטחון: טקסט שגם בפונט המינימלי לא נכנס נחתך עם … */}
                       <span style={{ display: '-webkit-box', WebkitLineClamp: font.clampLines, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {isUp ? card.text : ''}
+                        {isUp ? <MathText text={card.text} /> : ''}
                       </span>
                     </span>
                   </span>
@@ -245,8 +244,8 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
       {!over && (
         <div className="flex justify-center mt-4">
           <button
-            className="text-sm cursor-pointer rounded-md px-3 py-1"
-            style={{ background: 'transparent', border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3' }}
+            className="holo-button holo-button--sm text-sm"
+            style={{ padding: 'calc(0.25rem - 1px) 0.75rem' }} /* אותו גובה כמו לפני ההמרה (הקו עבה ב-1px) */
             onClick={() => {
               tel?.act('gave_up')
               setOver(true)

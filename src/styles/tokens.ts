@@ -10,7 +10,7 @@ export type ColorToken =
   | 'color-human' | 'color-human-soft' | 'color-human-tint' | 'color-human-deep'
   | 'color-ink' | 'color-surface' | 'color-muted' | 'color-correct' | 'color-wrong'
   | 'color-crystal-pulse' | 'color-crystal-full-top' | 'color-crystal-full-mid' | 'color-crystal-full-bottom'
-  | 'color-line' | 'color-line-strong' | 'color-ink-wash' | 'color-scrim' | 'color-correct-tint' | 'color-wrong-tint' | 'color-disabled'
+  | 'color-line' | 'color-line-strong' | 'color-ink-wash' | 'color-scrim' | 'color-correct-tint' | 'color-wrong-tint' | 'color-correct-text' | 'color-wrong-text' | 'color-disabled'
 
 export const tk = (name: ColorToken | `subject-${string}`): string => `var(--${name})`
 

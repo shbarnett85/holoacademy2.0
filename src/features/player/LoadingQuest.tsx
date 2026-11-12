@@ -15,7 +15,7 @@ export default function LoadingQuest({ overlay = false }: { overlay?: boolean })
         zIndex: overlay ? 79 : undefined,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         gap: '1.4rem',
-        background: 'radial-gradient(120% 90% at 50% -10%, #0c1430 0%, #070a18 45%, #04060f 100%)',
+        background: 'var(--color-machine-bg)',
         fontFamily: 'var(--font-display)',
       }}
     >
@@ -33,28 +33,27 @@ export default function LoadingQuest({ overlay = false }: { overlay?: boolean })
       <div style={{ position: 'relative', width: 96, height: 96 }}>
         <div className="lq-a" style={{
           position: 'absolute', inset: 0, borderRadius: '50%',
-          border: '2px solid transparent', borderTopColor: '#2ff3ff', borderRightColor: 'rgba(47,243,255,.35)',
+          border: '3px solid transparent', borderTopColor: 'var(--color-ink)', borderRightColor: 'var(--color-line-strong)',
           animation: 'lq-ring 1.3s linear infinite',
         }} />
         <div className="lq-a" style={{
           position: 'absolute', inset: 10, borderRadius: '50%',
-          border: '2px solid transparent', borderBottomColor: '#ff45e6', borderLeftColor: 'rgba(255,69,230,.3)',
+          border: '3px solid transparent', borderBottomColor: 'var(--color-machine-deep)', borderLeftColor: 'var(--color-machine)',
           animation: 'lq-ring-rev 2.1s linear infinite',
         }} />
         <div className="lq-a" style={{
           position: 'absolute', inset: 26, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(47,243,255,.85), rgba(47,243,255,.15) 60%, transparent 75%)',
-          filter: 'blur(2px)',
+          background: 'var(--color-machine-deep)',
           animation: 'lq-core 1.8s ease-in-out infinite',
         }} />
       </div>
 
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eaf9ff', textShadow: '0 0 16px rgba(47,243,255,.45)' }}>
+        <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-ink)' }}>
           טוען
           <span className="lq-a" style={{ animation: 'lq-dots 1.2s ease-in-out infinite' }}>…</span>
         </div>
-        <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: '.6rem', letterSpacing: '.24em', textTransform: 'uppercase', color: 'rgba(47,243,255,.35)' }}>
+        <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: '.6rem', letterSpacing: '.24em', textTransform: 'uppercase', color: 'var(--color-muted)' }}>
           HOLOACADEMY
         </div>
       </div>

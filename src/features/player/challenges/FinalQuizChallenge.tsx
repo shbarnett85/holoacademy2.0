@@ -4,6 +4,8 @@ import { triggerErrorFlash } from './errorFlash'
 import { presentQuizQuestion, quizOptionId, PUZZLE_READY_DELAY_MS, type PuzzleTelemetry } from '../../../shared/lib/answerTelemetry'
 import { flyGem, revealEl, sounds, setMood } from '../gameFeel/engine'
 import { RETRY_TEXT, retryHint } from '../gameFeel/text'
+import { MathText } from '../../../shared/ui/MathText'
+import { panelCorrect, panelWrong, progressFill, progressTrack } from '../../../styles/ui'
 
 interface Props {
   puzzle: Puzzle
@@ -93,11 +95,12 @@ export default function FinalQuizChallenge({ puzzle, onResult, tel, onLivePoints
 
       {/* מד התקדמות */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold" style={{ color: 'var(--holo-cyan)' }}>שאלה {idx + 1} מתוך {total}</span>
-        <span className="text-xs" style={{ opacity: 0.6 }}>✓ {correctCount}</span>
+        <span className="text-xs font-bold" style={{ color: 'var(--color-ink)' }}>שאלה {idx + 1} מתוך {total}</span>
+        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>✓ {correctCount}</span>
       </div>
-      <div className="rounded-full overflow-hidden mb-4" style={{ height: '0.35rem', background: 'rgba(0,0,0,0.4)' }}>
-        <div style={{ height: '100%', width: `${((idx + (answered ? 1 : 0)) / total) * 100}%`, background: 'linear-gradient(90deg, var(--holo-blue), var(--holo-cyan))', transition: 'width 0.4s ease' }} />
+      {/* המסילה גבוהה מעט מבעבר: קו המתאר בדיו תופס 2px מכל צד */}
+      <div className="mb-4" style={{ ...progressTrack, height: '0.7rem' }}>
+        <div style={{ ...progressFill, width: `${((idx + (answered ? 1 : 0)) / total) * 100}%`, transition: 'width 0.4s ease' }} />
       </div>
 
       <div className="fq-anim" key={idx}>
@@ -108,19 +111,18 @@ export default function FinalQuizChallenge({ puzzle, onResult, tel, onLivePoints
             {q.options.map((opt, i) => (
               <button
                 key={i}
-                className="holo-button"
+                className={i === firstWrong ? 'holo-button is-wrong' : 'holo-button'}
                 disabled={i === firstWrong}
                 data-choice-state={i === firstWrong ? 'wrong' : undefined}
-                style={i === firstWrong
-                  ? { padding: '0.7rem', background: 'rgba(242,166,90,.09)', border: '1.5px solid #F2A65A', boxShadow: 'none', opacity: 0.75, color: 'var(--holo-text)' }
-                  : { padding: '0.7rem' }}
+                style={{ padding: '0.7rem' }}
                 onClick={(e) => pick(i, e.currentTarget)}
               >
-                {i === firstWrong ? '✗ ' : ''}{opt}
+                {i === firstWrong ? '✗ ' : ''}<MathText text={opt} />
+                {i === firstWrong && <span style={{ fontWeight: 500, marginInlineStart: '0.5em' }}>(לא נכון)</span>}
               </button>
             ))}
             {firstWrong !== null && (
-              <p ref={revealEl} className="text-start text-sm leading-relaxed" data-retry-hint style={{ color: '#ffce5e', margin: 0 }}>
+              <p ref={revealEl} className="text-start text-sm leading-relaxed" data-retry-hint style={{ color: 'var(--color-human-deep)', margin: 0 }}>
                 {q.retryHint ?? retryHint(q.explanationIncorrect, q.options[q.correctIndex])} {RETRY_TEXT.tryAgain}
               </p>
             )}
@@ -137,13 +139,14 @@ export default function FinalQuizChallenge({ puzzle, onResult, tel, onLivePoints
                     key={i}
                     className="rounded-lg p-2 text-start flex items-center gap-2"
                     style={{
-                      border: right ? '1px solid rgba(0,255,150,0.5)' : wrongPick ? '1px solid rgba(255,120,150,0.5)' : '1px solid rgba(0,246,255,0.12)',
-                      background: right ? 'rgba(0,255,150,0.08)' : wrongPick ? 'rgba(255,120,150,0.08)' : 'transparent',
-                      opacity: right || wrongPick ? 1 : 0.55,
+                      border: right ? '2px solid var(--color-correct)' : wrongPick ? '2px solid var(--color-wrong)' : '1px solid var(--color-line)',
+                      background: right ? 'var(--color-correct-tint)' : wrongPick ? 'var(--color-wrong-tint)' : 'transparent',
+                      color: right || wrongPick ? 'var(--color-ink)' : 'var(--color-muted)',
                     }}
                   >
                     <span>{right ? '✅' : wrongPick ? '❌' : '•'}</span>
-                    <span>{opt}</span>
+                    <span><MathText text={opt} /></span>
+                    {(right || wrongPick) && <span className="text-sm" style={{ marginInlineStart: 'auto', fontWeight: 700 }}>{right ? 'נכון' : 'לא נכון'}</span>}
                   </div>
                 )
               })}
@@ -152,11 +155,10 @@ export default function FinalQuizChallenge({ puzzle, onResult, tel, onLivePoints
             {/* הסבר רספונסיבי */}
             <div
               className="rounded-xl p-3 mt-3 text-start"
-              style={isCorrect
-                ? { background: 'rgba(0,255,150,0.08)', border: '1px solid rgba(0,255,150,0.4)' }
-                : { background: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.4)' }}
+              style={isCorrect ? panelCorrect : panelWrong}
             >
-              <div className="font-bold mb-1" style={{ color: isCorrect ? '#5fffb0' : '#ffce5e' }}>
+              {/* כותרת המשוב: לבן על correct / wrong (ניגודיות AA), ולא טקסט צבעוני על הגוון הבהיר */}
+              <div className="font-bold mb-1 rounded-md" style={{ display: 'inline-block', padding: '0 0.6rem', background: isCorrect ? 'var(--color-correct)' : 'var(--color-wrong)', color: 'var(--color-surface)' }}>
                 {isCorrect ? (firstWrong !== null ? RETRY_TEXT.secondTryHeader : '✓ נכון!') : '✗ לא בדיוק…'}
               </div>
               <p className="leading-relaxed text-sm">

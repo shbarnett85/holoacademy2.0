@@ -36,21 +36,20 @@ function Loader() {
   const teacher = TEACHER_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
   if (teacher) {
     return (
-      <div role="status" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--t-studio-bg)', fontFamily: 'var(--font-display)' }}>
+      <div role="status" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}>
         <div style={{ position: 'relative', width: 64, height: 64 }}>
-          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid var(--t26)', borderTopColor: 'var(--t15)', borderRightColor: 'var(--t14)', animation: 'holo-spin 0.9s linear infinite' }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid color-mix(in srgb, var(--color-machine-deep) 16%, transparent)', borderTopColor: 'var(--color-machine-deep)', borderRightColor: 'var(--color-machine-deep)', animation: 'holo-spin 0.9s linear infinite' }} />
         </div>
-        <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--t6)' }}>טוען…</span>
+        <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--color-muted)' }}>טוען…</span>
       </div>
     )
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--holo-bg-deep)', fontFamily: 'var(--font-display)' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}>
       <div style={{ position: 'relative', width: 64, height: 64 }}>
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(47,243,255,.15)', borderTopColor: 'var(--holo-cyan-bright)', borderRightColor: 'rgba(155,140,255,.7)', animation: 'holo-spin 0.9s linear infinite', boxShadow: '0 0 18px rgba(47,243,255,.35)' }} />
-        <div style={{ position: 'absolute', inset: 16, borderRadius: '50%', background: 'radial-gradient(circle, rgba(47,243,255,.5), transparent 70%)', animation: 'holo-loader-pulse 1.4s ease-in-out infinite' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '4px solid var(--color-line)', borderTopColor: 'var(--color-ink)', borderRightColor: 'var(--color-ink)', animation: 'holo-spin 0.9s linear infinite' }} />
       </div>
-      <span className="holo-text-glow" style={{ fontSize: '0.95rem', letterSpacing: '.14em', opacity: 0.85 }}>טוען…</span>
+      <span style={{ fontSize: '0.95rem', letterSpacing: '.14em', color: 'var(--color-ink)', fontWeight: 600 }}>טוען…</span>
     </div>
   )
 }
