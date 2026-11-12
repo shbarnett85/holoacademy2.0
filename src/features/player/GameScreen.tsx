@@ -532,7 +532,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           className="holo-side-panel"
           style={{
             visibility: labExit === 'dive' ? 'hidden' : undefined,
-            opacity: onStage ? 0.62 : 1,
+            opacity: onStage ? 0.8 : 1,
             filter: onStage ? 'saturate(.85)' : 'none',
             transition: 'opacity .35s ease, filter .35s ease, flex-basis .35s ease',
             ['--actions-rows' as string]: actionRows,
