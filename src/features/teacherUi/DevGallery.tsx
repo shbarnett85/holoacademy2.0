@@ -1,10 +1,9 @@
-/* גלריית ערכת הממשק למסכי מורה — DEV בלבד (/dev/teacher-ui). להסתכלות על כל הרכיבים בבהיר ובכהה.
+/* גלריית ערכת הממשק למסכי מורה — DEV בלבד (/dev/teacher-ui). להסתכלות על כל הרכיבים.
    הטקסטים כאן הם דוגמאות לתצוגה בלבד; במסכים אמיתיים משפטים בא מ-findingsNarrative. */
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { RESULTS_TEXT, attentionBadgeText, howWeCalcResultsLines, narrateClassSummary } from '../../shared/lib/findingsNarrative'
-import { useTheme } from '../../shared/lib/useTheme'
 import {
   AXIS_LABEL_HEIGHT, BigChoiceButton, ChartFrame, ChoiceGrid, EmptyState, GuestLensSwitcher, HowWeCalc, ModeToggle, MonthAxis, ProgressBar,
   ScreenShell, Sentence, StatusChip, SubjectBadge, SubjectDot, SubjectLinkButton, TabBar, T, buildTimeAxis, tabPanelProps,
@@ -12,7 +11,7 @@ import {
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <section style={{ background: T.surface, border: T.line, boxShadow: T.shadow, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.muted }}>{title}</h2>
       {children}
     </section>
@@ -52,7 +51,6 @@ function SampleChart() {
 }
 
 export default function DevGallery() {
-  const light = useTheme()
   const [tab, setTab] = useState('overview')
   const [tab2, setTab2] = useState('a')
   const [mode, setMode] = useState('class')
@@ -62,7 +60,7 @@ export default function DevGallery() {
       active="results"
       title="איך נראית ערכת הממשק למסכי מורה?"
       breadcrumb={[{ label: 'תוצאות', to: '/results' }, { label: 'המהפכה הצרפתית', onClick: () => undefined }, { label: 'ו2' }]}
-      titleAside={<span style={{ fontSize: 14, fontWeight: 700, color: T.muted }}>({light ? 'מצב בהיר' : 'מצב כהה'} · DEV)</span>}
+      titleAside={<span style={{ fontSize: 14, fontWeight: 700, color: T.muted }}>(מצב בהיר · DEV)</span>}
       lensSwitcher={<ModeToggle compact ariaLabel="צפייה בתור" value={mode} onChange={setMode} options={[{ id: 'class', label: 'כל הכיתה' }, { id: 'student', label: 'לפי תלמיד' }]} />}
       howWeCalc={{ lines: howWeCalcResultsLines() }}
     >

@@ -9,7 +9,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { attentionBadgeText, dateHe, howWeCalcResultsLines, narrateSubmissionsSummary, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import { subjectStyle } from '../../shared/lib/subjectStyle'
 import type { SubmissionList, SubmissionRow } from '../../shared/types/resultsV1'
-import { bySubjectOrderOf, EmptyState, FONT, Icon, MIN_TARGET, ModeToggle, ProgressBar, RADIUS, ScreenShell, Sentence, T } from '../teacherUi'
+import { BTN, bySubjectOrderOf, CHIP_LINE, EmptyState, findingInline, FONT, Icon, MIN_TARGET, ModeToggle, ProgressBar, RADIUS, ScreenShell, Sentence, T } from '../teacherUi'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
 import FilterButtons from './FilterButtons'
@@ -27,7 +27,7 @@ const GROUP_TITLE: Record<ListGroupKey, string> = { active: UI.groupActive, this
 
 function AttentionTag({ n }: { n: number }) {
   return (
-    <span data-attention-tag style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+    <span data-attention-tag style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: CHIP_LINE, background: T.findingFill, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.findingText, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
       <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
       {attentionBadgeText(n)}
     </span>
@@ -37,7 +37,7 @@ function AttentionTag({ n }: { n: number }) {
 function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
   return (
     <Link to={to} data-tu-press data-submission-row={row.id}
-      style={{ ...card, display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', padding: '8px 14px', textDecoration: 'none', color: T.text, border: `1.5px solid ${row.attentionCount > 0 ? T.warn : T.controlBorder}`, borderRadius: RADIUS.lg }}>
+      style={{ ...card, display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', padding: '8px 14px', textDecoration: 'none', color: T.text, borderRadius: RADIUS.lg }}>
       {/* כל שורה מתחילה בתמונת השיעור במסגרת בצבע המקצוע ועם תגית המקצוע — אותו סגנון כמו בספרייה */}
       <Thumb url={row.thumbUrl} subjectCode={row.subject?.code ?? null} width={104} height={78} />
       <div style={{ flex: '1 1 380px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -54,7 +54,8 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
         <ProgressBar done={row.counts.completed} total={row.counts.total} label={UI.finished} />
         {row.attentionCount > 0 && <AttentionTag n={row.attentionCount} />}
       </div>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.accentStrong }}>
+      {/* השורה כולה היא קישור; הפעולה שבקצה נראית ככפתור (אותה מחלקה), כדי שיהיה ברור שלוחצים */}
+      <span className={BTN} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, boxSizing: 'border-box', padding: '0 12px', borderRadius: RADIUS.md, fontFamily: FONT, fontSize: 17, fontWeight: 800 }}>
         {UI.openResults}
         <Icon name="chevLeft" size={18} />
       </span>
@@ -65,12 +66,12 @@ function SubmissionRowLink({ row, to }: { row: SubmissionRow; to: string }) {
 /* הפס השבועי של המחנך/ת — עובדות בלבד; מי שסומן/ה בכמה מקצועות מופיע/ה בשם */
 function WeekStrip({ strip }: { strip: NonNullable<SubmissionList['weekStrip']> }) {
   return (
-    <section aria-label={UI.weekStripLabel} data-week-strip style={{ ...card, flex: '0 0 auto', padding: '6px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <section aria-label={UI.weekStripLabel} data-week-strip style={{ ...card, flex: '0 0 auto', padding: '5px 13px', display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.5 }}>{strip.sentence}</div>
       {strip.flaggedLine && (
         <div data-week-flagged style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          {strip.flaggedLine}
+          <span style={findingInline}>{strip.flaggedLine}</span>
         </div>
       )}
     </section>
@@ -148,7 +149,7 @@ export default function ResultsList() {
                 {/* "לתרגול חזרה" נפתח ישר בטאב "מה עושים עם זה" של השליחה (אם יש בו מה לתרגל; אחרת — בטאב האתגרים) */}
                 <SuggestionBanner openLink={(id) => link(`/results/${encodeURIComponent(id)}`, { tab: 'actions' })} />
 
-                <section aria-label={UI.filterTitle} style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px 20px', flexWrap: 'wrap', padding: '6px 14px' }}>
+                <section aria-label={UI.filterTitle} style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px 20px', flexWrap: 'wrap', padding: '5px 13px' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.textSoft }}>
                     {UI.searchLabel}:
                     <input type="search" value={query} onChange={(e) => update({ q: e.target.value })} placeholder={UI.searchPlaceholder}
@@ -164,10 +165,10 @@ export default function ResultsList() {
                   {filtering && (
                     <span role="status" style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.textSoft }}>{UI.countLine(shown.length, all.length)}</span>
                   )}
-                  {filtering && <button type="button" data-tu-press onClick={clearAll} style={secondaryButton}>{UI.clearFilter}</button>}
+                  {filtering && <button type="button" data-tu-press className={BTN} onClick={clearAll} style={secondaryButton}>{UI.clearFilter}</button>}
                 </section>
 
-                <div data-list-scroll aria-busy={q.loading} style={{ ...scrollArea, display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 4, opacity: q.loading ? 0.6 : 1 }}>
+                <div data-list-scroll aria-busy={q.loading} style={{ ...scrollArea, display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 4, paddingRight: 4, marginRight: -4, opacity: q.loading ? 0.6 : 1 }}>
                   {shown.length === 0 ? (
                     <EmptyState title={RESULTS_TEXT.noMatch} ctaLabel={UI.clearFilter} onCta={clearAll} />
                   ) : (
@@ -196,7 +197,7 @@ export default function ResultsList() {
 function OlderButton({ n, onClick }: { n: number; onClick: () => void }) {
   return (
     <div data-older style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <button type="button" data-tu-press onClick={onClick} style={secondaryButton}>{UI.showOlder}</button>
+      <button type="button" data-tu-press className={BTN} onClick={onClick} style={secondaryButton}>{UI.showOlder}</button>
       <span style={{ fontFamily: FONT, fontSize: 16, color: T.textSoft }}>{UI.olderHint(n)}</span>
     </div>
   )

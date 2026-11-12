@@ -3,7 +3,7 @@
    footer = שורה נוספת שתמיד גלויה (למשל "טעות נפוצה"); children = הפירוט שנפתח. */
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import { btnClass, FONT, Icon, NESTED_LINE, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import { secondaryButton } from './styles'
 import { UI } from './text'
 
@@ -36,7 +36,7 @@ export default function ChallengeRowShell({ sceneId, order, title, typeLabel, su
   const [open, setOpen] = useState(false)
   const detailId = useId()
   return (
-    <li data-challenge={sceneId} data-outcome={dataOutcome} style={{ listStyle: 'none', padding: '2px 12px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <li data-challenge={sceneId} data-outcome={dataOutcome} style={{ listStyle: 'none', padding: '2px 12px', borderRadius: RADIUS.md, border: NESTED_LINE, background: T.surface, display: 'flex', flexDirection: 'column', gap: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px 14px', flexWrap: 'wrap' }}>
         <NumberBadge n={order} />
         <div style={{ flex: '1 1 150px', minWidth: 0, fontFamily: FONT, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
@@ -45,8 +45,8 @@ export default function ChallengeRowShell({ sceneId, order, title, typeLabel, su
         </div>
         <div style={summaryGrows ? { flex: '0 1 290px', minWidth: 230, display: 'flex', alignItems: 'center' } : { flex: '0 0 auto', display: 'flex', alignItems: 'center' }}>{summary}</div>
         {canExpand ? (
-          <button type="button" data-tu-press aria-expanded={open} aria-controls={detailId} onClick={() => setOpen((o) => !o)}
-            style={{ ...secondaryButton, padding: '0 12px', background: open ? T.accentFill : T.surface, borderColor: open ? T.accent : T.controlBorder }}>
+          <button type="button" data-tu-press className={btnClass(open)} aria-expanded={open} aria-controls={detailId} onClick={() => setOpen((o) => !o)}
+            style={{ ...secondaryButton, padding: '0 12px' }}>
             {UI.detail}
             <span style={{ display: 'inline-flex', transform: open ? 'rotate(180deg)' : undefined }}><Icon name="chevDown" size={18} /></span>
           </button>

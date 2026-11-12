@@ -14,18 +14,22 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AI_SUMMARY_HARDENING_TEXT, AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, aiSummaryGenerateHint } from '../../shared/lib/findingsNarrative'
 import type { SummaryTarget } from '../../shared/types/aiSummaryV1'
-import { EmptyState, HowWeCalc, Icon, T } from '../teacherUi'
+import { BTN, CHIP_LINE, EmptyState, HowWeCalc, Icon, NESTED_LINE, T } from '../teacherUi'
 import type { SummaryParams } from './api'
 import { exportSummaryToWord, formatSummaryDate, printSummary } from './exportWord'
 import type { SummaryDocInput } from './exportWord'
 import { isRetryable, MAX_EDIT_CHARS } from './state'
 import type { PanelModel, ShownSummary } from './state'
-import { card, compactCard, disabledStyle, plainCard, heading as headingStyle, paragraph, primaryButton, row, secondaryButton, soft } from './styles'
+import { card, compactCard, plainCard, heading as headingStyle, paragraph, primaryButton, row, secondaryButton, soft } from './styles'
 import { useAiSummary } from './useAiSummary'
 import type { AiSummaryActions } from './useAiSummary'
 
 const T_UI = AI_SUMMARY_TEXT.ui
 const T_PANEL = AI_SUMMARY_PANEL_TEXT
+
+/* אזור שבו ה-AI מציע: רקע של אזור הצעות. הכרטיס המוטמע יושב בתוך חלונית, ולכן בלי צל ועם קו דק */
+const aiCard = { ...card, background: T.aiFill } as const
+const aiCompactCard = { ...compactCard, background: T.aiFill, boxShadow: 'none', border: NESTED_LINE } as const
 
 /* ניצוץ קטן: סימן "נכתב על ידי ד״ר הולו". תמיד לצד מילים (העיקרון: אייקון + מילה), ולכן aria-hidden */
 function SparkMark({ size = 18 }: { size?: number }) {
@@ -52,8 +56,8 @@ function scrollCardToTop(el: HTMLElement): void {
 /* ── חלקים קטנים ── */
 function Button({ children, kind = 'secondary', onClick, disabled, expanded, controls }: { children: ReactNode; kind?: 'primary' | 'secondary'; onClick?: () => void; disabled?: boolean; expanded?: boolean; controls?: string }) {
   return (
-    <button type="button" data-tu-press onClick={onClick} disabled={disabled} aria-expanded={expanded} aria-controls={controls}
-      style={{ ...(kind === 'primary' ? primaryButton : secondaryButton), ...(disabled ? disabledStyle : null) }}>
+    <button type="button" data-tu-press className={expanded ? `${BTN} is-selected` : BTN} onClick={onClick} disabled={disabled} aria-expanded={expanded} aria-controls={controls}
+      style={{ ...(kind === 'primary' ? primaryButton : secondaryButton), ...(disabled ? { cursor: 'not-allowed' } : null) }}>
       {children}
     </button>
   )
@@ -81,8 +85,8 @@ function AuthorLabel({ s, demo }: { s: ShownSummary; demo: boolean }) {
 
 function EditedBadge() {
   return (
-    <span data-ai-edited style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '1px 10px', borderRadius: 14, border: `1.5px solid ${T.controlBorder}`, color: T.text }}>
-      <span style={{ color: T.good, display: 'inline-flex' }}><Icon name="check" size={16} strokeWidth={2.6} /></span>
+    <span data-ai-edited style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '1px 10px', borderRadius: 14, border: CHIP_LINE, background: T.surface, color: T.text }}>
+      <span style={{ color: T.text, display: 'inline-flex' }}><Icon name="check" size={16} strokeWidth={2.6} /></span>
       {AI_SUMMARY_TEXT.editedBadge}
     </span>
   )
@@ -156,7 +160,7 @@ function ReadyBody({ model, actions, exportName, showAuthor }: { model: PanelMod
       {keepNote && <Line icon="info" role="status">{model.persistenceNote}</Line>}
       {model.confirmRegen ? (
         /* כתיבה מחדש מוחקת את עריכת המורה: במקום שורת הפעולות — אישור במילים, שני כפתורים. ברירת המחדל (הראשון) היא להשאיר את העריכה */
-        <div className="v2-noprint" role="group" aria-labelledby={confirmId} data-ai-confirm style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 8, border: `2px solid ${T.controlBorder}`, borderRadius: 12, padding: '10px 14px' }}>
+        <div className="v2-noprint" role="group" aria-labelledby={confirmId} data-ai-confirm style={{ ...row, flexDirection: 'column', alignItems: 'stretch', gap: 8, border: NESTED_LINE, background: T.surface, borderRadius: 12, padding: '11px 15px' }}>
           <p id={confirmId} style={{ ...soft, fontWeight: 800, color: T.text }}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.title}</p>
           <Line icon="alert" accent={T.warn}>{AI_SUMMARY_HARDENING_TEXT.confirmRegenerate.body}</Line>
           <div style={row}>
@@ -286,7 +290,7 @@ export function AiSummaryView({ model, actions, exportName, compact = false, sho
 
   const state = model.phase === 'ready' ? (model.editing ? 'editing' : 'ready') : model.writing ? 'writing' : model.phase
   return (
-    <section ref={sectionRef} data-ai-summary data-ai-state={state} aria-label={title} aria-busy={model.writing || model.saving || undefined} style={plain ? plainCard : compact ? compactCard : card}>
+    <section ref={sectionRef} data-ai-summary data-ai-state={state} aria-label={title} aria-busy={model.writing || model.saving || undefined} style={plain ? plainCard : compact ? aiCompactCard : aiCard}>
       {(showHeading || compact) && (
         <div style={{ ...row, justifyContent: 'space-between' }}>
           <Heading style={{ ...headingStyle, display: 'inline-flex', alignItems: 'center', gap: 8 }}>

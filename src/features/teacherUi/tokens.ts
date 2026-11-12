@@ -16,7 +16,8 @@ export const SENTENCE = 18
 /** כותרת המסך — השאלה (px) */
 export const H1 = 24
 
-export const RADIUS = { sm: 10, md: 14, lg: 18 } as const
+/* משטחי מורה ומנהל: רדיוס 12 */
+export const RADIUS = { sm: 8, md: 12, lg: 12 } as const
 export const SPACE = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const
 
 /* רוחב התוכן במסך 1366: padding צדדי של 24px משני הצדדים */
@@ -28,29 +29,41 @@ export const CONTENT_MAX_WIDTH = 1500
 /* פלטה סמנטית — רק טוקני הערכה (var(--tN)). ערכי הטוקנים נמדדו בשתי הערכות:
    text/textSoft/muted/accent/good/warn/bad ≥ 4.5:1 על רקע האולפן; controlBorder ≥ 3:1. */
 export const T = {
-  text: 'var(--t68)',
-  textSoft: 'var(--t12)',
-  muted: 'var(--t6)',
-  accent: 'var(--t15)',
-  accentStrong: 'var(--t1)',
-  good: 'var(--t3)',
-  warn: 'var(--t4)',
-  bad: 'var(--t5)',
-  violet: 'var(--t54)',
+  text: 'var(--color-ink)',
+  textSoft: 'var(--color-ink)',
+  muted: 'var(--color-muted)',
+  accent: 'var(--color-machine-deep)',
+  accentStrong: 'var(--color-machine-deep)',
+  good: 'var(--color-correct)',
+  warn: 'var(--color-human-deep)',
+  bad: 'var(--color-wrong)',
+  violet: 'var(--color-machine-deep)',
   /** גבול דקורטיבי של כרטיס (לא נושא משמעות) */
-  border: 'var(--t26)',
+  border: 'var(--color-line-strong)',
   /** גבול של פקד אינטראקטיבי (≥ 3:1 מול הרקע, בבהיר ובכהה) */
-  controlBorder: 'var(--t22)',
-  surface: 'var(--t25)',
-  surfaceSoft: 'var(--t70)',
+  controlBorder: 'var(--color-ink)',
+  surface: 'var(--color-surface)',
+  surfaceSoft: 'var(--color-surface)',
   /** מילוי עדין של פקד נבחר/מודגש */
-  accentFill: 'var(--t20)',
-  grid: 'var(--t62)',
-  axis: 'var(--t63)',
-  pointFill: 'var(--t61)',
+  accentFill: 'var(--color-machine-tint)',
+  grid: 'var(--color-line)',
+  axis: 'var(--color-muted)',
+  pointFill: 'var(--color-surface)',
   /** טקסט על גרדיאנט-מבטא (לא בשימוש בערכה עצמה — לכפתורי מילוי מלאים) */
-  onAccent: 'var(--t-on-accent)',
-  studioBg: 'var(--t-studio-bg)',
+  onAccent: 'var(--color-ink)',
+  studioBg: 'var(--color-machine-bg)',
+  /** קו מתאר וצל קשיח של משטח (מסכי מורה ומנהל) */
+  line: 'var(--border-staff)',
+  shadow: 'var(--shadow-staff)',
+  /** אזור שבו ה-AI מציע */
+  aiFill: 'var(--color-machine-tint)',
+  /** ממצא על תלמיד/ה: רקע וטקסט */
+  findingFill: 'var(--color-human-tint)',
+  findingText: 'var(--color-human-deep)',
+  /** שם ואווטאר */
+  nameFill: 'var(--color-human-soft)',
+  /** מילוי של התקדמות */
+  progress: 'var(--color-human)',
 } as const
 
 export type Tone = 'positive' | 'attention' | 'neutral' | 'error'

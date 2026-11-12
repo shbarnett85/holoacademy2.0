@@ -11,17 +11,20 @@ interface TrendsResp { labels: string[]; series: Series[]; notReady?: boolean }
 interface StudentOpt { studentId: string; name: string; className: string }
 interface ClassOpt { id: string; gradeLabel: string }
 
-const COLORS = ['var(--t15)', 'var(--t34)', 'var(--t3)', 'var(--t4)', 'var(--t54)', 'var(--t5)']
+/* צבעי הסדרות. הסדרות נבדלות גם בדפוס הקו (DASHES) ובצורת הסמן, לא בצבע לבד */
+const COLORS = ['var(--color-ink)', 'var(--color-machine-deep)', 'var(--color-human-deep)', 'var(--color-muted)', 'var(--color-correct)']
 const DASHES = ['', '7 4', '2 4', '9 3 2 3', '4 4', '1 5']
 const METRICS: { v: Metric; label: string }[] = [{ v: 'text_level', label: 'רמת קריאה' }, { v: 'overall_success', label: 'אחוז הצלחה' }]
 const RANGES: { v: Range; label: string }[] = [{ v: 'year', label: 'שנה' }, { v: 'term', label: 'מחצית' }]
 
 function Marker({ shape, cx, cy, color }: { shape: number; cx: number; cy: number; color: string }) {
   const s = 4
-  if (shape % 4 === 1) return <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  if (shape % 4 === 2) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy + s} ${cx - s - 1},${cy + s}`} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  if (shape % 4 === 3) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy} ${cx},${cy + s + 1} ${cx - s - 1},${cy}`} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  return <circle cx={cx} cy={cy} r={s} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
+  /* הצבע ב-style ולא באטריביוט: var() לא עובד באטריביוט של SVG */
+  const st = { fill: 'var(--color-surface)', stroke: color }
+  if (shape % 4 === 1) return <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} style={st} strokeWidth="1.6" />
+  if (shape % 4 === 2) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy + s} ${cx - s - 1},${cy + s}`} style={st} strokeWidth="1.6" />
+  if (shape % 4 === 3) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy} ${cx},${cy + s + 1} ${cx - s - 1},${cy}`} style={st} strokeWidth="1.6" />
+  return <circle cx={cx} cy={cy} r={s} style={st} strokeWidth="1.6" />
 }
 
 function LineChart({ labels, series, metric }: { labels: string[]; series: Series[]; metric: Metric }) {
@@ -41,11 +44,11 @@ function LineChart({ labels, series, metric }: { labels: string[]; series: Serie
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', direction: 'ltr' }}>
       {gridY.map((gv, i) => (
         <g key={i}>
-          <line x1={padL} y1={y(gv)} x2={W - padR} y2={y(gv)} style={{ stroke: 'var(--t62)' }} />
-          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" style={{ fill: 'var(--t63)' }} fontSize="9" fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
+          <line x1={padL} y1={y(gv)} x2={W - padR} y2={y(gv)} style={{ stroke: 'var(--color-line)' }} />
+          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" style={{ fill: 'var(--color-muted)' }} fontSize="9" fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
         </g>
       ))}
-      {labels.map((lb, i) => <text key={i} x={x(i)} y={H - 12} textAnchor="middle" style={{ fill: 'var(--t64)' }} fontSize="9.5" fontFamily="Rubik">{lb}</text>)}
+      {labels.map((lb, i) => <text key={i} x={x(i)} y={H - 12} textAnchor="middle" style={{ fill: 'var(--color-muted)' }} fontSize="9.5" fontFamily="Rubik">{lb}</text>)}
       {series.map((s, si) => {
         const color = COLORS[si % COLORS.length], dash = DASHES[si % DASHES.length]
         const segs: string[] = []; let cur: string[] = []
@@ -56,7 +59,7 @@ function LineChart({ labels, series, metric }: { labels: string[]; series: Serie
         if (cur.length > 1) segs.push(cur.join(' '))
         return (
           <g key={s.id}>
-            {segs.map((d, k) => <path key={k} d={d} fill="none" stroke={color} strokeWidth={s.kind === 'class' ? 3 : 2.2} strokeDasharray={dash || undefined} strokeLinejoin="round" opacity={s.kind === 'class' ? 0.85 : 1} />)}
+            {segs.map((d, k) => <path key={k} d={d} fill="none" style={{ stroke: color }} strokeWidth={s.kind === 'class' ? 3 : 2.2} strokeDasharray={dash || undefined} strokeLinejoin="round" opacity={s.kind === 'class' ? 0.85 : 1} />)}
             {s.points.map((p, i) => p != null ? <Marker key={i} shape={si} cx={x(i)} cy={y(p)} color={color} /> : null)}
           </g>
         )
@@ -100,40 +103,41 @@ export default function ProgressGraph({ studentId, studentName: _studentName, cl
   }, [students, classes, compare, studentId, myClassId, className])
 
   const hasData = data && data.series.some((s) => s.points.some((p) => p != null))
-  const pill = (on: boolean): React.CSSProperties => ({ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', color: on ? 'var(--t65)' : 'var(--t27)', background: on ? 'linear-gradient(135deg,var(--t66),var(--t15))' : 'var(--t25)', border: on ? '1px solid var(--t28)' : '1px solid var(--t67)' })
+  /* כפתור בחירה: המחלקה holo-button נותנת את הצבעים; נבחר = is-selected */
+  const pill: React.CSSProperties = { fontSize: 12, fontWeight: 700, padding: '6px 14px' }
+  const pillClass = (on: boolean) => `holo-button holo-button--staff holo-button--sm${on ? ' is-selected' : ''}`
 
   return (
     <div style={{ ...glass, padding: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ ...micro, fontSize: 9, marginLeft: 'auto' }}>◇ מגמת התקדמות לאורך זמן</div>
-        <div style={{ display: 'flex', gap: 6 }}>{METRICS.map((m) => <button key={m.v} onClick={() => setMetric(m.v)} style={pill(metric === m.v)}>{m.label}</button>)}</div>
-        <div style={{ display: 'flex', gap: 6 }}>{RANGES.map((r) => <button key={r.v} onClick={() => setRange(r.v)} style={pill(range === r.v)}>{r.label}</button>)}</div>
+        <div style={{ display: 'flex', gap: 6 }}>{METRICS.map((m) => <button key={m.v} className={pillClass(metric === m.v)} onClick={() => setMetric(m.v)} style={pill}>{m.label}</button>)}</div>
+        <div style={{ display: 'flex', gap: 6 }}>{RANGES.map((r) => <button key={r.v} className={pillClass(range === r.v)} onClick={() => setRange(r.v)} style={pill}>{r.label}</button>)}</div>
         {/* הוסף להשוואה */}
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setAddOpen((o) => !o)} style={{ fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 8, cursor: 'pointer', color: 'var(--t49)', background: 'var(--t47)', border: '1px solid var(--t48)' }}>+ הוסף להשוואה</button>
+          <button className={pillClass(false)} onClick={() => setAddOpen((o) => !o)} style={pill}>+ הוסף להשוואה</button>
           {addOpen && compareOptions.length > 0 && (
-            <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 20, ...glass, padding: 6, minWidth: 180, maxHeight: 260, overflowY: 'auto' }}>
+            <div style={{ position: 'absolute', top: '110%', right: 0, zIndex: 20, ...glass, padding: 8, minWidth: 190, maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {compareOptions.map((o) => (
-                <button key={o.id} onClick={() => { setCompare((c) => [...c, o.id]); setAddOpen(false) }}
-                  style={{ display: 'block', width: '100%', textAlign: 'right', fontSize: 12.5, padding: '7px 10px', borderRadius: 6, cursor: 'pointer', background: 'transparent', border: 'none', color: 'var(--t12)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--t20)' }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>{o.label}</button>
+                <button key={o.id} className={pillClass(false)} onClick={() => { setCompare((c) => [...c, o.id]); setAddOpen(false) }}
+                  style={{ display: 'block', width: '100%', flexShrink: 0, textAlign: 'right', fontSize: 12.5, padding: '7px 10px' }}>{o.label}</button>
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {!data && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 24 }}>טוען…</p>}
-      {data?.notReady && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 24, fontSize: 11 }}>נתוני ההתקדמות עדיין לא זמינים.</p>}
-      {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 24, fontSize: 11 }}>אין עדיין נתוני התקדמות לתלמיד זה.</p>}
+      {!data && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 24 }}>טוען…</p>}
+      {data?.notReady && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 24, fontSize: 11 }}>נתוני ההתקדמות עדיין לא זמינים.</p>}
+      {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 24, fontSize: 11 }}>אין עדיין נתוני התקדמות לתלמיד זה.</p>}
       {hasData && <LineChart labels={data!.labels} series={data!.series} metric={metric} />}
       {hasData && (
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
           {data!.series.map((s, si) => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke={COLORS[si % COLORS.length]} strokeWidth="2.4" strokeDasharray={DASHES[si % DASHES.length] || undefined} /><g transform="translate(13,6)"><Marker shape={si} cx={0} cy={0} color={COLORS[si % COLORS.length]} /></g></svg>
-              <span style={{ fontSize: 11.5, color: 'var(--t12)' }}>{s.name}</span>
-              {si > 0 && <button onClick={() => setCompare((c) => c.filter((id) => id !== s.id))} title="הסר" style={{ background: 'none', border: 'none', color: 'var(--t34)', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>×</button>}
+              <svg width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" style={{ stroke: COLORS[si % COLORS.length] }} strokeWidth="2.4" strokeDasharray={DASHES[si % DASHES.length] || undefined} /><g transform="translate(13,6)"><Marker shape={si} cx={0} cy={0} color={COLORS[si % COLORS.length]} /></g></svg>
+              <span style={{ fontSize: 11.5, color: 'var(--color-ink)' }}>{s.name}</span>
+              {si > 0 && <button className={pillClass(false)} onClick={() => setCompare((c) => c.filter((id) => id !== s.id))} title="הסר" style={{ fontSize: 13, lineHeight: 1, padding: '1px 6px', borderRadius: 7 }}>×</button>}
             </div>
           ))}
         </div>

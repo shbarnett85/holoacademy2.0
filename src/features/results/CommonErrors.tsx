@@ -6,7 +6,7 @@
 import { useNavigate } from 'react-router-dom'
 import { FOCUSED_LESSON_WHOLE_CLASS_NOTE, focusedLessonLabel, studentsCountText } from '../../shared/lib/findingsNarrative'
 import type { CommonErrorRow, SubmissionHead } from '../../shared/types/resultsV1'
-import { FONT, Icon, RADIUS, T } from '../teacherUi'
+import { BTN, FONT, Icon, RADIUS, T } from '../teacherUi'
 import { startFocusedLesson } from './focusedLesson'
 import { primaryButton, secondaryButton, soft } from './styles'
 import { UI } from './text'
@@ -16,8 +16,9 @@ function ErrorCard({ e, head, discussTo }: { e: CommonErrorRow; head: Submission
   const n = e.studentIds?.length ?? e.studentsCount
   const canFocus = !!e.wrongText && !!e.sceneId
   return (
-    <li data-common-error-card={e.id} style={{ listStyle: 'none', padding: '10px 16px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.4 }}>
+    /* טעות נפוצה = ממצא על תלמידים: רקע וטקסט של ממצא. הריפוד קטן ב-2px למעלה ולמטה — במקום הריפוד של הערת השיעור הממוקד (הגובה נשאר) */
+    <li data-common-error-card={e.id} style={{ listStyle: 'none', padding: '8px 16px', borderRadius: RADIUS.md, border: `1.5px solid ${T.findingText}`, background: T.findingFill, display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.findingText, lineHeight: 1.4 }}>
         <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={20} /></span>
         {e.sentence ?? e.title}
       </h3>
@@ -27,22 +28,22 @@ function ErrorCard({ e, head, discussTo }: { e: CommonErrorRow; head: Submission
       </p>
       <p style={{ margin: 0, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text }}>{UI.errorCount(studentsCountText(e.studentsCount, e.studentsExposed))}</p>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap', marginTop: 4 }}>
-        <button type="button" data-tu-press data-focused-lesson disabled={!canFocus} style={{ ...primaryButton, opacity: canFocus ? 1 : 0.55, cursor: canFocus ? 'pointer' : 'not-allowed' }}
+        <button type="button" data-tu-press data-focused-lesson className={BTN} disabled={!canFocus} style={{ ...primaryButton, cursor: canFocus ? 'pointer' : 'not-allowed' }}
           onClick={() => { startFocusedLesson(e, head); void navigate('/creator') }}>
           <Icon name="step" size={18} />
           {focusedLessonLabel(n)}
         </button>
-        <button type="button" data-tu-press data-discuss style={secondaryButton} onClick={() => { void navigate(discussTo) }}>
+        <button type="button" data-tu-press data-discuss className={BTN} style={secondaryButton} onClick={() => { void navigate(discussTo) }}>
           {UI.discussionButton}
         </button>
         {e.linkedQuest && (
-          <button type="button" data-tu-press style={secondaryButton} onClick={() => { if (e.linkedQuest) void navigate(`/creator/quest/${encodeURIComponent(e.linkedQuest.questId)}`) }}>
+          <button type="button" data-tu-press className={BTN} style={secondaryButton} onClick={() => { if (e.linkedQuest) void navigate(`/creator/quest/${encodeURIComponent(e.linkedQuest.questId)}`) }}>
             {UI.focusedOpen}
           </button>
         )}
       </div>
       {/* ההערה גלויה תמיד — לא נחשפת רק אחרי לחיצה (עיקרון 8) */}
-      <p data-focused-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5 }}>
+      <p data-focused-note style={{ ...soft, margin: 0, display: 'flex', alignItems: 'flex-start', gap: 8, lineHeight: 1.5, padding: '2px 8px', borderRadius: RADIUS.sm, background: T.aiFill }}>
         <span style={{ color: T.muted, display: 'inline-flex', marginTop: 3 }}><Icon name="info" size={18} /></span>
         {FOCUSED_LESSON_WHOLE_CLASS_NOTE}
         {e.linkedQuest ? ` ${UI.focusedExists(e.linkedQuest.title)}` : ''}

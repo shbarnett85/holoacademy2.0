@@ -27,8 +27,9 @@ export default function Sentence({ children, tone = 'neutral', label, compact = 
   return (
     <section data-sentence aria-label={label ?? 'סיכום במשפט אחד'}
       style={{
-        display: 'flex', gap: 12, alignItems: 'center', padding: compact ? '4px 14px' : '12px 16px', borderRadius: RADIUS.md,
-        background: T.surface, border: `1px solid ${T.border}`, borderInlineStart: `6px solid ${meta.color}`,
+        /* משטח: לבן, קו דיו וצל קשיח. הריפוד קטן ב-1px (הקו עבה ב-1px), ובצד ההתחלה גדול ב-4px (במקום פס הצבע של 6px) — המידות נשארות */
+        display: 'flex', gap: 12, alignItems: 'center', padding: compact ? '3px 13px' : '11px 15px', paddingInlineStart: compact ? 18 : 20, borderRadius: RADIUS.md,
+        background: T.surface, border: T.line, boxShadow: T.shadow,
       }}>
       <span style={{ color: meta.color, display: 'inline-flex', position: 'relative', alignSelf: compact ? 'center' : 'flex-start', marginTop: compact ? 0 : 4 }}>
         <Icon name={TONE_ICON[tone]} size={compact ? 22 : 24} />

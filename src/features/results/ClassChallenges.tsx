@@ -2,7 +2,7 @@
    "פירוט" פותח את התפלגות התשובות — מי בחר מה (בשמות) ומי ויתר. שאלות מוסר: אין נכון/שגוי ואין שמות (לפי עיצוב המערכת). */
 import { countNb, detailAvailableLine, levelBandText, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { ChallengeResult, ClassSubmissionView, ItemResult, OptionCount } from '../../shared/types/resultsV1'
-import { EmptyState, FONT, Icon, ProgressBar, RADIUS, T } from '../teacherUi'
+import { EmptyState, FILL, findingInline, FONT, Icon, NESTED_LINE, ProgressBar, RADIUS, T } from '../teacherUi'
 import ChallengeRowShell from './ChallengeRow'
 import { ExtraIcon } from './marks'
 import { soft } from './styles'
@@ -27,7 +27,7 @@ function OptionRow({ o, moral }: { o: OptionCount; moral: boolean }) {
         <div style={{ color: T.textSoft }}>
           {moral ? UI.pickedTimes(o.count) : UI.chose(o.count)}{names ? `: ${names}` : ''}
         </div>
-        {o.errorTag && <div style={{ fontWeight: 700 }}>{UI.commonErrorShort}: {o.errorTag.title}</div>}
+        {o.errorTag && <div style={{ fontWeight: 700 }}><span style={findingInline}>{UI.commonErrorShort}: {o.errorTag.title}</span></div>}
       </div>
     </li>
   )
@@ -51,7 +51,7 @@ function Detail({ c }: { c: ChallengeResult }) {
   const moral = c.type === MORAL
   const showPrompts = c.items.length > 1 || c.items.some((i) => !!i.options)
   return (
-    <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: FILL.neutral, border: NESTED_LINE, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {moral && <p style={{ ...soft, margin: 0 }}>{UI.moralNote}</p>}
       {c.items.map((item) => <ItemDetail key={item.itemIndex} item={item} moral={moral} showPrompt={showPrompts} />)}
       {c.items.length === 0 && c.attempted > 0 && <div style={soft}>{countNb(c.solved, c.attempted)} {UI.succeeded}</div>}
@@ -82,7 +82,7 @@ function ChallengeRow({ c }: { c: ChallengeResult }) {
       footer={c.commonError && !moral ? (
         <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 0 4px 0', paddingInlineStart: 46, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {c.commonError.sentence ?? `${c.commonError.title} — ${countNb(c.commonError.count, c.attempted)} ${UI.studentsPlural}`}{c.commonError.title && c.commonError.sentence ? ` — ${c.commonError.title}` : ''}</span>
+          <span style={findingInline}><strong>{UI.commonErrorShort}:</strong> {c.commonError.sentence ?? `${c.commonError.title} — ${countNb(c.commonError.count, c.attempted)} ${UI.studentsPlural}`}{c.commonError.title && c.commonError.sentence ? ` — ${c.commonError.title}` : ''}</span>
         </div>
       ) : undefined}>
       <Detail c={c} />

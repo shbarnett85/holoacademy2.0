@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { howWeCalcLiveLines, LIVE_STATUS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { LiveStatus, LiveTile, LiveView } from '../../shared/types/resultsV1'
-import { EmptyState, FONT, Icon, RADIUS, ScreenShell, Sentence, T } from '../teacherUi'
+import { BTN, EmptyState, FILL, FONT, Icon, RADIUS, ScreenShell, Sentence, T } from '../teacherUi'
 import type { BreadcrumbItem, IconName } from '../teacherUi'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
@@ -18,13 +18,13 @@ import { UI } from './text'
 const enc = encodeURIComponent
 
 /* אייקון + צבע לכל מצב. הצבע משני: תמיד יש גם אייקון ומילה */
-const STATUS_META: Record<LiveStatus, { color: string; icon: IconName | 'flag' }> = {
-  working: { color: T.accent, icon: 'pulse' },
-  stuck: { color: T.bad, icon: 'alert' },
-  gave_up: { color: T.warn, icon: 'flag' },
-  inactive: { color: T.muted, icon: 'clock' },
-  not_started: { color: T.muted, icon: 'circle' },
-  finished: { color: T.good, icon: 'check' },
+const STATUS_META: Record<LiveStatus, { color: string; icon: IconName | 'flag'; fill: string }> = {
+  working: { color: T.accent, icon: 'pulse', fill: T.surface },
+  stuck: { color: T.bad, icon: 'alert', fill: FILL.bad },
+  gave_up: { color: T.warn, icon: 'flag', fill: FILL.attention },
+  inactive: { color: T.muted, icon: 'clock', fill: T.surface },
+  not_started: { color: T.muted, icon: 'circle', fill: T.surface },
+  finished: { color: T.good, icon: 'check', fill: FILL.good },
 }
 const ORDER: LiveStatus[] = ['stuck', 'gave_up', 'working', 'inactive', 'not_started', 'finished']
 
@@ -35,10 +35,13 @@ function StatusMark({ status, size = 18 }: { status: LiveStatus; size?: number }
 
 function Tile({ t }: { t: LiveTile }) {
   const m = STATUS_META[t.status]
-  const attention = t.status === 'stuck' || t.status === 'gave_up'
   return (
     <li data-live-tile={t.studentId} data-live-status={t.status}
-      style={{ listStyle: 'none', padding: '6px 12px 8px', borderRadius: RADIUS.md, background: T.surface, boxSizing: 'border-box', border: `${attention ? 2.5 : 1.5}px solid ${attention ? m.color : T.controlBorder}`, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      /* אריח: משטח לבן (או מילוי עדין לפי המצב), קו דיו וצל קשיח. המצב תמיד גם באייקון ובמילה */
+      style={{
+        listStyle: 'none', padding: '6px 12px 7px', borderRadius: RADIUS.md, boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0,
+        background: m.fill, border: T.line, boxShadow: T.shadow,
+      }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.35 }}>
         <StatusMark status={t.status} />
         <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{t.name}</span>
@@ -57,7 +60,7 @@ export function LiveBody({ v }: { v: LiveView }) {
       <Sentence compact tone={v.counts.stuck + v.counts.gave_up > 0 ? 'attention' : 'neutral'}>{v.summary}</Sentence>
       {v.head.state !== 'active_now' && <p data-live-inactive style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>{UI.liveNotActive}</p>}
       {!v.available && <p data-live-unavailable style={{ ...soft, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="info" size={18} /></span>{UI.liveUnavailable}</p>}
-      <section aria-label={UI.liveLegend} data-live-legend style={{ ...card, flex: '0 0 auto', padding: '6px 14px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 18px' }}>
+      <section aria-label={UI.liveLegend} data-live-legend style={{ ...card, flex: '0 0 auto', padding: '5px 13px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 18px' }}>
         {ORDER.map((s) => (
           <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, color: T.text, whiteSpace: 'nowrap' }}>
             <StatusMark status={s} />{LIVE_STATUS_TEXT[s]}<strong>{v.counts[s]}</strong>
@@ -69,7 +72,7 @@ export function LiveBody({ v }: { v: LiveView }) {
       {v.tiles.length === 0 ? (
         <EmptyState title={UI.rosterEmpty} />
       ) : (
-        <ul data-live-tiles style={{ ...scrollArea, margin: 0, padding: '0 0 4px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(215px, 1fr))', gap: 8, alignContent: 'start' }}>
+        <ul data-live-tiles style={{ ...scrollArea, margin: '0 -4px 0 0', padding: '0 4px 4px 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(215px, 1fr))', gap: 8, alignContent: 'start' }}>
           {v.tiles.map((t) => <Tile key={t.studentId} t={t} />)}
         </ul>
       )}
@@ -110,7 +113,7 @@ export default function LivePage({ submissionId }: { submissionId: string }) {
         ) : (
           <>
             <div style={{ flex: '0 0 auto' }}>
-              <button type="button" data-tu-press style={secondaryButton} onClick={() => { void navigate(toLesson) }}>{UI.liveBack}</button>
+              <button type="button" data-tu-press className={BTN} style={secondaryButton} onClick={() => { void navigate(toLesson) }}>{UI.liveBack}</button>
             </div>
             <LiveBody v={q.data} />
           </>

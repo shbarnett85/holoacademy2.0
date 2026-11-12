@@ -111,7 +111,7 @@ export default function QuestPreview() {
         <>
           {`השיעור נוצר! · ${scenes.length} סצנות · ${artStyleLabel(artStyle)}`}
           {factStatus === 'pending' && (
-            <span style={{ display: 'block', marginTop: '0.3rem', color: 'var(--t300)' }}>
+            <span style={{ display: 'block', width: 'fit-content', marginTop: '0.4rem', padding: '3px 10px', borderRadius: 8, background: 'var(--color-machine-tint)', border: '1.5px solid var(--color-ink)', color: 'var(--color-ink)' }}>
               🔍 בודק עובדות ברקע…
             </span>
           )}

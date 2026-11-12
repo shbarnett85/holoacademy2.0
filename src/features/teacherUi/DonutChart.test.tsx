@@ -80,7 +80,7 @@ describe('DonutChart — נגישות ועקרונות הממשק', () => {
 
   it('אין var() באטריביוט של SVG — הצבעים רק דרך style', () => {
     expect(html).not.toMatch(/\s(fill|stroke|stop-color|flood-color)="[^"]*var\(/)
-    expect(html).toMatch(/style="[^"]*fill:var\(--t\d+\)/)
+    expect(html).toMatch(/style="[^"]*fill:var\(--color-[a-z-]+\)/)
   })
 
   it('אין טקסט קטן מ-16px, ואין צבע מוחלט', () => {
@@ -115,7 +115,7 @@ describe('DonutChart — כל נתח נבדל גם בדוגמה', () => {
     const fills = [...html.matchAll(/<path data-donut-slice="([a-d])"[^>]*style="[^"]*?fill:([^;"]+)/g)].map((m) => ({ key: m[1], fill: m[2] }))
     expect(fills).toHaveLength(4)
     expect(new Set(fills.map((f) => f.fill)).size).toBe(4)
-    expect(fills.find((f) => f.key === 'a')!.fill).toMatch(/^var\(--t\d+\)$/)
+    expect(fills.find((f) => f.key === 'a')!.fill).toMatch(/^var\(--color-[a-z-]+\)$/)
     for (const f of fills.filter((x) => x.key !== 'a')) expect(f.fill).toMatch(/^url\(#donut-[^)]+\)$/)
     /* הדוגמאות שונות זו מזו: אלכסוני (מסובב), נקודות (עיגול), אופקי (בלי סיבוב ובלי עיגול) */
     expect(html).toContain('patternTransform="rotate(45)"')

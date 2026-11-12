@@ -1,9 +1,9 @@
 /* סגנונות משותפים לאולפן היוצר (Claude Design) — כדי לא לשכפל בין המסכים */
 
+/* משטח במסכי המורה: לבן, קו דיו 2px, צל קשיח 3px, רדיוס 12 (השם glass נשאר מהעיצוב הקודם) */
 export const glass: React.CSSProperties = {
-  background: 'linear-gradient(150deg, var(--t244), var(--t245))',
-  border: '1px solid var(--t86)', borderRadius: 18, backdropFilter: 'blur(14px)',
-  boxShadow: '0 24px 60px -28px var(--t246), inset 0 1px 0 var(--t247)',
+  background: 'var(--color-surface)', color: 'var(--color-ink)',
+  border: 'var(--border-staff)', borderRadius: 'var(--radius-staff)', boxShadow: 'var(--shadow-staff)',
 }
 
-export const micro: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--t89)' }
+export const micro: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--color-muted)' }

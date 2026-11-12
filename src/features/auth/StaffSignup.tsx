@@ -2,16 +2,15 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
 import EntryShell from '../../shared/ui/EntryShell'
+import { fieldStyle } from '../../styles/ui'
 
 interface School { id: string; name: string }
 interface SignupResponse { ok: boolean; needsEmailVerification?: boolean; pendingApproval?: boolean }
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(0,0,0,0.3)',
-  border: '1px solid rgba(0,246,255,0.3)',
+  ...fieldStyle,
   borderRadius: '0.6rem',
-  color: 'var(--holo-text)',
   padding: '0.7rem 0.9rem',
 }
 
@@ -86,7 +85,7 @@ export default function StaffSignup() {
     return (
       <EntryShell onClose={() => navigate('/staff/login')}>
         <div className="flex flex-col items-center justify-center p-2 gap-6">
-          <div className="holo-panel w-full max-w-sm text-center" style={{ boxShadow: 'var(--holo-glow)' }}>
+          <div className="holo-panel holo-panel--staff w-full max-w-sm text-center">
             <div style={{ fontSize: '2.4rem' }}>📧</div>
             <h1 className="holo-text-glow font-black mt-2" style={{ fontSize: '1.6rem' }}>בדקו את תיבת המייל</h1>
             <p className="mt-3 text-sm" style={{ lineHeight: 1.8 }}>
@@ -94,16 +93,16 @@ export default function StaffSignup() {
               <br />לחצו עליו כדי לאשר את הכתובת — ורק אז אפשר להתחבר.
             </p>
             {done.pendingApproval && (
-              <p className="mt-3 text-sm" style={{ lineHeight: 1.8, color: 'var(--holo-cyan)' }}>
+              <p className="mt-3 text-sm" style={{ lineHeight: 1.8, color: 'var(--color-human-deep)' }}>
                 הצטרפות לבית ספר קיים מאושרת על ידי מנהל בית הספר. תקבלו גישה ברגע שהבקשה תאושר.
               </p>
             )}
-            {error && <p className="text-sm mt-3" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
-            <button className="holo-button w-full mt-5" onClick={resend} disabled={resent} style={{ opacity: resent ? 0.6 : 1 }}>
+            {error && <p className="text-sm mt-3" style={{ color: 'var(--color-wrong)' }}>⚠️ {error}</p>}
+            <button className="holo-button holo-button--staff w-full mt-5" onClick={resend} disabled={resent}>
               {resent ? 'נשלח שוב ✓' : 'לא הגיע? שלחו שוב'}
             </button>
-            <p className="text-sm mt-4" style={{ opacity: 0.6 }}>
-              <Link to="/staff/login" style={{ color: 'var(--holo-cyan)' }}>למסך ההתחברות</Link>
+            <p className="text-sm mt-4" style={{ color: 'var(--color-muted)' }}>
+              <Link to="/staff/login" className="holo-link">למסך ההתחברות</Link>
             </p>
           </div>
         </div>
@@ -114,77 +113,76 @@ export default function StaffSignup() {
   return (
     <EntryShell onClose={() => navigate('/staff/login')}>
     <div className="flex flex-col items-center justify-center p-2 gap-6">
-      <div className="text-center">
+      {/* הכותרת בתוך המשטח הלבן (ולא מעליו, על המסך שמאחורי החלון), כדי שתישאר קריאה */}
+      <div className="holo-panel holo-panel--staff w-full max-w-sm">
+      <div className="text-center mb-4">
         <h1 className="holo-text-glow font-black" style={{ fontSize: '2.2rem' }}>הרשמת צוות</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--holo-text)', opacity: 0.55 }}>מורה או מנהל חדש</p>
+        <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>מורה או מנהל חדש</p>
       </div>
-
-      <div className="holo-panel w-full max-w-sm" style={{ boxShadow: 'var(--holo-glow)' }}>
-        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>שם מלא</label>
+        <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>שם מלא</label>
         <input value={name} onChange={(e) => setName(e.target.value)} className="mb-4" style={inputStyle} />
 
-        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>אימייל</label>
+        <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>אימייל</label>
         <input dir="ltr" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@school.com" className="mb-4" style={inputStyle} />
 
-        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>סיסמה (לפחות 6 תווים)</label>
+        <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>סיסמה (לפחות 6 תווים)</label>
         <input dir="ltr" type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-4" style={inputStyle} />
 
-        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>אימות סיסמה</label>
+        <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>אימות סיסמה</label>
         <input dir="ltr" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} className="mb-1"
-          style={{ ...inputStyle, ...(password2 && !passwordsMatch ? { border: '1px solid rgba(255,80,120,.6)' } : {}) }} />
-        <p className="text-xs mb-3" style={{ color: password2 && !passwordsMatch ? '#ff9bb3' : 'transparent', minHeight: 16 }}>הסיסמאות אינן תואמות</p>
+          style={{ ...inputStyle, ...(password2 && !passwordsMatch ? { border: '2px solid var(--color-wrong)' } : {}) }} />
+        <p className="text-xs mb-3" style={{ color: password2 && !passwordsMatch ? 'var(--color-wrong)' : 'transparent', minHeight: 16 }}>הסיסמאות אינן תואמות</p>
 
-        <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>בית ספר</label>
+        <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>בית ספר</label>
         <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} className="mb-2" style={{ ...inputStyle, cursor: 'pointer' }}>
           {schools.length === 0 && <option value="">טוען…</option>}
           {schools.map((s) => (
-            <option key={s.id} value={s.id} style={{ background: 'var(--holo-bg)' }}>{s.name}</option>
+            <option key={s.id} value={s.id}>{s.name}</option>
           ))}
-          <option value="__new__" style={{ background: 'var(--holo-bg)' }}>➕ בית הספר שלי לא ברשימה…</option>
+          <option value="__new__">➕ בית הספר שלי לא ברשימה…</option>
         </select>
         {isNewSchool && (
           <>
             <input value={newSchoolName} onChange={(e) => setNewSchoolName(e.target.value)} placeholder="שם בית הספר החדש"
               className="mb-4" style={inputStyle} autoFocus />
-            <label className="block mb-1 text-sm" style={{ opacity: 0.7 }}>תפקיד בבית הספר החדש</label>
+            <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>תפקיד בבית הספר החדש</label>
             <div className="grid grid-cols-2 gap-3 mb-2">
               {([{ k: 'teacher', l: '🧑‍🏫 מורה' }, { k: 'admin', l: '🛡️ מנהל' }] as const).map((r) => (
                 <button
                   key={r.k}
                   type="button"
                   onClick={() => setRole(r.k)}
-                  className="holo-panel cursor-pointer text-center"
-                  style={{ padding: '0.7rem', borderColor: role === r.k ? 'var(--holo-cyan)' : 'rgba(0,246,255,0.15)', boxShadow: role === r.k ? 'var(--holo-glow)' : 'none' }}
+                  className={`holo-button holo-button--staff text-center${role === r.k ? ' is-selected' : ''}`}
+                  style={{ padding: '0.7rem', fontFamily: 'inherit', fontWeight: 'inherit' }}
                 >
                   {r.l}
                 </button>
               ))}
             </div>
-            <p className="text-xs mb-4" style={{ opacity: 0.6, lineHeight: 1.6 }}>
+            <p className="text-xs mb-4" style={{ color: 'var(--color-muted)', lineHeight: 1.6 }}>
               {role === 'admin' ? 'מנהל מוסיף מורים, פותח כיתות ומאשר מורים שמבקשים להצטרף לבית הספר.' : 'מורה בודד — יוצר כיתות ומקבל דוחות תלמידים.'}
             </p>
           </>
         )}
         {!isNewSchool && (
-          <p className="text-xs mb-4" style={{ opacity: 0.65, lineHeight: 1.6 }}>
+          <p className="text-xs mb-4" style={{ color: 'var(--color-muted)', lineHeight: 1.6 }}>
             🛡️ הצטרפות לבית ספר קיים נרשמת כמורה, ומנהל בית הספר צריך לאשר אותה לפני שתקבלו גישה.
           </p>
         )}
 
-        {error && <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
+        {error && <p className="text-sm mb-3" style={{ color: 'var(--color-wrong)' }}>⚠️ {error}</p>}
 
         <button
-          className="holo-button w-full text-lg font-bold"
-          style={{ opacity: busy || !canSubmit ? 0.5 : 1 }}
+          className="holo-button holo-button--staff w-full text-lg font-bold"
           disabled={busy || !canSubmit}
           onClick={submit}
         >
           {busy ? 'נרשם…' : 'הרשמה ←'}
         </button>
 
-        <p className="text-sm text-center mt-4" style={{ opacity: 0.6 }}>
+        <p className="text-sm text-center mt-4" style={{ color: 'var(--color-muted)' }}>
           כבר רשום?{' '}
-          <Link to="/staff/login" style={{ color: 'var(--holo-cyan)' }}>התחברות</Link>
+          <Link to="/staff/login" className="holo-link">התחברות</Link>
         </p>
       </div>
     </div>

@@ -40,14 +40,12 @@ export default function ScreenShell({ active, title, breadcrumb, lensSwitcher, t
     <div dir="rtl" data-teacher-ui
       style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', fontSize: 16, color: T.text, background: T.studioBg }}>
       <a href="#tu-main" className="tu-skip" onClick={(e) => { e.preventDefault(); document.getElementById('tu-main')?.focus() }}>דלג לתוכן</a>
-      <div aria-hidden="true" style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div aria-hidden="true" style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
       <StudioTopBar active={active} />
       <main id="tu-main" tabIndex={-1} data-studio-content className="holo-tab-enter"
         style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, padding: `0 ${GUTTER}px ${PAGE_BOTTOM}px`, width: '100%', maxWidth: CONTENT_MAX_WIDTH, marginInline: 'auto', boxSizing: 'border-box', outline: 'none' }}>
         <header data-screen-header style={{ position: 'relative', zIndex: 5, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 16, rowGap: 0, minHeight: 44 }}>
-            <h1 style={{ margin: 0, fontSize: H1, fontWeight: 800, lineHeight: 1.3, color: T.text }}>{title}</h1>
+            <h1 style={{ margin: 0, fontSize: H1, fontWeight: 800, lineHeight: 1.3, color: T.accent }}>{title}</h1>
             {titleAside}
             {breadcrumb && breadcrumb.length > 0 && <Breadcrumb items={breadcrumb} />}
             <span aria-hidden="true" style={{ flex: '1 1 0', minWidth: 0 }} />

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { tokenRgba, tokenValue } from '../../styles/tokens'
+import { modalBackdrop, panelAi, panelStaff, progressFill, progressTrack } from '../../styles/ui'
 
 /* הודעות ההתקדמות המתחלפות — נשמרות מהמסך הקיים (מחזוריות לכל אורך ההמתנה) */
 const MESSAGES = [
@@ -19,8 +21,9 @@ function formatElapsed(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-/* מנוע החלקיקים (Claude Design): ליבת משושים מסתובבת, חלקיקים מקיפים, טבעות מקווקוות
-   וזרמי דאטה נשאבים פנימה. מותאם למחשבים חלשים: פחות חלקיקים, ועצירה ב-prefers-reduced-motion. */
+/* מנוע החלקיקים: ליבת משושים מסתובבת, חלקיקים מקיפים, טבעות מקווקוות וזרמי דאטה נשאבים פנימה.
+   מצויר שטוח על רקע הממשק (בלי זוהר ובלי מעברי צבע); הצבעים נקראים מהטוקנים בזמן ריצה.
+   מותאם למחשבים חלשים: פחות חלקיקים, ועצירה ב-prefers-reduced-motion. */
 function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const canvas = canvasRef.current
@@ -35,14 +38,19 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
     resize()
     window.addEventListener('resize', resize)
 
-    const PALETTE = ['#2ff3ff', '#ff45e6', '#ff9a2e', '#ffffff']
+    /* צבעים מהטוקנים: דיו וסגול המכונה, ומעט תכלת הולוגרמה ("המכונה חושבת") */
+    const INK = tokenValue('--color-ink')
+    const DEEP = tokenValue('--color-machine-deep')
+    const SURFACE = tokenValue('--color-surface')
+    const HOLO = tokenValue('--color-holo')
+    const PALETTE = [DEEP, INK, SURFACE, DEEP, INK, HOLO]
     /* כמויות מופחתות לעומת הרפרנס (120/40) לחלקלקות במחשבי בית ספר */
     const orbs = Array.from({ length: 70 }, (_, i) => ({
       angle: (i / 70) * Math.PI * 2,
       radius: 80 + Math.sin(i * 0.7) * 60,
       speed: 0.003 + Math.random() * 0.006,
       size: 1.5 + Math.random() * 3,
-      color: PALETTE[i % 4],
+      color: PALETTE[i % PALETTE.length],
       alpha: 0.3 + Math.random() * 0.7,
       layer: Math.floor(Math.random() * 3),
     }))
@@ -61,13 +69,10 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
       ctx.clearRect(0, 0, w, h)
       t += 0.016
 
-      /* זוהר מרכזי */
-      const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, 120)
-      grd.addColorStop(0, 'rgba(47,243,255,.18)')
-      grd.addColorStop(0.5, 'rgba(255,69,230,.08)')
-      grd.addColorStop(1, 'transparent')
-      ctx.fillStyle = grd
-      ctx.beginPath(); ctx.arc(cx, cy, 120, 0, Math.PI * 2); ctx.fill()
+      /* לוח הליבה: עיגול שטוח עם קו דיו */
+      ctx.beginPath(); ctx.arc(cx, cy, 58, 0, Math.PI * 2)
+      ctx.fillStyle = SURFACE; ctx.fill()
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke()
 
       /* ליבת משושים */
       const drawHex = (r: number, stroke: string, lw: number, rot: number) => {
@@ -79,17 +84,18 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
         }
         ctx.closePath(); ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); ctx.restore()
       }
-      drawHex(44, 'rgba(47,243,255,.6)', 1.5, t * 0.4)
-      drawHex(34, 'rgba(255,69,230,.4)', 1, -t * 0.6)
-      drawHex(24, 'rgba(47,243,255,.35)', 0.8, t * 0.9)
+      drawHex(44, INK, 2, t * 0.4)
+      drawHex(34, DEEP, 1.5, -t * 0.6)
+      drawHex(24, tokenRgba('--color-ink', 0.55), 1, t * 0.9)
 
       /* טבעות מסתובבות מקווקוות + שנתות */
-      const rings: [number, number, string, number][] = [
-        [130, 1.2, 'rgba(47,243,255,.35)', 0.5],
-        [165, 0.8, 'rgba(255,69,230,.25)', 0.35],
-        [200, 0.6, 'rgba(255,154,46,.2)', 0.25],
+      const rings: [number, number, `--${string}`, number, number][] = [
+        [130, 1.6, '--color-machine-deep', 0.75, 0.5],
+        [165, 1.2, '--color-ink', 0.4, 0.35],
+        [200, 1, '--color-machine-deep', 0.4, 0.25],
       ]
-      rings.forEach(([r, lw, col, sp], ri) => {
+      rings.forEach(([r, lw, token, a0, sp], ri) => {
+        const col = tokenRgba(token, a0)
         ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * sp * (ri % 2 === 0 ? 1 : -1))
         ctx.beginPath(); ctx.setLineDash([12, 8]); ctx.arc(0, 0, r, 0, Math.PI * 2)
         ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.stroke(); ctx.setLineDash([])
@@ -98,7 +104,7 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
           ctx.beginPath()
           ctx.moveTo(Math.cos(a) * (r - 4), Math.sin(a) * (r - 4))
           ctx.lineTo(Math.cos(a) * (r + 4), Math.sin(a) * (r + 4))
-          ctx.strokeStyle = col.replace(/[\d.]+\)$/, '1)'); ctx.lineWidth = 1.2; ctx.stroke()
+          ctx.strokeStyle = tokenRgba(token, 1); ctx.lineWidth = 1.2; ctx.stroke()
         }
         ctx.restore()
       })
@@ -112,12 +118,12 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
         const pulse = (Math.sin(t * 3 + o.angle) + 1) / 2
         ctx.save()
         ctx.globalAlpha = o.alpha * (0.4 + pulse * 0.6)
-        ctx.fillStyle = o.color; ctx.shadowColor = o.color; ctx.shadowBlur = 8
+        ctx.fillStyle = o.color
         ctx.beginPath(); ctx.arc(x, y, o.size * (0.8 + pulse * 0.4), 0, Math.PI * 2); ctx.fill()
         ctx.restore()
       })
 
-      /* זרמי דאטה פנימה (ללא shadowBlur — חיסכון בעלות) */
+      /* זרמי דאטה פנימה */
       streams.forEach((s) => {
         const dx = -s.x, dy = -s.y
         const dist = Math.sqrt(dx * dx + dy * dy) || 1
@@ -129,12 +135,11 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
         ctx.fillRect(cx + s.x - s.size / 2, cy + s.y - s.size / 2, s.size, s.size); ctx.restore()
       })
 
-      /* נקודה מרכזית פועמת */
+      /* נקודה מרכזית פועמת: תכלת ההולוגרמה עם קו דיו */
       const dotPulse = (Math.sin(t * 4) + 1) / 2
-      ctx.save()
-      ctx.globalAlpha = 0.9 + dotPulse * 0.1; ctx.fillStyle = '#fff'
-      ctx.shadowColor = '#2ff3ff'; ctx.shadowBlur = 20 + dotPulse * 20
-      ctx.beginPath(); ctx.arc(cx, cy, 5 + dotPulse * 2, 0, Math.PI * 2); ctx.fill(); ctx.restore()
+      ctx.beginPath(); ctx.arc(cx, cy, 6 + dotPulse * 2, 0, Math.PI * 2)
+      ctx.fillStyle = HOLO; ctx.fill()
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke()
 
       raf = requestAnimationFrame(draw)
     }
@@ -143,7 +148,7 @@ function useParticleCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>)
   }, [canvasRef])
 }
 
-/* מסך טעינת יצירת ההדמיה — אנימציית Claude Design + הודעות מתחלפות + מונה זמן.
+/* מסך טעינת יצירת השיעור — אנימציית החלקיקים + הודעות מתחלפות + מונה זמן.
    פעיל לכל אורך ההמתנה ל-Claude; ההורה מחליף ל-QuestPreview כשהיצירה מסתיימת. */
 export default function GeneratingScreen({ title, onCancel }: { title?: string; onCancel?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -180,34 +185,27 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
     <div
       dir="rtl"
       className="flex flex-col items-center justify-center min-h-screen overflow-hidden relative"
-      style={{ background: 'var(--holo-bg-deep)', fontFamily: 'var(--font-display)' }}
+      style={{ background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}
     >
       <style>{`
-        @keyframes ld-scanline { 0%{top:0%;opacity:1} 100%{top:100%;opacity:0} }
         @keyframes ld-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
         @keyframes ld-fadein { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
         /* המקטע 30% מרוחב המסלול — הטווח ‎-120%..420%‎ (יחסי למקטע) מכסה את כל המסלול; ימין→שמאל, טבעי ב-RTL */
         @keyframes ld-sweep { 0%{transform:translateX(420%)} 100%{transform:translateX(-120%)} }
       `}</style>
 
-      {/* קו סריקה */}
-      <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'linear-gradient(90deg,transparent,rgba(47,243,255,.5),transparent)', animation: 'ld-scanline 2.4s linear infinite', pointerEvents: 'none' }} />
-
       {/* X לביטול — פינה שמאלית-עליונה (מוסכמת הסגירה ב-RTL); מטרת מגע 44px */}
       {onCancel && (
         <button
           aria-label="ביטול יצירה"
+          className="holo-button holo-button--staff"
           onClick={() => setConfirmOpen(true)}
           style={{
             position: 'absolute', top: 14, left: 14, zIndex: 4,
-            width: 44, height: 44, borderRadius: '50%',
+            width: 44, height: 44, padding: 0, borderRadius: '50%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(10,16,34,.55)', border: '1px solid rgba(47,243,255,.3)',
-            color: 'rgba(220,245,255,.85)', fontSize: 18, lineHeight: 1, cursor: 'pointer',
-            backdropFilter: 'blur(4px)', transition: 'border-color .2s ease, color .2s ease',
+            fontSize: 18, lineHeight: 1, fontFamily: 'inherit',
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(47,243,255,.7)'; e.currentTarget.style.color = '#fff' }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(47,243,255,.3)'; e.currentTarget.style.color = 'rgba(220,245,255,.85)' }}
         >✕</button>
       )}
 
@@ -216,27 +214,25 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
         <div
           role="alertdialog"
           aria-label="אישור ביטול יצירה"
-          style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(4,6,14,.7)', backdropFilter: 'blur(3px)' }}
+          style={{ ...modalBackdrop, position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setConfirmOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 340, maxWidth: '86vw', padding: '1.4rem 1.5rem', borderRadius: 14, textAlign: 'center',
-              background: 'rgba(12,18,38,.95)', border: '1px solid rgba(47,243,255,.35)',
-              boxShadow: '0 0 40px rgba(47,243,255,.15)',
-            }}
+            style={{ ...panelStaff, width: 340, maxWidth: '86vw', padding: '1.4rem 1.5rem', textAlign: 'center' }}
           >
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', marginBottom: 6 }}>לבטל את היצירה?</div>
-            <div style={{ fontSize: 13, color: 'rgba(180,220,255,.65)', marginBottom: 18 }}>ההתקדמות תאבד.</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>לבטל את היצירה?</div>
+            <div style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 18 }}>ההתקדמות תאבד.</div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button
+                className="holo-button holo-button--staff"
                 onClick={onCancel}
-                style={{ minHeight: 44, padding: '0 1.1rem', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, background: 'rgba(255,69,120,.12)', border: '1px solid rgba(255,69,120,.5)', color: '#ff9db8' }}
+                style={{ minHeight: 44, padding: '0 1.1rem', fontSize: 13.5, fontFamily: 'inherit' }}
               >ביטול יצירה</button>
               <button
+                className="holo-button holo-button--staff"
                 onClick={() => setConfirmOpen(false)}
-                style={{ minHeight: 44, padding: '0 1.4rem', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13.5, background: 'rgba(47,243,255,.12)', border: '1px solid rgba(47,243,255,.45)', color: 'var(--holo-cyan-bright)' }}
+                style={{ minHeight: 44, padding: '0 1.4rem', fontSize: 13.5, fontFamily: 'inherit' }}
               >המשך</button>
             </div>
           </div>
@@ -248,29 +244,29 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
 
       {/* תוכן */}
       <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', width: 420, maxWidth: '90vw' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.28em', textTransform: 'uppercase', color: 'rgba(47,243,255,.55)', marginBottom: 14 }}>◇ יוצר שיעור</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 36, textAlign: 'center', textShadow: '0 0 20px rgba(47,243,255,.3)' }}>{title?.trim() || 'השיעור שלך'}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.28em', textTransform: 'uppercase', color: 'var(--color-muted)', marginBottom: 14 }}>◇ יוצר שיעור</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 36, textAlign: 'center' }}>{title?.trim() || 'השיעור שלך'}</div>
 
         {/* מרווח לליבת ההולוגרמה (מצוירת בקנבס שמאחור) */}
         <div style={{ width: 240, height: 240, marginBottom: 36 }} />
 
-        {/* סטטוס — ההודעות המתחלפות */}
-        <div key={idx} style={{ fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '.12em', color: 'var(--holo-cyan-bright)', marginBottom: 18, textAlign: 'center', animation: 'ld-fadein .3s ease both', minHeight: 20, textShadow: '0 0 14px rgba(47,243,255,.6)' }}>
+        {/* סטטוס — ההודעות המתחלפות (אזור של ה-AI: רקע machine-tint) */}
+        <div key={idx} style={{ ...panelAi, padding: '7px 16px', fontFamily: 'var(--font-mono)', fontSize: 12, letterSpacing: '.12em', marginBottom: 18, textAlign: 'center', animation: 'ld-fadein .3s ease both', minHeight: 20 }}>
           {MESSAGES[idx]}
           <span style={{ animation: 'ld-blink .8s infinite' }}>_</span>
         </div>
 
         {/* בר התקדמות בלתי-מוגדר (משך היצירה אינו ידוע מראש) */}
-        <div style={{ position: 'relative', width: '100%', height: 4, borderRadius: 4, background: 'rgba(47,243,255,.1)', border: '1px solid rgba(47,243,255,.15)', overflow: 'hidden', marginBottom: 12 }}>
+        <div style={{ ...progressTrack, position: 'relative', width: '100%', height: 12, marginBottom: 12 }}>
           {/* מעוגן ל-left:0 — בלי זה, ב-RTL המקטע נצמד לימין וההחלקה מכסה רק את מרכז המסלול */}
-          <div style={{ position: 'absolute', left: 0, top: 0, width: '30%', height: '100%', borderRadius: 4, background: 'linear-gradient(90deg,#ff45e6,#2ff3ff)', boxShadow: '0 0 16px rgba(47,243,255,.7)', animation: 'ld-sweep 1.6s ease-in-out infinite' }} />
+          <div style={{ ...progressFill, position: 'absolute', left: 0, top: 0, width: '30%', borderRadius: 999, animation: 'ld-sweep 1.6s ease-in-out infinite' }} />
         </div>
 
         {/* מונה זמן + הערת המתנה */}
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'rgba(47,243,255,.7)', letterSpacing: '.12em' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-ink)', letterSpacing: '.12em' }}>
           יוצר… {formatElapsed(elapsed)}
         </div>
-        <p style={{ fontSize: 12, color: 'rgba(180,220,255,.4)', marginTop: 8, textAlign: 'center' }}>
+        <p style={{ fontSize: 12, color: 'var(--color-muted)', marginTop: 8, textAlign: 'center' }}>
           יצירות עשירות יכולות לקחת כמה דקות — שווה לחכות ✨
         </p>
       </div>

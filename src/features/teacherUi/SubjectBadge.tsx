@@ -3,6 +3,7 @@
 import { Link } from 'react-router-dom'
 import { useSubjectStyle } from '../../shared/lib/subjectStyle'
 import { Icon } from './icons'
+import { BTN_SM } from './fills'
 import { FONT, MIN_TARGET, RADIUS, T } from './tokens'
 
 interface SubjectProps {
@@ -58,14 +59,14 @@ interface SubjectLinkButtonProps extends SubjectProps {
 export function SubjectLinkButton({ code, to, label, chevron = true }: SubjectLinkButtonProps) {
   const s = useSubjectStyle(code)
   return (
-    <Link to={to} data-tu-press data-subject={code ?? 'unclassified'}
+    <Link to={to} data-tu-press data-subject={code ?? 'unclassified'} className={BTN_SM}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 12px 0 8px', borderRadius: RADIUS.lg,
-        border: `2px solid ${s.color}`, background: T.surface, fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.accentStrong,
+        fontFamily: FONT, fontSize: 16, fontWeight: 800,
         whiteSpace: 'nowrap', lineHeight: 1.3, textDecoration: 'none', cursor: 'pointer',
       }}>
       <Orb color={s.color} icon={s.icon} size={28} />
-      <span style={{ textDecoration: 'underline', textUnderlineOffset: 3 }}>{label ?? s.label}</span>
+      <span>{label ?? s.label}</span>
       {chevron && <Icon name="chevLeft" size={16} />}
     </Link>
   )

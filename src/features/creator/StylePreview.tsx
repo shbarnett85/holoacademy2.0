@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { panelStaff } from '../../styles/ui'
 
 /* ── תצוגה מקדימה של סגנון אמנותי ─────────────────────────────────────────────
    ב-hover/focus על כרטיס סגנון מוצגת תמונת הדגמה (אותו נושא — ד"ר הולו במעבדה —
@@ -78,25 +79,23 @@ export default function StylePreview({ styleKey, label, desc, children }: {
             left: pos ? pos.x : -9999, top: pos ? pos.y : -9999,
             transform: `translateX(-50%) ${pos?.above ? 'translateY(-100%)' : ''}`,
             zIndex: 9999, pointerEvents: 'none',
-            background: 'rgba(8,14,30,0.97)',
-            border: '1px solid rgba(47,243,255,0.45)', borderRadius: 12,
+            ...panelStaff,
             padding: 6,
-            boxShadow: '0 8px 28px -8px rgba(0,0,0,0.85), 0 0 18px rgba(47,243,255,0.22)',
             opacity: pos ? 1 : 0, transition: 'opacity 0.12s ease',
           }}
         >
           {failed ? (
             /* נסיגה: התמונה לא נטענה — מציגים את ההסבר הטקסטואלי, לא ריק */
-            <div style={{ maxWidth: 240, padding: '6px 8px', fontSize: 12.5, lineHeight: 1.6, color: '#dcebff', textAlign: 'right', fontFamily: 'var(--font-display, inherit)' }}>{desc ?? label}</div>
+            <div style={{ maxWidth: 240, padding: '6px 8px', fontSize: 12.5, lineHeight: 1.6, color: 'var(--color-ink)', textAlign: 'right', fontFamily: 'var(--font-display, inherit)' }}>{desc ?? label}</div>
           ) : (
             <>
               <img
                 src={STYLE_PREVIEW_SRC(styleKey)}
                 alt=""
                 onError={() => setFailed(true)}
-                style={{ width: IMG_W, aspectRatio: '3 / 2', objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                style={{ width: IMG_W, aspectRatio: '3 / 2', objectFit: 'cover', borderRadius: 8, border: '1px solid var(--color-line-strong)', display: 'block' }}
               />
-              <div style={{ padding: '5px 4px 1px', fontSize: 11.5, fontWeight: 700, color: '#bfe9ff', textAlign: 'center', fontFamily: 'var(--font-display, inherit)' }}>{label}</div>
+              <div style={{ padding: '5px 4px 1px', fontSize: 11.5, fontWeight: 700, color: 'var(--color-ink)', textAlign: 'center', fontFamily: 'var(--font-display, inherit)' }}>{label}</div>
             </>
           )}
         </div>,

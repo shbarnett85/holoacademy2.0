@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { apiJson, apiFetch } from '../../shared/lib/api'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
@@ -13,28 +14,32 @@ import { classSummaryNote } from './v2Link'
 import { SUBJECTS } from '../../shared/lib/subjects'
 import { GRADE_LAYER_NAMES, nextGradeLevel, labelWithLevel } from '../../shared/lib/gradeLevels'
 import { EFFECT_LEVELS, EFFECT_LEVEL_LABEL, effectLevelOf, type EffectLevel } from '../../shared/lib/gemModel'
+import { fieldStyle, infoChip, nameChip, panelAi, panelInner, panelWrong } from '../../styles/ui'
 
 interface Student { id: string; name: string; is_active: boolean; is_fictitious?: boolean }
 interface NewStudent { id?: string; name: string; pin: string }
 interface SchoolTeacher { id: string; name: string; is_active: boolean }
 
 const inputStyle: React.CSSProperties = {
-  background: 'var(--t122)', border: '1px solid var(--t81)',
-  borderRadius: 8, color: 'var(--t68)', padding: '7px 11px',
-  fontFamily: 'var(--font-display)', fontSize: 13, outline: 'none', width: '100%',
+  ...fieldStyle, borderRadius: 8, padding: '7px 11px',
+  fontFamily: 'var(--font-display)', fontSize: 13, width: '100%',
 }
+/* שם של אדם (מורה, תלמיד/ה): תג אפרסק עם קו דיו */
+const personChip: React.CSSProperties = { ...nameChip, display: 'inline-block', borderRadius: 999, padding: '1px 9px' }
+/* שורה בתוך משטח: בלי צל, קו דק */
+const rowBox: React.CSSProperties = { ...panelInner, display: 'flex', alignItems: 'center' }
+/* כפתור קטן בתוך שורה */
+const rowBtnClass = 'holo-button holo-button--staff holo-button--sm'
+const rowBtn: React.CSSProperties = { fontSize: 11, fontWeight: 700, padding: '3px 9px', whiteSpace: 'nowrap', flexShrink: 0 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ ...micro, fontSize: 9, color: 'var(--t28)', marginBottom: 10 }}>◇ {children}</div>
+  return <div style={{ ...micro, fontSize: 9, color: 'var(--color-machine-deep)', marginBottom: 10 }}>◇ {children}</div>
 }
 
-function HoloBtn({ label, onClick, disabled, color = 'var(--t15)', rgb = '47,243,255', danger }: { label: string; onClick: () => void; disabled?: boolean; color?: string; rgb?: string; danger?: boolean }) {
-  const [hov, setHov] = useState(false)
-  const c = danger ? 'var(--t5)' : color
-  const r = danger ? '255,112,153' : rgb
+function HoloBtn({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onClick={onClick} disabled={disabled}
-      style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, padding: '7px 14px', borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', background: hov ? `${window.HoloTint(r, .2)}` : `${window.HoloTint(r, .07)}`, border: `1px solid ${hov ? c : `${window.HoloTint(r, .32)}`}`, color: disabled ? 'var(--t248)' : (hov ? 'var(--t13)' : c), transition: 'all .14s', opacity: disabled ? 0.5 : 1 }}>
+    <button className="holo-button holo-button--staff holo-button--sm" onClick={onClick} disabled={disabled}
+      style={{ fontFamily: 'var(--font-display)', fontSize: 12, fontWeight: 700, padding: '7px 14px', whiteSpace: 'nowrap' }}>
       {label}
     </button>
   )
@@ -47,31 +52,41 @@ function PinModal({ title, students, onClose }: { title: string; students: NewSt
   function print() {
     const w = window.open('', '_blank', 'width=420,height=600')
     if (!w) return
-    const rows = students.map((s) => `<tr><td style="padding:6px 14px;border-bottom:1px solid var(--t249)">${s.name}</td><td style="padding:6px 14px;border-bottom:1px solid var(--t249);font-weight:bold;font-family:monospace">${s.pin}</td></tr>`).join('')
+    /* חלון ההדפסה הוא מסמך נפרד בלי טוקני העיצוב: הקו בצבע הטקסט של המסמך (currentColor) */
+    const rows = students.map((s) => `<tr><td style="padding:6px 14px;border-bottom:1px solid currentColor">${s.name}</td><td style="padding:6px 14px;border-bottom:1px solid currentColor;font-weight:bold;font-family:monospace">${s.pin}</td></tr>`).join('')
     w.document.write(`<html dir="rtl"><head><title>${title}</title></head><body style="font-family:sans-serif"><h2>${title}</h2><table style="border-collapse:collapse"><tr><th style="text-align:right;padding:6px 14px">שם</th><th style="text-align:right;padding:6px 14px">PIN</th></tr>${rows}</table><script>window.onload=()=>window.print()<\/script></body></html>`)
     w.document.close()
   }
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t250)', backdropFilter: 'blur(6px)' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ ...glass, padding: 28, minWidth: 340, maxWidth: 480, width: '100%', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 0 60px var(--t183)' }}>
-        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--t13)', textAlign: 'center', marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 12, color: 'var(--t4)', textAlign: 'center', marginBottom: 16 }}>⚠️ רשמו את ה-PIN-ים עכשיו — הם לא יוצגו שוב!</div>
+  /* portal ב-body: בתוך עמוד שנכנס באנימציה עם transform, position: fixed נצמד לעמוד ולא למסך.
+     הגופן נקרא מהמקום שבו המודאל הוצב (span נסתר), כדי שהמעבר ל-body לא ישנה אותו */
+  const anchor = useRef<HTMLSpanElement>(null)
+  const [font, setFont] = useState<string | undefined>(undefined)
+  useLayoutEffect(() => { if (anchor.current) setFont(getComputedStyle(anchor.current).fontFamily || undefined) }, [])
+  return (<>
+    <span ref={anchor} hidden />
+    {createPortal(
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-scrim)', fontFamily: font }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...glass, padding: 28, minWidth: 340, maxWidth: 480, width: '100%', maxHeight: '88vh', overflowY: 'auto' }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--color-machine-deep)', textAlign: 'center', marginBottom: 8 }}>{title}</div>
+        <div style={{ fontSize: 12, color: 'var(--color-human-deep)', background: 'var(--color-human-tint)', borderRadius: 8, padding: '6px 10px', textAlign: 'center', marginBottom: 16 }}>⚠️ רשמו את ה-PIN-ים עכשיו — הם לא יוצגו שוב!</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
           {students.map((s, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderRadius: 10, background: 'var(--t40)', border: '1px solid var(--t111)' }}>
-              <span style={{ fontSize: 14, color: 'var(--t251)' }}>{s.name}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 16, color: 'var(--t15)', letterSpacing: 3 }}>{s.pin}</span>
+            <div key={i} style={{ ...rowBox, justifyContent: 'space-between', padding: '8px 14px' }}>
+              <span style={{ ...personChip, fontSize: 14 }}>{s.name}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 16, color: 'var(--color-ink)', letterSpacing: 3 }}>{s.pin}</span>
             </div>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
           <HoloBtn label={copied ? 'הועתק ✓' : 'העתק 📋'} onClick={copy} />
           <HoloBtn label="הדפס 🖨️" onClick={print} />
-          <HoloBtn label="סגור" onClick={onClose} color="var(--t6)" rgb="138,160,184" />
+          <HoloBtn label="סגור" onClick={onClose} />
         </div>
       </div>
-    </div>
-  )
+    </div>,
+    document.body,
+    )}
+  </>)
 }
 
 export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: () => void }) {
@@ -196,14 +211,14 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-      <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
+      <style>{`select option { background: var(--color-surface); color: var(--color-ink); }`}</style>
 
       {/* כותרת */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← כיתות</button>
-        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t13)', textShadow: '0 0 18px var(--t23)' }}>כיתה {gradeLabel}</div>
+        <button className="holo-link" onClick={onBack} style={{ fontSize: 13 }}>← כיתות</button>
+        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-machine-deep)' }}>כיתה {gradeLabel}</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <label style={{ fontSize: 12, color: 'var(--t12)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={{ fontSize: 12, color: 'var(--color-ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
             שכבה
             <select aria-label="שכבה" value={gradeLevel ?? ''} onChange={(e) => saveGradeLevel(e.target.value === '' ? null : Number(e.target.value))}
               style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
@@ -211,31 +226,31 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
               {GRADE_LAYER_NAMES.slice(1).map((n, i) => <option key={i + 1} value={i + 1}>{n}</option>)}
             </select>
           </label>
-          <label style={{ fontSize: 12, color: 'var(--t12)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={{ fontSize: 12, color: 'var(--color-ink)', display: 'flex', alignItems: 'center', gap: 6 }}>
             עוצמת האפקטים
             <select aria-label="עוצמת האפקטים" data-effects-level value={effectsLevel} onChange={(e) => void saveEffectsLevel(effectLevelOf(e.target.value))}
               style={{ ...inputStyle, width: 'auto', padding: '4px 8px', fontSize: 12 }}>
               {EFFECT_LEVELS.map((l) => <option key={l} value={l}>{EFFECT_LEVEL_LABEL[l]}</option>)}
             </select>
           </label>
-          <HoloBtn label="קדם שכבה ⬆️" onClick={promote} color="var(--t4)" rgb="255,206,94" />
+          <HoloBtn label="קדם שכבה ⬆️" onClick={promote} />
         </div>
       </div>
 
-      {error && <div style={{ ...glass, padding: '10px 14px', borderColor: 'var(--t10)', color: 'var(--t18)', fontSize: 13 }}>⚠️ {error}</div>}
+      {error && <div style={{ ...panelWrong, padding: '10px 14px', fontSize: 13 }}>⚠️ {error}</div>}
 
       {/* מורי הכיתה */}
       <div style={{ ...glass, padding: '14px 16px' }}>
         <SectionTitle>מורי הכיתה</SectionTitle>
         {teachers.length === 0
-          ? <p style={{ fontSize: 12, color: 'var(--t248)' }}>אין מורים משויכים.</p>
+          ? <p style={{ fontSize: 12, color: 'var(--color-muted)' }}>אין מורים משויכים.</p>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: isAdmin ? 10 : 0 }}>
               {teachers.map((t) => (
-                <div key={t.teacherId + t.subject + (t.isHomeroom ? 'h' : '')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 12px', borderRadius: 9, background: 'var(--t178)', border: '1px solid var(--t116)' }}>
-                  <span style={{ fontSize: 13, color: 'var(--t12)' }}>{t.name}
-                    {t.isHomeroom ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--t15)', marginRight: 6 }}>· 🎓 מחנך/ת</span> : null}
-                    {t.subject ? <span style={{ fontSize: 11, color: 'var(--t252)', marginRight: 6 }}>· {t.subject}</span> : null}</span>
-                  {isAdmin && <button onClick={() => removeTeacher(t.teacherId)} style={{ background: 'none', border: 'none', color: 'var(--t5)', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>הסר</button>}
+                <div key={t.teacherId + t.subject + (t.isHomeroom ? 'h' : '')} style={{ ...rowBox, justifyContent: 'space-between', gap: 8, padding: '7px 12px', borderRadius: 9 }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-ink)' }}><span style={personChip}>{t.name}</span>
+                    {t.isHomeroom ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-ink)', marginRight: 6 }}>· 🎓 מחנך/ת</span> : null}
+                    {t.subject ? <span style={{ fontSize: 11, color: 'var(--color-muted)', marginRight: 6 }}>· {t.subject}</span> : null}</span>
+                  {isAdmin && <button className={rowBtnClass} onClick={() => removeTeacher(t.teacherId)} style={{ ...rowBtn, fontSize: 12 }}>הסר</button>}
                 </div>
               ))}
             </div>
@@ -252,7 +267,7 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
               <option value="">מקצוע (אופציונלי)…</option>
               {SUBJECTS.map((sb) => <option key={sb.code} value={sb.code}>{sb.nameHe}</option>)}
             </select>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--t12)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-ink)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input type="checkbox" checked={newT.isHomeroom} onChange={(e) => setNewT({ ...newT, isHomeroom: e.target.checked })} />
               מחנך/ת הכיתה
             </label>
@@ -262,20 +277,20 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
       </div>
 
       {/* קישור הכיתה */}
-      <div style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-        <div>
+      <div style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
           <SectionTitle>קישור לתלמידים</SectionTitle>
-          <div dir="ltr" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--t15)', letterSpacing: '.03em' }}>{link}</div>
+          <div dir="ltr" style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--color-ink)', letterSpacing: '.03em', overflowWrap: 'anywhere' }}>{link}</div>
         </div>
         <HoloBtn label={copiedLink ? 'הועתק ✓' : 'העתק 📋'} onClick={() => { navigator.clipboard?.writeText('https://' + link); setCopiedLink(true); setTimeout(() => setCopiedLink(false), 1500) }} />
       </div>
 
       {/* סיכום פדגוגי — באנליטיקה; מחנך/ת הכיתה בלבד */}
       {isHomeroomTeacher && (
-        <div style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ ...panelAi, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <SectionTitle>{V2_CLIENT_TEXT.classSummary.title}</SectionTitle>
-            <div data-class-summary-note={summaryNote ? '' : undefined} style={{ fontSize: 13, color: 'var(--t12)' }}>{summaryNote ?? V2_CLIENT_TEXT.classSummary.sentence}</div>
+            <div data-class-summary-note={summaryNote ? '' : undefined} style={{ fontSize: 13, color: 'var(--color-ink)' }}>{summaryNote ?? V2_CLIENT_TEXT.classSummary.sentence}</div>
           </div>
           {!summaryNote && <HoloBtn label={V2_CLIENT_TEXT.classSummary.open} onClick={() => { void openClassSummary() }} />}
         </div>
@@ -287,9 +302,9 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           <input placeholder="שם תלמיד/ה" value={single} onChange={(e) => setSingle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addSingle()} style={{ ...inputStyle, flex: '1 1 130px' }} />
           <HoloBtn label="+ הוסף" onClick={addSingle} disabled={busy || !single.trim()} />
-          <HoloBtn label={showBulk ? 'בודד ←' : 'מרובה ↓'} onClick={() => setShowBulk((v) => !v)} color="var(--t34)" rgb="255,138,240" />
+          <HoloBtn label={showBulk ? 'בודד ←' : 'מרובה ↓'} onClick={() => setShowBulk((v) => !v)} />
         </div>
-        <div style={{ ...micro, fontSize: 8.5, color: 'var(--t37)', marginBottom: showBulk ? 10 : 0 }}>מגדר קובע את צורת הפנייה בטקסט — לא מוגדר = לשון רבים ניטרלית.</div>
+        <div style={{ ...micro, fontSize: 8.5, color: 'var(--color-muted)', marginBottom: showBulk ? 10 : 0 }}>מגדר קובע את צורת הפנייה בטקסט — לא מוגדר = לשון רבים ניטרלית.</div>
         {showBulk && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <textarea placeholder="הדביקו רשימת שמות — שורה לכל תלמיד/ה" rows={4} value={bulk} onChange={(e) => setBulk(e.target.value)}
@@ -303,22 +318,22 @@ export default function ClassManage({ cls, onBack }: { cls: ClassRow; onBack: ()
       <div style={{ ...glass, padding: '14px 16px' }}>
         <SectionTitle>תלמידים ({students?.length ?? '…'})</SectionTitle>
         {!students
-          ? <p style={{ fontSize: 13, color: 'var(--t248)', textAlign: 'center', padding: '16px 0' }}>טוען…</p>
+          ? <p style={{ fontSize: 13, color: 'var(--color-muted)', textAlign: 'center', padding: '16px 0' }}>טוען…</p>
           : students.length === 0
-          ? <p style={{ fontSize: 13, color: 'var(--t248)', textAlign: 'center', padding: '16px 0' }}>אין תלמידים בכיתה.</p>
+          ? <p style={{ fontSize: 13, color: 'var(--color-muted)', textAlign: 'center', padding: '16px 0' }}>אין תלמידים בכיתה.</p>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {students.map((s) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: s.is_active ? 1 : 0.5 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)' }}>{s.name}</span>
+                <div key={s.id} style={{ ...rowBox, gap: 8, flexWrap: 'wrap', padding: '9px 12px', opacity: s.is_active ? 1 : 0.5 }}>
+                  <div style={{ flex: '1 1 90px', minWidth: 0 }}>
+                    <span style={{ ...personChip, fontSize: 13, fontWeight: 700 }}>{s.name}</span>
                     {s.is_fictitious && <span style={{ marginRight: 6 }}><DemoStudentBadge show /></span>}
-                    {!s.is_active && <span style={{ fontSize: 10, color: 'var(--t18)', marginRight: 6 }}>מושבת</span>}
+                    {!s.is_active && <span style={{ ...infoChip, background: 'var(--color-ink-wash)', borderRadius: 999, padding: '0 7px', fontSize: 10, marginRight: 6 }}>מושבת</span>}
                   </div>
-                  <button onClick={() => resetPin(s)} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>PIN חדש</button>
-                  <button onClick={() => rename(s)} style={{ background: 'none', border: 'none', color: 'var(--t27)', cursor: 'pointer', fontSize: 13 }}>✏️</button>
+                  <button className={rowBtnClass} onClick={() => resetPin(s)} style={rowBtn}>PIN חדש</button>
+                  <button className={rowBtnClass} onClick={() => rename(s)} style={{ ...rowBtn, fontSize: 13 }}>✏️</button>
                   {s.is_active
-                    ? <button onClick={() => setConfirm(s)} style={{ background: 'none', border: 'none', color: 'var(--t5)', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>השבת</button>
-                    : <button onClick={() => setActive(s, true)} style={{ background: 'none', border: 'none', color: 'var(--t3)', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>הפעל</button>}
+                    ? <button className={rowBtnClass} onClick={() => setConfirm(s)} style={rowBtn}>השבת</button>
+                    : <button className={rowBtnClass} onClick={() => setActive(s, true)} style={rowBtn}>הפעל</button>}
                 </div>
               ))}
             </div>

@@ -94,7 +94,7 @@ describe('פקד שיוך המקצוע בכרטיס שיעור', () => {
     expect(select).toContain('min-height:44px')
     expect(select).toContain('font-size:16px')
     expect(select).not.toMatch(/dashed|font-size:1[0-5]px/)
-    expect(select).toMatch(/border:2px solid var\(--t\d+\)/)
+    expect(select).toMatch(/border:2px solid var\(--color-ink\)/)
   })
 
   it('כל המקצועות ברשימה (בסדר הקבוע), והפקד מושבת בזמן שמירה', () => {
@@ -121,7 +121,7 @@ describe('גדלים בהודעות ובצ׳יפים', () => {
 })
 
 /* ───────── כרטיסי שיעור בספרייה: אותו רכיב (LessonCard) כמו אצל התלמיד ─────────
-   רינדור בצד שרת (בלי חלון): useTheme מחזיר "כהה", ולכן הצבעים הם הווריאנט הכהה של המקצוע; הבהיר נבדק ב-subjects.test.ts. */
+   רינדור בצד שרת (בלי חלון). פלטה אחת לכל המסכים: צבעי המקצוע הם הפניות לטוקנים. */
 describe('כרטיס שיעור בספרייה שלי', () => {
   const base = { id: 'q1', title: 'המהפכה הצרפתית', created_at: '2026-10-01T09:00:00Z', is_published: true, is_public: false, sceneCount: 6, subject: 'היסטוריה', subjectCode: 'history', thumbUrl: 'https://img.example/holo-thumbs/q1.jpg', gradeMin: 8, gradeMax: 9 }
   const card = (over: Record<string, unknown> = {}, props: Record<string, unknown> = {}): string =>
@@ -140,8 +140,8 @@ describe('כרטיס שיעור בספרייה שלי', () => {
   })
 
   it('מסגרת הכרטיס בצבע המקצוע', () => {
-    expect(card()).toContain(`border:3px solid ${subjectVisual('history').color}`)
-    expect(card({ subject: 'מתמטיקה', subjectCode: 'math' })).toContain(`border:3px solid ${subjectVisual('math').color}`)
+    expect(card()).toMatch(/data-subject-stripe[^>]*background:var\(--subject-history\)/)
+    expect(card({ subject: 'מתמטיקה', subjectCode: 'math' })).toMatch(/data-subject-stripe[^>]*background:var\(--subject-math\)/)
   })
 
   it('אותן פעולות מורה בדיוק — מחק · שתף · ערוך · הפעל (והסר מהספרייה רק לשיעור משותף); בלי "שחקו"', () => {
@@ -153,7 +153,7 @@ describe('כרטיס שיעור בספרייה שלי', () => {
 
   it('"לא סווג": מסגרת אפורה, תגית "לא סווג" וכפתור "שיוך למקצוע" אחד', () => {
     const html = card({ subject: null, subjectCode: null })
-    expect(html).toContain(`border:3px solid ${subjectVisual('unclassified').color}`)
+    expect(html).toMatch(/border:\dpx dashed var\(--color-ink\)/)
     expect(html).toMatch(/data-subject-tag="unclassified"[^>]*>[\s\S]*?לא סווג/)
     expect(html.match(/data-subject-assign/g)).toHaveLength(1)
     expect(html).toContain(`aria-label="${LIBRARY_ASSIGN_TEXT.selectLabel}"`)
@@ -182,7 +182,7 @@ describe('כרטיס בספרייה הציבורית', () => {
     expect(html).toContain('data-lesson-card')
     expect(html).toMatch(/data-subject-tag="science"[^>]*>[\s\S]*?מדעים/)
     expect(html).toMatch(/data-grade-tag[^>]*>שכבות ה׳–ו׳</)
-    expect(html).toContain(`border:3px solid ${subjectVisual('science').color}`)
+    expect(html).toMatch(/data-subject-stripe[^>]*background:var\(--subject-science\)/)
     expect(buttons(html).map(text)).toEqual(['דווח 🚩', 'השתמש (העתק אליי) 📥'])
     expect(text(html)).toContain('נוצר במקור על ידי דנה')
     expect(text(html)).toContain('✓ רשמי')

@@ -107,10 +107,10 @@ export default function QuestView() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen p-6">
-        <div className="holo-panel max-w-sm w-full text-center" style={{ borderColor: 'var(--t205)' }}>
-          <p style={{ color: 'var(--t5)' }}>{error}</p>
-          <button className="holo-button mt-4" onClick={() => navigate('/creator/library')}>
+      <div className="flex items-center justify-center min-h-screen p-6" style={{ background: 'var(--color-machine-bg)' }}>
+        <div className="holo-panel holo-panel--staff max-w-sm w-full text-center" style={{ background: 'var(--color-wrong-tint)' }}>
+          <p style={{ color: 'var(--color-ink)' }}>{error}</p>
+          <button className="holo-button holo-button--staff mt-4" onClick={() => navigate('/creator/library')}>
             חזרה לספרייה
           </button>
         </div>
@@ -120,7 +120,7 @@ export default function QuestView() {
 
   if (!quest) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--color-machine-bg)' }}>
         <span className="holo-text-glow text-xl">טוען…</span>
       </div>
     )

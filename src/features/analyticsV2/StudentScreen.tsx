@@ -133,16 +133,16 @@ function OverviewTab({ data, subjectHref, crossText }: { data: StudentOverview; 
   return (
     <>
       {cross.length > 0 && (
-        <Card label="התרעה מוקדמת" style={{ borderInlineStart: `6px solid ${T.warn}`, padding: '8px 16px' }}>
+        <Card label="התרעה מוקדמת" style={{ background: T.findingFill, padding: '7px 15px', paddingInlineStart: 20 }}>
           {cross.map((f) => (
-            <p key={f.id} style={{ margin: 0, display: 'flex', gap: 10, fontSize: 16, lineHeight: 1.5, color: T.text }}>
+            <p key={f.id} style={{ margin: 0, display: 'flex', gap: 10, fontSize: 16, lineHeight: 1.5, color: T.findingText }}>
               <span style={{ marginTop: 3, display: 'inline-flex' }}><ToneMark tone="attention" size={18} /></span>
               <span><strong>התרעה מוקדמת: </strong>{f.text}</span>
             </p>
           ))}
         </Card>
       )}
-      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, overflow: 'hidden' }}>
+      <div style={{ background: T.surface, border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.md, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
           <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>סקירת התלמיד/ה לפי מקצוע</caption>
           <thead>

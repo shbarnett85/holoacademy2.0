@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { Icon } from './icons'
 import { FONT, MIN_TARGET, T } from './tokens'
 
+/* ניווט: קישורים בדיו (המחלקה holo-link נותנת צבע וקו תחתון) */
+
 export interface BreadcrumbItem {
   label: string
   /** יעד ניווט (קישור). מושמט בפריט האחרון */
@@ -35,9 +37,9 @@ export default function Breadcrumb({ items }: BreadcrumbProps) {
               {current ? (
                 <span aria-current="page" style={{ ...itemStyle, color: T.text, fontWeight: 800, minHeight: 32 }}>{it.label}</span>
               ) : it.to ? (
-                <Link to={it.to} data-tu-press style={{ ...itemStyle, color: T.accentStrong, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3 }}>{it.label}</Link>
+                <Link to={it.to} data-tu-press className="holo-link" style={{ ...itemStyle, fontWeight: 600 }}>{it.label}</Link>
               ) : (
-                <button type="button" data-tu-press onClick={it.onClick} style={{ ...itemStyle, color: T.accentStrong, fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: 3, background: 'transparent', border: 'none', cursor: 'pointer' }}>{it.label}</button>
+                <button type="button" data-tu-press className="holo-link" onClick={it.onClick} style={{ ...itemStyle, fontWeight: 600 }}>{it.label}</button>
               )}
               {!current && <span aria-hidden="true" style={{ color: T.muted, display: 'inline-flex' }}><Icon name="chevLeft" size={16} /></span>}
             </li>

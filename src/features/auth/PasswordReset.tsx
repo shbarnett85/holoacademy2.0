@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
 import EntryShell from '../../shared/ui/EntryShell'
+import { fieldStyle, panelStaff } from '../../styles/ui'
 
 /* ── שחזור סיסמה ─────────────────────────────────────────────────────────────
    ForgotPassword ‏(/staff/forgot): הזנת אימייל → מייל איפוס דרך Supabase.
@@ -9,18 +10,16 @@ import EntryShell from '../../shared/ui/EntryShell'
    עם access_token (recovery) ב-hash; סיסמה חדשה + אימות כפול → עדכון בשרת. */
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'rgba(4,9,18,.7)',
-  border: '1px solid rgba(47,243,255,.3)', borderRadius: 11, padding: '12px 16px',
-  fontSize: 14, color: 'var(--holo-text-bright)', fontFamily: 'var(--font-display)', outline: 'none', direction: 'ltr',
+  width: '100%', boxSizing: 'border-box', ...fieldStyle, borderRadius: 11, padding: '12px 16px',
+  fontSize: 14, fontFamily: 'var(--font-display)', direction: 'ltr',
 }
+/* השוליים: מקום לצל הקשיח (3px ימינה ולמטה) ולפינות, בתוך המסגרת הגוללת של EntryShell */
 const panelStyle: React.CSSProperties = {
-  background: 'linear-gradient(135deg, rgba(10,22,46,.97), rgba(4,9,20,.99))',
-  border: '1px solid rgba(47,243,255,.22)', borderRadius: 22, padding: '36px 40px', width: 380, textAlign: 'center',
-  boxShadow: '0 0 80px rgba(47,243,255,.10), 0 20px 60px rgba(0,0,0,.6)',
+  ...panelStaff, margin: '4px 7px 7px 4px', padding: '36px 40px', width: 380, textAlign: 'center',
 }
 const labelStyle: React.CSSProperties = {
   display: 'block', fontFamily: 'var(--font-display)', fontSize: 12,
-  color: 'rgba(47,243,255,.6)', marginBottom: 7, letterSpacing: '.05em', textAlign: 'right',
+  color: 'var(--color-muted)', marginBottom: 7, letterSpacing: '.05em', textAlign: 'right',
 }
 
 export function ForgotPassword() {
@@ -47,29 +46,29 @@ export function ForgotPassword() {
   return (
     <EntryShell onClose={() => navigate('/staff/login')}>
       <div style={panelStyle}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>שחזור סיסמה</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>שחזור סיסמה</div>
         {sent ? (
           <>
-            <p style={{ fontSize: 14, color: 'rgba(160,200,240,.75)', lineHeight: 1.7, margin: '18px 0' }}>
+            <p style={{ fontSize: 14, color: 'var(--color-ink)', lineHeight: 1.7, margin: '18px 0' }}>
               אם קיים חשבון עם הכתובת הזו — שלחנו אליה קישור לאיפוס הסיסמה.
               <br />בדקו גם את תיקיית הספאם.
             </p>
-            <Link to="/staff/login" style={{ color: 'var(--holo-cyan-bright)', fontSize: 14 }}>חזרה להתחברות</Link>
+            <Link to="/staff/login" className="holo-link" style={{ fontSize: 14 }}>חזרה להתחברות</Link>
           </>
         ) : (
           <>
-            <div style={{ fontSize: 13.5, color: 'rgba(160,200,240,.5)', marginBottom: 24 }}>נשלח לך קישור איפוס למייל</div>
+            <div style={{ fontSize: 13.5, color: 'var(--color-muted)', marginBottom: 24 }}>נשלח לך קישור איפוס למייל</div>
             <label style={labelStyle}>אימייל</label>
             <input autoFocus type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="name@school.com" style={inputStyle} />
-            {error && <p style={{ fontSize: 13, color: '#ff9bb3', marginTop: 12 }}>{error}</p>}
+            {error && <p style={{ fontSize: 13, color: 'var(--color-wrong)', marginTop: 12 }}>{error}</p>}
             <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
               <button onClick={() => navigate('/staff/login')}
-                style={{ flex: 1, padding: 12, borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, background: 'transparent', border: '1px solid rgba(120,180,220,.2)', color: 'rgba(150,190,220,.55)' }}>
+                className="holo-link" style={{ flex: 1, padding: 12, fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}>
                 ביטול
               </button>
               <button onClick={submit} disabled={busy || !/\S+@\S+/.test(email)}
-                style={{ flex: 2, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: busy || !/\S+@\S+/.test(email) ? 0.55 : 1, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg, rgba(47,243,255,.22), rgba(47,243,255,.12))', border: '1px solid rgba(47,243,255,.5)' }}>
+                className="holo-button holo-button--staff" style={{ flex: 2, padding: 12, borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}>
                 {busy ? 'שולח…' : 'שלחו קישור ←'}
               </button>
             </div>
@@ -109,33 +108,33 @@ export function ResetPassword() {
   return (
     <EntryShell onClose={() => navigate('/staff/login')}>
       <div style={panelStyle}>
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>סיסמה חדשה</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>סיסמה חדשה</div>
         {!accessToken ? (
           <>
-            <p style={{ fontSize: 14, color: '#ff9bb3', margin: '18px 0' }}>הקישור אינו תקין או שפג תוקפו.</p>
-            <Link to="/staff/forgot" style={{ color: 'var(--holo-cyan-bright)', fontSize: 14 }}>בקשו קישור חדש</Link>
+            <p style={{ fontSize: 14, color: 'var(--color-wrong)', margin: '18px 0' }}>הקישור אינו תקין או שפג תוקפו.</p>
+            <Link to="/staff/forgot" className="holo-link" style={{ fontSize: 14 }}>בקשו קישור חדש</Link>
           </>
         ) : done ? (
           <>
-            <p style={{ fontSize: 14, color: 'rgba(160,240,200,.85)', margin: '18px 0' }}>✓ הסיסמה עודכנה בהצלחה</p>
+            <p style={{ fontSize: 14, color: 'var(--color-correct)', margin: '18px 0' }}>✓ הסיסמה עודכנה בהצלחה</p>
             <button onClick={() => navigate('/staff/login')}
-              style={{ padding: '12px 28px', borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg, rgba(47,243,255,.22), rgba(47,243,255,.12))', border: '1px solid rgba(47,243,255,.5)' }}>
+              className="holo-button holo-button--staff" style={{ padding: '12px 28px', borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}>
               להתחברות ←
             </button>
           </>
         ) : (
           <>
-            <div style={{ fontSize: 13.5, color: 'rgba(160,200,240,.5)', marginBottom: 24 }}>בחרו סיסמה חדשה (לפחות 6 תווים)</div>
+            <div style={{ fontSize: 13.5, color: 'var(--color-muted)', marginBottom: 24 }}>בחרו סיסמה חדשה (לפחות 6 תווים)</div>
             <label style={labelStyle}>סיסמה חדשה</label>
             <input autoFocus type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
             <label style={labelStyle}>אימות סיסמה</label>
             <input type="password" value={password2} onChange={(e) => setPassword2(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
-              style={{ ...inputStyle, ...(password2 && !match ? { border: '1px solid rgba(255,80,120,.6)' } : {}) }} />
-            <p style={{ fontSize: 12, color: password2 && !match ? '#ff9bb3' : 'transparent', minHeight: 16, margin: '6px 0 0' }}>הסיסמאות אינן תואמות</p>
-            {error && <p style={{ fontSize: 13, color: '#ff9bb3', marginTop: 8 }}>{error}</p>}
+              style={{ ...inputStyle, ...(password2 && !match ? { border: '2px solid var(--color-wrong)' } : {}) }} />
+            <p style={{ fontSize: 12, color: password2 && !match ? 'var(--color-wrong)' : 'transparent', minHeight: 16, margin: '6px 0 0' }}>הסיסמאות אינן תואמות</p>
+            {error && <p style={{ fontSize: 13, color: 'var(--color-wrong)', marginTop: 8 }}>{error}</p>}
             <button onClick={submit} disabled={busy || !valid}
-              style={{ width: '100%', marginTop: 16, padding: 12, borderRadius: 11, cursor: 'pointer', opacity: busy || !valid ? 0.55 : 1, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg, rgba(47,243,255,.22), rgba(47,243,255,.12))', border: '1px solid rgba(47,243,255,.5)' }}>
+              className="holo-button holo-button--staff" style={{ width: '100%', marginTop: 16, padding: 12, borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}>
               {busy ? 'מעדכן…' : 'עדכון סיסמה ←'}
             </button>
           </>

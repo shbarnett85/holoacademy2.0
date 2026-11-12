@@ -8,16 +8,17 @@ import type { CSSProperties, ReactNode } from 'react'
 import { useSubjectStyle } from '../../shared/lib/subjectStyle'
 import type { Position, Trend } from '../../shared/lib/analyticsConfig'
 import type { SubjectRef } from '../../shared/types/analyticsV2'
-import { FONT, Icon, MIN_TARGET, RADIUS, T, TONE_META, VisuallyHidden } from '../teacherUi'
+import { BTN, CHIP_LINE, FILL, FONT, Icon, MIN_TARGET, RADIUS, T, TONE_FILL, TONE_META, VisuallyHidden } from '../teacherUi'
 import type { IconName, Tone } from '../teacherUi'
 import { isRetryable, v2ErrorMessage } from './errors'
 import type { V2Error } from './errors'
 import { L } from './labels'
 
-/* ── כרטיס וכותרת קטע ── */
+/* ── כרטיס וכותרת קטע ──
+   משטח: לבן, קו דיו (2px) וצל קשיח. הריפוד קטן ב-1px מכל צד לעומת הגרסה עם הקו הדק, כך שהמידות נשארות */
 export function Card({ children, style, label }: { children: ReactNode; style?: CSSProperties; label?: string }) {
   return (
-    <section aria-label={label} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, padding: '12px 16px', minWidth: 0, ...style }}>
+    <section aria-label={label} style={{ background: T.surface, border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.md, padding: '11px 15px', minWidth: 0, ...style }}>
       {children}
     </section>
   )
@@ -39,28 +40,26 @@ export function Note({ children, style }: { children: ReactNode; style?: CSSProp
   )
 }
 
-/* ── כפתורים: תמיד מילה, גובה ≥ 44px ── */
+/* ── כפתורים: תמיד מילה, גובה ≥ 44px. הצבע, הקו, הצל ומצב הלחיצה מהמחלקה holo-button; כאן רק הפריסה ── */
 const buttonBase: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 18px', borderRadius: RADIUS.md,
-  fontFamily: FONT, fontSize: 16, fontWeight: 800, textDecoration: 'none', cursor: 'pointer', color: T.text, lineHeight: 1.3, whiteSpace: 'nowrap',
+  fontFamily: FONT, fontSize: 16, fontWeight: 800, textDecoration: 'none', cursor: 'pointer', lineHeight: 1.3, whiteSpace: 'nowrap',
 }
-const primaryStyle: CSSProperties = { ...buttonBase, background: T.accentFill, border: `2px solid ${T.accent}`, boxShadow: `inset 0 -4px 0 ${T.accent}` }
-const secondaryStyle: CSSProperties = { ...buttonBase, background: T.surface, border: `2px solid ${T.controlBorder}` }
 
 interface ButtonProps { children: ReactNode; kind?: 'primary' | 'secondary'; style?: CSSProperties; icon?: ReactNode }
 
-export function ActionButton({ children, kind = 'secondary', onClick, disabled, expanded, style, icon }: ButtonProps & { onClick?: () => void; disabled?: boolean; expanded?: boolean }) {
+export function ActionButton({ children, onClick, disabled, expanded, style, icon }: ButtonProps & { onClick?: () => void; disabled?: boolean; expanded?: boolean }) {
   return (
-    <button type="button" data-tu-press onClick={onClick} disabled={disabled} aria-expanded={expanded}
-      style={{ ...(kind === 'primary' ? primaryStyle : secondaryStyle), ...(disabled ? { opacity: 0.55, cursor: 'not-allowed' } : null), ...style }}>
+    <button type="button" data-tu-press className={expanded ? `${BTN} is-selected` : BTN} onClick={onClick} disabled={disabled} aria-expanded={expanded}
+      style={{ ...buttonBase, ...(disabled ? { cursor: 'not-allowed' } : null), ...style }}>
       {icon}{children}
     </button>
   )
 }
 
-export function LinkButton({ to, children, kind = 'secondary', style, icon }: ButtonProps & { to: string }) {
+export function LinkButton({ to, children, style, icon }: ButtonProps & { to: string }) {
   return (
-    <Link to={to} data-tu-press style={{ ...(kind === 'primary' ? primaryStyle : secondaryStyle), ...style }}>
+    <Link to={to} data-tu-press className={BTN} style={{ ...buttonBase, ...style }}>
       {icon}{children}
     </Link>
   )
@@ -71,13 +70,13 @@ export function LinkButton({ to, children, kind = 'secondary', style, icon }: Bu
 export function Tag({ children, tone, style }: { children: ReactNode; tone?: Tone; style?: CSSProperties }) {
   if (!tone) {
     return (
-      <span data-label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 600, padding: '1px 8px', borderRadius: 4, background: T.surfaceSoft, color: T.textSoft, lineHeight: 1.5, ...style }}>
+      <span data-label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 600, padding: '1px 8px', borderRadius: 4, background: FILL.neutral, color: T.textSoft, lineHeight: 1.5, ...style }}>
         {children}
       </span>
     )
   }
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}`, color: T.text, lineHeight: 1.5, ...style }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: FONT, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: CHIP_LINE, background: TONE_FILL[tone], color: tone === 'attention' ? T.findingText : T.text, lineHeight: 1.5, ...style }}>
       {children}
     </span>
   )
@@ -167,7 +166,7 @@ export function LoadingBlock({ label = L.loading }: { label?: string }) {
 export function ErrorBlock({ error, onRetry, backTo }: { error: V2Error; onRetry?: () => void; backTo?: string }) {
   const retry = onRetry && isRetryable(error.status)
   return (
-    <section role="alert" data-v2-error={error.status} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${T.bad}` }}>
+    <section role="alert" data-v2-error={error.status} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 18px', borderRadius: RADIUS.md, background: T.surface, border: T.line, boxShadow: T.shadow }}>
       <span style={{ color: T.bad, display: 'inline-flex' }}><Icon name="alert" size={26} /></span>
       <p style={{ margin: 0, fontSize: 17, fontWeight: 700, color: T.text, flex: '1 1 280px' }}>{v2ErrorMessage(error.status, error.message)}</p>
       {retry && <ActionButton onClick={onRetry}>{L.retry}</ActionButton>}
@@ -182,15 +181,14 @@ export function Columns({ children, template, gap = 12, style }: { children: Rea
 }
 
 /* "X מתוך Y תלמידים (42%)": הטקסט מגיע מהחוזה (countText) והבר הוא תוספת חזותית בלבד — המספרים תמיד גלויים כטקסט */
-export function CountBar({ done, total, text, tone = 'attention', barHeight = 10 }: { done: number; total: number; text: string; tone?: Tone | 'accent'; barHeight?: number }) {
+export function CountBar({ done, total, text, barHeight = 10 }: { done: number; total: number; text: string; /* נשמר לתאימות: הבר תמיד בצבע ההתקדמות */ tone?: Tone | 'accent'; barHeight?: number }) {
   const share = total > 0 ? Math.min(1, Math.max(0, done / total)) : 0
-  const color = tone === 'accent' ? T.accent : TONE_META[tone].color
   return (
     <div data-count-bar style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
       <span style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>{text}</span>
       <div role="progressbar" aria-label={text} aria-valuemin={0} aria-valuemax={total} aria-valuenow={Math.min(done, total)} aria-valuetext={text}
-        style={{ flex: 1, minWidth: 60, height: barHeight, borderRadius: barHeight, background: T.grid, border: `1px solid ${T.border}`, overflow: 'hidden' }}>
-        <div style={{ width: `${share * 100}%`, height: '100%', borderRadius: barHeight, background: color }} />
+        style={{ flex: 1, minWidth: 60, height: barHeight + 2, boxSizing: 'border-box', borderRadius: barHeight, background: FILL.neutral, border: `2px solid ${T.controlBorder}`, overflow: 'hidden' }}>
+        <div style={{ width: `${share * 100}%`, height: '100%', background: T.progress }} />
       </div>
     </div>
   )

@@ -4,7 +4,7 @@
 import { useId, useState } from 'react'
 import { narrateObjectivesSummary } from '../../shared/lib/findingsNarrative'
 import type { ObjectiveLevel, ObjectiveResult } from '../../shared/types/resultsV1'
-import { FONT, Icon, MIN_TARGET, ProgressBar, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import { BTN, btnClass, CHIP_LINE, FILL, FONT, Icon, MIN_TARGET, NESTED_LINE, ProgressBar, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import type { IconName, Tone } from '../teacherUi'
 import { objectiveLevelCounts, visibleStudents } from './logic'
 import { secondaryButton, soft } from './styles'
@@ -13,18 +13,18 @@ import { UI } from './text'
 /* כמה שמות מוצגים לפני "עוד N תלמידים" — כדי שיעד קשה במיוחד לא ידחוק את שאר היעדים אל מחוץ למסך */
 export const CHIPS_COLLAPSED = 2
 
-const LEVEL_META: Record<ObjectiveLevel | 'none', { icon: IconName; color: string; tone: Tone }> = {
-  strong: { icon: 'check', color: T.good, tone: 'positive' },
-  partial: { icon: 'half', color: T.warn, tone: 'attention' },
-  weak: { icon: 'alert', color: T.bad, tone: 'error' },
-  none: { icon: 'circle', color: T.muted, tone: 'neutral' },
+const LEVEL_META: Record<ObjectiveLevel | 'none', { icon: IconName; color: string; tone: Tone; fill: string }> = {
+  strong: { icon: 'check', color: T.good, tone: 'positive', fill: FILL.good },
+  partial: { icon: 'half', color: T.warn, tone: 'attention', fill: FILL.attention },
+  weak: { icon: 'alert', color: T.bad, tone: 'error', fill: FILL.bad },
+  none: { icon: 'circle', color: T.muted, tone: 'neutral', fill: FILL.neutral },
 }
 
 function LevelTag({ level, word }: { level: ObjectiveLevel | null; word: string }) {
   const m = LEVEL_META[level ?? 'none']
   return (
     <span data-objective-level={level ?? 'none'}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: `1.5px solid ${m.color}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20, border: CHIP_LINE, background: m.fill, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.4 }}>
       <span style={{ color: m.color, display: 'inline-flex' }}><Icon name={m.icon} size={18} strokeWidth={level === 'strong' ? 2.6 : 2} /></span>
       {word}
     </span>
@@ -33,10 +33,11 @@ function LevelTag({ level, word }: { level: ObjectiveLevel | null; word: string 
 
 function StudentChip({ s, onOpen }: { s: { id: string; name: string }; onOpen: (studentId: string) => void }) {
   return (
-    <button type="button" data-tu-press data-objective-student={s.id} onClick={() => onOpen(s.id)}
+    <button type="button" data-tu-press data-objective-student={s.id} className={BTN} onClick={() => onOpen(s.id)}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, padding: '4px 14px', borderRadius: RADIUS.md, boxSizing: 'border-box',
-        fontFamily: FONT, fontSize: 16, fontWeight: 600, lineHeight: 1.25, cursor: 'pointer', color: T.text, background: T.surface, border: `1.5px solid ${T.controlBorder}`,
+        /* שם של תלמיד/ה: רקע אפרסק, טקסט וקו בדיו */
+        fontFamily: FONT, fontSize: 16, fontWeight: 600, lineHeight: 1.25, cursor: 'pointer', background: T.nameFill,
       }}>
       {s.name}
       <VisuallyHidden>{`, ${UI.openStudentHidden}`}</VisuallyHidden>
@@ -57,7 +58,7 @@ function WeakStudents({ o, onOpen }: { o: ObjectiveResult; onOpen: (studentId: s
         {shown.map((s) => <li key={s.id}><StudentChip s={s} onOpen={onOpen} /></li>)}
         {canToggle && (
           <li>
-            <button type="button" data-tu-press aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((e) => !e)} style={secondaryButton}>
+            <button type="button" data-tu-press className={btnClass(expanded)} aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded((e) => !e)} style={secondaryButton}>
               {expanded ? UI.fewerStudents : UI.moreStudents(hidden)}
               <span style={{ display: 'inline-flex', transform: expanded ? 'rotate(180deg)' : undefined }}><Icon name="chevDown" size={18} /></span>
             </button>
@@ -71,7 +72,7 @@ function WeakStudents({ o, onOpen }: { o: ObjectiveResult; onOpen: (studentId: s
 function ObjectiveRow({ o, onOpen }: { o: ObjectiveResult; onOpen: (studentId: string) => void }) {
   const m = LEVEL_META[o.level ?? 'none']
   return (
-    <li data-objective={o.id} style={{ listStyle: 'none', padding: '8px 14px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <li data-objective={o.id} style={{ listStyle: 'none', padding: '8px 14px', borderRadius: RADIUS.md, border: NESTED_LINE, background: T.surface, display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, flex: '1 1 260px', minWidth: 0, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{o.text}</h3>
         <LevelTag level={o.level} word={o.levelText} />

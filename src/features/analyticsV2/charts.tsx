@@ -6,18 +6,18 @@
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { labelEvery, layoutMarkers, niceScale, pickBandLabelY, plotIso } from './chartMath'
-import { AXIS_LABEL_HEIGHT, ChartFrame, FONT, MonthAxis, T, TONE_META, buildTimeAxis, sharedAxisRange } from '../teacherUi'
+import { AXIS_LABEL_HEIGHT, ChartFrame, FONT, MonthAxis, T, buildTimeAxis, sharedAxisRange } from '../teacherUi'
 import type { Tone } from '../teacherUi'
 
 export interface LevelPoint { date: string; level: number; n: number }
 export interface AgeNorm { gradeLabel: string; center: number; low: number; high: number }
 
-/* סדרות מרובות: צבע + סגנון קו (לא צבע בלבד) */
+/* סדרות מרובות: צבע + סגנון קו (לא צבע בלבד). בלי תכלת, ובלי ירוק/אדום (שמורים לנכון/שגוי) */
 const SERIES_STYLES = [
   { color: T.accent, dash: '' },
-  { color: T.violet, dash: '8 5' },
-  { color: T.good, dash: '2 5' },
-  { color: T.warn, dash: '10 4 2 4' },
+  { color: T.text, dash: '8 5' },
+  { color: T.warn, dash: '2 5' },
+  { color: T.muted, dash: '10 4 2 4' },
 ] as const
 
 /* טקסט גרף: צירים ותוויות עזר 14px (המינימום); מספרים על הקו ומספרי האירועים 16px */
@@ -104,8 +104,8 @@ export function LevelChart({ series, ageNorm, height = 250, label, markers = [],
               const cy = 16 + row * 32
               return (
                 <g key={m.n}>
-                  <line x1={x} x2={x} y1={cy + 14} y2={base} style={{ stroke: TONE_META[m.tone].color }} strokeWidth="1.5" strokeDasharray="3 4" />
-                  <circle cx={x} cy={cy} r="14" style={{ fill: T.surface, stroke: TONE_META[m.tone].color }} strokeWidth="2.5" />
+                  <line x1={x} x2={x} y1={cy + 14} y2={base} style={{ stroke: T.axis }} strokeWidth="1.5" strokeDasharray="3 4" />
+                  <circle cx={x} cy={cy} r="14" style={{ fill: T.surface, stroke: T.controlBorder }} strokeWidth="2" />
                   <text x={x} y={cy + 6} textAnchor="middle" fontSize={VALUE_PX} fontWeight="800" style={{ fill: T.text, fontFamily: FONT }}>{m.n}</text>
                 </g>
               )
@@ -182,13 +182,20 @@ export function LineSwatch({ index, children }: { index: number; children: React
 
 /* דוגמית הרצועה במקרא: אותה רשת אלכסונית וקווי גבול מקווקווים כמו בגרף */
 export function BandSwatch({ children }: { children: ReactNode }) {
+  const patternId = `v2-swatch-${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 600, color: T.text }}>
-      <span aria-hidden="true" data-band-swatch style={{
-        width: 30, height: 16, display: 'inline-block', boxSizing: 'border-box',
-        backgroundColor: T.grid, backgroundImage: `repeating-linear-gradient(45deg, ${T.axis} 0, ${T.axis} 1.5px, transparent 1.5px, transparent ${BAND_HATCH}px)`,
-        borderTop: `1.5px dashed ${T.axis}`, borderBottom: `1.5px dashed ${T.axis}`,
-      }} />
+      <svg aria-hidden="true" focusable="false" data-band-swatch width="30" height="16" style={{ flexShrink: 0, display: 'block' }}>
+        <defs>
+          <pattern id={patternId} width={BAND_HATCH} height={BAND_HATCH} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2={BAND_HATCH} strokeWidth="1.5" style={{ stroke: T.axis }} />
+          </pattern>
+        </defs>
+        <rect width="30" height="16" style={{ fill: T.grid }} opacity="0.65" />
+        <rect width="30" height="16" fill={`url(#${patternId})`} opacity="0.55" />
+        <line x1="0" x2="30" y1="0.75" y2="0.75" strokeWidth="1.5" strokeDasharray="4 3" style={{ stroke: T.axis }} />
+        <line x1="0" x2="30" y1="15.25" y2="15.25" strokeWidth="1.5" strokeDasharray="4 3" style={{ stroke: T.axis }} />
+      </svg>
       <span>{children}</span>
     </span>
   )

@@ -1,7 +1,7 @@
 /* ──────────────────────────────────────────────────────────────────────────
    שכבות-על במסך מלא: (1) "הכנה לישיבה פדגוגית (תל״א)" — מסמך להדפסה; (2) "משוב אישי לתלמיד/ה — טיוטה למסירה" — מסמך להדפסה
    שהמורה מוסרת או מראה (המערכת לא שולחת אותו לתלמיד/ה).
-   מעוצבות בערכת הממשק (טוקנים, כפתורים 44px+, גוף 16px+). הדפסה תמיד בערכה בהירה (נייר), והפירוט החישובי
+   מעוצבות בערכת הממשק (טוקנים, כפתורים 44px+, גוף 16px+). הפירוט החישובי
    שבסעיף "איך חישבנו?" מודפס גם הוא (הפירוטים נפתחים לפני ההדפסה ונסגרים אחריה).
    ────────────────────────────────────────────────────────────────────────── */
 import { useEffect, useRef } from 'react'
@@ -10,7 +10,7 @@ import { createPortal } from 'react-dom'
 import { AI_SUMMARY_PANEL_TEXT, AI_SUMMARY_TEXT, V2_CLIENT_TEXT, V2_SHEETS_TEXT } from '../../shared/lib/findingsNarrative'
 import type { Briefing, StudentFeedback } from '../../shared/types/analyticsV2'
 import { AiSummaryPanel } from '../aiSummary'
-import { EmptyState, FONT, HowWeCalc, Icon, RADIUS, T } from '../teacherUi'
+import { EmptyState, FONT, HowWeCalc, Icon, NESTED_LINE, RADIUS, T } from '../teacherUi'
 import { L } from './labels'
 import { briefingHasContent, feedbackHasContent } from './logic'
 import { lockPageBehind } from './sheetLock'
@@ -31,17 +31,14 @@ function Sheet({ children, onClose, printable, label }: { children: ReactNode; o
     const unlock = lockPageBehind([...document.body.children].filter((el): el is HTMLElement => el instanceof HTMLElement), ref.current)
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') closeRef.current() }
     window.addEventListener('keydown', onKey)
-    /* הדפסה תמיד בערכה בהירה (נייר) ועם כל הפירוטים פתוחים — מחזירים את המצב הקודם אחרי */
-    let restoreTheme: 'dark' | null = null
+    /* הדפסה עם כל הפירוטים פתוחים — מחזירים את המצב הקודם אחרי */
     let reopened: HTMLDetailsElement[] = []
     const before = (): void => {
-      if (window.HoloTheme && !window.HoloTheme.isLight()) { restoreTheme = 'dark'; window.HoloTheme.set('light') }
       const closed = [...(ref.current?.querySelectorAll<HTMLDetailsElement>('details:not([open])') ?? [])]
       closed.forEach((d) => { d.open = true })
       reopened.push(...closed)
     }
     const after = (): void => {
-      if (restoreTheme && window.HoloTheme) { window.HoloTheme.set(restoreTheme); restoreTheme = null }
       reopened.forEach((d) => { d.open = false })
       reopened = []
     }
@@ -61,7 +58,7 @@ function Sheet({ children, onClose, printable, label }: { children: ReactNode; o
           body > *:not(#v2-print-portal) { display: none !important; }
           #v2-print-portal { position: static !important; overflow: visible !important; background: none !important; }
           .v2-noprint { display: none !important; }
-          .v2-paper { box-shadow: none !important; border: none !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+          .v2-paper { box-shadow: none !important; border: none !important; background: none !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
           .v2-paper h2, .v2-paper li { break-inside: avoid; }
         }
       `}</style>
@@ -86,15 +83,15 @@ export function BriefingOverlay({ scope, id, params, notice, onClose }: { scope:
   const empty = !!data && (dataState === 'insufficient' || !briefingHasContent(data))
   return (
     <Sheet onClose={onClose} printable={!empty} label={L.briefing}>
-      <article className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '32px 44px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, color: T.text, lineHeight: 1.7 }}>
+      <article className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '31px 43px', background: T.aiFill, border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.lg, color: T.text, lineHeight: 1.7 }}>
         {loading && !data && <LoadingBlock />}
         {error && <ErrorBlock error={error} onRetry={reload} />}
         {empty && <EmptyState title={V2_CLIENT_TEXT.briefingEmpty.title} whatNext={V2_CLIENT_TEXT.briefingEmpty.whatNext} ctaLabel={L.close} onCta={onClose} />}
         {data && !empty && (
           <>
-            <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 18 }}>
+            <header style={{ borderBottom: `2px solid ${T.controlBorder}`, paddingBottom: 12, marginBottom: 18 }}>
               <div style={{ fontSize: 16, color: T.textSoft }}>HoloAcademy · {L.briefing}</div>
-              <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.text }}>{data.title}</h1>
+              <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.accent }}>{data.title}</h1>
               <div style={{ fontSize: 16, color: T.textSoft }}>{data.subtitle} · הופק בתאריך {heDate(data.generatedAt)}</div>
               {/* מה זה המסמך ומה זה תל״א — בכותרת המסמך עצמו (מודפס איתו) */}
               <div data-briefing-intro style={{ fontSize: 16, color: T.textSoft }}>{V2_SHEETS_TEXT.briefing[scope]}</div>
@@ -140,10 +137,11 @@ export function SummaryOverlay({ scope, id, params, name, subjectOnly, onClose }
   const heading = AI_SUMMARY_TEXT.headingByScope[scope]
   return (
     <Sheet onClose={onClose} label={heading}>
-      <article data-ai-overlay className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '28px 40px 32px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.sm, color: T.text }}>
-        <header style={{ borderBottom: `2px solid ${T.accent}`, paddingBottom: 12, marginBottom: 16 }}>
+      <article data-ai-overlay className="v2-paper" style={{ maxWidth: 840, margin: '24px auto 60px', padding: '27px 39px 31px', borderRadius: RADIUS.lg, color: T.text,
+        background: T.aiFill, border: T.line, boxShadow: T.shadow }}>
+        <header style={{ borderBottom: `2px solid ${T.controlBorder}`, paddingBottom: 12, marginBottom: 16 }}>
           <div style={{ fontSize: 16, color: T.textSoft }}>{AI_SUMMARY_PANEL_TEXT.doc.brand}</div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.text }}>{heading}</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: '6px 0 2px', lineHeight: 1.35, color: T.accent }}>{heading}</h1>
           {name && <div style={{ fontSize: 19, fontWeight: 700, color: T.text }}>{name}</div>}
         </header>
         <AiSummaryPanel key={`${scope}:${id}`} target={{ scope, id }} params={params} exportName={name} showHeading={false} plain
@@ -163,7 +161,7 @@ export function FeedbackItems({ data }: { data: StudentFeedback }) {
       <h1 style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.5, margin: '0 0 16px', color: T.text }}>{data.headline}</h1>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {data.items.map((it, i) => (
-          <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 16, border: `1px solid ${T.border}`, background: T.surfaceSoft }}>
+          <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10, border: NESTED_LINE, background: T.surface }}>
             <span aria-hidden="true" style={{ color: T.accent, display: 'inline-flex', marginTop: 2 }}><Icon name={KIND_ICON[it.kind]} size={26} /></span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: T.textSoft, marginBottom: 2 }}>{it.subject.nameHe} · {KIND_LABEL[it.kind]}</div>
@@ -188,7 +186,7 @@ export function FeedbackOverlay({ studentId, params, onClose }: { studentId: str
           <p data-feedback-title style={{ fontSize: 19, fontWeight: 800, lineHeight: 1.5, color: T.text, margin: '0 0 4px' }}>{V2_SHEETS_TEXT.feedback.title}</p>
           <p style={{ fontSize: 16, lineHeight: 1.6, color: T.textSoft, margin: 0 }}>{V2_SHEETS_TEXT.feedback.intro}</p>
         </div>
-        <div style={{ border: `2px solid ${T.accent}`, borderRadius: 24, padding: 22, background: T.surface }}>
+        <div style={{ border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.lg, padding: 22, background: T.aiFill }}>
           {loading && !data && <LoadingBlock />}
           {error && <ErrorBlock error={error} onRetry={reload} />}
           {empty && <EmptyState title={V2_CLIENT_TEXT.feedbackEmpty.title} whatNext={V2_CLIENT_TEXT.feedbackEmpty.whatNext} ctaLabel={L.close} onCta={onClose} />}

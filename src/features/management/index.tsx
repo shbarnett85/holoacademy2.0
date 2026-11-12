@@ -7,6 +7,7 @@ import ClassManage from './ClassManage'
 import DemoDataPanel from './DemoDataPanel'
 import TeacherRequests from './TeacherRequests'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
+import { fieldStyle, infoChip, nameChip, panelWrong } from '../../styles/ui'
 import type { V2LinkInfo } from './v2Link'
 
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
@@ -14,16 +15,17 @@ export interface ClassTeacher { teacherId: string; name: string; subject: string
 /* v2Linked / v2UnlinkedReason: האם יש מסך אנליטיקה לכיתה (השרת; ארגון הדגמה — לא). ראו v2Link.ts */
 export interface ClassRow extends V2LinkInfo { id: string; name: string; slug: string; url_code: string; gradeLabel: string; gradeLevel?: number | null; effectsLevel?: string; teachers: ClassTeacher[]; studentCount: number; is_active: boolean; is_fictitious?: boolean }
 
-const inputStyle: React.CSSProperties = {
-  background: 'var(--t253)', border: '1px solid var(--t219)',
-  borderRadius: '0.5rem', color: 'var(--t301)', padding: '0.5rem 0.7rem',
-}
+const inputStyle: React.CSSProperties = { ...fieldStyle, padding: '0.5rem 0.7rem' }
+const rowBtn = 'holo-button holo-button--staff holo-button--sm text-sm'
+const muted: React.CSSProperties = { color: 'var(--color-muted)' }
+/* תג מצב (פעיל / מושבת): קו דיו, אייקון ומילה — לא צבע לבד */
+const statusChip = (active: boolean): React.CSSProperties => (active ? infoChip : { ...infoChip, background: 'var(--color-ink-wash)' })
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="holo-panel text-center" style={{ padding: '1rem 1.4rem' }}>
+    <div className="holo-panel holo-panel--staff text-center" style={{ padding: '1rem 1.4rem' }}>
       <div className="holo-text-glow text-3xl font-black">{value}</div>
-      <div className="text-xs mt-1" style={{ opacity: 0.6 }}>{label}</div>
+      <div className="text-xs mt-1" style={muted}>{label}</div>
     </div>
   )
 }
@@ -91,19 +93,19 @@ export default function ManagementPanel() {
     <div className="holo-page-enter flex flex-col items-center min-h-screen p-6 gap-5 max-w-2xl mx-auto">
       <header className="w-full">
         <div className="flex items-center justify-between">
-          <span className="text-sm" style={{ opacity: 0.6 }}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'municipal_admin' ? 'מנהל עירוני' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
+          <span className="text-sm rounded-full px-3 py-0.5" style={nameChip}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'municipal_admin' ? 'מנהל עירוני' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
           <div className="flex gap-3">
-            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => navigate('/analytics')}>📊 התקדמות</button>
-            <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t219)', background: 'transparent', color: 'var(--t301)' }} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
+            <button className={rowBtn} onClick={() => navigate('/analytics')}>📊 התקדמות</button>
+            <button className={rowBtn} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
           </div>
         </div>
         <h1 className="holo-text-glow text-3xl font-black mt-2 text-center">ניהול בית הספר</h1>
         <div className="flex justify-center mt-2">
-          <button className="holo-button text-sm" onClick={() => navigate('/manage/students')}>👥 כל התלמידים</button>
+          <button className="holo-button holo-button--staff text-sm" onClick={() => navigate('/manage/students')}>👥 כל התלמידים</button>
         </div>
       </header>
 
-      {error && <p className="text-sm" style={{ color: 'var(--t18)' }}>⚠️ {error}</p>}
+      {error && <p className="text-sm" style={{ ...panelWrong, padding: '6px 12px' }}>⚠️ {error}</p>}
 
       <DemoDataPanel classes={classes} onChanged={load} />
 
@@ -121,26 +123,26 @@ export default function ManagementPanel() {
           {/* מורים */}
           <div className="w-full flex justify-between items-center mt-2">
             <h2 className="font-bold">מורים</h2>
-            <button className="holo-button text-sm" onClick={() => setAddTeacher((v) => !v)}>+ מורה</button>
+            <button className="holo-button holo-button--staff text-sm" onClick={() => setAddTeacher((v) => !v)}>+ מורה</button>
           </div>
           {addTeacher && (
-            <div className="holo-panel w-full grid grid-cols-2 gap-2">
+            <div className="holo-panel holo-panel--staff w-full grid grid-cols-2 gap-2">
               <input placeholder="שם" value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} style={inputStyle} />
               <span />
               <input dir="ltr" placeholder="email" value={tForm.email} onChange={(e) => setTForm({ ...tForm, email: e.target.value })} style={inputStyle} />
               <input dir="ltr" type="password" placeholder="סיסמה (6+)" value={tForm.password} onChange={(e) => setTForm({ ...tForm, password: e.target.value })} style={inputStyle} />
-              <button className="holo-button col-span-2" style={{ opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={createTeacher}>{busy ? 'יוצר…' : 'צור מורה'}</button>
+              <button className="holo-button holo-button--staff col-span-2" disabled={busy} onClick={createTeacher}>{busy ? 'יוצר…' : 'צור מורה'}</button>
             </div>
           )}
           <div className="w-full flex flex-col gap-2">
             {teachers.map((t) => (
-              <div key={t.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.6rem 1rem', opacity: t.is_active ? 1 : 0.45 }}>
-                <span className="font-bold">{t.name} <span className="text-xs" style={{ opacity: 0.6 }}>· {t.classCount} כיתות</span></span>
+              <div key={t.id} className="holo-panel holo-panel--staff flex items-center justify-between" style={{ padding: '0.6rem 1rem', opacity: t.is_active ? 1 : 0.45 }}>
+                <span className="font-bold"><span className="rounded-full px-3 py-0.5" style={{ ...nameChip, display: 'inline-block' }}>{t.name}</span> <span className="text-xs" style={{ ...muted, fontWeight: 400 }}>· {t.classCount} כיתות</span></span>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs rounded-full px-2 py-0.5" style={t.is_active ? { color: 'var(--t3)', border: '1px solid var(--t297)' } : { color: 'var(--t18)', border: '1px solid var(--t298)' }}>{t.is_active ? '● פעיל' : '○ מושבת'}</span>
+                  <span className="text-xs rounded-full px-2 py-0.5" style={statusChip(t.is_active)}>{t.is_active ? '● פעיל' : '○ מושבת'}</span>
                   {t.is_active
-                    ? <button className="text-sm cursor-pointer" style={{ color: 'var(--t18)' }} onClick={() => setConfirm({ kind: 'teacher', id: t.id, name: t.name })}>השבתה</button>
-                    : <button className="text-sm cursor-pointer" style={{ color: 'var(--t3)' }} onClick={() => toggle('teacher', t.id, true)}>הפעלה</button>}
+                    ? <button className={rowBtn} onClick={() => setConfirm({ kind: 'teacher', id: t.id, name: t.name })}>השבתה</button>
+                    : <button className={rowBtn} onClick={() => toggle('teacher', t.id, true)}>הפעלה</button>}
                 </div>
               </div>
             ))}
@@ -151,31 +153,31 @@ export default function ManagementPanel() {
       {/* כיתות */}
       <div className="w-full flex justify-between items-center mt-2">
         <h2 className="font-bold">{isAdmin ? 'כל הכיתות' : 'הכיתות שלי'}</h2>
-        <button className="holo-button text-sm" onClick={() => setAddClass((v) => !v)}>+ כיתה</button>
+        <button className="holo-button holo-button--staff text-sm" onClick={() => setAddClass((v) => !v)}>+ כיתה</button>
       </div>
       {addClass && (
-        <div className="holo-panel w-full grid grid-cols-2 gap-2">
+        <div className="holo-panel holo-panel--staff w-full grid grid-cols-2 gap-2">
           <input placeholder="שכבה נוכחית (grade_label, למשל ז׳3)" value={cForm.gradeLabel} onChange={(e) => setCForm({ ...cForm, gradeLabel: e.target.value, name: e.target.value })} style={inputStyle} />
           <input dir="ltr" placeholder="slug יציב (למשל 7c)" value={cForm.slug} onChange={(e) => setCForm({ ...cForm, slug: e.target.value })} style={inputStyle} />
-          <p className="col-span-2 text-xs" style={{ opacity: 0.55 }}>ℹ️ ה-slug וה-url_code יציבים לאורך השנים; השכבה (grade_label) מתעדכנת בתחילת שנה. שיוך מורים נעשה בתוך ניהול הכיתה.</p>
-          <button className="holo-button col-span-2" style={{ opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={createClass}>{busy ? 'יוצר…' : 'צור כיתה'}</button>
+          <p className="col-span-2 text-xs" style={muted}>ℹ️ ה-slug וה-url_code יציבים לאורך השנים; השכבה (grade_label) מתעדכנת בתחילת שנה. שיוך מורים נעשה בתוך ניהול הכיתה.</p>
+          <button className="holo-button holo-button--staff col-span-2" disabled={busy} onClick={createClass}>{busy ? 'יוצר…' : 'צור כיתה'}</button>
         </div>
       )}
       <div className="w-full flex flex-col gap-2 mb-8">
-        {classes.length === 0 && <p style={{ opacity: 0.6 }}>אין כיתות עדיין.</p>}
+        {classes.length === 0 && <p style={muted}>אין כיתות עדיין.</p>}
         {classes.map((c) => (
-          <div key={c.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: c.is_active ? 1 : 0.45 }}>
+          <div key={c.id} className="holo-panel holo-panel--staff flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: c.is_active ? 1 : 0.45 }}>
             <div>
               <span className="font-bold">{c.gradeLabel}</span>
               {c.is_fictitious && <span className="mr-2"><DemoStudentBadge show /></span>}
-              <span className="text-xs mr-2" style={{ opacity: 0.6 }}>· {c.studentCount} תלמידים{c.teachers.length ? ` · ${c.teachers.map((t) => t.name).join(', ')}` : ''}</span>
-              {!c.is_active && <span className="text-xs mr-2" style={{ color: 'var(--t18)' }}>○ מושבת</span>}
+              <span className="text-xs mr-2" style={muted}>· {c.studentCount} תלמידים{c.teachers.length ? ` · ${c.teachers.map((t) => t.name).join(', ')}` : ''}</span>
+              {!c.is_active && <span className="text-xs mr-2 rounded-full px-2 py-0.5" style={statusChip(false)}>○ מושבת</span>}
             </div>
             <div className="flex gap-2">
-              <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid var(--t299)', background: 'transparent', color: 'var(--t301)' }} onClick={() => setView(c)}>ניהול ←</button>
+              <button className={rowBtn} onClick={() => setView(c)}>ניהול ←</button>
               {isAdmin && (c.is_active
-                ? <button className="text-sm cursor-pointer" style={{ color: 'var(--t18)' }} onClick={() => setConfirm({ kind: 'class', id: c.id, name: c.name })}>השבתה</button>
-                : <button className="text-sm cursor-pointer" style={{ color: 'var(--t3)' }} onClick={() => toggle('class', c.id, true)}>הפעלה</button>)}
+                ? <button className={rowBtn} onClick={() => setConfirm({ kind: 'class', id: c.id, name: c.name })}>השבתה</button>
+                : <button className={rowBtn} onClick={() => toggle('class', c.id, true)}>הפעלה</button>)}
             </div>
           </div>
         ))}

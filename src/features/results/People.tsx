@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { LESSON_DUE_TEXT, attentionBadgeText, countNb } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, StudentChip } from '../../shared/types/resultsV1'
-import { FONT, Icon, MIN_TARGET, RADIUS, STATUS_META, T, VisuallyHidden } from '../teacherUi'
+import { btnClass, BTN, CHIP_LINE, FILL, FONT, Icon, MIN_TARGET, RADIUS, STATUS_META, T, VisuallyHidden } from '../teacherUi'
 import type { StudentStatus } from '../teacherUi'
 import { attentionTotal, byAttentionThenName, byName, ROSTER_GROUP_ORDER } from './logic'
 import { card, panelTitle, scrollArea, secondaryButton, soft } from './styles'
@@ -16,14 +16,15 @@ import { UI } from './text'
 /* עמודות הרשת: 5 במסך 1366 (≈108px לעמודה), פחות במסך צר. שם ארוך יורד לשורה שנייה בתוך אותו כפתור (44px) */
 const GRID = 'repeat(auto-fill, minmax(104px, 1fr))'
 
-function StatusIcon({ status, size = 18 }: { status: StudentStatus; size?: number }) {
+/* plain: בצבע הטקסט של ההורה (שם נבחר: לבן על דיו) */
+function StatusIcon({ status, size = 18, plain = false }: { status: StudentStatus; size?: number; plain?: boolean }) {
   const m = STATUS_META[status]
-  return <span style={{ color: m.color, display: 'inline-flex' }}><Icon name={m.icon} size={size} strokeWidth={status === 'completed' ? 2.6 : 2} /></span>
+  return <span style={{ color: plain ? 'inherit' : m.color, display: 'inline-flex' }}><Icon name={m.icon} size={size} strokeWidth={status === 'completed' ? 2.6 : 2} /></span>
 }
 
 function AttentionLegend({ n }: { n: number }) {
   return (
-    <span data-attention-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: `1.5px solid ${T.warn}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+    <span data-attention-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: CHIP_LINE, background: T.findingFill, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.findingText, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
       <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
       {attentionBadgeText(n)}
     </span>
@@ -33,7 +34,7 @@ function AttentionLegend({ n }: { n: number }) {
 /* "באיחור": אייקון שעון + מילה (הצבע משני). מוצג בכותרת הרשימה ובכל שם של מי שסיים אחרי המועד */
 function LateLegend({ n, total }: { n: number; total: number }) {
   return (
-    <span data-late-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: `1.5px solid ${T.muted}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
+    <span data-late-legend style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 12px 2px 10px', borderRadius: 20, border: CHIP_LINE, background: FILL.neutral, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.4, whiteSpace: 'nowrap' }}>
       <span style={{ color: T.muted, display: 'inline-flex' }}><Icon name="clock" size={18} /></span>
       {LESSON_DUE_TEXT.lateCount(n, total)}
     </span>
@@ -44,19 +45,18 @@ function LateLegend({ n, total }: { n: number; total: number }) {
 function NameChip({ s, onOpen, current = false, showStatus = true }: { s: StudentChip; onOpen: (id: string) => void; current?: boolean; showStatus?: boolean }) {
   const m = STATUS_META[s.status]
   return (
-    <button type="button" data-tu-press data-student-chip={s.id} data-student-row={s.id} aria-current={current ? 'true' : undefined} onClick={() => !current && onOpen(s.id)}
+    <button type="button" data-tu-press data-student-chip={s.id} data-student-row={s.id} className={btnClass(current)} aria-current={current ? 'true' : undefined} onClick={() => !current && onOpen(s.id)}
       style={{
         display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: MIN_TARGET, padding: '2px 8px', borderRadius: RADIUS.md, boxSizing: 'border-box',
-        fontFamily: FONT, fontSize: 16, fontWeight: current ? 800 : 600, lineHeight: 1.2, textAlign: 'start', cursor: current ? 'default' : 'pointer', color: T.text,
-        background: current ? T.accentFill : T.surface,
-        border: `${s.attention || current ? 2.5 : 1.5}px solid ${current ? T.accent : s.attention ? T.warn : T.controlBorder}`,
-        boxShadow: current ? `inset 0 -4px 0 ${T.accent}` : 'none',
+        fontFamily: FONT, fontSize: 16, fontWeight: current ? 800 : 600, lineHeight: 1.2, textAlign: 'start', cursor: current ? 'default' : 'pointer',
+        /* שם של תלמיד/ה: רקע אפרסק, טקסט וקו בדיו. הנוכחי/ת: רקע דיו וטקסט לבן (is-selected) */
+        ...(current ? null : { background: T.nameFill }),
       }}>
       {/* בקבוצות (מצב כיתה) המצב כבר כתוב בכותרת הקבוצה, לכן הסימן בכל שם מיותר ומוריד מרוחב השם */}
-      {showStatus && <StatusIcon status={s.status} />}
+      {showStatus && <StatusIcon status={s.status} plain={current} />}
       <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{s.name}</span>
-      {s.attention && <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>}
-      {s.late && <span data-late-mark title={LESSON_DUE_TEXT.late} style={{ color: T.muted, display: 'inline-flex' }}><Icon name="clock" size={18} /></span>}
+      {s.attention && <span style={{ color: current ? 'inherit' : T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>}
+      {s.late && <span data-late-mark title={LESSON_DUE_TEXT.late} style={{ color: current ? 'inherit' : T.muted, display: 'inline-flex' }}><Icon name="clock" size={18} /></span>}
       <VisuallyHidden>{`, ${m.word}${s.attention ? `, ${UI.attentionWord}` : ''}${s.late ? `, ${LESSON_DUE_TEXT.late}` : ''}`}</VisuallyHidden>
     </button>
   )
@@ -90,7 +90,7 @@ export function ClassRoster({ roster, onOpen }: { roster: ClassSubmissionView['r
         {attention > 0 && <AttentionLegend n={attention} />}
         {late > 0 && <LateLegend n={late} total={roster.completed.length} />}
       </div>
-      <div style={{ ...scrollArea, padding: '2px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ ...scrollArea, padding: '2px 14px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {total === 0 && <p style={soft}>{UI.rosterEmpty}</p>}
         {GROUPS.map((g) => {
           const list = [...roster[g.key]].sort(byAttentionThenName)
@@ -115,8 +115,8 @@ export function PrevNext({ prevId, nextId, position, onOpen }: { prevId: string 
     const disabled = !id
     const arrow = <span style={{ display: 'inline-flex', transform: dir === 'prev' ? 'scaleX(-1)' : undefined }}><Icon name="chevLeft" size={18} strokeWidth={2.4} /></span>
     return (
-      <button type="button" data-tu-press data-step={dir} disabled={disabled} onClick={() => id && onOpen(id)}
-        style={{ ...secondaryButton, padding: '0 14px', fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer', color: disabled ? T.muted : T.text, border: `2px ${disabled ? 'dashed' : 'solid'} ${T.controlBorder}` }}>
+      <button type="button" data-tu-press data-step={dir} className={BTN} disabled={disabled} onClick={() => id && onOpen(id)}
+        style={{ ...secondaryButton, padding: '0 14px', fontWeight: 800, cursor: disabled ? 'not-allowed' : 'pointer' }}>
         {dir === 'prev' && arrow}
         {dir === 'prev' ? UI.prev : UI.next}
         {dir === 'next' && arrow}
@@ -156,7 +156,7 @@ export function StudentList({ roster, currentId, onOpen }: StudentListProps) {
           {[...GROUPS].reverse().map((g) => <span key={g.key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><StatusIcon status={g.status} />{g.word}</span>)}
         </span>
       </div>
-      <div ref={scroller} role="group" aria-label={UI.studentsTitle} style={{ ...scrollArea, padding: '2px 14px 10px', display: 'grid', gridTemplateColumns: GRID, gap: 6, alignContent: 'start' }}>
+      <div ref={scroller} role="group" aria-label={UI.studentsTitle} style={{ ...scrollArea, padding: '2px 14px 8px', display: 'grid', gridTemplateColumns: GRID, gap: 6, alignContent: 'start' }}>
         {list.map((s) => <NameChip key={s.id} s={s} onOpen={onOpen} current={s.id === currentId} />)}
       </div>
     </section>

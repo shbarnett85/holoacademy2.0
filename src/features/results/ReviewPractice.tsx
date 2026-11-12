@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../shared/lib/api'
-import { FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import { BTN, FONT, Icon, NESTED_LINE, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import { primaryButton, secondaryButton, soft } from './styles'
 import { UI } from './text'
 
@@ -52,9 +52,10 @@ export default function ReviewPractice({ questId, submissionId, weakCount }: { q
     <div data-review-practice style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* שם הטאב כבר אומר "תרגול חזרה" — הכותרת נשארת לקוראי מסך בלבד */}
       <h2 style={{ margin: 0 }}><VisuallyHidden>{UI.reviewTitle}</VisuallyHidden></h2>
-      <div style={{ padding: '14px 16px', borderRadius: RADIUS.md, border: `1.5px solid ${T.border}`, background: T.surface, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+      {/* הצעה של המערכת (ד״ר הולו): רקע של אזור הצעות */}
+      <div style={{ padding: '14px 16px', borderRadius: RADIUS.md, border: NESTED_LINE, background: T.aiFill, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
         <p style={{ margin: 0, fontFamily: FONT, fontSize: 17, lineHeight: 1.6, color: T.text }}>{UI.reviewIntro(weakCount)}</p>
-        {phase.name === 'idle' && <button type="button" data-tu-press onClick={create} style={primaryButton}>{UI.reviewCreate}</button>}
+        {phase.name === 'idle' && <button type="button" data-tu-press className={BTN} onClick={create} style={primaryButton}>{UI.reviewCreate}</button>}
         {phase.name === 'working' && (
           <p role="status" style={{ ...soft, margin: 0, fontSize: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: T.accent, display: 'inline-flex' }}><Icon name="half" size={20} /></span>
@@ -67,7 +68,7 @@ export default function ReviewPractice({ questId, submissionId, weakCount }: { q
               <span style={{ color: T.good, display: 'inline-flex' }}><Icon name="check" size={20} strokeWidth={2.6} /></span>
               {UI.reviewReady(phase.title)}
             </p>
-            <button type="button" data-tu-press onClick={() => navigate(`/creator/quest/${encodeURIComponent(phase.reviewId)}`)} style={primaryButton}>{UI.reviewOpen}</button>
+            <button type="button" data-tu-press className={BTN} onClick={() => navigate(`/creator/quest/${encodeURIComponent(phase.reviewId)}`)} style={primaryButton}>{UI.reviewOpen}</button>
           </>
         )}
         {phase.name === 'error' && (
@@ -76,7 +77,7 @@ export default function ReviewPractice({ questId, submissionId, weakCount }: { q
               <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={20} /></span>
               {phase.message}
             </p>
-            <button type="button" data-tu-press onClick={create} style={secondaryButton}>{UI.retry}</button>
+            <button type="button" data-tu-press className={BTN} onClick={create} style={secondaryButton}>{UI.retry}</button>
           </>
         )}
       </div>

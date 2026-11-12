@@ -5,14 +5,14 @@ import { LESSON_DUE_TEXT, LESSON_STATE_TEXT, lessonStateLabel } from '../../shar
 import { israelDay } from '../../shared/lib/lessonState'
 import { apiFetch } from '../../shared/lib/api'
 import type { LessonStateValue } from '../../shared/types/resultsV1'
-import { FONT, Icon, MIN_TARGET, T } from '../teacherUi'
+import { BTN, btnClass, CHIP_LINE, FILL, FONT, Icon, MIN_TARGET, T } from '../teacherUi'
 import type { IconName } from '../teacherUi'
 import { ResultsError } from './resultsApi'
 
-const STATE_META: Record<LessonStateValue, { icon: IconName; color: string }> = {
-  active_now: { icon: 'pulse', color: T.accent },
-  open: { icon: 'clock', color: T.good },
-  ended: { icon: 'ended', color: T.muted },
+const STATE_META: Record<LessonStateValue, { icon: IconName; color: string; fill: string }> = {
+  active_now: { icon: 'pulse', color: T.accent, fill: T.findingFill },
+  open: { icon: 'clock', color: T.text, fill: T.surface },
+  ended: { icon: 'ended', color: T.muted, fill: FILL.neutral },
 }
 
 /* תג המצב: אייקון + מילה (הצבע משני). title מסביר במילים מה זה אומר */
@@ -22,7 +22,7 @@ export function LessonStateChip({ state, dueAt }: { state: LessonStateValue; due
   return (
     <span data-lesson-state={state} data-state-hint={t.hint} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 12px 3px 10px', borderRadius: 20,
-      border: `1.5px solid ${m.color}`, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.5,
+      border: CHIP_LINE, background: m.fill, fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', lineHeight: 1.5,
     }}>
       <span style={{ color: m.color, display: 'inline-flex' }}><Icon name={m.icon} size={16} /></span>
       {lessonStateLabel(state, dueAt)}
@@ -80,27 +80,27 @@ export function DueEditor({ submissionId, dueAt, onChanged }: { submissionId: st
 
   return (
     <span style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-      <button ref={btnRef} type="button" data-due-edit aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : openIt())}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, padding: '0 14px', borderRadius: 10, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}` }}>
+      <button ref={btnRef} type="button" data-due-edit className={btnClass(open)} aria-haspopup="dialog" aria-expanded={open} onClick={() => (open ? close() : openIt())}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, padding: '0 14px', borderRadius: 10, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700 }}>
         <Icon name="calendar" size={16} />
         {LESSON_DUE_TEXT.changeButton}
       </button>
       {saved && !open && <span role="status" style={{ fontFamily: FONT, fontSize: 16, color: T.textSoft }}>{LESSON_DUE_TEXT.saved(saved)}</span>}
       {open && (
         <div role="dialog" aria-label={LESSON_DUE_TEXT.changeButton} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); close() } }}
-          style={{ position: 'absolute', top: 'calc(100% + 6px)', insetInlineStart: 0, zIndex: 30, width: 'min(340px, 86vw)', display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 12, background: T.studioBg, border: `2px solid ${T.accent}`, boxShadow: '0 10px 30px rgba(0,0,0,.22)' }}>
+          style={{ position: 'absolute', top: 'calc(100% + 6px)', insetInlineStart: 0, zIndex: 30, width: 'min(340px, 86vw)', display: 'flex', flexDirection: 'column', gap: 10, padding: 14, borderRadius: 12, background: T.surface, border: T.line, boxShadow: T.shadow }}>
           <label htmlFor={fieldId} style={{ fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text }}>{LESSON_DUE_TEXT.fieldLabel}</label>
           <input id={fieldId} ref={inputRef} type="date" value={day} onChange={(e) => setDay(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void save() }}
             style={{ minHeight: MIN_TARGET, padding: '0 10px', borderRadius: 10, fontFamily: FONT, fontSize: 16, color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}` }} />
           <span style={{ fontFamily: FONT, fontSize: 16, color: T.textSoft, lineHeight: 1.5 }}>{LESSON_DUE_TEXT.fieldHint}</span>
           {error && <span role="alert" style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, borderInlineStart: `5px solid ${T.bad}`, paddingInlineStart: 8 }}>{error}</span>}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" disabled={busy || !day} onClick={() => void save()}
-              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: 10, cursor: busy ? 'wait' : 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.onAccent, background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', opacity: !day ? 0.5 : 1 }}>
+            <button type="button" className={BTN} disabled={busy || !day} onClick={() => void save()}
+              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: 10, cursor: busy ? 'wait' : 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 800 }}>
               {LESSON_DUE_TEXT.save}
             </button>
-            <button type="button" onClick={close}
-              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: 10, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, background: 'transparent', border: `2px solid ${T.controlBorder}` }}>
+            <button type="button" className={BTN} onClick={close}
+              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: 10, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700 }}>
               {LESSON_DUE_TEXT.cancel}
             </button>
           </div>

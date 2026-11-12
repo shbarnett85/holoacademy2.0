@@ -6,6 +6,7 @@ import { ART_STYLES, type GeneratedQuest, type HubInfo } from './creatorStore'
 import SceneCards from './SceneCards'
 import SceneEditModal from './SceneEditModal'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
+import { fieldStyle as fieldBase, modalBackdrop, panelStaff, panelWrong, progressFill, progressTrack } from '../../styles/ui'
 
 type Scene = GeneratedQuest['game_data']['scenes'][number]
 type EndingScene = NonNullable<GeneratedQuest['game_data']['endingGood']>
@@ -46,24 +47,15 @@ interface Props {
   readingScale?: number | null
 }
 
-/* כפתור פעולה בעיצוב הטיוטות — primary (גרדיאנט) / ghost (זכוכית ציאן) / play (זכוכית סגולה).
-   משותף ל-QuestPreview ו-QuestView כך ששלושת הכפתורים בתחתית זהים בכל עמודי הטיוטות. */
-export function WsButton({ variant, icon, children, onClick, disabled }: { variant: 'primary' | 'ghost' | 'play'; icon: ReactNode; children: ReactNode; onClick: () => void; disabled?: boolean }) {
-  const [hov, setHov] = useState(false)
-  const base: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: disabled ? 'not-allowed' : 'pointer',
-    fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, transition: 'all .16s', whiteSpace: 'nowrap',
-    opacity: disabled ? 0.45 : 1,
-  }
-  let style: React.CSSProperties
-  if (variant === 'primary') {
-    style = { ...base, background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: '1px solid transparent', color: 'var(--t17)', boxShadow: hov && !disabled ? '0 0 22px var(--t77)' : '0 0 14px var(--t87)' }
-  } else {
-    const rgb = variant === 'play' ? '120,90,255' : '47,243,255'
-    style = { ...base, background: hov && !disabled ? `${window.HoloTint(rgb, .18)}` : `${window.HoloTint(rgb, .07)}`, border: `1px solid ${window.HoloTint(rgb, hov && !disabled ? .65 : .3)}`, color: hov && !disabled ? 'var(--t13)' : variant === 'play' ? 'var(--t206)' : 'var(--t19)', boxShadow: hov && !disabled ? `0 0 16px ${window.HoloTint(rgb, .3)}` : 'none' }
+/* כפתור פעולה בעמודי הטיוטות. שלושת הסוגים (primary / ghost / play) נראים אותו דבר: כפתור פעולה רגיל;
+   המילה והאייקון אומרים מה הכפתור עושה. משותף ל-QuestPreview ו-QuestView. */
+export function WsButton({ icon, children, onClick, disabled }: { variant: 'primary' | 'ghost' | 'play'; icon: ReactNode; children: ReactNode; onClick: () => void; disabled?: boolean }) {
+  const style: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap',
   }
   return (
-    <button onClick={disabled ? undefined : onClick} disabled={disabled} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={style}>{icon}{children}</button>
+    <button className="holo-button holo-button--staff" onClick={disabled ? undefined : onClick} disabled={disabled} style={style}>{icon}{children}</button>
   )
 }
 
@@ -93,51 +85,47 @@ export function WorkspaceActions({ onSave, onRegenerate, onPlay, onUndo, undoDis
 
 const micro: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.2em', textTransform: 'uppercase' }
 const fieldStyle: React.CSSProperties = {
-  width: '100%', background: 'var(--t207)', border: '1px solid var(--t208)',
-  borderRadius: '0.6rem', color: 'var(--t301)', padding: '0.6rem 0.8rem', fontSize: '0.95rem', resize: 'vertical' as const,
+  ...fieldBase, width: '100%',
+  padding: '0.6rem 0.8rem', fontSize: '0.95rem', resize: 'vertical' as const,
 }
-const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--t300)' }
+const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-machine-deep)' }
+/* כפתור סגירה (✕) בחלון קופץ */
+const closeBtn: React.CSSProperties = { width: 36, height: 36, padding: 0, display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: '1rem' }
 
 /* כרטיס מסך סיום — הסיפור נסגר / הסיפור נשאר פתוח */
 function EndingCard({ which, ending, onEdit }: {
   which: 'good' | 'bad'; ending: EndingScene
   onEdit: () => void
 }) {
-  const [hov, setHov] = useState(false)
   const good = which === 'good'
-  const accent = good ? 'var(--t209)' : 'var(--t14)'
-  const rgb = good ? '255,180,84' : '155,140,255'
   return (
     <div
-      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       onClick={onEdit}
       style={{
-        flex: '1 1 320px', minWidth: 0, display: 'flex', gap: 14, padding: '16px 18px', borderRadius: 16, cursor: 'pointer',
-        background: 'linear-gradient(135deg, var(--t210), var(--t211))',
-        border: `1px solid ${hov ? `${window.HoloTint(rgb, .5)}` : `${window.HoloTint(rgb, .22)}`}`,
-        boxShadow: hov ? `0 0 28px ${window.HoloTint(rgb, .14)}` : 'none',
-        transition: 'all .2s cubic-bezier(.22,.7,.35,1)', position: 'relative', overflow: 'hidden',
+        ...panelStaff,
+        flex: '1 1 320px', minWidth: 0, display: 'flex', gap: 14, padding: '16px 18px', cursor: 'pointer',
+        position: 'relative', overflow: 'hidden',
       }}
     >
-      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${accent}, var(--t35))`, opacity: hov ? 1 : 0.5, transition: 'opacity .2s' }} />
+      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 3, background: good ? 'var(--color-human)' : 'var(--color-machine)' }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ ...micro, color: `${window.HoloTint(rgb, .7)}`, marginBottom: 7 }}>
+        <div style={{ ...micro, color: good ? 'var(--color-human-deep)' : 'var(--color-muted)', marginBottom: 7 }}>
           {good ? '🏆 הסיפור נסגר' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}><DrHoloEmblem size={13} /> הסיפור נשאר פתוח</span>} · {good ? '3 גבישים ומעלה' : 'פחות מ-3 גבישים'}
         </div>
-        <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800, color: 'var(--t13)' }}>{ending.title}</h3>
+        <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 800, color: 'var(--color-ink)' }}>{ending.title}</h3>
         {ending.narrative && (
-          <p style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.7, color: 'var(--t212)' }}>
+          <p style={{ margin: '0 0 10px', fontSize: 13, lineHeight: 1.7, color: 'var(--color-muted)' }}>
             {ending.narrative.length > 120 ? ending.narrative.slice(0, 120) + '…' : ending.narrative}
           </p>
         )}
         {ending.drHoloDialog && (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--t213)', fontStyle: 'italic', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted)', fontStyle: 'italic', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
             <span style={{ flexShrink: 0, marginTop: 1 }}><DrHoloEmblem size={14} /></span>
             <span>{ending.drHoloDialog.length > 80 ? ending.drHoloDialog.slice(0, 80) + '…' : ending.drHoloDialog}</span>
           </p>
         )}
       </div>
-      <div style={{ position: 'relative', width: 120, flexShrink: 0, borderRadius: 11, overflow: 'hidden', border: `1px solid ${window.HoloTint(rgb, .3)}`, alignSelf: 'stretch', minHeight: 90 }}>
+      <div style={{ position: 'relative', width: 120, flexShrink: 0, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--color-ink)', alignSelf: 'stretch', minHeight: 90 }}>
         <img src={LAB.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       </div>
     </div>
@@ -173,11 +161,11 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ background: 'var(--t216)', backdropFilter: 'blur(4px)', zIndex: 60 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="עריכת מסך סיום">
-      <div className="holo-panel w-full" style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--holo-glow)', borderColor: good ? 'var(--t217)' : 'var(--t218)' }} onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ ...modalBackdrop, zIndex: 60 }} onClick={onClose} role="dialog" aria-modal="true" aria-label="עריכת מסך סיום">
+      <div className="holo-panel holo-panel--staff w-full" style={{ maxWidth: '40rem', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="holo-text-glow text-xl font-black" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>✏️ {good ? '🏆 הסיפור נסגר' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><DrHoloEmblem size={20} /> הסיפור נשאר פתוח</span>}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--t301)', opacity: 0.6, cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+          <button className="holo-button holo-button--staff holo-button--sm" onClick={onClose} style={closeBtn}>✕</button>
         </div>
         <div className="mb-4">
           <label style={labelStyle}>כותרת המסך</label>
@@ -191,10 +179,10 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved }: {
           <label style={{ ...labelStyle, display: 'inline-flex', alignItems: 'center', gap: 5 }}><DrHoloEmblem size={15} /> דיאלוג ד"ר הולו</label>
           <textarea value={dialog} onChange={(e) => setDialog(e.target.value)} rows={3} style={fieldStyle} placeholder="מה ד&quot;ר הולו אומר בסיום…" />
         </div>
-        {error && <p className="text-sm mb-3" style={{ color: 'var(--t5)' }}>⚠️ {error}</p>}
+        {error && <p className="text-sm mb-3" style={{ ...panelWrong, padding: '0.45rem 0.8rem' }}>⚠️ {error}</p>}
         <div className="flex gap-3 justify-end">
-          <button className="holo-button" style={{ background: 'transparent', border: '1px solid var(--t220)' }} onClick={onClose} disabled={saving}>ביטול</button>
-          <button className="holo-button font-bold" style={{ opacity: saving ? 0.5 : 1 }} onClick={save} disabled={saving}>{saving ? 'שומר…' : 'שמור'}</button>
+          <button className="holo-button holo-button--staff" onClick={onClose} disabled={saving}>ביטול</button>
+          <button className="holo-button holo-button--staff font-bold" onClick={save} disabled={saving}>{saving ? 'שומר…' : 'שמור'}</button>
         </div>
       </div>
     </div>
@@ -358,14 +346,11 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
   }
 
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', background: 'var(--t-studio-bg)' }}>
-      {/* רקע עומק + כדורי זוהר — זהה לשאר מסכי האולפן */}
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', background: 'var(--color-machine-bg)' }}>
 
       <div className="flex flex-col items-center min-h-screen p-6 gap-6 mx-auto" style={{ position: 'relative', zIndex: 2, fontFamily: 'var(--font-display)', width: '100%', maxWidth: 960 }}>
       <header className="w-full" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, maxWidth: 760 }}>
-        <div style={{ display: 'grid', placeItems: 'center', width: 46, height: 46, borderRadius: 13, flexShrink: 0, background: 'var(--t20)', border: '1px solid var(--t21)', color: 'var(--t15)', boxShadow: '0 0 18px var(--t88)' }}>
+        <div style={{ display: 'grid', placeItems: 'center', width: 46, height: 46, borderRadius: 12, flexShrink: 0, background: 'var(--color-surface)', border: 'var(--border-staff)', color: 'var(--color-machine-deep)' }}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="m2 17 10 5 10-5" /><path d="m2 12 10 5 10-5" /></svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -378,34 +363,34 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
               disabled={savingTitle}
               title="לחצו לעריכת שם השיעור"
               style={{
-                margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--t13)', width: '100%',
-                background: 'transparent', border: '1px solid transparent', borderRadius: 8,
-                padding: '2px 6px', marginInlineStart: -6, fontFamily: 'var(--font-display)',
+                margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--color-machine-deep)', width: '100%',
+                background: 'transparent', border: '2px solid transparent', borderRadius: 8,
+                padding: '1px 5px', marginInlineStart: -6, fontFamily: 'var(--font-display)',
                 opacity: savingTitle ? 0.6 : 1,
               }}
-              onFocus={(e) => { e.currentTarget.style.background = 'var(--t221)'; e.currentTarget.style.borderColor = 'var(--t219)' }}
+              onFocus={(e) => { e.currentTarget.style.background = 'var(--color-surface)'; e.currentTarget.style.borderColor = 'var(--color-ink)' }}
               onMouseLeave={(e) => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.background = 'transparent' }}
             />
           ) : (
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--t13)' }}>{title}</h1>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--color-machine-deep)' }}>{title}</h1>
           )}
-          {subtitle && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.18em', color: 'var(--t28)', marginTop: 4 }}>{subtitle}</div>}
+          {subtitle && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '.18em', color: 'var(--color-muted)', marginTop: 4 }}>{subtitle}</div>}
         </div>
-        <span style={{ fontSize: 11.5, color: 'var(--t300)', opacity: 0.7, whiteSpace: 'nowrap' }}>✏️ לחצו על סצנה לעריכה</span>
+        <span style={{ fontSize: 11.5, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>✏️ לחצו על סצנה לעריכה</span>
       </header>
 
       {/* אזהרות מבנה */}
       {shownWarnings.length > 0 && (
-        <div className="holo-panel w-full" style={{ borderColor: 'var(--t222)', background: 'var(--t223)' }}>
-          <h3 className="font-bold mb-2" style={{ color: 'var(--t224)' }}>⚠️ אזהרות מבנה</h3>
-          <ul className="text-sm flex flex-col gap-1" style={{ color: 'var(--t225)' }}>
+        <div className="holo-panel holo-panel--staff w-full" style={{ background: 'var(--color-human-tint)', color: 'var(--color-human-deep)' }}>
+          <h3 className="font-bold mb-2" style={{ color: 'var(--color-human-deep)' }}>⚠️ אזהרות מבנה</h3>
+          <ul className="text-sm flex flex-col gap-1" style={{ color: 'var(--color-human-deep)' }}>
             {shownWarnings.map((w, i) => <li key={i}>• {w}</li>)}
           </ul>
           {/* בצע שיפורים — מיישם את התיקונים המוזכרים למעלה (בדיקת עובדות/תקניות בשרת) */}
           <div className="mt-3">
             <button
-              className="holo-button text-sm"
-              style={{ padding: '0.5rem 1.4rem', opacity: refining ? 0.7 : 1 }}
+              className="holo-button holo-button--staff text-sm"
+              style={{ padding: '0.5rem 1.4rem' }}
               disabled={refining}
               onClick={runRefine}
             >
@@ -417,18 +402,18 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
 
       {/* תצוגת מבנה ה-Hub */}
       {hub && (
-        <div className="holo-panel w-full">
+        <div className="holo-panel holo-panel--staff w-full">
           <h3 className="holo-text-glow font-bold mb-2">🗺️ מבנה: צומת עם {hub.paths.length} מסלולים</h3>
-          <p className="text-sm mb-2" style={{ opacity: 0.6 }}>
+          <p className="text-sm mb-2" style={{ color: 'var(--color-muted)' }}>
             צומת: <b>{hub.hubTitle}</b>
             {hub.lockedChoiceText && <> · יציאה נעולה: "{hub.lockedChoiceText}"</>}
           </p>
           <div className="flex flex-col gap-1 text-sm">
             {hub.paths.map((p, i) => (
-              <div key={i} style={{ opacity: 0.8 }}>
-                <span style={{ color: 'var(--t300)' }}>מסלול {i + 1}:</span>{' '}
+              <div key={i}>
+                <span style={{ color: 'var(--color-machine-deep)', fontWeight: 700 }}>מסלול {i + 1}:</span>{' '}
                 "{p.entryChoiceText}" ← {p.sceneTitles.join(' ← ')}
-                {p.keyId && <span style={{ opacity: 0.6 }}> (🗝️ {p.keyId})</span>}
+                {p.keyId && <span style={{ color: 'var(--color-muted)' }}> (🗝️ {p.keyId})</span>}
               </div>
             ))}
           </div>
@@ -437,17 +422,15 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
 
       {/* מד התקדמות יצירת תמונות */}
       {imgProgress && imgProgress.total > 0 && (
-        <div className="holo-panel w-full">
+        <div className="holo-panel holo-panel--staff w-full">
           <div className="flex items-center justify-between mb-2">
             <span className="holo-text-glow font-bold">🎨 {imgProgress.running ? 'יוצר תמונות…' : 'התמונות מוכנות!'}</span>
-            <span className="text-sm" style={{ opacity: 0.7 }}>{imgProgress.completed}/{imgProgress.total}</span>
+            <span className="text-sm" style={{ color: 'var(--color-muted)' }}>{imgProgress.completed}/{imgProgress.total}</span>
           </div>
-          <div className="rounded-full overflow-hidden" style={{ height: '0.5rem', background: 'var(--t226)' }}>
+          <div style={{ ...progressTrack, height: '0.85rem' }}>
             <div style={{
-              height: '100%',
+              ...progressFill,
               width: `${(imgProgress.completed / imgProgress.total) * 100}%`,
-              background: 'linear-gradient(90deg, var(--holo-blue), var(--t300))',
-              boxShadow: '0 0 10px var(--t227)',
               transition: 'width 0.4s ease',
             }} />
           </div>
@@ -455,8 +438,8 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       )}
 
       {imgWarnings.length > 0 && (
-        <div className="holo-panel w-full" style={{ borderColor: 'var(--t222)' }}>
-          <ul className="text-sm flex flex-col gap-1" style={{ color: 'var(--t225)' }}>
+        <div className="holo-panel holo-panel--staff w-full" style={{ background: 'var(--color-human-tint)' }}>
+          <ul className="text-sm flex flex-col gap-1" style={{ color: 'var(--color-human-deep)' }}>
             {imgWarnings.map((w, i) => <li key={i}>⚠️ {w}</li>)}
           </ul>
         </div>
@@ -473,9 +456,9 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       {(endingGood || endingBad) && (
         <div style={{ width: '100%', maxWidth: 920, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-            <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--t228), transparent)' }} />
-            <span style={{ ...micro, fontSize: 9, color: 'var(--t217)', whiteSpace: 'nowrap' }}>מסכי תוצאה · נבחרים לפי ביצועים בזמן משחק</span>
-            <div style={{ flex: 1, height: 1, background: 'linear-gradient(270deg, var(--t229), transparent)' }} />
+            <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
+            <span style={{ ...micro, fontSize: 9, color: 'var(--color-muted)', whiteSpace: 'nowrap' }}>מסכי תוצאה · נבחרים לפי ביצועים בזמן משחק</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             {endingGood && (
@@ -497,9 +480,10 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           const hasImages = scenes.some((s) => s.imageUrl)
           return (
             <button
+              className="holo-button holo-button--staff"
               disabled={imgProgress?.running}
               onClick={() => (hasImages ? setStylePickerOpen(true) : generateImages())}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', borderRadius: 12, cursor: imgProgress?.running ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap', background: 'var(--t230)', border: '1px solid var(--t200)', color: 'var(--t105)', opacity: imgProgress?.running ? 0.5 : 1, transition: 'all .16s' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '11px 22px', cursor: imgProgress?.running ? 'default' : 'pointer', fontFamily: 'var(--font-display)', fontSize: 14.5, fontWeight: 700, whiteSpace: 'nowrap' }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
               {imgProgress?.running ? 'יוצר תמונות…' : hasImages ? 'צור תמונות מחדש' : 'צור תמונות'}
@@ -513,36 +497,34 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       {stylePickerOpen && (
         <div
           className="fixed inset-0 flex items-center justify-center p-4"
-          style={{ background: 'var(--t216)', backdropFilter: 'blur(4px)', zIndex: 60 }}
+          style={{ ...modalBackdrop, zIndex: 60 }}
           onClick={() => setStylePickerOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label="בחירת סגנון תמונות"
         >
           <div
-            className="holo-panel w-full"
-            style={{ maxWidth: '30rem', boxShadow: 'var(--holo-glow)', borderColor: 'var(--t119)' }}
+            className="holo-panel holo-panel--staff w-full"
+            style={{ maxWidth: '30rem' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-2">
               <h2 className="holo-text-glow text-xl font-black">🎨 צור תמונות מחדש</h2>
-              <button onClick={() => setStylePickerOpen(false)} className="cursor-pointer text-xl" style={{ color: 'var(--t301)', opacity: 0.6 }} title="סגור">✕</button>
+              <button onClick={() => setStylePickerOpen(false)} className="holo-button holo-button--staff holo-button--sm" style={closeBtn} title="סגור">✕</button>
             </div>
-            <p className="text-sm mb-4" style={{ opacity: 0.75 }}>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-muted)' }}>
               בחרו סגנון אמנותי — כל תמונות השיעור ייווצרו מחדש בסגנון שנבחר.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {ART_STYLES.map((a) => (
                 <button
                   key={a.key}
+                  className="holo-button holo-button--staff"
                   onClick={() => { setStylePickerOpen(false); void generateImages(a.key) }}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                    padding: '14px 6px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s',
-                    background: 'var(--t122)', border: '1px solid var(--t231)', color: 'var(--t232)',
+                    padding: '14px 6px',
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--t96)'; e.currentTarget.style.borderColor = 'var(--t128)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--t122)'; e.currentTarget.style.borderColor = 'var(--t231)' }}
                 >
                   <span style={{ fontSize: 24 }}>{a.icon}</span>
                   <span style={{ fontSize: 12, fontWeight: 600 }}>{a.label}</span>
@@ -582,10 +564,10 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
       {/* toast אישור */}
       {toast && (
         <div
-          className="holo-panel fixed"
+          className="holo-panel holo-panel--staff fixed"
           style={{
             bottom: '2rem', left: '50%', transform: 'translateX(-50%)', zIndex: 70,
-            borderColor: 'var(--t300)', boxShadow: 'var(--holo-glow)', padding: '0.7rem 1.4rem',
+            padding: '0.7rem 1.4rem',
           }}
         >
           {toast}

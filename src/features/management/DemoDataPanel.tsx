@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiJson } from '../../shared/lib/api'
 import ConfirmModal from '../superadmin/ConfirmModal'
+import { fieldStyle } from '../../styles/ui'
 import type { ClassRow } from './index'
 
 /* ── נתוני דוגמה (ארגון הדגמה בלבד) ───────────────────────────────────────────
@@ -10,10 +11,8 @@ import type { ClassRow } from './index'
 
 interface Status { enabled: boolean; classes?: number; students?: number; readyQuests?: number }
 
-const btn: React.CSSProperties = {
-  border: '1px solid var(--t299)', background: 'transparent', color: 'var(--t301)',
-  borderRadius: 8, padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-}
+const btn: React.CSSProperties = { padding: '6px 12px', fontSize: 13, fontWeight: 700 }
+const btnClass = 'holo-button holo-button--staff holo-button--sm'
 
 export default function DemoDataPanel({ classes, onChanged }: { classes: ClassRow[]; onChanged: () => void }) {
   const [status, setStatus] = useState<Status | null>(null)
@@ -54,48 +53,48 @@ export default function DemoDataPanel({ classes, onChanged }: { classes: ClassRo
   }
 
   return (
-    <section className="holo-panel w-full" style={{ padding: '14px 16px' }} aria-label="נתוני דוגמה">
+    <section className="holo-panel holo-panel--staff w-full" style={{ padding: '14px 16px' }} aria-label="נתוני דוגמה">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h2 className="font-bold">🧪 נתוני דוגמה</h2>
-        <span className="text-xs" style={{ opacity: 0.65 }}>
+        <h2 className="font-bold" style={{ color: 'var(--color-machine-deep)' }}>🧪 נתוני דוגמה</h2>
+        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
           {status.classes ?? 0} כיתות · {status.students ?? 0} תלמידים לדוגמה · {status.readyQuests ?? 0} שיעורים מוכנים
         </span>
       </div>
-      <p className="text-xs mt-1" style={{ opacity: 0.6 }}>
+      <p className="text-xs mt-2" style={{ color: 'var(--color-ink)', background: 'var(--color-machine-tint)', borderRadius: 8, padding: '6px 10px' }}>
         תלמידים פיקטיביים עם תוצאות מוכנות על השיעורים שלך, כדי לראות את סיכום השיעור וההתקדמות מלאים. מסומנים &quot;תלמיד לדוגמה&quot; ואינם נספרים בשום מקום אחר.
       </p>
 
       <div className="flex gap-2 flex-wrap mt-3 items-center">
-        <button style={{ ...btn, opacity: busy ? 0.5 : 1 }} disabled={!!busy}
+        <button className={btnClass} style={btn} disabled={!!busy}
           onClick={() => run('class', '/api/staff/demo/class', post({}), (b) => `נוצרה כיתת דוגמה עם ${b.students ?? 12} תלמידים · ${results(b)}`)}>
           {busy === 'class' ? 'יוצר…' : '+ צור כיתה לדוגמה'}
         </button>
 
         <span className="flex gap-1 items-center">
           <select value={targetClass} onChange={(e) => setTargetClass(e.target.value)} disabled={demoClasses.length === 0}
-            style={{ background: 'var(--t253)', border: '1px solid var(--t219)', borderRadius: 8, color: 'var(--t301)', padding: '5px 8px', fontSize: 12 }}>
+            style={{ ...fieldStyle, borderRadius: 8, padding: '5px 8px', fontSize: 12 }}>
             {demoClasses.length === 0 && <option value="">אין כיתת דוגמה</option>}
             {demoClasses.map((c) => <option key={c.id} value={c.id}>{c.gradeLabel}</option>)}
           </select>
-          <button style={{ ...btn, opacity: busy || !targetClass ? 0.5 : 1 }} disabled={!!busy || !targetClass}
+          <button className={btnClass} style={btn} disabled={!!busy || !targetClass}
             onClick={() => run('students', '/api/staff/demo/students', post({ classId: targetClass, count: 1 }), (b) => `נוסף תלמיד לדוגמה · ${results(b)}`)}>
             {busy === 'students' ? 'מוסיף…' : '+ הוסף תלמיד לדוגמה'}
           </button>
         </span>
 
-        <button style={{ ...btn, opacity: busy ? 0.5 : 1 }} disabled={!!busy}
+        <button className={btnClass} style={btn} disabled={!!busy}
           onClick={() => run('refresh', '/api/staff/demo/refresh', post(), (b) => `רוענן · ${results(b)}`)}>
           {busy === 'refresh' ? 'מרענן…' : '↻ רענן נתוני דוגמה'}
         </button>
 
-        <button style={{ ...btn, color: 'var(--t18)', borderColor: 'var(--t298)', opacity: busy || !(status.students ?? 0) ? 0.5 : 1 }}
+        <button className={btnClass} style={btn}
           disabled={!!busy || !(status.students ?? 0)} onClick={() => setConfirmDelete(true)}>
           🗑 מחק נתוני דוגמה
         </button>
       </div>
 
-      {msg && <p className="text-sm mt-2" style={{ color: 'var(--t3)' }}>✓ {msg}</p>}
-      {err && <p className="text-sm mt-2" style={{ color: 'var(--t18)' }}>⚠️ {err}</p>}
+      {msg && <p className="text-sm mt-2" style={{ color: 'var(--color-correct)' }}>✓ {msg}</p>}
+      {err && <p className="text-sm mt-2" style={{ color: 'var(--color-wrong)' }}>⚠️ {err}</p>}
 
       {confirmDelete && (
         <ConfirmModal

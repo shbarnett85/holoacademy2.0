@@ -13,6 +13,7 @@ import Tooltip from '../../shared/ui/Tooltip'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import { TT, TT_PUZZLE, TT_SIM, TT_ART } from './tooltips'
 import StylePreview, { STYLE_PREVIEW_SRC, isCoarsePointer, preloadStylePreviews } from './StylePreview'
+import { fieldStyle, infoChip, panelAi, panelInner, panelWrong } from '../../styles/ui'
 
 /* שכבת-גיל לפי רמה (סקאלת 1-20) — מקור יחיד מ-difficultyCalibration */
 function gradeLabel(level: number): string {
@@ -29,23 +30,27 @@ const SIM_TYPES = [
   { key: 'tour', label: 'סיור', desc: 'חקירה חופשית ולמידה' },
 ] as const
 
-const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--t27)', fontWeight: 500, marginBottom: 6, display: 'block' }
-const inputBase: React.CSSProperties = { width: '100%', background: 'var(--t85)', border: '1px solid var(--t86)', borderRadius: 11, padding: '11px 13px', fontSize: 14, color: 'var(--t68)', outline: 'none', fontFamily: 'var(--font-display)' }
-const chip: React.CSSProperties = { fontSize: 11.5, fontWeight: 600, color: 'var(--t19)', padding: '5px 11px', borderRadius: 20, background: 'var(--t20)', border: '1px solid var(--t41)', whiteSpace: 'nowrap' }
+const fieldLabel: React.CSSProperties = { fontSize: 12, color: 'var(--color-muted)', fontWeight: 500, marginBottom: 6, display: 'block' }
+/* שדה קלט: לבן עם קו דיו 2px. בלי outline:none, כדי שטבעת הפוקוס של cf-in תופיע */
+const inputBase: React.CSSProperties = { ...fieldStyle, width: '100%', padding: '10px 12px', fontSize: 14, fontFamily: 'var(--font-display)' }
+/* תג מידע שאינו לחיץ */
+const chip: React.CSSProperties = { ...infoChip, fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 20, whiteSpace: 'nowrap' }
+/* הודעת שגיאה קטנה בתוך משטח */
+const errorNote: React.CSSProperties = { ...panelWrong, borderRadius: 10, padding: '6px 10px', fontSize: 13 }
 
 function PanelHead({ icon, title, kicker }: { icon: React.ReactNode; title: string; kicker: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-      <span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 9, background: 'var(--t20)', border: '1px solid var(--t87)', color: 'var(--t1)', boxShadow: '0 0 14px var(--t88)' }}>{icon}</span>
+      <span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 9, background: 'var(--color-machine-tint)', border: '2px solid var(--color-ink)', color: 'var(--color-ink)' }}>{icon}</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--t68)' }}>{title}</div>
+        <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--color-machine-deep)' }}>{title}</div>
         <div style={{ ...micro, marginTop: 2 }}>{kicker}</div>
       </div>
     </div>
   )
 }
 
-/* סליידר ניאון — fill לפי הערך דרך --p */
+/* סרגל בחירה — המילוי לפי הערך דרך --p */
 function NeonSlider({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (n: number) => void }) {
   const p = ((value - min) / (max - min)) * 100
   /* צליל קליק בלחיצה ובשחרור — אך בלחיצה בודדת (ללא גרירה) רק קליק אחד:
@@ -63,8 +68,8 @@ function NeonSlider({ value, min, max, onChange }: { value: number; min: number;
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ width: 42, height: 23, borderRadius: 20, padding: 0, cursor: 'pointer', flex: '0 0 auto', position: 'relative', transition: 'all .2s', border: '1px solid ' + (on ? 'var(--t89)' : 'var(--t90)'), background: on ? 'linear-gradient(90deg,var(--t41),var(--t91))' : 'var(--t92)', boxShadow: on ? '0 0 14px var(--t2)' : 'none' }}>
-      <span style={{ position: 'absolute', top: 2, [on ? 'left' : 'right']: 2, width: 17, height: 17, borderRadius: '50%', background: on ? 'var(--t93)' : 'var(--t94)', boxShadow: on ? '0 0 8px var(--t15)' : 'none', transition: 'all .2s' }} />
+    <button onClick={onClick} style={{ width: 42, height: 23, borderRadius: 20, padding: 0, cursor: 'pointer', flex: '0 0 auto', position: 'relative', transition: 'background-color .2s', border: '2px solid var(--color-ink)', background: on ? 'var(--color-action)' : 'var(--color-surface)' }}>
+      <span style={{ position: 'absolute', top: 2, [on ? 'left' : 'right']: 2, width: 15, height: 15, borderRadius: '50%', background: 'var(--color-ink)' }} />
     </button>
   )
 }
@@ -147,13 +152,12 @@ function Studio() {
   const col: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }
 
   return (
-    <div className="cf holo-page-enter" dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
+    <div className="cf holo-page-enter" dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--color-machine-bg)' }}>
       <style>{`@keyframes cf-spin { to { transform: rotate(360deg); } }
-        select.cf-in option { background: var(--t75); color: var(--t68); }
-        select.cf-in option:checked { background: linear-gradient(var(--t95),var(--t95)); color: var(--t1); }`}</style>
-      {/* כדורי זוהר */}
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t96), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
+        /* הכפתורים באולפן נשארים בגופן התצוגה של המסך (המחלקה holo-button קובעת Heebo) */
+        .cf .holo-button { font-family: inherit; }
+        select.cf-in option { background: var(--color-surface); color: var(--color-ink); }
+        select.cf-in option:checked { background: var(--color-machine-tint); color: var(--color-ink); }`}</style>
 
       <StudioTopBar active="create" />
 
@@ -164,32 +168,32 @@ function Studio() {
         <div style={{ ...col, flex: '1 1 320px' }}>
           <div style={{ ...glass, padding: 22, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             <Tooltip text={TT.panelPuzzles} block><PanelHead icon={ICON.grid} title="חידות" kicker={activePuzzles + ' פעילות'} /></Tooltip>
-            <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1, minHeight: 0, paddingLeft: 4 }}>
+            <div className="cf-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', flex: 1, minHeight: 0, paddingLeft: 4, paddingRight: 4, paddingBottom: 4 }}>
               {PUZZLE_TYPES.map((p) => {
                 const on = !!s.puzzleTypes[p.key]
                 return (
                   <div key={p.key}>
                     <Tooltip text={TT_PUZZLE[p.key]} block>
-                    <button onClick={() => s.togglePuzzle(p.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'all .18s', background: on ? 'var(--t97)' : 'var(--t25)', border: '1px solid ' + (on ? 'var(--t77)' : 'var(--t26)'), boxShadow: on ? '0 0 16px var(--t98)' : 'none' }}>
-                      <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600, color: on ? 'var(--t13)' : 'var(--t99)' }}>{p.label}</span>
-                      <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'linear-gradient(135deg,var(--t15),var(--t14))' : 'transparent', border: '1px solid ' + (on ? 'transparent' : 'var(--t100)') }}>
-                        {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t17)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                    <button className={'holo-button holo-button--staff' + (on ? ' is-selected' : '')} onClick={() => s.togglePuzzle(p.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px' }}>
+                      <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600 }}>{p.label}</span>
+                      <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'var(--color-surface)' : 'transparent', border: '2px solid ' + (on ? 'var(--color-surface)' : 'var(--color-ink)') }}>
+                        {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </span>
                     </button>
                     </Tooltip>
                     {on && (
                       <Tooltip text={TT.puzzleCount} block><div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end' }}>
-                        <span style={{ fontSize: 11.5, color: 'var(--t6)', marginLeft: 'auto' }}>כמות:</span>
+                        <span style={{ fontSize: 11.5, color: 'var(--color-muted)', marginLeft: 'auto' }}>כמות:</span>
                         {[1, 2, 3, 4, 5].map((n) => {
                           const sel = (s.puzzleCounts[p.key] ?? 1) === n
                           return (
-                            <button key={n} onClick={() => s.setPuzzleCount(p.key, n)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)', background: sel ? 'linear-gradient(135deg,var(--t15),var(--t14))' : 'var(--t57)', border: '1px solid ' + (sel ? 'transparent' : 'var(--t101)'), color: sel ? 'var(--t17)' : 'var(--t99)', boxShadow: sel ? '0 0 12px var(--t2)' : 'none' }}>{n}</button>
+                            <button key={n} className={'holo-button holo-button--staff holo-button--sm' + (sel ? ' is-selected' : '')} onClick={() => s.setPuzzleCount(p.key, n)} style={{ width: 28, height: 28, padding: 0, borderRadius: 8, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{n}</button>
                           )
                         })}
                       </div></Tooltip>
                     )}
                     {p.key === 'itemUsage' && on && (
-                      <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}><BrandIcon name="key" size={12} style={{ marginLeft: 4 }} />ייווצרו {s.puzzleCounts.itemUsage ?? 1} מפתחות ו-{s.puzzleCounts.itemUsage ?? 1} שערים נעולים</p>
+                      <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--color-muted)' }}><BrandIcon name="key" size={12} style={{ marginLeft: 4 }} />ייווצרו {s.puzzleCounts.itemUsage ?? 1} מפתחות ו-{s.puzzleCounts.itemUsage ?? 1} שערים נעולים</p>
                     )}
                   </div>
                 )
@@ -202,22 +206,22 @@ function Studio() {
                 return (
                   <div>
                     <Tooltip text={TT_PUZZLE.finalQuiz} block>
-                    <button onClick={() => { s.togglePuzzle('finalQuiz'); if (!on && (s.puzzleCounts.finalQuiz ?? 0) < 3) s.setPuzzleCount('finalQuiz', 5) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', transition: 'all .18s', background: on ? 'var(--t97)' : 'var(--t25)', border: '1px solid ' + (on ? 'var(--t77)' : 'var(--t26)'), boxShadow: on ? '0 0 16px var(--t98)' : 'none' }}>
-                      <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600, color: on ? 'var(--t13)' : 'var(--t99)' }}>מבחן סיכום</span>
-                      <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'linear-gradient(135deg,var(--t15),var(--t14))' : 'transparent', border: '1px solid ' + (on ? 'transparent' : 'var(--t100)') }}>
-                        {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t17)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                    <button className={'holo-button holo-button--staff' + (on ? ' is-selected' : '')} onClick={() => { s.togglePuzzle('finalQuiz'); if (!on && (s.puzzleCounts.finalQuiz ?? 0) < 3) s.setPuzzleCount('finalQuiz', 5) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px' }}>
+                      <span style={{ flex: 1, textAlign: 'right', fontSize: 13.5, fontWeight: 600 }}>מבחן סיכום</span>
+                      <span style={{ width: 20, height: 20, borderRadius: 6, display: 'grid', placeItems: 'center', background: on ? 'var(--color-surface)' : 'transparent', border: '2px solid ' + (on ? 'var(--color-surface)' : 'var(--color-ink)') }}>
+                        {on && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </span>
                     </button>
                     </Tooltip>
                     {on && (
                       <>
                         <Tooltip text={TT.finalQuizCount} block><div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px 2px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11.5, color: 'var(--t6)', marginLeft: 'auto' }}>שאלות:</span>
+                          <span style={{ fontSize: 11.5, color: 'var(--color-muted)', marginLeft: 'auto' }}>שאלות:</span>
                           {[3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                            <button key={n} onClick={() => s.setPuzzleCount('finalQuiz', n)} style={{ width: 28, height: 28, borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-mono)', background: count === n ? 'linear-gradient(135deg,var(--t15),var(--t14))' : 'var(--t57)', border: '1px solid ' + (count === n ? 'transparent' : 'var(--t101)'), color: count === n ? 'var(--t17)' : 'var(--t99)', boxShadow: count === n ? '0 0 12px var(--t2)' : 'none' }}>{n}</button>
+                            <button key={n} className={'holo-button holo-button--staff holo-button--sm' + (count === n ? ' is-selected' : '')} onClick={() => s.setPuzzleCount('finalQuiz', n)} style={{ width: 28, height: 28, padding: 0, borderRadius: 8, fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{n}</button>
                           ))}
                         </div></Tooltip>
-                        <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--t15)', opacity: 0.85 }}><BrandIcon name="flag" size={12} style={{ marginLeft: 4 }} />בסצנת השיא ייווצר מבחן אינטגרטיבי של {count} שאלות</p>
+                        <p style={{ fontSize: 11.5, marginTop: 6, paddingRight: 12, color: 'var(--color-muted)' }}><BrandIcon name="flag" size={12} style={{ marginLeft: 4 }} />בסצנת השיא ייווצר מבחן אינטגרטיבי של {count} שאלות</p>
                       </>
                     )}
                   </div>
@@ -230,15 +234,15 @@ function Studio() {
         {/* מרכז — סיכום → חלון תוכן → צור הדמיה */}
         <div style={{ ...col, flex: '2 1 440px' }}>
           {s.status === 'error' && (
-            <div style={{ ...glass, padding: '16px 20px', borderColor: 'var(--t102)', textAlign: 'center' }}>
-              <p style={{ color: 'var(--t5)' }}>{s.error}</p>
-              <button onClick={() => s.generate()} style={{ marginTop: 10, padding: '8px 18px', borderRadius: 10, cursor: 'pointer', background: 'var(--t103)', border: '1px solid var(--t102)', color: 'var(--t104)', fontWeight: 600 }}>נסה שוב <BrandIcon name="refresh" size={13} /></button>
+            <div style={{ ...glass, padding: '16px 20px', background: 'var(--color-wrong-tint)', textAlign: 'center' }}>
+              <p style={{ color: 'var(--color-ink)' }}>{s.error}</p>
+              <button className="holo-button holo-button--staff" onClick={() => s.generate()} style={{ marginTop: 10, padding: '8px 18px', fontWeight: 600 }}>נסה שוב <BrandIcon name="refresh" size={13} /></button>
             </div>
           )}
 
           {/* שיעור ממוקד שנפתח מסיכום שיעור: ההערה גלויה לפני היצירה (המערכת שולחת שיעור לכיתה שלמה) */}
           {s.focusedNote && (
-            <div role="note" data-focused-banner style={{ ...glass, padding: '12px 18px', borderColor: 'var(--t77)', fontSize: 14.5, lineHeight: 1.6, color: 'var(--t13)' }}>
+            <div role="note" data-focused-banner style={{ ...panelAi, padding: '12px 18px', fontSize: 14.5, lineHeight: 1.6 }}>
               <strong>שיעור ממוקד.</strong> {s.focusedNote}
             </div>
           )}
@@ -246,15 +250,15 @@ function Studio() {
           {/* סיכום — chips */}
           <div style={{ ...glass, padding: '20px 24px' }}>
             <div style={{ textAlign: 'center', minWidth: 0 }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--t13)', lineHeight: 1.1, textShadow: '0 0 20px var(--t36)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || 'נושא השיעור'}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-machine-deep)', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || 'נושא השיעור'}</div>
               <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {s.subject && <span style={{ ...chip, color: 'var(--t105)', background: 'var(--t106)', borderColor: 'var(--t107)' }}>{subjectName(s.subject)}</span>}
+                {s.subject && <span style={chip}>{subjectName(s.subject)}</span>}
                 <span style={chip}>{simLabel}</span>
                 <span style={chip}>{s.questLength} סצנות</span>
                 <span style={chip}>{activePuzzles} סוגי חידות</span>
                 <span style={chip}>שכבת {gradeLabel(s.writingLevel)}</span>
                 <span style={chip}>{artLabel}</span>
-                {s.includeDrHolo && <span style={{ ...chip, color: 'var(--t105)', background: 'var(--t106)', borderColor: 'var(--t107)' }}>ד״ר הולו</span>}
+                {s.includeDrHolo && <span style={chip}>ד״ר הולו</span>}
               </div>
             </div>
           </div>
@@ -270,22 +274,22 @@ function Studio() {
                 </Tooltip>
               </div>
               <div style={{ flex: '0 0 170px', position: 'relative' }}>
-                <label style={fieldLabel}>מקצוע <span style={{ color: 'var(--t18)' }} aria-hidden>*</span></label>
+                <label style={fieldLabel}>מקצוע <span style={{ color: 'var(--color-wrong)' }} aria-hidden>*</span></label>
                 <Tooltip text={TT.subject} block>
                 <select className="cf-in" value={s.subject} required aria-required="true" onChange={(e) => s.set({ subject: e.target.value })}
-                  style={{ ...inputBase, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingLeft: 28, color: s.subject ? 'var(--t68)' : 'var(--t108)' }}>
+                  style={{ ...inputBase, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', paddingLeft: 28, color: s.subject ? 'var(--color-ink)' : 'var(--color-muted)' }}>
                   <option value="">בחרו מקצוע…</option>
                   {SUBJECTS.map((sub) => <option key={sub.code} value={sub.code}>{sub.nameHe}</option>)}
                 </select>
                 </Tooltip>
-                <div style={{ position: 'absolute', left: 11, bottom: 12, pointerEvents: 'none', color: 'var(--t15)', fontSize: 10 }}>▾</div>
+                <div style={{ position: 'absolute', left: 11, bottom: 12, pointerEvents: 'none', color: 'var(--color-ink)', fontSize: 10 }}>▾</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד <span style={{ fontWeight: 400, color: 'var(--t109)', fontSize: 11 }}>(אופציונלי)</span></label>
+              <label style={{ ...fieldLabel, margin: 0 }}>תוכן הלימוד <span style={{ fontWeight: 400, color: 'var(--color-muted)', fontSize: 11 }}>(אופציונלי)</span></label>
               <Tooltip text={TT.enhance}>
-              <button type="button" onClick={enhanceContent} disabled={enhancing} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t31)', background: 'linear-gradient(135deg, var(--t110), var(--t111))', border: '1px solid var(--t29)', boxShadow: '0 0 12px var(--t110)', opacity: enhancing ? 0.6 : 1 }}>
+              <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={enhanceContent} disabled={enhancing} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
                 {enhancing ? <><span style={{ display: 'inline-flex', animation: 'cf-spin .8s linear infinite' }}><BrandIcon name="refresh" size={13} /></span> משפר…</> : <>שפר עם AI <BrandIcon name="spark" size={13} /></>}
               </button>
               </Tooltip>
@@ -294,24 +298,24 @@ function Studio() {
               <textarea className="cf-in" style={{ ...inputBase, marginBottom: 14, lineHeight: 1.55, minHeight: 110, flex: 1, resize: 'vertical' }} value={s.curriculum} onChange={(e) => s.set({ curriculum: e.target.value })} placeholder="תארו את החומר שתרצו ללמד: נושאים, מושגים, עובדות חשובות…" />
             </Tooltip>
 
-            {enhanceError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 10 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{enhanceError}</p>}
+            {enhanceError && <p style={{ ...errorNote, marginBottom: 10 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{enhanceError}</p>}
 
             {/* השוואה — מקור מול גרסה משופרת */}
             {comparison && (
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ borderRadius: 11, padding: 12, background: 'var(--t57)', border: '1px solid var(--t86)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--t27)' }}>הטקסט המקורי</div>
-                    <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', opacity: 0.75, maxHeight: '12rem', overflowY: 'auto' }}>{comparison.original}</p>
+                  <div style={{ ...panelInner, padding: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--color-muted)' }}>הטקסט המקורי</div>
+                    <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--color-muted)', maxHeight: '12rem', overflowY: 'auto' }}>{comparison.original}</p>
                   </div>
-                  <div style={{ borderRadius: 11, padding: 12, background: 'var(--t112)', border: '1px solid var(--t29)', boxShadow: '0 0 14px var(--t113)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--t16)' }}><BrandIcon name="spark" size={12} /> הגרסה המשופרת</div>
-                    <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', maxHeight: '12rem', overflowY: 'auto', color: 'var(--t68)' }}>{comparison.enhanced}</p>
+                  <div style={{ ...panelAi, borderRadius: 10, padding: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, color: 'var(--color-machine-deep)' }}><BrandIcon name="spark" size={12} /> הגרסה המשופרת</div>
+                    <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', maxHeight: '12rem', overflowY: 'auto', color: 'var(--color-ink)' }}>{comparison.enhanced}</p>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-                  <button onClick={() => { s.set({ curriculum: comparison.enhanced }); setComparison(null) }} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, color: 'var(--t13)', background: 'linear-gradient(135deg,var(--t14),var(--t15))', border: 'none' }}>השתמש בגרסה המשופרת <BrandIcon name="spark" size={13} /></button>
-                  <button onClick={() => setComparison(null)} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, color: 'var(--t99)', background: 'transparent', border: '1px solid var(--t59)' }}>השאר את המקור</button>
+                  <button className="holo-button holo-button--staff" onClick={() => { s.set({ curriculum: comparison.enhanced }); setComparison(null) }} style={{ padding: '9px 16px', fontWeight: 700 }}>השתמש בגרסה המשופרת <BrandIcon name="spark" size={13} /></button>
+                  <button className="holo-button holo-button--staff" onClick={() => setComparison(null)} style={{ padding: '9px 16px', fontWeight: 600 }}>השאר את המקור</button>
                 </div>
               </div>
             )}
@@ -319,31 +323,31 @@ function Studio() {
             {/* יעדי למידה — כל אתגר יתויג ביעד שהוא בוחן; מזין את דיווח השליטה באנליטיקה */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Tooltip text={TT.objectives}><label style={{ ...fieldLabel, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><BrandIcon name="target" size={14} style={{ color: '#2ff3ff' }} /> יעדי למידה <span style={{ fontWeight: 400, color: 'var(--t109)', fontSize: 11 }}>(אופציונלי · מפעיל דיווח שליטה)</span></label></Tooltip>
-                <Tooltip text={TT.extract}><button type="button" onClick={extractObjectives} disabled={extractingObj} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--t114)', background: 'linear-gradient(135deg, var(--t115), var(--t116))', border: '1px solid var(--t117)', opacity: extractingObj ? 0.6 : 1 }}>
+                <Tooltip text={TT.objectives}><label style={{ ...fieldLabel, margin: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><BrandIcon name="target" size={14} style={{ color: 'var(--color-machine-deep)' }} /> יעדי למידה <span style={{ fontWeight: 400, color: 'var(--color-muted)', fontSize: 11 }}>(אופציונלי · מפעיל דיווח שליטה)</span></label></Tooltip>
+                <Tooltip text={TT.extract}><button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={extractObjectives} disabled={extractingObj} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
                   {extractingObj ? <><span style={{ display: 'inline-flex', animation: 'cf-spin .8s linear infinite' }}><BrandIcon name="refresh" size={13} /></span> מחלץ…</> : <>חלץ אוטומטית <BrandIcon name="spark" size={13} /></>}
                 </button></Tooltip>
               </div>
-              {objError && <p style={{ fontSize: 13, color: 'var(--t18)', marginBottom: 8 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{objError}</p>}
+              {objError && <p style={{ ...errorNote, marginBottom: 8 }}><BrandIcon name="alert" size={13} style={{ marginLeft: 4 }} />{objError}</p>}
               {s.objectives.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                <div style={{ ...panelAi, borderRadius: 10, padding: 8, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
                   {s.objectives.map((o, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 11, color: 'var(--t1)', fontWeight: 700, width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
+                      <span style={{ fontSize: 11, color: 'var(--color-ink)', fontWeight: 700, width: 16, textAlign: 'center', flexShrink: 0 }}>{i + 1}</span>
                       <input
                         className="cf-in"
-                        style={{ ...inputBase, marginBottom: 0, fontSize: 13, padding: '7px 10px' }}
+                        style={{ ...inputBase, marginBottom: 0, fontSize: 13, padding: '6px 9px' }}
                         value={o}
                         onChange={(e) => s.set({ objectives: s.objectives.map((x, j) => (j === i ? e.target.value : x)) })}
                         placeholder="התלמיד יסביר / יזהה / ישווה…"
                       />
-                      <button type="button" onClick={() => s.set({ objectives: s.objectives.filter((_, j) => j !== i) })} style={{ background: 'none', border: 'none', color: 'var(--t5)', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>✕</button>
+                      <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => s.set({ objectives: s.objectives.filter((_, j) => j !== i) })} style={{ width: 28, height: 28, padding: 0, borderRadius: 8, fontSize: 14, flexShrink: 0 }}>✕</button>
                     </div>
                   ))}
                 </div>
               )}
               {s.objectives.length < 8 && (
-                <button type="button" onClick={() => s.set({ objectives: [...s.objectives, ''] })} style={{ background: 'none', border: 'none', color: 'var(--t300)', cursor: 'pointer', fontSize: 12.5, padding: 0 }}>+ הוסף יעד</button>
+                <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => s.set({ objectives: [...s.objectives, ''] })} style={{ fontSize: 12.5 }}>+ הוסף יעד</button>
               )}
             </div>
 
@@ -351,25 +355,25 @@ function Studio() {
             <div style={{ paddingTop: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9 }}>
                 <label style={{ ...fieldLabel, margin: 0 }}>אורך השיעור</label>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{s.questLength} סצנות</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-ink)' }}>{s.questLength} סצנות</span>
               </div>
               <NeonSlider value={s.questLength} min={4} max={15} onChange={(n) => s.set({ questLength: n })} />
-              <div style={{ ...micro, fontSize: 9.5, color: 'var(--t37)', marginTop: 9 }}>4 — 15 סצנות</div>
+              <div style={{ ...micro, fontSize: 9.5, color: 'var(--color-muted)', marginTop: 9 }}>4 — 15 סצנות</div>
             </div>
             </Tooltip>
           </div>
 
           {/* כפתור יצירה */}
           <Tooltip text={TT.generate} block>
-          <button onClick={() => canSubmit && s.generate()} disabled={!canSubmit} style={{ width: '100%', padding: 18, borderRadius: 16, border: 'none', cursor: canSubmit ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--t17)', position: 'relative', overflow: 'hidden', background: 'linear-gradient(100deg,var(--t15),var(--t14) 55%,var(--t118))', boxShadow: '0 0 30px var(--t77), 0 12px 30px -10px var(--t119)', opacity: canSubmit ? 1 : 0.45 }}>
+          <button className="holo-button holo-button--staff" onClick={() => canSubmit && s.generate()} disabled={!canSubmit} style={{ width: '100%', padding: 18, fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, justifyContent: 'center' }}>
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t17)' }} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" style={{ stroke: 'currentColor' }} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /></svg>
               צור שיעור
             </span>
           </button>
           </Tooltip>
           {s.title.trim().length > 0 && s.subject === '' && (
-            <p role="status" style={{ margin: '8px 2px 0', fontSize: 12.5, color: 'var(--t18)' }}>בחרו מקצוע כדי ליצור את השיעור.</p>
+            <p role="status" style={{ margin: '8px 2px 0', padding: '6px 10px', borderRadius: 10, fontSize: 12.5, background: 'var(--color-human-tint)', color: 'var(--color-human-deep)', border: '1px solid var(--color-human-deep)' }}>בחרו מקצוע כדי ליצור את השיעור.</p>
           )}
         </div>
 
@@ -383,7 +387,7 @@ function Studio() {
             <div style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
                 <label style={{ ...fieldLabel, margin: 0 }}>שכבת גיל</label>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t1)' }}>{gradeText(s.writingLevel)}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-ink)' }}>{gradeText(s.writingLevel)}</span>
               </div>
               <NeonSlider value={s.writingLevel} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
                 onChange={(lv) => s.set({ writingLevel: lv, puzzleDifficulty: lv })} />
@@ -395,7 +399,7 @@ function Studio() {
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 7 }}>
                 <label style={{ ...fieldLabel, margin: 0 }}>קושי חידות</label>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--t120)' }}>{gradeText(s.puzzleDifficulty)}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-ink)' }}>{gradeText(s.puzzleDifficulty)}</span>
               </div>
               <NeonSlider value={s.puzzleDifficulty} min={GRADE_LEVEL_MIN} max={GRADE_LEVEL_MAX}
                 onChange={(lv) => s.set({ puzzleDifficulty: lv })} />
@@ -408,10 +412,10 @@ function Studio() {
                 const on = s.questType === t.key
                 return (
                   <Tooltip key={t.key} text={TT_SIM[t.key]} block>
-                  <button onClick={() => s.set({ questType: t.key })} style={{ width: '100%', textAlign: 'center', padding: '12px 6px', borderRadius: 11, cursor: 'pointer', transition: 'all .2s', background: on ? 'linear-gradient(160deg,var(--t98),var(--t106))' : 'var(--t122)', border: '1px solid ' + (on ? 'var(--t89)' : 'var(--t67)'), boxShadow: on ? '0 0 18px var(--t41)' : 'none' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', color: on ? 'var(--t123)' : 'var(--t124)', filter: on ? 'drop-shadow(0 0 8px var(--t125))' : 'none' }}><HoloIcon name={t.key as HoloIconName} size={30} /></div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: on ? 'var(--t13)' : 'var(--t12)', marginTop: 4 }}>{t.label}</div>
-                    <div style={{ fontSize: 10, color: 'var(--t121)', marginTop: 2 }}>{t.desc}</div>
+                  <button className={'holo-button holo-button--staff' + (on ? ' is-selected' : '')} onClick={() => s.set({ questType: t.key })} style={{ width: '100%', textAlign: 'center', padding: '12px 6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}><HoloIcon name={t.key as HoloIconName} size={30} /></div>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginTop: 4 }}>{t.label}</div>
+                    <div style={{ fontSize: 10, fontWeight: 400, opacity: 0.85, marginTop: 2 }}>{t.desc}</div>
                   </button>
                   </Tooltip>
                 )
@@ -419,9 +423,9 @@ function Studio() {
             </div>
 
             <Tooltip text={TT.drHolo} block>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderRadius: 12, background: 'var(--t25)', border: '1px solid var(--t26)', marginBottom: 20, color: s.includeDrHolo ? 'var(--t1)' : 'var(--t126)' }}>
-              <HoloIcon name="drholo" size={24} style={{ filter: s.includeDrHolo ? 'drop-shadow(0 0 8px var(--t125))' : 'none' }} />
-              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: 'var(--t12)' }}>ד״ר הולו <span style={{ color: 'var(--t6)', fontWeight: 400 }}>· דמות מנחה</span></span>
+            <div style={{ ...panelInner, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 13px', borderRadius: 12, marginBottom: 20, color: s.includeDrHolo ? 'var(--color-ink)' : 'var(--color-muted)' }}>
+              <HoloIcon name="drholo" size={24} />
+              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: 'var(--color-ink)' }}>ד״ר הולו <span style={{ color: 'var(--color-muted)', fontWeight: 400 }}>· דמות מנחה</span></span>
               <Toggle on={s.includeDrHolo} onClick={() => s.set({ includeDrHolo: !s.includeDrHolo })} />
             </div>
             </Tooltip>
@@ -435,13 +439,13 @@ function Studio() {
                 const on = s.artStyle === a.key
                 return (
                   <StylePreview key={a.key} styleKey={a.key} label={a.label} desc={TT_ART[a.key]}>
-                  <button onClick={() => s.set({ artStyle: a.key })} aria-label={`${a.label} — ${TT_ART[a.key] ?? ''}`} style={{ width: '100%', padding: '10px 4px', borderRadius: 11, cursor: 'pointer', transition: 'all .18s', textAlign: 'center', background: on ? 'linear-gradient(150deg,var(--t127),var(--t84))' : 'var(--t122)', border: '1px solid ' + (on ? 'var(--t128)' : 'var(--t67)'), color: on ? 'var(--t13)' : 'var(--t99)', boxShadow: on ? '0 0 16px var(--t129)' : 'none' }}>
+                  <button className={'holo-button holo-button--staff' + (on ? ' is-selected' : '')} onClick={() => s.set({ artStyle: a.key })} aria-label={`${a.label} — ${TT_ART[a.key] ?? ''}`} style={{ width: '100%', padding: '10px 4px', textAlign: 'center' }}>
                     {isCoarsePointer && (
                       <img src={STYLE_PREVIEW_SRC(a.key)} alt="" loading="lazy"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                         style={{ width: '100%', aspectRatio: '3 / 2', objectFit: 'cover', borderRadius: 7, marginBottom: 5, display: 'block' }} />
                     )}
-                    <div style={{ display: 'flex', justifyContent: 'center', color: on ? 'var(--t130)' : 'var(--t124)', filter: on ? 'drop-shadow(0 0 8px var(--t131))' : 'none' }}><HoloIcon name={a.key as HoloIconName} size={26} /></div>
+                    <div style={{ display: 'flex', justifyContent: 'center' }}><HoloIcon name={a.key as HoloIconName} size={26} /></div>
                     <div style={{ fontSize: 11, fontWeight: 600, marginTop: 5 }}>{a.label}</div>
                   </button>
                   </StylePreview>

@@ -7,6 +7,7 @@ import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { pct, duration } from './format'
 import ProgressGraph from './ProgressGraph'
 import DemoStudentBadge from '../../shared/ui/DemoStudentBadge'
+import { nameChip, panelAi, panelFinding, panelInner, panelWrong } from '../../styles/ui'
 
 /* מבנה ישן (v1) — נשמר לתאימות לאחור */
 interface ProfileV1 {
@@ -49,7 +50,7 @@ function dateStr(s: string | null): string {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ ...glass, padding: 20 }}>
-      <div style={{ ...micro, fontSize: 9, marginBottom: 14 }}>◇ {title}</div>
+      <div style={{ ...micro, fontSize: 9, color: 'var(--color-machine-deep)', marginBottom: 14 }}>◇ {title}</div>
       {children}
     </div>
   )
@@ -58,7 +59,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function Stat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
     <div style={{ textAlign: 'center', minWidth: 96, flex: '1 1 96px' }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t1)', textShadow: '0 0 16px var(--t23)' }}>{value}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-machine-deep)' }}>{value}</div>
       <div style={{ ...micro, fontSize: 8.5, marginTop: 6 }}>{label}</div>
     </div>
   )
@@ -74,9 +75,9 @@ function Trend({ trend }: { trend: { successRate: number | null }[] }) {
   return (
     <Panel title="מגמת הצלחה">
       <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible', direction: 'ltr' }}>
-        <line x1="0" y1={h - 0.85 * h} x2={w} y2={h - 0.85 * h} style={{ stroke: 'var(--t73)' }} strokeDasharray="4 4" />
-        <path d={path} fill="none" style={{ stroke: 'var(--t15)' }} strokeWidth="2.2" strokeLinejoin="round" />
-        {pts.map((r, i) => <circle key={i} cx={i * step} cy={h - r * h} r="3.2" style={{ fill: 'var(--t61)', stroke: 'var(--t15)' }} strokeWidth="1.6" />)}
+        <line x1="0" y1={h - 0.85 * h} x2={w} y2={h - 0.85 * h} style={{ stroke: 'var(--color-correct)' }} strokeDasharray="4 4" />
+        <path d={path} fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="2.2" strokeLinejoin="round" />
+        {pts.map((r, i) => <circle key={i} cx={i * step} cy={h - r * h} r="3.2" style={{ fill: 'var(--color-surface)', stroke: 'var(--color-ink)' }} strokeWidth="1.6" />)}
       </svg>
     </Panel>
   )
@@ -94,10 +95,10 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
     return () => { cancelled = true }
   }, [studentId])
 
-  if (res.id !== studentId) return <p style={{ ...micro, color: 'var(--t22)' }}>טוען…</p>
-  if (res.error) return <div style={{ ...glass, padding: 16, color: 'var(--t18)' }}>⚠️ {res.error}</div>
+  if (res.id !== studentId) return <p style={{ ...micro, color: 'var(--color-muted)' }}>טוען…</p>
+  if (res.error) return <div style={{ ...panelWrong, padding: 16 }}>⚠️ {res.error}</div>
   const data = res.data
-  if (!data) return <p style={{ ...micro, color: 'var(--t22)' }}>טוען…</p>
+  if (!data) return <p style={{ ...micro, color: 'var(--color-muted)' }}>טוען…</p>
 
   const p = data.profile
   const isV2 = data.profileVersion === 2
@@ -109,9 +110,9 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← {backLabel}</button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 19, fontWeight: 800, color: 'var(--t13)', textShadow: '0 0 20px var(--t23)' }}>
-          {data.student.name}
+        <button className="holo-link" onClick={onBack} style={{ fontSize: 13 }}>← {backLabel}</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 19, fontWeight: 800, color: 'var(--color-ink)' }}>
+          <span style={{ ...nameChip, borderRadius: 999, padding: '1px 14px' }}>{data.student.name}</span>
           <DemoStudentBadge show={data.student.isFictitious} />
         </div>
         <span style={{ width: 60 }} />
@@ -122,9 +123,9 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
 
       {/* דגל דילוג על טקסט */}
       {mode !== 'summary' && data.skipping && (
-        <div style={{ ...glass, padding: '12px 16px', borderColor: 'var(--t74)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ ...panelFinding, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>⚡</span>
-          <span style={{ fontSize: 13, color: 'var(--t4)' }}>התלמיד כנראה מדלג על הטקסט (קריאה מהירה מאוד) — שווה לוודא שהוא קורא את הנרטיב.</span>
+          <span style={{ fontSize: 13, color: 'var(--color-human-deep)' }}>התלמיד כנראה מדלג על הטקסט (קריאה מהירה מאוד) — שווה לוודא שהוא קורא את הנרטיב.</span>
         </div>
       )}
 
@@ -133,33 +134,33 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
         <Panel title="רמות לפי מקצוע">
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {data.subjectLevels!.map((sl) => (
-              <div key={sl.subjectCode} style={{ padding: '10px 14px', borderRadius: 11, background: 'var(--t25)', border: '1px solid var(--t26)', minWidth: 130 }}>
-                <div style={{ fontSize: 12, color: 'var(--t12)', marginBottom: 4 }}>{sl.subjectName}{sl.teacherLocked ? ' 🔒' : ''}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--t1)' }}>{Math.round(sl.textLevel)}<span style={{ fontSize: 11, opacity: 0.45 }}>/20</span></div>
+              <div key={sl.subjectCode} style={{ ...panelInner, padding: '10px 14px', minWidth: 130 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-ink)', marginBottom: 4 }}>{sl.subjectName}{sl.teacherLocked ? ' 🔒' : ''}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)' }}>{Math.round(sl.textLevel)}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-muted)' }}>/20</span></div>
                 <div style={{ ...micro, fontSize: 8.5, marginTop: 2 }}>רמת טקסט</div>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 11, color: 'var(--t6)', margin: '10px 0 0' }}>לכל מקצוע פרופיל נפרד — אין לחבר בין מקצועות לציון אחד.</p>
+          <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: '10px 0 0' }}>לכל מקצוע פרופיל נפרד — אין לחבר בין מקצועות לציון אחד.</p>
         </Panel>
       )}
 
       {/* מקצועות אחרים של התלמיד — שמות בלבד, באפור, לא לחיצים */}
       {mode !== 'summary' && (data.otherSubjects?.length ?? 0) > 0 && (
         <div aria-label="מקצועות נוספים של התלמיד" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11.5, color: 'var(--t6)' }}>מקצועות נוספים (נתונים אצל מורי המקצוע):</span>
+          <span style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>מקצועות נוספים (נתונים אצל מורי המקצוע):</span>
           {data.otherSubjects!.map((o) => (
-            <span key={o.name} aria-disabled="true" style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, color: 'var(--t6)', background: 'transparent', border: '1px dashed var(--t26)', cursor: 'default', opacity: 0.7 }}>{o.name}</span>
+            <span key={o.name} aria-disabled="true" style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, color: 'var(--color-muted)', background: 'transparent', border: '1px dashed var(--color-line-strong)', cursor: 'default' }}>{o.name}</span>
           ))}
         </div>
       )}
 
       {/* פרופיל קושי נוכחי (גלובלי — למחנך) */}
       {mode !== 'summary' && <Panel title="פרופיל הקושי הנוכחי">
-        {!p ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>{data.visibility?.full === false ? 'הפרופיל הכללי זמין למחנך הכיתה. הרמות במקצוע שלך מופיעות למעלה.' : 'עדיין אין מספיק נתונים לפרופיל קושי.'}</p> : isV2 ? (
+        {!p ? <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>{data.visibility?.full === false ? 'הפרופיל הכללי זמין למחנך הכיתה. הרמות במקצוע שלך מופיעות למעלה.' : 'עדיין אין מספיק נתונים לפרופיל קושי.'}</p> : isV2 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/20</span></>} label="רמת טקסט" />
+              <Stat value={<>{v2?.text_level ?? '—'}<span style={{ fontSize: 13, fontWeight: 400, color: 'var(--color-muted)' }}>/20</span></>} label="רמת טקסט" />
               <Stat value={duration(v2?.last_avg_scene_ms ?? null)} label="זמן אחרון/סצנה" />
               <Stat value={v2?.sessions_count ?? 0} label="שיעורים שכוילו" />
             </div>
@@ -171,11 +172,11 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
                   if (lvl === undefined) return null
                   const rate = v2?.last_success_rates?.[t]
                   return (
-                    <div key={t} style={{ padding: '8px 11px', borderRadius: 10, background: 'var(--t25)', border: '1px solid var(--t26)' }}>
-                      <div style={{ fontSize: 11, color: 'var(--t12)', marginBottom: 3 }}>{puzzleTypeLabel(t)}</div>
+                    <div key={t} style={{ ...panelInner, padding: '8px 11px' }}>
+                      <div style={{ fontSize: 11, color: 'var(--color-ink)', marginBottom: 3 }}>{puzzleTypeLabel(t)}</div>
                       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--t1)' }}>{lvl}<span style={{ fontSize: 11, opacity: 0.45 }}>/20</span></span>
-                        {rate !== undefined && <span dir="ltr" style={{ fontSize: 11, color: 'var(--t6)' }}>{pct(rate)}</span>}
+                        <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-machine-deep)' }}>{lvl}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--color-muted)' }}>/20</span></span>
+                        {rate !== undefined && <span dir="ltr" style={{ fontSize: 11, color: 'var(--color-muted)' }}>{pct(rate)}</span>}
                       </div>
                     </div>
                   )
@@ -185,7 +186,7 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <Stat value={<>{v1?.puzzle_difficulty ?? '—'}<span style={{ fontSize: 13, opacity: 0.5 }}>/10</span></>} label="רמת קושי" />
+            <Stat value={<>{v1?.puzzle_difficulty ?? '—'}<span style={{ fontSize: 13, fontWeight: 400, color: 'var(--color-muted)' }}>/10</span></>} label="רמת קושי" />
             <Stat value={v1?.writing_level ?? '—'} label="רמת כתיבה" />
             <Stat value={pct(v1?.avg_success_rate ?? null)} label="הצלחה ממוצעת" />
             <Stat value={duration(v1?.avg_time_per_scene ? v1.avg_time_per_scene * 1000 : null)} label="זמן ממוצע/סצנה" />
@@ -195,10 +196,10 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
 
       {/* הסיכום של ד"ר הולו עבר למסך התלמיד/ה באנליטיקה (הנתיב הישן הופרש): כאן רק הפניה אליו */}
       {mode !== 'progress' && (
-        <div data-legacy-summary-moved style={{ ...glass, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--t68)' }}>{AI_SUMMARY_HARDENING_TEXT.legacyMoved.sentence}</span>
-          <Link to={`/analytics/student/${encodeURIComponent(studentId)}?sum=student:${encodeURIComponent(studentId)}`} data-tu-press
-            style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 16px', borderRadius: 11, fontSize: 16, fontWeight: 700, textDecoration: 'none', color: 'var(--t49)', background: 'var(--t47)', border: '1px solid var(--t48)' }}>
+        <div data-legacy-summary-moved style={{ ...panelAi, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--color-ink)' }}>{AI_SUMMARY_HARDENING_TEXT.legacyMoved.sentence}</span>
+          <Link to={`/analytics/student/${encodeURIComponent(studentId)}?sum=student:${encodeURIComponent(studentId)}`} data-tu-press className="holo-button holo-button--staff"
+            style={{ display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 16px', fontSize: 16, fontWeight: 700, textDecoration: 'none' }}>
             {AI_SUMMARY_HARDENING_TEXT.legacyMoved.open}
           </Link>
         </div>
@@ -208,15 +209,15 @@ export default function StudentDetail({ studentId, onBack, backLabel = 'הכית
 
       {/* היסטוריית הדמיות */}
       {mode !== 'summary' && <Panel title="היסטוריית שיעורים">
-        {data.history.length === 0 ? <p style={{ fontSize: 13, color: 'var(--t6)' }}>טרם שיחק בשיעורים.</p> : (
+        {data.history.length === 0 ? <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>טרם שיחק בשיעורים.</p> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {data.history.map((h) => (
-              <div key={h.sessionId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 13px', borderRadius: 11, background: 'var(--t25)', border: '1px solid var(--t26)' }}>
-                <span style={{ fontWeight: 600, color: 'var(--t68)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.questTitle || '(ללא שם)'}</span>
+              <div key={h.sessionId} style={{ ...panelInner, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 13px' }}>
+                <span style={{ fontWeight: 600, color: 'var(--color-ink)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.questTitle || '(ללא שם)'}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, flexShrink: 0 }}>
-                  <span style={{ color: h.status === 'completed' ? 'var(--t3)' : 'var(--t4)' }}>{h.status === 'completed' ? 'סיים' : 'באמצע'}</span>
-                  <span dir="ltr" style={{ width: 44, textAlign: 'left', color: 'var(--t12)' }}>{pct(h.successRate)}</span>
-                  <span style={{ color: 'var(--t6)' }}>{dateStr(h.completedAt ?? h.startedAt)}</span>
+                  <span style={{ color: h.status === 'completed' ? 'var(--color-correct)' : 'var(--color-human-deep)' }}>{h.status === 'completed' ? 'סיים' : 'באמצע'}</span>
+                  <span dir="ltr" style={{ width: 44, textAlign: 'left', color: 'var(--color-ink)' }}>{pct(h.successRate)}</span>
+                  <span style={{ color: 'var(--color-muted)' }}>{dateStr(h.completedAt ?? h.startedAt)}</span>
                 </div>
               </div>
             ))}

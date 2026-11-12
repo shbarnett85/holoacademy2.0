@@ -3,33 +3,36 @@ import { apiJson, apiFetch } from '../../shared/lib/api'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { glass, micro } from '../creator/studioStyles'
 import ConfirmModal from '../superadmin/ConfirmModal'
+import { fieldStyle, infoChip, nameChip, panelInner, panelWrong } from '../../styles/ui'
 import ClassManage from './ClassManage'
 import type { ClassRow } from './index'
 
 interface Teacher { id: string; name: string; is_active: boolean; classCount: number }
 
 const inputStyle: React.CSSProperties = {
-  background: 'var(--t253)', border: '1px solid var(--t81)',
-  borderRadius: 8, color: 'var(--t68)', padding: '7px 11px',
-  fontFamily: 'var(--font-display)', fontSize: 13, outline: 'none', width: '100%',
+  ...fieldStyle, borderRadius: 8, padding: '7px 11px',
+  fontFamily: 'var(--font-display)', fontSize: 13, width: '100%',
 }
+/* שורה בתוך משטח: בלי צל, קו דק */
+const rowBox: React.CSSProperties = { ...panelInner, display: 'flex', alignItems: 'center', gap: 8 }
+/* תג מצב (פעיל / מושבת): קו דיו, אייקון ומילה — לא צבע לבד */
+const statusChip = (active: boolean): React.CSSProperties => ({ ...infoChip, background: active ? 'var(--color-surface)' : 'var(--color-ink-wash)', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, whiteSpace: 'nowrap' })
+const createBtn: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0' }
 
 function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-      <div style={{ ...micro, fontSize: 9, color: 'var(--t28)' }}>◇ {children}</div>
+      <div style={{ ...micro, fontSize: 9, color: 'var(--color-machine-deep)' }}>◇ {children}</div>
       {action}
     </div>
   )
 }
 
-function SmallBtn({ label, color = 'var(--t15)', onClick, danger }: { label: string; color?: string; onClick: () => void; danger?: boolean }) {
-  const [hov, setHov] = useState(false)
-  const c = danger ? 'var(--t5)' : color
-  const rgb = danger ? '255,112,153' : '47,243,255'
+/* כפתור קטן בשורה. danger נשאר ב-props לתאימות: אין יותר כפתור אדום, כל הכפתורים באותה שפה */
+function SmallBtn({ label, onClick }: { label: string; onClick: () => void; danger?: boolean }) {
   return (
-    <button onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} onClick={onClick}
-      style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 7, cursor: 'pointer', whiteSpace: 'nowrap', background: hov ? `${window.HoloTint(rgb, .18)}` : `${window.HoloTint(rgb, .06)}`, border: `1px solid ${hov ? c : `${window.HoloTint(rgb, .3)}`}`, color: c, transition: 'all .14s', fontFamily: 'var(--font-display)' }}>
+    <button className="holo-button holo-button--staff holo-button--sm" onClick={onClick}
+      style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', whiteSpace: 'nowrap', fontFamily: 'var(--font-display)' }}>
       {label}
     </button>
   )
@@ -97,9 +100,9 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
   /* מצב ניהול כיתה */
   if (view) {
     return (
-      <div style={{ ...glass, padding: 18, flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button onClick={() => { setView(null); load(); onClassStudentsChange?.() }}
-          style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600, alignSelf: 'flex-start' }}>← כיתות</button>
+      <div style={{ padding: '0 4px 4px 0', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <button className="holo-link" onClick={() => { setView(null); load(); onClassStudentsChange?.() }}
+          style={{ fontSize: 13, alignSelf: 'flex-start' }}>← כיתות</button>
         <ClassManage cls={view} onBack={() => { setView(null); load(); onClassStudentsChange?.() }} />
       </div>
     )
@@ -107,7 +110,7 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
-      {error && <p style={{ color: 'var(--t18)', fontSize: 12 }}>⚠️ {error}</p>}
+      {error && <p style={{ ...panelWrong, padding: '6px 10px', margin: 0, fontSize: 12 }}>⚠️ {error}</p>}
 
       {/* סטטיסטיקות — admin בלבד */}
       {isAdmin && (
@@ -115,8 +118,8 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
           <SectionTitle>סטטיסטיקות</SectionTitle>
           <div style={{ display: 'flex', gap: 10 }}>
             {[['מורים', teachers.length], ['כיתות', classes.length], ['תלמידים', totalStudents]].map(([l, v]) => (
-              <div key={String(l)} style={{ flex: 1, textAlign: 'center', padding: '8px 4px', borderRadius: 9, background: 'var(--t25)', border: '1px solid var(--t69)' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--t1)' }}>{v}</div>
+              <div key={String(l)} style={{ ...panelInner, flex: 1, textAlign: 'center', padding: '8px 4px', borderRadius: 9 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)' }}>{v}</div>
                 <div style={{ ...micro, fontSize: 8.5, marginTop: 4 }}>{l}</div>
               </div>
             ))}
@@ -135,20 +138,19 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
               <input placeholder="שם" value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} style={inputStyle} />
               <input dir="ltr" placeholder="email" value={tForm.email} onChange={(e) => setTForm({ ...tForm, email: e.target.value })} style={inputStyle} />
               <input dir="ltr" type="password" placeholder="סיסמה (6+ תווים)" value={tForm.password} onChange={(e) => setTForm({ ...tForm, password: e.target.value })} style={inputStyle} />
-              <button onClick={createTeacher} disabled={busy}
-                style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'var(--t183)', border: '1px solid var(--t23)', color: 'var(--t15)', opacity: busy ? 0.5 : 1 }}>
+              <button className="holo-button holo-button--staff" onClick={createTeacher} disabled={busy} style={createBtn}>
                 {busy ? 'יוצר…' : 'צור מורה'}
               </button>
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {teachers.map((t) => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderRadius: 9, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: t.is_active ? 1 : 0.5 }}>
+              <div key={t.id} style={{ ...rowBox, padding: '8px 11px', borderRadius: 9, opacity: t.is_active ? 1 : 0.5 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</div>
+                  <div style={{ ...nameChip, display: 'inline-block', maxWidth: '100%', borderRadius: 999, padding: '1px 9px', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{t.name}</div>
                   <div style={{ ...micro, fontSize: 8.5, marginTop: 2 }}>{t.classCount} כיתות</div>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, ...(t.is_active ? { color: 'var(--t3)', border: '1px solid var(--t254)' } : { color: 'var(--t18)', border: '1px solid var(--t255)' }) }}>
+                <span style={statusChip(t.is_active)}>
                   {t.is_active ? '● פעיל' : '○ מושבת'}
                 </span>
                 {t.is_active
@@ -156,7 +158,7 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
                   : <SmallBtn label="הפעל" onClick={() => toggle('teacher', t.id, true)} />}
               </div>
             ))}
-            {isAdmin && teachers.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--t37)', textAlign: 'center', padding: 12 }}>אין מורים עדיין.</p>}
+            {isAdmin && teachers.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--color-muted)', textAlign: 'center', padding: 12 }}>אין מורים עדיין.</p>}
           </div>
         </div>
       )}
@@ -170,23 +172,22 @@ export default function ManagementSidebar({ onClassStudentsChange }: { onClassSt
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 12 }}>
             <input placeholder='שכבה (למשל ז׳3)' value={cForm.gradeLabel} onChange={(e) => setCForm({ ...cForm, gradeLabel: e.target.value, name: e.target.value })} style={inputStyle} />
             <input dir="ltr" placeholder="slug יציב (למשל 7c)" value={cForm.slug} onChange={(e) => setCForm({ ...cForm, slug: e.target.value })} style={inputStyle} />
-            <p style={{ ...micro, fontSize: 8.5, color: 'var(--t256)', margin: 0 }}>ℹ️ ה-slug יציב לאורך השנים; השכבה מתעדכנת.</p>
-            <button onClick={createClass} disabled={busy}
-              style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 700, padding: '8px 0', borderRadius: 9, cursor: busy ? 'not-allowed' : 'pointer', background: 'var(--t183)', border: '1px solid var(--t23)', color: 'var(--t15)', opacity: busy ? 0.5 : 1 }}>
+            <p style={{ ...micro, fontSize: 8.5, color: 'var(--color-muted)', margin: 0 }}>ℹ️ ה-slug יציב לאורך השנים; השכבה מתעדכנת.</p>
+            <button className="holo-button holo-button--staff" onClick={createClass} disabled={busy} style={createBtn}>
               {busy ? 'יוצר…' : 'צור כיתה'}
             </button>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {classes.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--t37)', textAlign: 'center', padding: 12 }}>אין כיתות עדיין.</p>}
+          {classes.length === 0 && <p style={{ ...micro, fontSize: 10, color: 'var(--color-muted)', textAlign: 'center', padding: 12 }}>אין כיתות עדיין.</p>}
           {classes.map((c) => (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'var(--t25)', border: '1px solid var(--t62)', opacity: c.is_active ? 1 : 0.5 }}>
+            <div key={c.id} style={{ ...rowBox, padding: '9px 12px', opacity: c.is_active ? 1 : 0.5 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t251)' }}>{c.gradeLabel}</div>
-                <div style={{ ...micro, fontSize: 8.5, marginTop: 2, color: 'var(--t257)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-ink)' }}>{c.gradeLabel}</div>
+                <div style={{ ...micro, fontSize: 8.5, marginTop: 2, color: 'var(--color-muted)' }}>
                   {c.studentCount} תלמידים
                   {c.teachers.length > 0 && ` · ${c.teachers.map((t) => t.name).join(', ')}`}
-                  {!c.is_active && <span style={{ color: 'var(--t18)' }}> · מושבת</span>}
+                  {!c.is_active && <span style={{ color: 'var(--color-ink)', fontWeight: 700 }}> · מושבת</span>}
                 </div>
               </div>
               <SmallBtn label="ניהול ←" onClick={() => setView(c)} />

@@ -182,17 +182,18 @@ describe('מוכן', () => {
     expect(note).toMatch(/הדפיסו/)
     const html = render(loaded({ persisted: false, persistenceNote: note, summary: aiSummary({ id: null }) }))
     const byLabel = (label: string): string => buttons(html).find((b) => buttonLabel(b) === label) ?? ''
-    /* ראשי = פס תחתון בצבע המבטא (inset box-shadow); משני — בלי */
-    expect(byLabel(AI_SUMMARY_TEXT.ui.exportWord)).toContain('box-shadow')
-    expect(byLabel(AI_SUMMARY_TEXT.ui.print)).toContain('box-shadow')
-    expect(byLabel(AI_SUMMARY_TEXT.ui.edit)).not.toContain('box-shadow')
-    expect(byLabel(AI_SUMMARY_TEXT.ui.regenerate)).not.toContain('box-shadow')
+    /* ראשי = משקל כבד (800); משני — 700. הצבע, הקו והצל של כל כפתור מגיעים מהמחלקה holo-button */
+    expect(byLabel(AI_SUMMARY_TEXT.ui.exportWord)).toContain('font-weight:800')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.print)).toContain('font-weight:800')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.edit)).not.toContain('font-weight:800')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.regenerate)).not.toContain('font-weight:800')
+    expect(byLabel(AI_SUMMARY_TEXT.ui.exportWord)).toContain('holo-button')
     /* ההודעה יושבת מעל שורת הפעולות */
     expect(html.indexOf('data-ai-actions')).toBeGreaterThan(html.indexOf(note.slice(0, 20)))
     expectClean(html)
     /* סיכום שנשמר: אין הדגשה */
     const saved = render(loaded())
-    expect(buttons(saved).find((b) => buttonLabel(b) === AI_SUMMARY_TEXT.ui.exportWord)).not.toContain('box-shadow')
+    expect(buttons(saved).find((b) => buttonLabel(b) === AI_SUMMARY_TEXT.ui.exportWord)).not.toContain('font-weight:800')
   })
 
   it('שם אחד לסיכום: הכפתור שפותח אותו, הכותרת של כל היקף והכפתור שכותב אותו — כולם "סיכום מד״ר הולו"/"כתבו לי סיכום", והכפתור אומר שזו בינה מלאכותית', () => {

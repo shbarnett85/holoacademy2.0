@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CATALOG_UNTAGGED_TEXT, EMPTY_TEXT, V2_CLIENT_TEXT, countNb, dateHe, numberRange, withCoverageHint } from '../../shared/lib/findingsNarrative'
 import type { ClassSubjectView, MisconceptionRow } from '../../shared/types/analyticsV2'
-import { FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, TONE_META, VisuallyHidden } from '../teacherUi'
+import { BTN, FONT, Icon, MIN_TARGET, RADIUS, Sentence, T, VisuallyHidden } from '../teacherUi'
 import type { Tone } from '../teacherUi'
 import { BandSwatch, LevelChart, LineSwatch } from './charts'
 import type { ChartMarker } from './charts'
@@ -35,7 +35,7 @@ export function SummaryPanel({ d }: { d: ClassSubjectView }) {
                 const row = rowOf(r.misconceptionId)
                 return (
                   <li key={r.misconceptionId} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <span aria-hidden="true" style={{ flex: '0 0 30px', height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 800, color: T.text, border: `2px solid ${T.accent}`, background: T.accentFill }}>{r.rank}</span>
+                    <span aria-hidden="true" style={{ flex: '0 0 30px', height: 30, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 800, color: T.text, border: `2px solid ${T.controlBorder}`, background: T.surface }}>{r.rank}</span>
                     <div style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <p style={{ margin: 0, fontSize: 16, lineHeight: 1.55, color: T.text }}><VisuallyHidden>המלצה {r.rank}: </VisuallyHidden>{r.text}</p>
                       {row && row.status === 'reported' && <CountBar done={row.studentsShowing} total={row.studentsExposed} text={row.countText} />}
@@ -72,8 +72,9 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
   const [who, setWho] = useState(false)
   const reported = m.status === 'reported' && m.sharePct !== null
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, lineHeight: 1.4, color: T.text }}>{m.titleHe}</h2>
+    /* טעות נפוצה = ממצא על תלמידים: רקע וכותרת של ממצא */
+    <Card style={{ display: 'flex', flexDirection: 'column', gap: 8, background: T.findingFill }}>
+      <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, lineHeight: 1.4, color: T.findingText }}>{m.titleHe}</h2>
       <Note>{m.descriptionHe}</Note>
       {reported
         ? <CountBar done={m.studentsShowing} total={m.studentsExposed} text={m.countText} />
@@ -102,10 +103,11 @@ function ErrorCard({ m, classId }: { m: MisconceptionRow; classId: string }) {
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 6 }}>
           {m.students.map((s) => (
             <li key={s.id}>
-              <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: m.subjectCode })} data-tu-press
-                style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: MIN_TARGET, padding: '2px 10px', borderRadius: RADIUS.sm, border: `1.5px solid ${T.controlBorder}`, textDecoration: 'none', color: T.text, fontFamily: FONT }}>
-                <span style={{ fontSize: 16, fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, color: T.accentStrong }}>{s.displayName}</span>
-                <span style={{ fontSize: 16, color: T.textSoft }}>{countNb(s.hits, s.exposures)} שאלות</span>
+              <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: m.subjectCode })} data-tu-press className={BTN}
+                /* שם של תלמיד/ה: רקע אפרסק, טקסט וקו בדיו. הגובה הכולל כמו קודם (44 + ריפוד + קו) */
+                style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', boxSizing: 'border-box', minHeight: MIN_TARGET + 7, padding: '2px 10px', borderRadius: RADIUS.sm, background: T.nameFill, textDecoration: 'none', fontFamily: FONT, fontWeight: 400 }}>
+                <span style={{ fontSize: 16, fontWeight: 800 }}>{s.displayName}</span>
+                <span style={{ fontSize: 16 }}>{countNb(s.hits, s.exposures)} שאלות</span>
               </Link>
             </li>
           ))}
@@ -176,7 +178,7 @@ export function ProgressPanel({ d }: { d: ClassSubjectView }) {
         <ol aria-label={L.eventsHeading} tabIndex={events.length > 8 ? 0 : undefined} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 520px), 1fr))', gap: '6px 20px', maxHeight: 132, overflowY: 'auto' }}>
           {events.map((e, i) => (
             <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 16, lineHeight: 1.5, color: T.text }}>
-              <span style={{ flex: '0 0 28px', height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 800, border: `2.5px solid ${TONE_META[e.tone].color}`, background: T.surface }}>{i + 1}</span>
+              <span style={{ flex: '0 0 28px', height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 800, border: `2px solid ${T.controlBorder}`, background: T.surface }}>{i + 1}</span>
               <ToneMark tone={e.tone} size={18} />
               <span><strong>{dateHe(e.date)}</strong> — {e.text}</span>
             </li>
@@ -209,15 +211,16 @@ export function StudentsPanel({ d, classId }: { d: ClassSubjectView; classId: st
     <ul aria-label={L.studentsInSubject} style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(204px, 1fr))', gap: 8 }}>
       {d.students.map((s) => (
         <li key={s.id}>
-          <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: d.subject.code })} data-tu-press
-            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, minHeight: 60, padding: '6px 12px', borderRadius: RADIUS.md, background: T.surface, border: `1.5px solid ${flagged.has(s.id) ? T.warn : T.controlBorder}`, textDecoration: 'none', color: T.text, fontFamily: FONT }}>
+          <Link to={env.href(`/analytics/student/${s.id}`, { class: classId, tab: d.subject.code })} data-tu-press className={BTN}
+            /* כרטיס של תלמיד/ה: רקע אפרסק, טקסט וקו בדיו. הגובה הכולל כמו קודם (60 + ריפוד + קו) */
+            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, boxSizing: 'border-box', minHeight: 75, padding: '6px 12px', borderRadius: RADIUS.md, background: T.nameFill, textDecoration: 'none', fontFamily: FONT, fontWeight: 400 }}>
             <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3 }}>{s.displayName}</span>
+              <span style={{ fontSize: 16, fontWeight: 800 }}>{s.displayName}</span>
               {flagged.has(s.id) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 700 }}><ToneMark tone="attention" size={16} />{L.attentionShort}</span>}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <TrendWord trend={s.trend} text={s.trendText} size={16} />
-              <span style={{ fontSize: 16, color: T.textSoft }}>{L.levelLabel(s.level)}</span>
+              <span style={{ fontSize: 16 }}>{L.levelLabel(s.level)}</span>
             </span>
           </Link>
         </li>

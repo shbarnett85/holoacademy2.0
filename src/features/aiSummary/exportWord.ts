@@ -29,7 +29,7 @@ export interface SummaryDocInput {
 }
 
 /* צבעי המסמך — ליטרליים בכוונה (ראו למעלה) */
-export const DOC_COLORS = { text: '#1a2433', heading: '#14213d', soft: '#5b677a', rule: '#c7d0dc' } as const
+export const DOC_COLORS = { text: '#1a2433', heading: '#14213d', soft: '#5b677a', rule: '#c7d0dc' } as const /* redesign-allow: exported document, no CSS variables */
 
 const ESC: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 /* סימן סדר-בתים (UTF-8): כדי ש-Word יזהה את הקידוד */

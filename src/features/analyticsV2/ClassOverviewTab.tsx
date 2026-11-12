@@ -3,7 +3,7 @@
 import { Link } from 'react-router-dom'
 import { AI_SUMMARY_PANEL_TEXT, V2_CLIENT_TEXT, V2_COVERAGE_TEXT, attentionBadgeText, withCoverageHint } from '../../shared/lib/findingsNarrative'
 import type { ClassOverview } from '../../shared/types/analyticsV2'
-import { bySubjectOrderOf, EmptyState, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
+import { bySubjectOrderOf, EmptyState, findingInline, FONT, MIN_TARGET, RADIUS, Sentence, SubjectLinkButton, T } from '../teacherUi'
 import { catalogEmptyOf, catalogNoteOf } from './catalog'
 import { coverageNoteOf } from './coverage'
 import { CoverageNote } from './CoverageNote'
@@ -41,7 +41,7 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
       {rows.length === 0 ? (
         <EmptyState title={V2_COVERAGE_TEXT.classOverviewEmpty.title(className)} whatNext={withCoverageHint(V2_COVERAGE_TEXT.classOverviewEmpty.whatNext, coverage !== null)} />
       ) : (
-        <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, overflow: 'hidden' }}>
+        <div style={{ background: T.surface, border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.md, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
             <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>סקירת הכיתה לפי מקצוע</caption>
             <thead>
@@ -70,8 +70,9 @@ export default function ClassOverviewTab({ classId, className }: { classId: stri
                   <td style={td}>
                     {r.alerts > 0 ? (
                       <Link to={env.href(`/analytics/class/${classId}`, { tab: r.subject.code, sub: 'students' })} data-tu-press
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: MIN_TARGET, color: T.accentStrong, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-                        <ToneMark tone="attention" size={18} />{attentionBadgeText(r.alerts)}
+                        style={{ display: 'inline-flex', alignItems: 'center', minHeight: MIN_TARGET, color: T.findingText, fontWeight: 700, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                        {/* ממצא על תלמידים: רקע וטקסט של ממצא; הקו התחתון אומר שזה קישור */}
+                        <span style={{ ...findingInline, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 8px' }}><ToneMark tone="attention" size={18} />{attentionBadgeText(r.alerts)}</span>
                       </Link>
                     ) : (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.textSoft }}><ToneMark tone="positive" size={18} />{L.noAttention}</span>

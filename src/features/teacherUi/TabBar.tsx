@@ -1,8 +1,10 @@
 /* טאבים (עיקרון 3: במקום גלילה ארוכה; לכל היותר שתי שורות). role=tablist, אזור לחיצה 44px+, חיצים במקלדת.
-   טאב חסום (עיקרון 10): אפור + מנעול + הסיבה כטקסט גלוי בתוך הטאב עצמו (לא tooltip), אינו ניתן לבחירה. */
+   טאב חסום (עיקרון 10): אפור + מנעול + הסיבה כטקסט גלוי בתוך הטאב עצמו (לא tooltip), אינו ניתן לבחירה.
+   טאבים הם ניווט: טקסט בדיו בלי מילוי; הנבחר מסומן בקו תחתון עבה בדיו ובמשקל כבד (לא בצבע בלבד). */
 import { useRef } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { Icon } from './icons'
+import { CHIP_LINE } from './fills'
 import { FONT, MIN_TARGET, T } from './tokens'
 
 export interface TabItem {
@@ -75,14 +77,14 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
         }
         const base = {
           display: 'inline-flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 2,
-          minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '6px 14px', borderRadius: secondary ? 22 : 12,
+          minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '6px 14px', borderRadius: '8px 8px 0 0',
           fontFamily: FONT, fontSize: secondary ? 16 : 17, textAlign: 'start' as const, lineHeight: 1.3,
         }
         if (t.locked) {
           return (
             <button key={t.id} type="button" {...common} aria-disabled="true" aria-selected={false} tabIndex={-1}
               onClick={(e) => e.preventDefault()}
-              style={{ ...base, cursor: 'not-allowed', background: 'transparent', border: `1.5px dashed ${T.controlBorder}`, color: T.muted, fontWeight: 600 }}>
+              style={{ ...base, cursor: 'not-allowed', background: 'transparent', border: `1.5px dashed ${T.border}`, borderRadius: 8, color: T.muted, fontWeight: 600 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <Icon name="lock" size={secondary ? 15 : 17} />
                 {t.label}
@@ -97,16 +99,14 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
             style={{
               ...base, flexDirection: 'row', alignItems: 'center', gap: 8, cursor: selected ? 'default' : 'pointer',
               fontWeight: selected ? 800 : 600,
-              background: selected ? T.accentFill : T.surface,
-              /* נבחר = מסגרת עבה + קו תחתון + משקל כבד (לא צבע בלבד) */
-              border: `1.5px solid ${selected ? T.accent : T.controlBorder}`,
-              boxShadow: selected ? `inset 0 -4px 0 ${T.accent}, 0 0 0 1px ${T.accent}` : 'none',
-              color: selected ? T.text : T.textSoft,
+              background: 'transparent', color: T.text,
+              /* נבחר = קו תחתון עבה בדיו + משקל כבד (לא צבע בלבד) */
+              border: 'none', borderBottom: `${secondary ? 3 : 4}px solid ${selected ? T.controlBorder : 'transparent'}`,
             }}>
             {t.icon && <span aria-hidden="true" style={{ display: 'inline-flex' }}>{t.icon}</span>}
             <span>{t.label}</span>
             {t.badge && (
-              <span style={{ fontSize: 16, fontWeight: 700, padding: '1px 9px', borderRadius: 10, border: `1.5px solid ${T.warn}`, color: T.text, whiteSpace: 'nowrap' }}>{t.badge}</span>
+              <span style={{ fontSize: 16, fontWeight: 700, padding: '1px 9px', borderRadius: 10, border: CHIP_LINE, background: T.findingFill, color: T.findingText, whiteSpace: 'nowrap' }}>{t.badge}</span>
             )}
           </button>
         )

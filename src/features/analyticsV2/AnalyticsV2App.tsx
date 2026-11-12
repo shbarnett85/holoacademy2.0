@@ -38,7 +38,7 @@ export type LegacyView = ComponentType<{ backTo?: string; notice?: ReactNode }>
 /* התצורה החדשה לא נטענה אצל מורה אמיתי: אומרים במילים מה קרה ומה מוצג במקום, וכפתור אחד לניסיון חוזר (ניסיון אחד לכל לחיצה, בלי לולאה) */
 function ConfigFallbackNotice({ onRetry }: { onRetry: () => void }) {
   return (
-    <section role="status" data-v2-fallback style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '12px 16px', borderRadius: RADIUS.md, background: T.surface, border: `2px solid ${TONE_META.attention.color}` }}>
+    <section role="status" data-v2-fallback style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '12px 16px', borderRadius: RADIUS.md, background: T.surface, border: T.line, boxShadow: T.shadow }}>
       <span style={{ color: TONE_META.attention.color, display: 'inline-flex' }}><Icon name="alert" size={24} /></span>
       <p style={{ margin: 0, fontSize: 16, fontWeight: 700, lineHeight: 1.5, color: T.text, flex: '1 1 280px' }}>{V2_CONFIG_FALLBACK_TEXT.notice}</p>
       <ActionButton onClick={onRetry}>{L.retry}</ActionButton>

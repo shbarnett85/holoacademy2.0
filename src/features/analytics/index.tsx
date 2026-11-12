@@ -6,6 +6,7 @@ import ChallengeTypesPanel from './ChallengeTypesPanel'
 import { FONT, MIN_TARGET, RADIUS, ScreenShell, T } from '../teacherUi'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import { V2_CLIENT_TEXT } from '../../shared/lib/findingsNarrative'
+import { fieldStyle } from '../../styles/ui'
 
 const AnalyticsV2App = lazy(() => import('../analyticsV2/AnalyticsV2App'))
 
@@ -14,11 +15,11 @@ export function HoloSelect({ value, onChange, options, placeholder }: { value: s
   return (
     <div style={{ position: 'relative', flex: '0 0 auto' }}>
       <select aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
-        style={{ appearance: 'none', WebkitAppearance: 'none', background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 9, color: value ? 'var(--t68)' : 'var(--t82)', fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '8px 30px 8px 14px', cursor: 'pointer', outline: 'none', minWidth: 110 }}>
+        style={{ ...fieldStyle, appearance: 'none', WebkitAppearance: 'none', borderRadius: 9, fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, padding: '8px 30px 8px 14px', cursor: 'pointer', minWidth: 110 }}>
         <option value="">{placeholder}</option>
         {options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
       </select>
-      <div style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--t15)', fontSize: 10 }}>▾</div>
+      <div style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--color-ink)', fontSize: 10 }}>▾</div>
     </div>
   )
 }
@@ -35,7 +36,7 @@ function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: Re
     : [{ label: 'התקדמות' }]
   return (
     <ScreenShell active="analytics" title="איך התלמידים מתקדמים לאורך זמן?" breadcrumb={breadcrumb}>
-      <style>{`select option { background: var(--t75); color: var(--t68); }`}</style>
+      <style>{`select option { background: var(--color-surface); color: var(--color-ink); }`}</style>
       {notice}
       {/* נפתח בבחירה מפורשת ("התצוגה הקודמת"): הערת הקשר בראש המסך — מה זה ושהוא זמני. המסך עצמו לא שונה */}
       {backTo && (
@@ -53,7 +54,7 @@ function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: Re
       )}
       {/* מצב הדגמה — סימון שהנתונים סינתטיים (כיתת דמו וירטואלית) */}
       {isGuest && (
-        <p style={{ margin: 0, alignSelf: 'flex-start', fontSize: 14, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--t106)', border: '1px solid var(--t107)', color: 'var(--t105)' }}>
+        <p style={{ margin: 0, alignSelf: 'flex-start', fontSize: 14, fontWeight: 600, padding: '4px 12px', borderRadius: 9, background: 'var(--color-machine-tint)', border: '1.5px solid var(--color-ink)', color: 'var(--color-ink)' }}>
           🎬 נתוני הדגמה — כיתה וירטואלית להתרשמות; בחשבון אמיתי תראו כאן את התלמידים שלכם
         </p>
       )}
@@ -67,7 +68,7 @@ function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: Re
 
 /* האנליטיקה (analyticsV2) היא המסך של כל המורים והמנהלים. AnalyticsV2App טוען את התצורה פעם אחת ומחליט:
    מתג כיבוי → התצוגה הקודמת (או /admin למנהל-על); "התצוגה הקודמת" מבקשת-במפורש (?view=previous) של מורה אמיתי → גם היא. */
-const Loading = () => <div role="status" style={{ minHeight: '100vh', background: 'var(--t-studio-bg)' }} />
+const Loading = () => <div role="status" style={{ minHeight: '100vh', background: 'var(--color-machine-bg)' }} />
 
 export default function AnalyticsPanel() {
   return <Suspense fallback={<Loading />}><AnalyticsV2App Legacy={LegacyAnalyticsPanel} /></Suspense>

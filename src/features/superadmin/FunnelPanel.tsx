@@ -33,13 +33,13 @@ export default function FunnelPanel() {
   const max = Math.max(1, ...STEPS.map((s) => data.counts[s.key] ?? 0))
 
   return (
-    <div className="holo-panel w-full">
+    <div className="holo-panel holo-panel--staff w-full">
       <div className="flex items-center justify-between">
-        <h2 className="font-bold">📈 משפך ההתנסות · {data.sinceDays ?? 30} ימים</h2>
-        <span className="text-xs" style={{ opacity: 0.55 }}>{total} אירועים</span>
+        <h2 className="font-bold" style={{ color: 'var(--color-machine-deep)' }}>📈 משפך ההתנסות · {data.sinceDays ?? 30} ימים</h2>
+        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{total} אירועים</span>
       </div>
       {total === 0 ? (
-        <p className="text-sm mt-2" style={{ opacity: 0.6 }}>עדיין אין תנועה — שתפו קישור שיעור ותראו את המשפך מתמלא.</p>
+        <p className="text-sm mt-2" style={{ color: 'var(--color-muted)' }}>עדיין אין תנועה — שתפו קישור שיעור ותראו את המשפך מתמלא.</p>
       ) : (
         <div className="flex flex-col gap-2 mt-3">
           {STEPS.map((s) => {
@@ -47,11 +47,11 @@ export default function FunnelPanel() {
             return (
               <div key={s.key} className="flex items-center gap-2">
                 <span style={{ width: 22, textAlign: 'center', fontSize: 13 }}>{s.icon}</span>
-                <span className="text-xs" style={{ width: 150, opacity: 0.8 }}>{s.label}</span>
-                <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'rgba(47,243,255,.07)', overflow: 'hidden' }}>
-                  <div style={{ width: `${(n / max) * 100}%`, height: '100%', borderRadius: 7, background: 'linear-gradient(90deg, rgba(47,243,255,.65), rgba(155,140,255,.65))', transition: 'width .4s' }} />
+                <span className="text-xs" style={{ width: 150, color: 'var(--color-ink)' }}>{s.label}</span>
+                <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-ink-wash)', border: '1px solid var(--color-ink)', overflow: 'hidden' }}>
+                  <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: 'var(--color-machine-deep)', transition: 'width .4s' }} />
                 </div>
-                <span className="text-xs font-bold" style={{ width: 36, textAlign: 'left', color: 'var(--holo-cyan-bright, #2ff3ff)' }}>{n}</span>
+                <span className="text-xs font-bold" style={{ width: 36, textAlign: 'left', color: 'var(--color-ink)' }}>{n}</span>
               </div>
             )
           })}

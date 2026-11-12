@@ -14,6 +14,7 @@ import { getGuestQuestIds, addGuestQuestId, removeGuestQuestId } from '../../sha
 import LessonCard from '../../shared/ui/LessonCard'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
+import { fieldStyle, infoChip, modalBackdrop, panelFinding, panelWrong, progressFill, progressTrack } from '../../styles/ui'
 import { SUBJECTS, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
 
 interface QuestSummary {
@@ -66,20 +67,29 @@ interface StudentRow {
 const GRADES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב']
 /* רשימת המקצועות — מקור יחיד משותף (shared/lib/subjects.ts); אין עוד רשימה מקומית */
 const SUBJECT_NAMES: string[] = SUBJECTS.map((s) => s.nameHe)
-const CYAN = '47,243,255'
 const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
 
 /* שכבה = gradeLabel ללא ספרת הכיתה */
 const layerOf = (g: string) => g.replace(/\s*\d+$/, '').trim() || g
 
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--t27)', padding: '3px 9px', borderRadius: 20, background: 'var(--t158)', border: '1px solid var(--t159)', whiteSpace: 'nowrap' }}>{children}</span>
+/* תג מידע שאינו לחיץ: לבן עם קו דיו. warn = הערה לתשומת לב (אזור המורה: רקע human-tint וטקסט human-deep) */
+function Chip({ children, warn }: { children: React.ReactNode; warn?: boolean }) {
+  return <span style={{ ...(warn ? badgeWarn : infoChip), fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, whiteSpace: 'nowrap' }}>{children}</span>
 }
+/* תגי מצב על הכרטיס (לא לחיצים): המילה אומרת את המצב, הצבע רק מלווה */
+const badge: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20 }
+const badgeWarn: React.CSSProperties = { background: 'var(--color-human-tint)', color: 'var(--color-human-deep)', border: '1.5px solid var(--color-human-deep)' }
+const badgeOk: React.CSSProperties = { ...badge, background: 'var(--color-correct-tint)', color: 'var(--color-ink)', border: '1.5px solid var(--color-correct)' }
+const badgeDraft: React.CSSProperties = { ...badge, ...badgeWarn }
+const badgeInfo: React.CSSProperties = { ...badge, ...infoChip }
 
 /* רשת הכרטיסים בכל עמודה: כרטיס לפחות 250px ברוחב — שניים בעמודה ב-1366, אחד במסך צר */
 const cardGrid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: 14 }
 
-const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--t19)', padding: '5px 9px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t160)', fontFamily: 'var(--font-display)' }
+/* כפתור על כרטיס ובחלונות: הצבע, הקו והצל מגיעים מהמחלקה holo-button; כאן רק מידות */
+const cardBtn: React.CSSProperties = { fontSize: 12, fontWeight: 600, padding: '5px 9px', fontFamily: 'var(--font-display)' }
+const BTN_SM = 'holo-button holo-button--staff holo-button--sm'
+const BTN = 'holo-button holo-button--staff'
 
 /* "הספרייה שלי": מה קרה ומה עושים בזרימת שיוך המקצוע.
    · אחרי שיוך — הודעה שנשארת על המסך (לא נעלמת מעצמה), שאומרת מה ייכלל באנליטיקה, עם קישור חזרה אליה;
@@ -93,15 +103,15 @@ export function MineToolbar({ assignedNote, onlyNoSubject, noSubjectCount, onDis
       {assignedNote && (
         <div role="status" data-library-assigned style={noteBox}>
           <span style={{ flex: '1 1 260px' }}>{LIBRARY_ASSIGN_TEXT.saved}</span>
-          <Link to="/analytics" style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
-          <button type="button" onClick={onDismissAssigned} style={noteBtn}>{LIBRARY_ASSIGN_TEXT.dismiss}</button>
+          <Link to="/analytics" className={BTN} style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
+          <button type="button" onClick={onDismissAssigned} className={BTN} style={noteBtn}>{LIBRARY_ASSIGN_TEXT.dismiss}</button>
         </div>
       )}
       {/* משפט הפתיחה נעלם אחרי השיוך הראשון (הודעת השמירה כבר אומרת מה קרה ומה הלאה, ויש בה את הקישור) — כדי שהרשימה תישאר גלויה */}
       {onlyNoSubject && !assignedNote && (
         <div data-library-nosubject-intro style={noteBox}>
           <span style={{ flex: '1 1 260px' }}>{LIBRARY_ASSIGN_TEXT.intro}</span>
-          <Link to="/analytics" style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
+          <Link to="/analytics" className={BTN} style={noteBtn}>{LIBRARY_ASSIGN_TEXT.backToAnalytics}</Link>
         </div>
       )}
       {(noSubjectCount > 0 || onlyNoSubject) && (
@@ -129,14 +139,14 @@ export function SubjectAssign({ busy, onAssign }: { busy: boolean; onAssign: (co
 }
 
 /* הודעה/כפתור/צ'יפ סינון בספרייה — מעוצבים לפי עקרונות מסכי המורה (גופן 16px, יעד 44px), בטוקנים של הערכה */
-const noteBox: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', marginBottom: 10, borderRadius: 12, background: T.surface, border: `1.5px solid ${T.controlBorder}`, borderInlineStart: `6px solid ${T.accent}`, fontFamily: TU_FONT, fontSize: 16, lineHeight: 1.5, color: T.text }
-const noteBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: MIN_TARGET, padding: '0 16px', borderRadius: 10, fontFamily: TU_FONT, fontSize: 16, fontWeight: 800, color: T.text, textDecoration: 'none', cursor: 'pointer', background: T.surface, border: `2px solid ${T.controlBorder}`, whiteSpace: 'nowrap' }
+const noteBox: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', marginBottom: 10, borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, borderInlineStart: `6px solid ${T.accent}`, fontFamily: TU_FONT, fontSize: 16, lineHeight: 1.5, color: T.text }
+const noteBtn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: MIN_TARGET, padding: '0 16px', fontFamily: TU_FONT, fontSize: 16, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap' }
 
-/* צ'יפ סינון: הנבחר מסומן במסגרת עבה, קו תחתון, משקל כבד ווי — לא בצבע בלבד */
+/* צ'יפ סינון: הנבחר ברקע דיו עם טקסט לבן (aria-pressed), משקל כבד ווי — לא בצבע בלבד */
 function FilterChip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" aria-pressed={pressed} onClick={onClick}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', borderRadius: 22, fontFamily: TU_FONT, fontSize: 16, fontWeight: pressed ? 800 : 600, cursor: 'pointer', color: T.text, background: pressed ? T.accentFill : T.surface, border: `2px solid ${pressed ? T.accent : T.controlBorder}`, boxShadow: pressed ? `inset 0 -3px 0 ${T.accent}` : 'none' }}>
+    <button type="button" aria-pressed={pressed} onClick={onClick} className={BTN}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', fontFamily: TU_FONT, fontSize: 16, fontWeight: pressed ? 800 : 600 }}>
       {pressed && <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
       {children}
     </button>
@@ -157,11 +167,11 @@ export function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOp
       body={
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: q.is_published ? 'var(--t163)' : 'var(--t164)', background: q.is_published ? 'var(--t165)' : 'var(--t166)', border: '1px solid ' + (q.is_published ? 'var(--t167)' : 'var(--t168)') }}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
-            {q.is_public && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t1)', background: 'var(--t84)', border: '1px solid var(--t2)' }}>🌐 משותף</span>}
-            {q.is_review && <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 20, color: 'var(--t16)', background: 'var(--t161)', border: '1px solid var(--t162)' }}>🔄 שיעור חזרה</span>}
+            <span style={q.is_published ? badgeOk : badgeDraft}>{q.is_published ? 'פורסם' : 'טיוטה'}</span>
+            {q.is_public && <span style={badgeInfo}>🌐 משותף</span>}
+            {q.is_review && <span style={badgeInfo}>🔄 שיעור חזרה</span>}
             <Chip>{q.sceneCount} סצנות</Chip>
-            {(q.longSceneCount ?? 0) > 0 && <Chip>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
+            {(q.longSceneCount ?? 0) > 0 && <Chip warn>{q.longSceneCount === 1 ? 'סצנה אחת ארוכה מדי למסך' : `${q.longSceneCount} סצנות ארוכות מדי למסך`}</Chip>}
             <Chip>{new Date(q.created_at).toLocaleDateString('he-IL')}</Chip>
           </div>
           {/* שיעור "לא סווג" — כפתור "שיוך למקצוע" בלחיצה אחת (נשמר ב-subject_id; מזין רמות ואנליטיקה פר-מקצוע) */}
@@ -172,28 +182,28 @@ export function QuestCard({ q, busy, isGuest, shareBlocked, onShareBlocked, onOp
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {/* הסר שיתוף — מופיע רק כשהדמיה משותפת, כפתור משני */}
           {q.is_public && (
-            <button disabled={busy} onClick={(e) => { e.stopPropagation(); onUnshare() }}
-              style={{ ...cardBtn, fontSize: 11, color: 'var(--t18)', borderColor: 'var(--t169)', opacity: busy ? 0.5 : 1 }}>
+            <button disabled={busy} className={BTN_SM} onClick={(e) => { e.stopPropagation(); onUnshare() }}
+              style={{ ...cardBtn, fontSize: 11 }}>
               הסר מהספרייה
             </button>
           )}
           <div style={{ flex: 1 }} />
           {/* מחיקה — כפתור משני אדום (עם אישור בהורה) */}
-          <button disabled={busy} title="מחק שיעור" onClick={(e) => { e.stopPropagation(); onDelete() }}
-            style={{ ...cardBtn, color: 'var(--t18)', borderColor: 'var(--t169)', opacity: busy ? 0.5 : 1 }}>
+          <button disabled={busy} className={BTN_SM} title="מחק שיעור" onClick={(e) => { e.stopPropagation(); onDelete() }}
+            style={cardBtn}>
             מחק 🗑️
           </button>
           {/* שתף — פותח מודאל. מנוטרל למורה אורח (חשבון הדגמה, בלי שיתוף לספרייה) */}
-          <button disabled={busy || isGuest}
+          <button disabled={busy || isGuest} className={BTN_SM}
             title={isGuest ? 'שיתוף אינו זמין במצב מורה אורח' : shareBlocked ? SHARING_DISABLED_UI_MESSAGE : undefined}
             aria-disabled={shareBlocked || undefined}
             onClick={(e) => { e.stopPropagation(); if (isGuest) return; if (shareBlocked) { onShareBlocked(); return } onShare() }}
-            style={{ ...cardBtn, color: 'var(--t170)', borderColor: 'var(--t162)', opacity: (busy || isGuest || shareBlocked) ? 0.4 : 1, cursor: (isGuest || shareBlocked) ? 'not-allowed' : 'pointer' }}>
+            style={{ ...cardBtn, cursor: (isGuest || shareBlocked) ? 'not-allowed' : 'pointer' }}>
             שתף
           </button>
-          <button onClick={(e) => { e.stopPropagation(); onOpen() }} style={cardBtn}>ערוך</button>
-          <button onClick={(e) => { e.stopPropagation(); onPlay() }}
-            style={{ ...cardBtn, color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', fontWeight: 700 }}>
+          <button onClick={(e) => { e.stopPropagation(); onOpen() }} className={BTN_SM} style={cardBtn}>ערוך</button>
+          <button className={BTN_SM} onClick={(e) => { e.stopPropagation(); onPlay() }}
+            style={{ ...cardBtn, fontWeight: 700 }}>
             הפעל ▶
           </button>
         </div>
@@ -209,9 +219,9 @@ export function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy
       title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl} gradeMin={q.gradeMin} gradeMax={q.gradeMax} imageAspect="16 / 9"
       body={
         <>
-          <div style={{ fontSize: 12, color: 'var(--t174)' }}>נוצר במקור על ידי {q.authorName}</div>
+          <div style={{ fontSize: 12, color: 'var(--color-muted)' }}>נוצר במקור על ידי {q.authorName}</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {q.isOfficial && <span style={{ flexShrink: 0, fontSize: 10.5, fontWeight: 800, padding: '3px 9px', borderRadius: 20, color: 'var(--t3)', background: 'var(--t172)', border: '1px solid var(--t173)' }}>✓ רשמי</span>}
+            {q.isOfficial && <span style={{ ...badgeOk, flexShrink: 0, fontWeight: 800 }}>✓ רשמי</span>}
             <Chip>{q.sceneCount} סצנות</Chip>
             {q.puzzleTypes.slice(0, 3).map((t) => <Chip key={t}>{puzzleTypeLabel(t)}</Chip>)}
           </div>
@@ -219,9 +229,9 @@ export function PublicCard({ q, busy, onCopy, onReport }: { q: PublicQuest; busy
       }
       actions={
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <button disabled={busy} onClick={onReport} style={{ ...cardBtn, color: 'var(--t18)', borderColor: 'var(--t169)', opacity: busy ? 0.5 : 1 }}>דווח 🚩</button>
+          <button disabled={busy} onClick={onReport} className={BTN_SM} style={cardBtn}>דווח 🚩</button>
           <div style={{ flex: 1 }} />
-          <button disabled={busy} onClick={onCopy} style={{ ...cardBtn, color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t118),var(--t14))', border: 'none', fontWeight: 700, opacity: busy ? 0.6 : 1 }}>השתמש (העתק אליי) 📥</button>
+          <button disabled={busy} onClick={onCopy} className={BTN_SM} style={{ ...cardBtn, fontWeight: 700 }}>השתמש (העתק אליי) 📥</button>
         </div>
       }
     />
@@ -389,15 +399,9 @@ function ShareModal({ quest, onClose, onDone }: {
     } catch (e) { setError(e instanceof Error ? e.message : 'שגיאה') } finally { setBusy(false) }
   }
 
-  const inp: React.CSSProperties = { background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 9, color: 'var(--t68)', padding: '8px 12px', fontFamily: 'var(--font-display)', fontSize: 13, outline: 'none' }
-  const selBtn = (active: boolean, rgb: string): React.CSSProperties => ({
-    flex: 1, padding: '16px 12px', borderRadius: 14, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
-    background: active ? `${window.HoloTint(rgb, .18)}` : `${window.HoloTint(rgb, .06)}`,
-    border: `1px solid ${window.HoloTint(rgb, active ? .6 : .28)}`,
-    color: active ? 'var(--t13)' : `${window.HoloTint(rgb, 1)}`,
-    boxShadow: active ? `0 0 18px ${window.HoloTint(rgb, .25)}` : 'none',
-    transition: 'all .15s',
-  })
+  const inp: React.CSSProperties = { ...fieldStyle, padding: '8px 12px', fontFamily: 'var(--font-display)', fontSize: 13 }
+  /* שלוש אפשרויות השיתוף: כפתורי בחירה גדולים (הצבע, הקו והצל מהמחלקה holo-button) */
+  const selBtn: React.CSSProperties = { flex: 1, padding: '16px 12px', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700 }
 
   const genDone = Object.values(genStatuses).filter(s => s === 'done').length
   const genError = Object.values(genStatuses).filter(s => s === 'error').length
@@ -406,14 +410,14 @@ function ShareModal({ quest, onClose, onDone }: {
   const isGenerating = step === 'generating' || step === 'generated'
 
   return (
-    <div onClick={() => { if (step !== 'generating') onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t175)', backdropFilter: 'blur(6px)' }}>
+    <div onClick={() => { if (step !== 'generating') onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', ...modalBackdrop }}>
       <div onClick={(e) => e.stopPropagation()} style={{ ...glass, width: '92%', maxWidth: (step === 'students' || isGenerating) ? 560 : 420, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* כותרת */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 24px 0', flexShrink: 0 }}>
           {(step === 'pick' || step === 'students' || step === 'community') && step !== 'pick' && (
-            <button onClick={() => { setStep('pick'); setError(null) }} style={{ background: 'none', border: 'none', color: 'var(--t15)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>← חזרה</button>
+            <button onClick={() => { setStep('pick'); setError(null) }} className="holo-link" style={{ fontSize: 13, fontWeight: 600 }}>← חזרה</button>
           )}
-          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: 'var(--t13)' }}>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 800, color: 'var(--color-machine-deep)' }}>
             {step === 'pick' && 'שתף שיעור'}
             {step === 'students' && 'שלח לתלמידים'}
             {step === 'community' && 'שתף לספרייה הציבורית'}
@@ -421,28 +425,28 @@ function ShareModal({ quest, onClose, onDone }: {
             {step === 'generated' && (genError > 0 ? `הסתיים — ${genError} נכשל${genError > 1 ? 'ו' : ''}` : '✓ כל הגרסאות מוכנות')}
           </div>
           {step !== 'generating' && (
-            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--t176)', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            <button onClick={onClose} className={BTN_SM} style={{ fontSize: 18, lineHeight: 1, padding: '3px 9px' }}>✕</button>
           )}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--t176)', padding: '4px 24px 14px', flexShrink: 0 }}>{quest.title}</div>
+        <div style={{ fontSize: 12, color: 'var(--color-muted)', padding: '4px 24px 14px', flexShrink: 0 }}>{quest.title}</div>
 
         {/* שלב 1 — בחירה */}
         {step === 'pick' && (
           <div style={{ padding: '0 24px 24px', display: 'flex', gap: 14 }}>
-            <button onClick={() => setStep('students')} style={selBtn(false, '47,243,255')}>
+            <button onClick={() => setStep('students')} className={BTN} style={selBtn}>
               <div style={{ fontSize: 26, marginBottom: 8 }}>👩‍🎓</div>
               <div>תלמידים</div>
-              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>הקצה לכיתות ספציפיות</div>
+              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4 }}>הקצה לכיתות ספציפיות</div>
             </button>
-            <button onClick={() => setStep('community')} style={selBtn(false, '255,69,230')}>
+            <button onClick={() => setStep('community')} className={BTN} style={selBtn}>
               <div style={{ fontSize: 26, marginBottom: 8 }}>🌐</div>
               <div>קהילת המורים</div>
-              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>פרסם לכל המורים במערכת</div>
+              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4 }}>פרסם לכל המורים במערכת</div>
             </button>
-            <button onClick={shareWhatsApp} style={selBtn(false, '37,211,102')}>
+            <button onClick={shareWhatsApp} className={BTN} style={selBtn}>
               <div style={{ fontSize: 26, marginBottom: 8 }}>💬</div>
               <div>וואטסאפ / קישור</div>
-              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>שלחו לכל אחד — משחק מיידי</div>
+              <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4 }}>שלחו לכל אחד — משחק מיידי</div>
             </button>
           </div>
         )}
@@ -466,27 +470,27 @@ function ShareModal({ quest, onClose, onDone }: {
             </div>
 
             {/* רשימת תלמידים */}
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--t33)' }}>
-              {students === null && <div style={{ ...micro, textAlign: 'center', padding: 24, color: 'var(--t37)' }}>טוען תלמידים…</div>}
-              {students !== null && filtered.length === 0 && <div style={{ ...micro, textAlign: 'center', padding: 24, color: 'var(--t37)' }}>אין תלמידים תואמים</div>}
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--color-line-strong)' }}>
+              {students === null && <div style={{ ...micro, textAlign: 'center', padding: 24, color: 'var(--color-muted)' }}>טוען תלמידים…</div>}
+              {students !== null && filtered.length === 0 && <div style={{ ...micro, textAlign: 'center', padding: 24, color: 'var(--color-muted)' }}>אין תלמידים תואמים</div>}
               {students !== null && filtered.length > 0 && (
                 <>
                   {/* כותרת + בחר הכל */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--t20)', background: 'var(--t177)', position: 'sticky', top: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: '1px solid var(--color-line-strong)', background: 'var(--color-surface)', position: 'sticky', top: 0 }}>
                     <input type="checkbox"
                       checked={filtered.every((s) => selected.has(s.id))}
                       onChange={toggleAll}
-                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--t15)' }} />
-                    <span style={{ ...micro, fontSize: 9, color: 'var(--t28)' }}>שם תלמיד</span>
-                    <span style={{ ...micro, fontSize: 9, color: 'var(--t28)', marginRight: 'auto' }}>כיתה</span>
+                      style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--color-ink)' }} />
+                    <span style={{ ...micro, fontSize: 9 }}>שם תלמיד</span>
+                    <span style={{ ...micro, fontSize: 9, marginRight: 'auto' }}>כיתה</span>
                   </div>
                   {filtered.map((s) => (
                     <div key={s.id} onClick={() => toggleStudent(s.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid var(--t178)', background: selected.has(s.id) ? 'var(--t40)' : 'transparent', transition: 'background .12s' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid var(--color-line)', background: selected.has(s.id) ? 'var(--color-ink-wash)' : 'transparent', transition: 'background .12s' }}>
                       <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleStudent(s.id)} onClick={(e) => e.stopPropagation()}
-                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--t15)' }} />
-                      <span style={{ flex: 1, fontSize: 13.5, color: 'var(--t68)' }}>{s.name}</span>
-                      <span style={{ fontSize: 11.5, color: 'var(--t176)' }}>{s.class}</span>
+                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--color-ink)' }} />
+                      <span style={{ flex: 1, fontSize: 13.5, color: 'var(--color-ink)' }}>{s.name}</span>
+                      <span style={{ fontSize: 11.5, color: 'var(--color-muted)' }}>{s.class}</span>
                     </div>
                   ))}
                 </>
@@ -494,19 +498,19 @@ function ShareModal({ quest, onClose, onDone }: {
             </div>
 
             {/* מועד הגשה — ברירת מחדל שבוע; השיעור לא ננעל אחריו */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--t68)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--color-ink)' }}>
               {LESSON_DUE_TEXT.sendFieldLabel}
               <input type="date" data-send-due value={dueDay} min={israelDay(new Date())} onChange={(e) => setDueDay(e.target.value)} style={{ ...inp, minHeight: 36 }} />
             </label>
-            <div style={{ fontSize: 12, color: 'var(--t176)', flexShrink: 0, marginTop: -4 }}>{LESSON_DUE_TEXT.sendFieldHint}</div>
+            <div style={{ fontSize: 12, color: 'var(--color-muted)', flexShrink: 0, marginTop: -4 }}>{LESSON_DUE_TEXT.sendFieldHint}</div>
 
-            {error && <div style={{ color: 'var(--t5)', fontSize: 12, flexShrink: 0 }}>⚠️ {error}</div>}
+            {error && <div style={{ ...panelWrong, padding: '6px 10px', fontSize: 12, flexShrink: 0 }}>⚠️ {error}</div>}
 
             {/* כפתור שלח */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: 'var(--t176)' }}>{selected.size > 0 ? `${selected.size} תלמידים נבחרו` : 'לא נבחרו תלמידים'}</span>
-              <button disabled={busy || selected.size === 0} onClick={sendToStudents}
-                style={{ ...cardBtn, padding: '9px 22px', color: 'var(--t17)', background: selected.size > 0 ? 'linear-gradient(120deg,var(--t15),var(--t14))' : 'var(--t179)', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
+              <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>{selected.size > 0 ? `${selected.size} תלמידים נבחרו` : 'לא נבחרו תלמידים'}</span>
+              <button disabled={busy || selected.size === 0} onClick={sendToStudents} className={BTN}
+                style={{ ...cardBtn, padding: '9px 22px', fontWeight: 700 }}>
                 {busy ? 'שולח…' : 'שלח לתלמידים ✓'}
               </button>
             </div>
@@ -519,23 +523,23 @@ function ShareModal({ quest, onClose, onDone }: {
             {/* progress bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12.5, color: step === 'generated' ? (genError > 0 ? 'var(--t143)' : 'var(--t1)') : 'var(--t144)' }}>
+                <span style={{ fontSize: 12.5, color: 'var(--color-ink)' }}>
                   {step === 'generating' ? `מכין תלמיד ${genIdx + 1} מתוך ${genTotal}` : `${genDone} מוכנים${genError > 0 ? ` · ${genError} נכשלו` : ''}`}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--t145)' }}>{genPct}%</span>
+                <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>{genPct}%</span>
               </div>
-              <div style={{ height: 4, borderRadius: 4, background: 'var(--t97)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 4, transition: 'width .4s ease', width: `${genPct}%`, background: genError > 0 && step === 'generated' ? 'linear-gradient(90deg,var(--t15),var(--t143))' : 'linear-gradient(90deg,var(--t15),var(--t14))' }} />
+              <div style={{ ...progressTrack, height: 12 }}>
+                <div style={{ ...progressFill, transition: 'width .4s ease', width: `${genPct}%` }} />
               </div>
             </div>
 
-            {/* תלמיד נוכחי */}
+            {/* תלמיד נוכחי — המכונה מכינה גרסה */}
             {step === 'generating' && genIdx >= 0 && (() => { const s = genStudents[genIdx]; return s ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, background: 'var(--t150)', border: '1px solid var(--t180)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, background: 'var(--color-machine-tint)', border: '1px solid var(--color-line-strong)' }}>
                 <span style={{ fontSize: 18, animation: 'holo-dot-pulse 1s infinite' }}>⚙</span>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t132)' }}>מכין ל{s.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--t181)', marginTop: 2 }}>{WORK_MSGS[workMsgIdx]}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-ink)' }}>מכין ל{s.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-muted)', marginTop: 2 }}>{WORK_MSGS[workMsgIdx]}</div>
                 </div>
               </div>
             ) : null })()}
@@ -548,13 +552,13 @@ function ShareModal({ quest, onClose, onDone }: {
                 const isCur = step === 'generating' && i === genIdx
                 return (
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 12px', borderRadius: 8,
-                    background: isCur ? 'var(--t182)' : st === 'done' ? 'var(--t138)' : st === 'error' ? 'var(--t151)' : 'var(--t152)',
-                    border: `1px solid ${isCur ? 'var(--t180)' : st === 'done' ? 'var(--t183)' : st === 'error' ? 'var(--t184)' : 'var(--t185)'}` }}>
-                    <span style={{ fontSize: 14, minWidth: 16, textAlign: 'center', color: st === 'done' ? 'var(--t1)' : st === 'error' ? 'var(--t5)' : st === 'working' ? 'var(--t132)' : 'var(--t186)' }}>
+                    background: isCur ? 'var(--color-machine-tint)' : st === 'error' ? 'var(--color-wrong-tint)' : 'var(--color-surface)',
+                    border: `1px solid ${isCur || st === 'done' || st === 'error' ? 'var(--color-line-strong)' : 'var(--color-line)'}` }}>
+                    <span style={{ fontSize: 14, minWidth: 16, textAlign: 'center', color: st === 'done' ? 'var(--color-correct)' : st === 'pending' ? 'var(--color-muted)' : 'var(--color-ink)' }}>
                       {st === 'done' ? '✓' : st === 'error' ? '✗' : st === 'working' ? '⚙' : '○'}
                     </span>
-                    <span style={{ flex: 1, fontSize: 13, color: isCur ? 'var(--t132)' : st === 'pending' ? 'var(--t187)' : 'var(--t68)' }}>{s.name}</span>
-                    <span style={{ fontSize: 10.5, color: 'var(--t2)' }}>
+                    <span style={{ flex: 1, fontSize: 13, color: st === 'pending' && !isCur ? 'var(--color-muted)' : 'var(--color-ink)' }}>{s.name}</span>
+                    <span style={{ fontSize: 10.5, color: st === 'error' ? 'var(--color-ink)' : 'var(--color-muted)' }}>
                       {st === 'done' && snap ? `רמה ${snap.textLevel}` : st === 'error' ? 'שגיאה' : ''}
                     </span>
                   </div>
@@ -565,18 +569,18 @@ function ShareModal({ quest, onClose, onDone }: {
             {/* כפתורי פעולה */}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               {step === 'generating' && (
-                <button onClick={() => { cancelledRef.current = true }}
+                <button className={BTN} onClick={() => { cancelledRef.current = true }}
                   style={{ ...cardBtn, padding: '8px 16px' }}>עצור</button>
               )}
               {step === 'generated' && genError > 0 && (
-                <button onClick={retryFailed}
-                  style={{ ...cardBtn, padding: '8px 16px', color: 'var(--t18)', borderColor: 'var(--t188)' }}>
+                <button className={BTN} onClick={retryFailed}
+                  style={{ ...cardBtn, padding: '8px 16px' }}>
                   ↻ נסה שוב ({genError})
                 </button>
               )}
               {step === 'generated' && (
-                <button onClick={() => { onDone(`✅ השיעור הוקצה ל-${genStudents.length} תלמידים`); onClose() }}
-                  style={{ ...cardBtn, padding: '8px 22px', color: 'var(--t17)', background: 'linear-gradient(120deg,var(--t15),var(--t14))', border: 'none', fontWeight: 700 }}>
+                <button className={BTN} onClick={() => { onDone(`✅ השיעור הוקצה ל-${genStudents.length} תלמידים`); onClose() }}
+                  style={{ ...cardBtn, padding: '8px 22px', fontWeight: 700 }}>
                   סגור
                 </button>
               )}
@@ -588,35 +592,35 @@ function ShareModal({ quest, onClose, onDone }: {
         {step === 'community' && (
           <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             {/* סיכום ההדמיה */}
-            <div style={{ background: 'var(--t189)', border: '1px solid var(--t91)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t13)' }}>{quest.title}</div>
+            <div style={{ background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)' }}>{quest.title}</div>
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                 {quest.subject && <Chip>{quest.subject}</Chip>}
                 <Chip>{quest.sceneCount} סצנות</Chip>
               </div>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--t27)', lineHeight: 1.7, margin: 0 }}>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)', lineHeight: 1.7, margin: 0 }}>
               השיעור יהיה גלוי לכל המורים במערכת. הם יוכלו להעתיק אותו לעצמם לעריכה. תוכל להסיר אותו בכל עת מהספרייה.
             </p>
             {quest.is_public && (
-              <div style={{ fontSize: 12.5, color: 'var(--t1)', background: 'var(--t20)', border: '1px solid var(--t41)', borderRadius: 9, padding: '8px 13px' }}>
+              <div style={{ fontSize: 12.5, color: 'var(--color-ink)', background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)', borderRadius: 9, padding: '8px 13px' }}>
                 ✓ השיעור כבר משותף בספרייה הציבורית
               </div>
             )}
             {shareWarnings && (
-              <div style={{ background: 'var(--t190)', border: '1px solid var(--t191)', borderRadius: 10, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t192)' }}>⚠ לשיעור יש אזהרות פתוחות — עברו עליהן לפני השיתוף:</div>
+              <div style={{ ...panelFinding, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-human-deep)' }}>⚠ לשיעור יש אזהרות פתוחות — עברו עליהן לפני השיתוף:</div>
                 <ul style={{ margin: 0, paddingInlineStart: 18, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
-                  {shareWarnings.map((w, i) => <li key={i} style={{ fontSize: 12, color: 'var(--t193)', lineHeight: 1.6 }}>{w}</li>)}
+                  {shareWarnings.map((w, i) => <li key={i} style={{ fontSize: 12, color: 'var(--color-human-deep)', lineHeight: 1.6 }}>{w}</li>)}
                 </ul>
-                <div style={{ fontSize: 11.5, color: 'var(--t194)' }}>אפשר לתקן בעמוד העריכה ולנסות שוב, או לאשר ולשתף כמו שזה.</div>
+                <div style={{ fontSize: 11.5, color: 'var(--color-ink)' }}>אפשר לתקן בעמוד העריכה ולנסות שוב, או לאשר ולשתף כמו שזה.</div>
               </div>
             )}
-            {error && <div style={{ color: 'var(--t5)', fontSize: 12, whiteSpace: 'pre-line' }}>⚠️ {error}</div>}
+            {error && <div style={{ ...panelWrong, padding: '6px 10px', fontSize: 12, whiteSpace: 'pre-line' }}>⚠️ {error}</div>}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
-              <button disabled={busy || quest.is_public} onClick={() => shareCommunity(shareWarnings !== null)}
-                style={{ ...cardBtn, padding: '8px 20px', color: 'var(--t17)', background: quest.is_public ? 'var(--t195)' : shareWarnings ? 'linear-gradient(120deg,var(--t196),var(--t118))' : 'linear-gradient(120deg,var(--t118),var(--t14))', border: 'none', fontWeight: 700, opacity: busy ? 0.5 : 1 }}>
+              <button onClick={onClose} className={BTN} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
+              <button disabled={busy || quest.is_public} onClick={() => shareCommunity(shareWarnings !== null)} className={BTN}
+                style={{ ...cardBtn, padding: '8px 20px', fontWeight: 700 }}>
                 {busy ? 'משתף…' : quest.is_public ? 'כבר משותף' : shareWarnings ? 'בדקתי — שתף בכל זאת' : 'שתף 🌐'}
               </button>
             </div>
@@ -647,25 +651,26 @@ function DualRange({ min, max, lo, hi, setLo, setHi }: { min: number; max: numbe
   }
   const mkThumb = (which: 'lo' | 'hi', lp: number) => (
     <div key={which} onPointerDown={(e) => { e.preventDefault(); drag.current = which; ref.current!.setPointerCapture(e.pointerId) }}
-      style={{ position: 'absolute', left: `calc(${lp}% - 7px)`, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, borderRadius: '50%', background: 'var(--t61)', border: '2px solid var(--t15)', boxShadow: '0 0 8px var(--t15)', cursor: 'grab', zIndex: 3 }} />
+      style={{ position: 'absolute', left: `calc(${lp}% - 8px)`, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, borderRadius: '50%', background: 'var(--color-action)', border: '2px solid var(--color-ink)', boxShadow: '2px 2px 0 var(--color-ink)', cursor: 'grab', zIndex: 3 }} />
   )
   return (
     <div ref={ref} style={{ position: 'relative', height: 28, cursor: 'pointer' }} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 3, borderRadius: 3, background: 'var(--t197)' }} />
-      <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', height: 3, borderRadius: 3, left: leftHi + '%', width: Math.max(0, leftLo - leftHi) + '%', background: 'var(--t15)', boxShadow: '0 0 8px var(--t2)' }} />
+      <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 6, borderRadius: 6, background: 'var(--color-line)' }} />
+      <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', height: 6, borderRadius: 6, left: leftHi + '%', width: Math.max(0, leftLo - leftHi) + '%', background: 'var(--color-ink)' }} />
       {mkThumb('hi', leftHi)}
       {mkThumb('lo', leftLo)}
     </div>
   )
 }
 
-function ColHead({ icon, title, kicker, count, rgb }: { icon: React.ReactNode; title: string; kicker: string; count: string; rgb: string }) {
+/* כותרת עמודה. human = אזור המורים (הספרייה הציבורית): מסגרת האייקון באפרסק; אחרת בלילך של המכונה */
+function ColHead({ icon, title, kicker, count, human }: { icon: React.ReactNode; title: string; kicker: string; count: string; human?: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 16 }}>
-      <span style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 10, background: `${window.HoloTint(rgb, .08)}`, border: `1px solid ${window.HoloTint(rgb, .3)}`, color: `${window.HoloTint(rgb, 1)}`, boxShadow: `0 0 14px ${window.HoloTint(rgb, .2)}` }}>{icon}</span>
+      <span style={{ display: 'grid', placeItems: 'center', width: 34, height: 34, borderRadius: 10, background: human ? 'var(--color-human-tint)' : 'var(--color-machine-tint)', border: '1.5px solid var(--color-ink)', color: 'var(--color-ink)' }}>{icon}</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--t68)' }}>{title}</div>
-        <div style={{ ...micro, marginTop: 2, color: `${window.HoloTint(rgb, .7)}` }}>{kicker} · {count}</div>
+        <div style={{ fontSize: 16.5, fontWeight: 700, color: 'var(--color-machine-deep)' }}>{title}</div>
+        <div style={{ ...micro, marginTop: 2 }}>{kicker} · {count}</div>
       </div>
     </div>
   )
@@ -791,25 +796,23 @@ export default function Library() {
   }, [publicQuests, subjKeys.length, subjOn, query, lo, hi])
 
   const panel: React.CSSProperties = { ...glass, padding: 22, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }
-  const emptyMsg = (text: string) => <div style={{ ...micro, color: 'var(--t37)', textAlign: 'center', padding: '34px 0', fontSize: 11 }}>{text}</div>
+  const emptyMsg = (text: string) => <div style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: '34px 0', fontSize: 11 }}>{text}</div>
 
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--t-studio-bg)' }}>
-      <div style={{ position: 'absolute', left: -120, top: -80, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, var(--t83), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', right: -120, bottom: -120, width: 460, height: 460, borderRadius: '50%', background: 'radial-gradient(circle, var(--t84), transparent 70%)', filter: 'blur(20px)', pointerEvents: 'none' }} />
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--color-machine-bg)' }}>
 
-      <style>{`.lib-subject-select option { background: var(--t75); color: var(--t68); }`}</style>
+      <style>{`.lib-subject-select option { background: var(--color-surface); color: var(--color-ink); }`}</style>
       <StudioTopBar active="library" />
 
       <div data-studio-content className="holo-tab-enter" style={{ position: 'relative', zIndex: 2, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 16, padding: '12px 30px 26px' }}>
         {/* חלון סינון */}
         <div style={{ ...glass, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, flex: '0 0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 10, padding: '8px 14px' }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t1)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם או יוצר…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'var(--t68)', fontSize: 15, fontFamily: 'var(--font-display)' }} />
-            <button onClick={clearAll} style={{ fontSize: 12, fontWeight: 600, color: 'var(--t34)', padding: '6px 13px', borderRadius: 8, cursor: 'pointer', background: 'transparent', border: '1px solid var(--t35)', whiteSpace: 'nowrap', flex: '0 0 auto', visibility: dirty ? 'visible' : 'hidden', pointerEvents: dirty ? 'auto' : 'none' }}>נקה סינון</button>
+          <div style={{ ...fieldStyle, display: 'flex', alignItems: 'center', gap: 14, padding: '8px 14px' }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="חיפוש לפי שם או יוצר…" style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'var(--color-ink)', fontSize: 15, fontFamily: 'var(--font-display)' }} />
+            <button onClick={clearAll} className={BTN_SM} style={{ fontSize: 12, fontWeight: 600, padding: '6px 13px', whiteSpace: 'nowrap', flex: '0 0 auto', visibility: dirty ? 'visible' : 'hidden', pointerEvents: dirty ? 'auto' : 'none' }}>נקה סינון</button>
           </div>
-          <div style={{ height: 1, background: 'var(--t62)' }} />
+          <div style={{ height: 1, background: 'var(--color-line)' }} />
           <div>
             <div style={{ ...micro, marginBottom: 10 }}>מקצוע</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
@@ -817,14 +820,14 @@ export default function Library() {
                 {[...SUBJECT_NAMES, UNCLASSIFIED_LABEL].map((sub) => {
                   const on = !!subjOn[sub]
                   return (
-                    <button key={sub} onClick={() => toggleSubj(sub)} style={{ padding: '8px 15px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-display)', transition: 'all .15s', background: on ? 'linear-gradient(120deg, var(--t81), var(--t127))' : 'var(--t25)', border: '1px solid ' + (on ? 'var(--t135)' : 'var(--t86)'), color: on ? 'var(--t13)' : 'var(--t27)', boxShadow: on ? '0 0 14px var(--t88)' : 'none' }}>{sub}</button>
+                    <button key={sub} onClick={() => toggleSubj(sub)} className={BTN_SM + (on ? ' is-selected' : '')} style={{ padding: '8px 15px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)' }}>{sub}</button>
                   )
                 })}
               </div>
-              <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12, paddingRight: 16, borderRight: '1px solid var(--t26)' }}>
+              <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12, paddingRight: 16, borderRight: '1px solid var(--color-line-strong)' }}>
                 <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <div style={{ ...micro, fontSize: 9, color: 'var(--t198)' }}>רמת כתיבה</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--t1)' }}>כיתה {GRADES[lo]} – {GRADES[hi]}</div>
+                  <div style={{ ...micro, fontSize: 9 }}>רמת כתיבה</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-ink)' }}>כיתה {GRADES[lo]} – {GRADES[hi]}</div>
                 </div>
                 <div style={{ width: 280, maxWidth: '40vw' }}><DualRange min={0} max={GRADES.length - 1} lo={lo} hi={hi} setLo={setLo} setHi={setHi} /></div>
               </div>
@@ -837,9 +840,9 @@ export default function Library() {
           {/* הספרייה שלי */}
           <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={panel}>
-              <ColHead rgb={CYAN} title="הספרייה שלי" kicker="MY LIBRARY" count={`${mineF.length} שיעורים`}
-                icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t15)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>} />
-              {error && <div style={{ color: 'var(--t5)', padding: 12, borderRadius: 12, border: '1px solid var(--t102)', background: 'var(--t199)', marginBottom: 10 }}>{error}</div>}
+              <ColHead title="הספרייה שלי" kicker="MY LIBRARY" count={`${mineF.length} שיעורים`}
+                icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>} />
+              {error && <div style={{ ...panelWrong, padding: 12, marginBottom: 10 }}>{error}</div>}
               <MineToolbar assignedNote={assignedNote} onlyNoSubject={onlyNoSubject} noSubjectCount={noSubjectCount}
                 onDismissAssigned={() => setAssignedNote(false)} onSetNoSubject={setOnlyNoSubject} />
               <div className="cf-scroll" data-lesson-grid="mine" style={{ ...cardGrid, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8, alignContent: 'start' }}>
@@ -873,17 +876,17 @@ export default function Library() {
           {/* ספרייה ציבורית */}
           <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={panel}>
-              <ColHead rgb="255,69,230" title="ספרייה ציבורית" kicker="COMMUNITY" count={`${commF.length} זמינות`}
-                icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t118)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>} />
+              <ColHead human title="ספרייה ציבורית" kicker="COMMUNITY" count={`${commF.length} זמינות`}
+                icon={<svg width="19" height="19" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-ink)' }} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>} />
               <div className="cf-scroll" data-lesson-grid="public" style={{ ...cardGrid, flex: 1, minHeight: 0, overflowY: 'auto', paddingLeft: 8, alignContent: 'start' }}>
                 {!publicQuests && emptyMsg('טוען…')}
                 {publicQuests && commF.length === 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '40px 16px', textAlign: 'center' }}>
-                    <div style={{ width: 56, height: 56, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'var(--t189)', border: '1px dashed var(--t200)' }}>
-                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--t34)' }} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+                    <div style={{ width: 56, height: 56, borderRadius: 16, display: 'grid', placeItems: 'center', background: 'var(--color-ink-wash)', border: '1.5px dashed var(--color-line-strong)' }}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" style={{ stroke: 'var(--color-muted)' }} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
                     </div>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--t201)' }}>{(publicQuests?.length ?? 0) === 0 ? 'אין עדיין שיעורים משותפים' : 'אין תוצאות לסינון'}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--t121)', maxWidth: 280, lineHeight: 1.6 }}>שתפו שיעור שיצרתם (כפתור "שתף") כדי שיופיע כאן לכל המורים.</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--color-ink)' }}>{(publicQuests?.length ?? 0) === 0 ? 'אין עדיין שיעורים משותפים' : 'אין תוצאות לסינון'}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--color-muted)', maxWidth: 280, lineHeight: 1.6 }}>שתפו שיעור שיצרתם (כפתור "שתף") כדי שיופיע כאן לכל המורים.</div>
                   </div>
                 )}
                 {commF.map((q) => <PublicCard key={q.id} q={q} busy={busyId === q.id} onCopy={() => doCopy(q)} onReport={() => { setReportFor(q); setReportReason('') }} />)}
@@ -904,15 +907,15 @@ export default function Library() {
 
       {/* מודאל דיווח */}
       {reportFor && (
-        <div onClick={() => setReportFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--t202)', backdropFilter: 'blur(6px)' }}>
+        <div onClick={() => setReportFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', ...modalBackdrop }}>
           <div onClick={(e) => e.stopPropagation()} style={{ ...glass, padding: '28px 34px', maxWidth: 420, width: '90%' }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t13)', marginBottom: 4 }}>דיווח על שיעור</div>
-            <div style={{ fontSize: 13, color: 'var(--t27)', marginBottom: 14 }}>"{reportFor.title}" · {reportFor.authorName}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 4 }}>דיווח על שיעור</div>
+            <div style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 14 }}>"{reportFor.title}" · {reportFor.authorName}</div>
             <textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} rows={4} placeholder="סיבת הדיווח (תוכן לא הולם, שגיאה חמורה, וכו׳)…"
-              style={{ width: '100%', background: 'var(--t57)', border: '1px solid var(--t81)', borderRadius: 10, color: 'var(--t68)', padding: '10px 12px', fontFamily: 'var(--font-display)', fontSize: 13.5, resize: 'vertical', outline: 'none' }} />
+              style={{ ...fieldStyle, width: '100%', padding: '10px 12px', fontFamily: 'var(--font-display)', fontSize: 13.5, resize: 'vertical' }} />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button onClick={() => setReportFor(null)} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
-              <button disabled={reportReason.trim().length < 3} onClick={doReport} style={{ ...cardBtn, padding: '8px 18px', color: 'var(--t18)', borderColor: 'var(--t203)', opacity: reportReason.trim().length < 3 ? 0.5 : 1 }}>שלח דיווח 🚩</button>
+              <button onClick={() => setReportFor(null)} className={BTN} style={{ ...cardBtn, padding: '8px 18px' }}>ביטול</button>
+              <button disabled={reportReason.trim().length < 3} onClick={doReport} className={BTN} style={{ ...cardBtn, padding: '8px 18px' }}>שלח דיווח 🚩</button>
             </div>
           </div>
         </div>
@@ -920,7 +923,7 @@ export default function Library() {
 
       {/* toast */}
       {toast && (
-        <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', zIndex: 90, padding: '11px 22px', borderRadius: 12, background: 'var(--t204)', border: '1px solid var(--t2)', color: 'var(--t68)', fontSize: 14, fontWeight: 600, boxShadow: '0 0 24px var(--t41)' }}>{toast}</div>
+        <div style={{ ...glass, position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', zIndex: 90, padding: '11px 22px', fontSize: 14, fontWeight: 600 }}>{toast}</div>
       )}
     </div>
   )

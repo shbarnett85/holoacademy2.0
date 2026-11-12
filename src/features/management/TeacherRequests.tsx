@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiJson } from '../../shared/lib/api'
 import ConfirmModal from '../superadmin/ConfirmModal'
+import { nameChip, panelWrong } from '../../styles/ui'
 
 export interface JoinRequest { id: string; name: string; email: string; emailVerified: boolean; schoolName: string; requestedAt: string | null }
 
@@ -37,29 +38,27 @@ export default function TeacherRequests({ onChanged }: { onChanged?: () => void 
   return (
     <div className="w-full flex flex-col gap-2">
       <h2 className="font-bold">בקשות הצטרפות ({reqs.length})</h2>
-      <p className="text-xs" style={{ opacity: 0.6 }}>
+      <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
         מורים שנרשמו לבית הספר. אשרו רק מי שאתם מכירים — אחרי האישור תהיה להם גישה לכיתות שתשייכו אליהם.
       </p>
-      {error && <p className="text-sm" style={{ color: 'var(--t18)' }}>⚠️ {error}</p>}
+      {error && <p className="text-sm" style={{ ...panelWrong, padding: '6px 12px' }}>⚠️ {error}</p>}
       {reqs.map((r) => (
-        <div key={r.id} className="holo-panel flex items-center justify-between gap-3" style={{ padding: '0.6rem 1rem' }}>
+        <div key={r.id} className="holo-panel holo-panel--staff flex items-center justify-between gap-3" style={{ padding: '0.6rem 1rem' }}>
           <div className="min-w-0">
-            <div className="font-bold">{r.name}{r.schoolName ? <span className="text-xs" style={{ opacity: 0.6 }}> · {r.schoolName}</span> : null}</div>
-            <div className="text-xs" dir="ltr" style={{ opacity: 0.7, textAlign: 'right' }}>{r.email || '—'}</div>
-            {!r.emailVerified && <div className="text-xs mt-1" style={{ color: 'var(--t18)' }}>⏳ המייל טרם אומת — אפשר לאשר רק אחרי שילחצו על קישור האימות</div>}
+            <div className="font-bold"><span className="rounded-full px-3 py-0.5" style={{ ...nameChip, display: 'inline-block' }}>{r.name}</span>{r.schoolName ? <span className="text-xs" style={{ color: 'var(--color-muted)', fontWeight: 400 }}> · {r.schoolName}</span> : null}</div>
+            <div className="text-xs mt-1" dir="ltr" style={{ color: 'var(--color-muted)', textAlign: 'right' }}>{r.email || '—'}</div>
+            {!r.emailVerified && <div className="text-xs mt-1" style={{ background: 'var(--color-human-tint)', color: 'var(--color-human-deep)', borderRadius: 8, padding: '3px 8px' }}>⏳ המייל טרם אומת — אפשר לאשר רק אחרי שילחצו על קישור האימות</div>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              className="text-sm cursor-pointer rounded-md px-2 py-1"
-              style={{ border: '1px solid var(--t297)', color: 'var(--t3)', background: 'transparent', opacity: !r.emailVerified || busyId === r.id ? 0.4 : 1 }}
+              className="holo-button holo-button--staff holo-button--sm text-sm"
               disabled={!r.emailVerified || busyId === r.id}
               onClick={() => decide(r, 'approve')}
             >
               אישור
             </button>
             <button
-              className="text-sm cursor-pointer rounded-md px-2 py-1"
-              style={{ border: '1px solid var(--t298)', color: 'var(--t18)', background: 'transparent', opacity: busyId === r.id ? 0.4 : 1 }}
+              className="holo-button holo-button--staff holo-button--sm text-sm"
               disabled={busyId === r.id}
               onClick={() => setRejecting(r)}
             >

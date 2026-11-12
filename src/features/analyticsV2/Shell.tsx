@@ -2,14 +2,14 @@
    + "איך חישבנו?" — כפתור אחד קבוע בשורת הכותרת, בכל מסך (שורות ההסבר המשותפות מ-HOW_WE_CALC; howExtra = שורות נוספות של המסך). */
 import type { ReactNode } from 'react'
 import { HOW_WE_CALC } from '../../shared/lib/findingsNarrative'
-import { GuestLensSwitcher, Icon, ScreenShell, T } from '../teacherUi'
+import { CHIP_LINE, GuestLensSwitcher, Icon, ScreenShell, T } from '../teacherUi'
 import type { BreadcrumbItem } from '../teacherUi'
 import { useV2Env } from './context'
 import { L } from './labels'
 
 export function DemoChip() {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 12px', borderRadius: 14, border: `1.5px solid ${T.accent}`, color: T.text }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 12px', borderRadius: 14, border: CHIP_LINE, background: T.surface, color: T.text }}>
       <span style={{ color: T.accent, display: 'inline-flex' }}><Icon name="info" size={16} /></span>
       {L.demoChip}
     </span>

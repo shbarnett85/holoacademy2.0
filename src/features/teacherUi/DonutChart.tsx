@@ -4,7 +4,8 @@
    · מקרא HTML גלוי תמיד: סימן הנתח, אייקון, מילה, "X מתוך Y" ואחוז רק בנוסף. נתח ריק: "אף אחד";
    · role="img" + aria-label עם הספירות במילים; המרכז (מספר + מילה) הוא HTML בגופן הרגיל;
    · מצב ריק (אין נתונים / אין מספיק) = EmptyState שאומר מה קורה ומה יקרה.
-   צבעים: טוקני הערכה בלבד, דרך style (אסור var() באטריביוט SVG). החישוב הטהור ב-donutMath.ts. */
+   צבעים: טוקני הערכה בלבד, דרך style (אסור var() באטריביוט SVG). החישוב הטהור ב-donutMath.ts.
+   הצבעים: התקדמות (כתום) · כותרת (סגול עמוק) · ממצא (חום-כתום) · משני (אפור) · שגוי (אדום, רק כשהמשמעות היא שגוי). קו המתאר של כל נתח בדיו. בלי תכלת. */
 import { useId } from 'react'
 import { DONUT_TEXT, donutLegendCount } from '../../shared/lib/findingsNarrative'
 import { arcPath, computeArcs, polar, roundPercents } from './donutMath'
@@ -13,7 +14,7 @@ import type { DonutTone, PatternKind } from './donutPattern'
 import EmptyState from './EmptyState'
 import { Icon } from './icons'
 import type { IconName } from './icons'
-import { FONT, T, TONE_META } from './tokens'
+import { FONT, T } from './tokens'
 
 export type { DonutTone, PatternKind }
 
@@ -46,7 +47,8 @@ export interface DonutChartProps {
   empty?: DonutEmpty | null
 }
 
-const toneColor = (tone: DonutTone): string => (tone === 'accent' ? T.accent : TONE_META[tone].color)
+const TONE_COLOR: Record<DonutTone, string> = { positive: T.progress, accent: T.accent, attention: T.warn, neutral: T.muted, error: T.bad }
+const toneColor = (tone: DonutTone): string => TONE_COLOR[tone]
 const PERIOD = 8
 
 function PatternDef({ id, kind, color }: { id: string; kind: PatternKind; color: string }) {
@@ -63,10 +65,10 @@ function PatternDef({ id, kind, color }: { id: string; kind: PatternKind; color:
 }
 
 /* סימן הנתח במקרא — אותה דוגמה ואותו צבע כמו הנתח עצמו */
-function Swatch({ fill, color }: { fill: string; color: string }) {
+function Swatch({ fill }: { fill: string }) {
   return (
     <svg aria-hidden="true" focusable="false" width={20} height={20} style={{ flexShrink: 0, display: 'block', marginTop: 1 }}>
-      <rect x={1.5} y={1.5} width={17} height={17} rx={4} style={{ fill, stroke: color, strokeWidth: 1.5 }} />
+      <rect x={1.5} y={1.5} width={17} height={17} rx={4} style={{ fill, stroke: T.controlBorder, strokeWidth: 1.5 }} />
     </svg>
   )
 }
@@ -103,7 +105,7 @@ export default function DonutChart({ ariaLabel, slices, total, centerNumber, cen
             const s = slices[a.index]
             return (
               <path key={s.key} data-donut-slice={s.key} d={arcPath(c, c, rOuter, rInner, a.startDeg, a.endDeg)}
-                style={{ fill: fillOf(s.tone), stroke: toneColor(s.tone), strokeWidth: 1.5, strokeLinejoin: 'round', fillRule: 'evenodd' }} />
+                style={{ fill: fillOf(s.tone), stroke: T.controlBorder, strokeWidth: 1.5, strokeLinejoin: 'round', fillRule: 'evenodd' }} />
             )
           })}
           {/* מפרידים בצבע הכרטיס בין נתחים סמוכים */}
@@ -122,10 +124,10 @@ export default function DonutChart({ ariaLabel, slices, total, centerNumber, cen
       <ul data-donut-legend style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 140px', minWidth: 0 }}>
         {slices.map((s, i) => (
           <li key={s.key} data-donut-row={s.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: FONT }}>
-            <Swatch fill={fillOf(s.tone)} color={toneColor(s.tone)} />
+            <Swatch fill={fillOf(s.tone)} />
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 16, fontWeight: 800, lineHeight: 1.3, color: T.text }}>
-                <span style={{ color: toneColor(s.tone), display: 'inline-flex', marginTop: 2 }}><Icon name={s.icon} size={18} strokeWidth={s.icon === 'check' ? 2.6 : 2} /></span>
+                <span style={{ color: T.text, display: 'inline-flex', marginTop: 2 }}><Icon name={s.icon} size={18} strokeWidth={s.icon === 'check' ? 2.6 : 2} /></span>
                 <span>{s.label}</span>
               </div>
               <div style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.4, color: T.textSoft }}>{donutLegendCount(s.count, total, pcts[i])}</div>

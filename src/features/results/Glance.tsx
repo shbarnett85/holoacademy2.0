@@ -7,7 +7,7 @@
 import type { ReactNode } from 'react'
 import { DONUT_TEXT, donutAriaLabel, donutBandsHelp } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView, CommonErrorRow, StudentChip } from '../../shared/types/resultsV1'
-import { DonutChart, FONT, Icon, MIN_TARGET, RADIUS, T } from '../teacherUi'
+import { BTN, DonutChart, FONT, Icon, MIN_TARGET, NESTED_LINE, RADIUS, T } from '../teacherUi'
 import type { DonutEmpty, DonutSlice } from '../teacherUi'
 import { byName } from './logic'
 import { card, panelTitle, secondaryButton } from './styles'
@@ -18,13 +18,16 @@ const bandsHelp = { margin: '6px 0 0', fontFamily: FONT, fontSize: 16, lineHeigh
 
 /* קוטר הטבעת: קטן מברירת המחדל כדי שהמקרא ישב לצד הגרף (ולא מתחתיו) ברוחב של מסך 1366, וייוותר מקום מתחת לסיכום המילולי */
 const DONUT_SIZE = 104
+/* התיבות כאן יושבות בתוך החלונית הראשית: בלי צל, קו דק. ממצא על תלמידים: רקע וטקסט של ממצא */
+const nested = { ...card, boxShadow: 'none', border: NESTED_LINE } as const
+const finding = { ...card, boxShadow: 'none', border: `1.5px solid ${T.findingText}`, background: T.findingFill, color: T.findingText } as const
 const COMPLETION_ID = 'glance-completion-title'
 const SUCCESS_ID = 'glance-success-title'
 
 function DonutCard({ id, name, title, children }: { id: string; name: string; title: string; children: ReactNode }) {
   return (
     <section aria-labelledby={id} data-donut-card={name}
-      style={{ ...card, flex: '1 1 300px', minWidth: 0, padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      style={{ ...nested, flex: '1 1 300px', minWidth: 0, padding: '8px 12px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <h3 id={id} style={panelTitle}>{title}</h3>
       {children}
     </section>
@@ -38,24 +41,24 @@ function AttentionList({ chips, onOpen }: { chips: StudentChip[]; onOpen: (id: s
   const shown = chips.slice(0, ATTENTION_SHOWN)
   const more = chips.length - shown.length
   return (
-    <section aria-labelledby="glance-attention" data-attention-list style={{ ...card, flex: '5 1 340px', minWidth: 0, padding: '6px 12px 8px', border: `1.5px solid ${T.warn}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <h3 id="glance-attention" style={{ ...panelTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <section aria-labelledby="glance-attention" data-attention-list style={{ ...finding, flex: '5 1 340px', minWidth: 0, padding: '6px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <h3 id="glance-attention" style={{ ...panelTitle, color: T.findingText, display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={20} /></span>
         {UI.attentionTitle}
       </h3>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {shown.map((s) => (
           <li key={s.id}>
-            <button type="button" data-tu-press data-attention-student={s.id} onClick={() => onOpen(s.id)} aria-label={`${s.name}: ${s.reasonText ?? ''}. ${UI.attentionOpen}`}
-              style={{ width: '100%', minHeight: MIN_TARGET, display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px', borderRadius: RADIUS.md, textAlign: 'start', cursor: 'pointer', fontFamily: FONT, fontSize: 16, color: T.text, background: T.surface, border: `1.5px solid ${T.controlBorder}` }}>
+            <button type="button" data-tu-press data-attention-student={s.id} className={BTN} onClick={() => onOpen(s.id)} aria-label={`${s.name}: ${s.reasonText ?? ''}. ${UI.attentionOpen}`}
+              style={{ width: '100%', minHeight: MIN_TARGET, display: 'flex', alignItems: 'center', gap: 10, padding: '4px 10px', borderRadius: RADIUS.md, textAlign: 'start', cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 400 }}>
               <strong style={{ flex: '0 0 auto' }}>{s.name}</strong>
-              <span style={{ flex: 1, minWidth: 0, color: T.textSoft, lineHeight: 1.4 }}>{s.reasonText}</span>
+              <span style={{ flex: 1, minWidth: 0, lineHeight: 1.4 }}>{s.reasonText}</span>
               <Icon name="chevLeft" size={18} />
             </button>
           </li>
         ))}
       </ul>
-      {more > 0 && <p data-attention-more style={{ margin: 0, fontFamily: FONT, fontSize: 16, color: T.textSoft, lineHeight: 1.4 }}>{UI.attentionMore(more)}</p>}
+      {more > 0 && <p data-attention-more style={{ margin: 0, fontFamily: FONT, fontSize: 16, color: T.findingText, lineHeight: 1.4 }}>{UI.attentionMore(more)}</p>}
     </section>
   )
 }
@@ -63,14 +66,14 @@ function AttentionList({ chips, onOpen }: { chips: StudentChip[]; onOpen: (id: s
 /* הטעות הנפוצה ביותר + הפעולה המרכזית: שאלה לדיון בכיתה (שיעור ממוקד ועוד — בטאב "מה עושים עם זה" שלידו). עומדת ליד "מי צריך תשומת לב" באותה שורה */
 function TopMistake({ e, onDiscuss }: { e: CommonErrorRow; onDiscuss: (errorId: string) => void }) {
   return (
-    <section aria-labelledby="glance-mistake" data-glance-mistake style={{ ...card, flex: '3 1 230px', minWidth: 0, padding: '6px 12px 8px', border: `1.5px solid ${T.warn}`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <h3 id="glance-mistake" style={{ ...panelTitle, display: 'flex', alignItems: 'center', gap: 8 }}>
+    <section aria-labelledby="glance-mistake" data-glance-mistake style={{ ...finding, flex: '3 1 230px', minWidth: 0, padding: '6px 12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <h3 id="glance-mistake" style={{ ...panelTitle, color: T.findingText, display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={20} /></span>
         {UI.glanceMistakeLabel}
       </h3>
-      <p style={{ margin: 0, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>{e.sentence ?? e.title}</p>
+      <p style={{ margin: 0, fontFamily: FONT, fontSize: 16, color: T.findingText, lineHeight: 1.4 }}>{e.sentence ?? e.title}</p>
       <div>
-        <button type="button" data-tu-press data-discuss style={secondaryButton} onClick={() => onDiscuss(e.id)}>{UI.discussionButton}</button>
+        <button type="button" data-tu-press data-discuss className={BTN} style={secondaryButton} onClick={() => onDiscuss(e.id)}>{UI.discussionButton}</button>
       </div>
     </section>
   )

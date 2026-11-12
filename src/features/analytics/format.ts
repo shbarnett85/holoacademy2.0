@@ -16,14 +16,14 @@ export function duration(ms: number | null | undefined): string {
 
 /* דגלי תלמיד → אמוג׳י + תווית + צבע */
 export const FLAG_META: Record<string, { icon: string; label: string; color: string }> = {
-  excelled: { icon: '⭐', label: 'הצטיין', color: 'var(--t3)' },
-  struggling: { icon: '🔴', label: 'מתקשה', color: 'var(--t5)' },
-  skip_suspect: { icon: '⚡', label: 'חשד לדילוג', color: 'var(--t4)' },
-  slow: { icon: '🐢', label: 'איטי מאוד', color: 'var(--t79)' },
+  excelled: { icon: '⭐', label: 'הצטיין', color: 'var(--color-correct)' },
+  struggling: { icon: '🔴', label: 'מתקשה', color: 'var(--color-wrong)' },
+  skip_suspect: { icon: '⚡', label: 'חשד לדילוג', color: 'var(--color-human-deep)' },
+  slow: { icon: '🐢', label: 'איטי מאוד', color: 'var(--color-machine-deep)' },
 }
 
 export const STATUS_META: Record<string, { label: string; color: string }> = {
-  completed: { label: 'סיים', color: 'var(--t3)' },
-  in_progress: { label: 'באמצע', color: 'var(--t4)' },
-  not_started: { label: 'לא התחיל', color: 'var(--t80)' },
+  completed: { label: 'סיים', color: 'var(--color-correct)' },
+  in_progress: { label: 'באמצע', color: 'var(--color-human-deep)' },
+  not_started: { label: 'לא התחיל', color: 'var(--color-muted)' },
 }

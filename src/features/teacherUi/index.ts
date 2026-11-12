@@ -32,6 +32,7 @@ export { buildTimeAxis, sharedAxisRange, MIN_AXIS_MONTHS } from './timeAxis'
 export type { TimeAxis, MonthTick, TimeAxisOptions, AxisRangeOptions } from './timeAxis'
 export { MIN_TARGET, BODY, SMALL, SENTENCE, H1, RADIUS, SPACE, GUTTER, PAGE_BOTTOM, CONTENT_MAX_WIDTH, T, TONE_META, FONT } from './tokens'
 export type { Tone } from './tokens'
+export { BTN, BTN_SM, btnClass, CHIP_LINE, FILL, findingInline, NESTED_LINE, TONE_FILL } from './fills'
 /* מורה אורח: בורר העדשה המשותף + המאגר שלו (sessionStorage holo_guest_lens) + עזרי כתובת/API.
    guestLensParams() → { lens, subject? } לצירוף לקריאות API (ריק לכל משתמש שאינו אורח);
    withGuestLens(path) מצרף אותם לנתיב; useGuestLens() — הערך השמור עם רינדור מחדש בכל החלפה. */

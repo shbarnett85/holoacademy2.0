@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { DISCUSSION_PROMPT } from '../../shared/lib/findingsNarrative'
 import type { ClassSubmissionView } from '../../shared/types/resultsV1'
-import { FONT, Icon, MIN_TARGET, RADIUS, T } from '../teacherUi'
+import { BTN, FONT, Icon, MIN_TARGET, RADIUS, T } from '../teacherUi'
 import { useLens, useResultsData } from './resultsApi'
 import { secondaryButton } from './styles'
 import { UI } from './text'
@@ -36,9 +36,9 @@ export default function Discussion({ submissionId }: { submissionId: string }) {
   const label = { margin: '0 0 6px', fontFamily: FONT, fontSize: 24, fontWeight: 700, color: T.textSoft } as const
   return (
     <div dir="rtl" data-discussion role="dialog" aria-label={UI.discussionButton}
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', boxSizing: 'border-box', padding: '20px 56px 40px', display: 'flex', flexDirection: 'column', background: T.studioBg, color: T.text, fontFamily: FONT }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, overflowY: 'auto', boxSizing: 'border-box', padding: '20px 56px 40px', display: 'flex', flexDirection: 'column', background: T.surface, color: T.text, fontFamily: FONT }}>
       <div style={{ flex: '0 0 auto' }}>
-        <Link to={back} data-tu-press data-discuss-close style={{ ...secondaryButton, minHeight: MIN_TARGET + 8, fontSize: 20, textDecoration: 'none' }}>
+        <Link to={back} data-tu-press data-discuss-close className={BTN} style={{ ...secondaryButton, minHeight: MIN_TARGET + 8, fontSize: 20, textDecoration: 'none' }}>
           <Icon name="chevLeft" size={22} />
           {UI.discussClose}
         </Link>
@@ -58,7 +58,7 @@ export default function Discussion({ submissionId }: { submissionId: string }) {
             </section>
             <section>
               <p style={label}>{UI.discussCommonLabel}</p>
-              <div data-discuss-answer style={{ display: 'inline-block', maxWidth: '100%', padding: '14px 28px', borderRadius: RADIUS.lg, border: `3px solid ${T.warn}`, background: T.surface, fontSize: 48, fontWeight: 800, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+              <div data-discuss-answer style={{ display: 'inline-block', maxWidth: '100%', padding: '14px 28px', borderRadius: RADIUS.lg, border: `3px solid ${T.controlBorder}`, boxShadow: T.shadow, background: T.findingFill, color: T.findingText, fontSize: 48, fontWeight: 800, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
                 ״{err.wrongText}״
               </div>
               <p style={{ margin: '10px 0 0', fontSize: 26, color: T.textSoft }}>{UI.discussCount(count)}</p>

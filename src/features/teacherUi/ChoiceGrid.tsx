@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from './icons'
+import { BTN, CHIP_LINE, TONE_FILL } from './fills'
 import { FONT, RADIUS, T, TONE_META } from './tokens'
 import type { Tone } from './tokens'
 
@@ -37,11 +38,11 @@ const BADGE_ICON = { positive: 'check', attention: 'alert', error: 'alert', neut
 export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, onClick, flat, actionLabel, meta }: BigChoiceButtonProps) {
   const style = {
     display: 'flex', flexDirection: 'column' as const, justifyContent: 'center', alignItems: 'flex-start', gap: 6, minHeight: flat ? 64 : 88, padding: flat ? '14px 16px' : '14px 18px',
-    borderRadius: RADIUS.lg, fontFamily: FONT, textAlign: 'start' as const, textDecoration: 'none', cursor: 'pointer', color: T.text,
-    background: flat ? 'transparent' : selected ? T.accentFill : T.surface, border: flat ? 'none' : `2px solid ${selected ? T.accent : T.controlBorder}`,
-    boxShadow: selected && !flat ? `inset 0 -5px 0 ${T.accent}` : 'none',
-    ...(flat ? { width: '100%', boxSizing: 'border-box' as const, borderRadius: `${RADIUS.lg - 2}px ${RADIUS.lg - 2}px 0 0` } : null),
+    borderRadius: RADIUS.lg, fontFamily: FONT, textAlign: 'start' as const, textDecoration: 'none', cursor: 'pointer',
+    /* flat: קישור ניווט בתוך כרטיס עוטף (טקסט בדיו, בלי רקע). אחרת: כפתור בחירה — הצבע, הקו והצל מהמחלקה holo-button */
+    ...(flat ? { color: T.text, background: 'transparent', border: 'none', width: '100%', boxSizing: 'border-box' as const, borderRadius: `${RADIUS.lg - 2}px ${RADIUS.lg - 2}px 0 0` } : null),
   }
+  const cls = flat ? undefined : selected ? `${BTN} is-selected` : BTN
   const inner = (
     <>
       <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 16, rowGap: 2, width: '100%', fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>
@@ -50,13 +51,13 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
           {label}
         </span>
         {actionLabel && (
-          <span data-choice-action style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
+          <span data-choice-action style={{ marginInlineStart: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 16, fontWeight: 800, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
             {actionLabel}<Icon name="chevLeft" size={16} />
           </span>
         )}
       </span>
       {(sublabel || meta) && (
-        <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 12, rowGap: 2, fontSize: 16, fontWeight: 500, color: T.textSoft }}>
+        <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 12, rowGap: 2, fontSize: 16, fontWeight: 500 }}>
           {sublabel && <span>{sublabel}</span>}
           {meta}
         </span>
@@ -64,7 +65,7 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
       {badge && (() => {
         const tone = badge.tone ?? 'attention'
         return (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: `1.5px solid ${TONE_META[tone].color}`, whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, padding: '2px 10px', borderRadius: 14, border: CHIP_LINE, background: TONE_FILL[tone], color: tone === 'attention' ? T.findingText : T.text, whiteSpace: 'nowrap' }}>
             <span style={{ color: TONE_META[tone].color, display: 'inline-flex' }}><Icon name={BADGE_ICON[tone]} size={16} /></span>
             {badge.text}
           </span>
@@ -73,9 +74,9 @@ export function BigChoiceButton({ label, sublabel, badge, icon, selected, to, on
     </>
   )
   if (to && !onClick) {
-    return <Link to={to} data-tu-press aria-current={selected ? 'true' : undefined} style={style}>{inner}</Link>
+    return <Link to={to} data-tu-press className={cls} aria-current={selected ? 'true' : undefined} style={style}>{inner}</Link>
   }
-  return <button type="button" data-tu-press aria-pressed={selected} onClick={onClick} style={style}>{inner}</button>
+  return <button type="button" data-tu-press className={cls} aria-pressed={selected} onClick={onClick} style={style}>{inner}</button>
 }
 
 interface ChoiceGridProps {

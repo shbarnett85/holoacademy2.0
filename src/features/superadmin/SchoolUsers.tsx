@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiJson, apiFetch } from '../../shared/lib/api'
+import { fieldStyle, infoChip, nameChip, panelWrong } from '../../styles/ui'
 import ConfirmModal from './ConfirmModal'
 
 interface AdminUser {
@@ -14,10 +15,8 @@ interface AdminUser {
 
 const ROLE_LABEL: Record<string, string> = { teacher: 'מורה', admin: 'מנהל', super_admin: 'מנהל-על', student: 'תלמיד' }
 
-const inputStyle: React.CSSProperties = {
-  background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(0,246,255,0.3)',
-  borderRadius: '0.5rem', color: 'var(--holo-text)', padding: '0.5rem 0.7rem',
-}
+const inputStyle: React.CSSProperties = { ...fieldStyle, padding: '0.5rem 0.7rem' }
+const rowBtn = 'holo-button holo-button--staff holo-button--sm text-sm'
 
 /* ניהול משתמשים של בית ספר — טבלה, סטטוס, השבתה/הפעלה, הוספה */
 export default function SchoolUsers({ schoolId, schoolName, onBack }: { schoolId: string; schoolName: string; onBack: () => void }) {
@@ -78,57 +77,57 @@ export default function SchoolUsers({ schoolId, schoolName, onBack }: { schoolId
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-4">
-        <button className="text-sm cursor-pointer" style={{ color: 'var(--holo-cyan)' }} onClick={onBack}>← בתי הספר</button>
+        <button className="holo-link text-sm" onClick={onBack}>← בתי הספר</button>
         <h2 className="holo-text-glow text-xl font-bold">משתמשי {schoolName}</h2>
-        <button className="holo-button text-sm" onClick={() => setAdding((v) => !v)}>+ משתמש</button>
+        <button className="holo-button holo-button--staff text-sm" onClick={() => setAdding((v) => !v)}>+ משתמש</button>
       </div>
 
-      {error && <p className="text-sm mb-3" style={{ color: '#ff9bb3' }}>⚠️ {error}</p>}
+      {error && <p className="text-sm mb-3" style={{ ...panelWrong, padding: '6px 12px' }}>⚠️ {error}</p>}
 
       {adding && (
-        <div className="holo-panel w-full mb-4 flex flex-col gap-2">
+        <div className="holo-panel holo-panel--staff w-full mb-4 flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2">
             <input placeholder="שם" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} />
             <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as 'teacher' | 'admin' })} style={{ ...inputStyle, cursor: 'pointer' }}>
-              <option value="teacher" style={{ background: 'var(--holo-bg)' }}>מורה</option>
-              <option value="admin" style={{ background: 'var(--holo-bg)' }}>מנהל</option>
+              <option value="teacher">מורה</option>
+              <option value="admin">מנהל</option>
             </select>
             <input dir="ltr" placeholder="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={inputStyle} />
             <input dir="ltr" type="password" placeholder="סיסמה (6+)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={inputStyle} />
           </div>
-          <button className="holo-button" style={{ opacity: busy ? 0.5 : 1 }} disabled={busy} onClick={addUser}>{busy ? 'יוצר…' : 'צור משתמש'}</button>
+          <button className="holo-button holo-button--staff" disabled={busy} onClick={addUser}>{busy ? 'יוצר…' : 'צור משתמש'}</button>
         </div>
       )}
 
       {!users ? (
-        <p style={{ opacity: 0.6 }}>טוען…</p>
+        <p style={{ color: 'var(--color-muted)' }}>טוען…</p>
       ) : users.length === 0 ? (
-        <p style={{ opacity: 0.6 }}>אין משתמשים בבית ספר זה.</p>
+        <p style={{ color: 'var(--color-muted)' }}>אין משתמשים בבית ספר זה.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {users.map((u) => (
-            <div key={u.id} className="holo-panel flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: u.is_active || u.approval_status === 'pending' ? 1 : 0.45 }}>
+            <div key={u.id} className="holo-panel holo-panel--staff flex items-center justify-between" style={{ padding: '0.7rem 1rem', opacity: u.is_active || u.approval_status === 'pending' ? 1 : 0.45 }}>
               <div className="flex items-center gap-3">
-                <span className="font-bold">{u.name}</span>
-                <span className="text-xs rounded-full px-2 py-0.5" style={{ background: 'rgba(0,136,255,0.2)', border: '1px solid rgba(0,136,255,0.4)' }}>{ROLE_LABEL[u.role] ?? u.role}</span>
+                <span className="font-bold rounded-full px-3 py-0.5" style={nameChip}>{u.name}</span>
+                <span className="text-xs rounded-full px-2 py-0.5" style={infoChip}>{ROLE_LABEL[u.role] ?? u.role}</span>
                 <span
                   className="text-xs rounded-full px-2 py-0.5"
-                  style={u.is_active
-                    ? { background: 'rgba(0,255,150,0.15)', border: '1px solid rgba(0,255,150,0.5)', color: '#5fffb0' }
-                    : { background: 'rgba(255,120,150,0.12)', border: '1px solid rgba(255,120,150,0.5)', color: '#ff9bb3' }}
+                  style={u.approval_status === 'pending'
+                    ? { ...infoChip, background: 'var(--color-human-tint)', color: 'var(--color-human-deep)' }
+                    : u.is_active ? infoChip : { ...infoChip, background: 'var(--color-ink-wash)' }}
                 >
                   {u.approval_status === 'pending' ? '⏳ ממתין לאישור' : u.is_active ? '● פעיל' : '○ מושבת'}
                 </span>
               </div>
               {u.approval_status === 'pending' ? (
                 <div className="flex gap-2">
-                  <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,255,150,0.4)', color: '#5fffb0', background: 'transparent' }} onClick={() => decide(u, 'approve')}>אישור</button>
-                  <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3', background: 'transparent' }} onClick={() => decide(u, 'reject')}>דחייה</button>
+                  <button className={rowBtn} onClick={() => decide(u, 'approve')}>אישור</button>
+                  <button className={rowBtn} onClick={() => decide(u, 'reject')}>דחייה</button>
                 </div>
               ) : u.is_active ? (
-                <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(255,120,150,0.4)', color: '#ff9bb3', background: 'transparent' }} onClick={() => setConfirm({ user: u })}>השבתה</button>
+                <button className={rowBtn} onClick={() => setConfirm({ user: u })}>השבתה</button>
               ) : (
-                <button className="text-sm cursor-pointer rounded-md px-2 py-1" style={{ border: '1px solid rgba(0,255,150,0.4)', color: '#5fffb0', background: 'transparent' }} onClick={() => setActive(u, true)}>הפעלה</button>
+                <button className={rowBtn} onClick={() => setActive(u, true)}>הפעלה</button>
               )}
             </div>
           ))}

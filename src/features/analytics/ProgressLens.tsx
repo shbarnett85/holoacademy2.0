@@ -6,6 +6,7 @@ import { useIsMobile } from '../../shared/lib/useIsMobile'
 import { HoloSelect } from './index'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { PROFILE_PUZZLE_TYPES } from '../../shared/lib/difficultyCalibration'
+import { fieldStyle, panelWrong } from '../../styles/ui'
 
 /* עדשת "התקדמות" — סדרת-זמן מ-progress_snapshots. גרף קווי רב-סדרתי
    (צבע + דאש + סמן — לא צבע-בלבד), בורר מטריקה, טוגל טווח, צ'יפים של ישויות,
@@ -17,7 +18,8 @@ interface TrendsResp { labels: string[]; series: Series[]; notReady?: boolean }
 interface StudentOpt { studentId: string; name: string; className: string }
 interface ClassOpt { id: string; gradeLabel: string }
 
-const COLORS = ['var(--t15)', 'var(--t34)', 'var(--t3)', 'var(--t4)', 'var(--t54)', 'var(--t5)']
+/* צבעי הסדרות. הסדרות נבדלות גם בדפוס הקו (DASHES) ובצורת הסמן, לא בצבע לבד */
+const COLORS = ['var(--color-ink)', 'var(--color-machine-deep)', 'var(--color-human-deep)', 'var(--color-muted)', 'var(--color-correct)']
 const DASHES = ['', '7 4', '2 4', '9 3 2 3', '4 4', '1 5']
 
 const METRICS: { v: Metric; label: string }[] = [
@@ -36,10 +38,12 @@ const RANGES: { v: Range; label: string }[] = [
 /* סמן לכל סדרה — צורה שונה (לא צבע-בלבד) */
 function Marker({ shape, cx, cy, color }: { shape: number; cx: number; cy: number; color: string }) {
   const s = 4
-  if (shape % 4 === 1) return <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  if (shape % 4 === 2) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy + s} ${cx - s - 1},${cy + s}`} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  if (shape % 4 === 3) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy} ${cx},${cy + s + 1} ${cx - s - 1},${cy}`} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
-  return <circle cx={cx} cy={cy} r={s} style={{ fill: 'var(--t61)' }} stroke={color} strokeWidth="1.6" />
+  /* הצבע ב-style ולא באטריביוט: var() לא עובד באטריביוט של SVG */
+  const st = { fill: 'var(--color-surface)', stroke: color }
+  if (shape % 4 === 1) return <rect x={cx - s} y={cy - s} width={s * 2} height={s * 2} style={st} strokeWidth="1.6" />
+  if (shape % 4 === 2) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy + s} ${cx - s - 1},${cy + s}`} style={st} strokeWidth="1.6" />
+  if (shape % 4 === 3) return <polygon points={`${cx},${cy - s - 1} ${cx + s + 1},${cy} ${cx},${cy + s + 1} ${cx - s - 1},${cy}`} style={st} strokeWidth="1.6" />
+  return <circle cx={cx} cy={cy} r={s} style={st} strokeWidth="1.6" />
 }
 
 function LineChart({ labels, series, metric, isMobile }: { labels: string[]; series: Series[]; metric: Metric; isMobile: boolean }) {
@@ -70,13 +74,13 @@ function LineChart({ labels, series, metric, isMobile }: { labels: string[]; ser
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', direction: 'ltr' }}>
       {gridY.map((gv, i) => (
         <g key={i}>
-          <line x1={padL} y1={y(gv)} x2={W - padR} y2={y(gv)} style={{ stroke: 'var(--t62)' }} />
-          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" style={{ fill: 'var(--t63)' }} fontSize={fsY} fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
+          <line x1={padL} y1={y(gv)} x2={W - padR} y2={y(gv)} style={{ stroke: 'var(--color-line)' }} />
+          <text x={padL - 6} y={y(gv) + 3} textAnchor="end" style={{ fill: 'var(--color-muted)' }} fontSize={fsY} fontFamily="'Space Mono',monospace">{fmtY(gv)}</text>
         </g>
       ))}
       {labels.map((lb, i) => (
         (i % xStride === 0 || i === labels.length - 1) &&
-        <text key={i} x={x(i)} y={H - 12} textAnchor="middle" style={{ fill: 'var(--t64)' }} fontSize={fsX} fontFamily="Rubik">{lb}</text>
+        <text key={i} x={x(i)} y={H - 12} textAnchor="middle" style={{ fill: 'var(--color-muted)' }} fontSize={fsX} fontFamily="Rubik">{lb}</text>
       ))}
       {series.map((s, si) => {
         const color = COLORS[si % COLORS.length]
@@ -91,7 +95,7 @@ function LineChart({ labels, series, metric, isMobile }: { labels: string[]; ser
         if (cur.length > 1) segs.push(cur.join(' '))
         return (
           <g key={s.id}>
-            {segs.map((d, k) => <path key={k} d={d} fill="none" stroke={color} strokeWidth={s.kind === 'class' ? 3 : 2.2} strokeDasharray={dash || undefined} strokeLinejoin="round" opacity={s.kind === 'class' ? 0.85 : 1} />)}
+            {segs.map((d, k) => <path key={k} d={d} fill="none" style={{ stroke: color }} strokeWidth={s.kind === 'class' ? 3 : 2.2} strokeDasharray={dash || undefined} strokeLinejoin="round" opacity={s.kind === 'class' ? 0.85 : 1} />)}
             {s.points.map((p, i) => p != null ? <Marker key={i} shape={si} cx={x(i)} cy={y(p)} color={color} /> : null)}
           </g>
         )
@@ -138,20 +142,23 @@ export default function ProgressLens() {
   const toggle = (id: string) => setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id])
   const selectedStudents = useMemo(() => students.filter((s) => selected.includes(s.studentId)), [students, selected])
 
-  const pill = (on: boolean): React.CSSProperties => ({ fontSize: 12.5, fontWeight: 700, padding: '7px 16px', borderRadius: 9, cursor: 'pointer', color: on ? 'var(--t-on-accent)' : 'var(--t27)', background: on ? 'linear-gradient(135deg,var(--t66),var(--t15))' : 'var(--t25)', border: on ? '1px solid var(--t28)' : '1px solid var(--t67)', transition: 'all .15s' })
+  /* כפתור בחירה: המחלקה holo-button נותנת את הצבעים; נבחר = is-selected */
+  const pill: React.CSSProperties = { fontSize: 12.5, fontWeight: 700, padding: '7px 16px' }
+  const pillClass = (on: boolean) => `holo-button holo-button--staff holo-button--sm${on ? ' is-selected' : ''}`
+  const dateField: React.CSSProperties = { ...fieldStyle, borderRadius: 8, fontSize: 12, padding: '5px 9px', fontFamily: 'var(--font-display)', colorScheme: 'light' }
 
   const hasData = data && data.series.some((s) => s.points.some((p) => p != null))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0 }}>
-      {error && <p style={{ color: 'var(--t18)', fontSize: 14 }}>⚠️ {error}</p>}
-      {aggregateOnly && <p style={{ ...micro, fontSize: 11, color: 'var(--t22)' }}>תצוגה מצרפית: מוצגים קווי כיתות בלבד (מ-5 תלמידים ומעלה). נתוני תלמיד בודד אינם מוצגים לתפקיד זה.</p>}
+      {error && <p style={{ ...panelWrong, margin: 0, padding: '8px 14px', fontSize: 14 }}>⚠️ {error}</p>}
+      {aggregateOnly && <p style={{ ...micro, fontSize: 11, color: 'var(--color-muted)' }}>תצוגה מצרפית: מוצגים קווי כיתות בלבד (מ-5 תלמידים ומעלה). נתוני תלמיד בודד אינם מוצגים לתפקיד זה.</p>}
 
       {/* בקרות: מטריקה (כללית / פר-סוג-אתגר) + טווח (שנה/מחצית/חודש/מותאם) */}
       <div style={{ ...glass, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', flex: '0 0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ ...micro, fontSize: 9 }}>מדד</span>
-          {METRICS.map((m) => <button key={m.v} onClick={() => setMetric(m.v)} style={pill(metric === m.v)}>{m.label}</button>)}
+          {METRICS.map((m) => <button key={m.v} className={pillClass(metric === m.v)} onClick={() => setMetric(m.v)} style={pill}>{m.label}</button>)}
           {/* מדדי סוגי האתגרים — רמת כל סוג (1-10) לאורך זמן */}
           <HoloSelect
             value={metric.startsWith('puzzle:') ? metric : ''}
@@ -162,14 +169,14 @@ export default function ProgressLens() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ ...micro, fontSize: 9 }}>טווח</span>
-          {RANGES.map((r) => <button key={r.v} onClick={() => setRange(r.v)} style={pill(range === r.v)}>{r.label}</button>)}
+          {RANGES.map((r) => <button key={r.v} className={pillClass(range === r.v)} onClick={() => setRange(r.v)} style={pill}>{r.label}</button>)}
           {range === 'custom' && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-                style={{ background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 8, color: 'var(--t68)', fontSize: 12, padding: '6px 9px', fontFamily: 'var(--font-display)', colorScheme: 'dark' }} />
-              <span style={{ fontSize: 11, color: 'var(--t6)' }}>עד</span>
+                style={dateField} />
+              <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>עד</span>
               <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
-                style={{ background: 'var(--t25)', border: '1px solid var(--t33)', borderRadius: 8, color: 'var(--t68)', fontSize: 12, padding: '6px 9px', fontFamily: 'var(--font-display)', colorScheme: 'dark' }} />
+                style={dateField} />
             </span>
           )}
         </div>
@@ -181,10 +188,11 @@ export default function ProgressLens() {
           const on = selected.includes(s.studentId)
           const ci = selected.indexOf(s.studentId)
           return (
-            <button key={s.studentId} onClick={() => toggle(s.studentId)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', color: on ? 'var(--t68)' : 'var(--t6)', background: on ? 'var(--t69)' : 'var(--t70)', border: `1px solid ${on ? COLORS[ci % COLORS.length] : 'var(--t67)'}` }}>
-              {on && <span style={{ width: 9, height: 9, borderRadius: 2, background: COLORS[ci % COLORS.length], boxShadow: `0 0 5px ${COLORS[ci % COLORS.length]}` }} />}
-              {s.name}<span style={{ opacity: .5, fontSize: 10 }}>· {s.className}</span>
+            <button key={s.studentId} className={pillClass(on)} onClick={() => toggle(s.studentId)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 20 }}>
+              {/* ריבוע בצבע הסדרה בגרף; קו לבן סביבו כדי שייראה על כפתור נבחר (רקע דיו) */}
+              {on && <span style={{ width: 11, height: 11, borderRadius: 2, background: COLORS[ci % COLORS.length], border: '1.5px solid var(--color-surface)' }} />}
+              {s.name}<span style={{ fontWeight: 400, fontSize: 10 }}>· {s.className}</span>
             </button>
           )
         })}
@@ -192,8 +200,9 @@ export default function ProgressLens() {
           const on = selected.includes(c.id)
           const ci = selected.indexOf(c.id)
           return (
-            <button key={c.id} onClick={() => toggle(c.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', color: on ? 'var(--t68)' : 'var(--t6)', background: on ? 'var(--t71)' : 'var(--t70)', border: `1px solid ${on ? COLORS[ci % COLORS.length] : 'var(--t72)'}` }}>
+            <button key={c.id} className={pillClass(on)} onClick={() => toggle(c.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 20 }}>
+              {on && <span style={{ width: 11, height: 11, borderRadius: 2, background: COLORS[ci % COLORS.length], border: '1.5px solid var(--color-surface)' }} />}
               📊 ממוצע {c.gradeLabel}
             </button>
           )
@@ -202,18 +211,18 @@ export default function ProgressLens() {
 
       {/* הגרף */}
       <div style={{ ...glass, padding: 20, flex: '0 0 auto' }}>
-        {range === 'custom' && (!fromDate || !toDate) && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 12, fontSize: 11 }}>בחרו תאריך התחלה וסיום להצגת הטווח המותאם.</p>}
-        {!data && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30 }}>טוען…</p>}
-        {data?.notReady && <p style={{ ...micro, color: 'var(--t39)', textAlign: 'center', padding: 30, fontSize: 11 }}>טבלת ההתקדמות (progress_snapshots) עדיין לא הוקמה — הרץ את המיגרציה ואת ה-seed.</p>}
-        {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--t22)', textAlign: 'center', padding: 30, fontSize: 11 }}>{aggregateOnly ? 'אין עדיין מספיק נתונים — נדרשים לפחות 5 תלמידים בכיתה.' : 'אין עדיין נתוני התקדמות לישויות שנבחרו.'}</p>}
+        {range === 'custom' && (!fromDate || !toDate) && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 12, fontSize: 11 }}>בחרו תאריך התחלה וסיום להצגת הטווח המותאם.</p>}
+        {!data && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 30 }}>טוען…</p>}
+        {data?.notReady && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 30, fontSize: 11 }}>טבלת ההתקדמות (progress_snapshots) עדיין לא הוקמה — הרץ את המיגרציה ואת ה-seed.</p>}
+        {data && !data.notReady && !hasData && <p style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: 30, fontSize: 11 }}>{aggregateOnly ? 'אין עדיין מספיק נתונים — נדרשים לפחות 5 תלמידים בכיתה.' : 'אין עדיין נתוני התקדמות לישויות שנבחרו.'}</p>}
         {hasData && <LineChart labels={data!.labels} series={data!.series} metric={metric} isMobile={isMobile} />}
         {/* מקרא */}
         {hasData && (
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, justifyContent: 'center' }}>
             {data!.series.map((s, si) => (
               <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <svg width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke={COLORS[si % COLORS.length]} strokeWidth="2.4" strokeDasharray={DASHES[si % DASHES.length] || undefined} /><g transform="translate(13,6)"><Marker shape={si} cx={0} cy={0} color={COLORS[si % COLORS.length]} /></g></svg>
-                <span style={{ fontSize: 11.5, color: 'var(--t12)' }}>{s.name}</span>
+                <svg width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" style={{ stroke: COLORS[si % COLORS.length] }} strokeWidth="2.4" strokeDasharray={DASHES[si % DASHES.length] || undefined} /><g transform="translate(13,6)"><Marker shape={si} cx={0} cy={0} color={COLORS[si % COLORS.length]} /></g></svg>
+                <span style={{ fontSize: 11.5, color: 'var(--color-ink)' }}>{s.name}</span>
               </div>
             ))}
           </div>
@@ -225,7 +234,7 @@ export default function ProgressLens() {
         <div style={{ ...glass, padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: '0 0 auto' }}>
           <span style={{ ...micro, fontSize: 9 }}>פירוט תלמיד</span>
           {selectedStudents.map((s) => (
-            <button key={s.studentId} onClick={() => setDrillId(s.studentId)} style={{ fontSize: 12, fontWeight: 600, padding: '6px 13px', borderRadius: 9, cursor: 'pointer', color: 'var(--t1)', background: 'var(--t40)', border: '1px solid var(--t21)' }}>{s.name} ←</button>
+            <button key={s.studentId} className={pillClass(false)} onClick={() => setDrillId(s.studentId)} style={{ fontSize: 12, fontWeight: 600, padding: '6px 13px' }}>{s.name} ←</button>
           ))}
         </div>
       )}

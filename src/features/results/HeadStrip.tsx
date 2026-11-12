@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { LESSON_DUE_TEXT, dateHe } from '../../shared/lib/findingsNarrative'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import type { SubmissionHead } from '../../shared/types/resultsV1'
-import { FONT, Icon, ModeToggle, ProgressBar, SubjectBadge, T } from '../teacherUi'
+import { BTN, FONT, Icon, ModeToggle, ProgressBar, SubjectBadge, T } from '../teacherUi'
 import { card, primaryButton, soft } from './styles'
 import { UI } from './text'
 import Thumb from './Thumb'
@@ -27,7 +27,7 @@ export default function HeadStrip({ head, mode, onMode, onDueChanged, liveTo }: 
   /* מורה אורח (הדגמה) לא משנה מועדים — השרת חוסם, והכפתור לא מוצג */
   const { isGuest } = useStaffAuth()
   return (
-    <section aria-label={UI.headLabel} data-head-strip style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px 20px', flexWrap: 'wrap', padding: '6px 14px' }}>
+    <section aria-label={UI.headLabel} data-head-strip style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px 20px', flexWrap: 'wrap', padding: '5px 13px' }}>
       {/* תמונה קטנה: שם המקצוע כתוב לידה (SubjectBadge), ולכן בלי תגית נוספת על התמונה */}
       <Thumb url={head.thumbUrl} subjectCode={head.subject?.code ?? null} width={72} height={48} tag="none" />
       {/* שם ההדמיה והפרטים בשורה אחת (גולשים לשנייה רק כשהשם ארוך) */}
@@ -40,7 +40,7 @@ export default function HeadStrip({ head, mode, onMode, onDueChanged, liveTo }: 
         {head.dueAt !== undefined && <DueLine dueAt={head.dueAt} state={head.state} />}
         {!isGuest && head.dueAt !== undefined && onDueChanged && <DueEditor submissionId={head.id} dueAt={head.dueAt} onChanged={onDueChanged} />}
         {head.state === 'active_now' && liveTo && (
-          <Link to={liveTo} data-tu-press data-live-link style={{ ...primaryButton, textDecoration: 'none' }}>
+          <Link to={liveTo} data-tu-press data-live-link className={BTN} style={{ ...primaryButton, textDecoration: 'none' }}>
             <Icon name="pulse" size={18} />
             {UI.openLive}
           </Link>

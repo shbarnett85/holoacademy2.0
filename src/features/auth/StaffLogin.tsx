@@ -4,6 +4,7 @@ import { apiJson, ApiError } from '../../shared/lib/api'
 import { setSession, type StaffSession } from '../../shared/lib/staffSession'
 import EntryShell from '../../shared/ui/EntryShell'
 import WelcomeBurst from '../../shared/ui/WelcomeBurst'
+import { fieldStyle as fieldBase, nameChip, panelStaff } from '../../styles/ui'
 
 interface LoginResponse {
   session: { access_token: string; refresh_token: string; expires_at?: number }
@@ -11,16 +12,15 @@ interface LoginResponse {
 }
 
 const fieldStyle: React.CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: 'rgba(4,9,18,.7)',
-  border: '1px solid rgba(255,69,230,.22)', borderRadius: 11, padding: '12px 16px',
-  fontSize: 14, color: 'var(--holo-text-bright)', fontFamily: 'var(--font-display)', outline: 'none', direction: 'ltr',
+  width: '100%', boxSizing: 'border-box', ...fieldBase, borderRadius: 11, padding: '12px 16px',
+  fontSize: 14, fontFamily: 'var(--font-display)', direction: 'ltr',
 }
 const labelStyle: React.CSSProperties = {
   display: 'block', fontFamily: 'var(--font-display)', fontSize: 12,
-  color: 'rgba(47,243,255,.6)', marginBottom: 7, letterSpacing: '.05em', textAlign: 'right',
+  color: 'var(--color-muted)', marginBottom: 7, letterSpacing: '.05em', textAlign: 'right',
 }
 
-/* כניסת מורה/מנהל (Supabase Auth) — עיצוב Claude Design (מבטא magenta). הלוגיקה נשמרת. */
+/* כניסת מורה/מנהל (Supabase Auth). משטח צוות לבן; המבטא של המורה במשפחת האנושיות. הלוגיקה נשמרת. */
 export default function StaffLogin() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -105,19 +105,18 @@ export default function StaffLogin() {
     <EntryShell onClose={() => navigate('/')}>
       <div
         style={{
-          background: 'linear-gradient(135deg, rgba(10,22,46,.97), rgba(4,9,20,.99))',
-          border: '1px solid rgba(255,69,230,.22)', borderRadius: 22, padding: '40px 44px', width: 400, textAlign: 'center',
-          boxShadow: '0 0 80px rgba(255,69,230,.10), 0 20px 60px rgba(0,0,0,.6)',
+          /* השוליים: מקום לצל הקשיח (3px ימינה ולמטה) ולפינות, בתוך המסגרת הגוללת של EntryShell */
+          ...panelStaff, margin: '4px 7px 7px 4px', padding: '40px 44px', width: 400, textAlign: 'center',
           animation: shake ? 'shake .4s ease' : 'none',
         }}
       >
-        <div style={{ width: 56, height: 56, borderRadius: 16, background: 'rgba(255,69,230,.08)', border: '1px solid rgba(255,69,230,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', boxShadow: '0 0 24px rgba(255,69,230,.15)' }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--holo-magenta)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <div style={{ width: 56, height: 56, borderRadius: 16, ...nameChip, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: 'var(--color-ink)' }}>
             <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
           </svg>
         </div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 6 }}>מורים ומנהלים</div>
-        <div style={{ fontSize: 13.5, color: 'rgba(160,200,240,.5)', marginBottom: 28 }}>אימייל וסיסמה</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>מורים ומנהלים</div>
+        <div style={{ fontSize: 13.5, color: 'var(--color-muted)', marginBottom: 28 }}>אימייל וסיסמה</div>
 
         <div style={{ marginBottom: 14 }}>
           <label style={labelStyle}>אימייל</label>
@@ -129,10 +128,10 @@ export default function StaffLogin() {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="••••••••" style={{ ...fieldStyle, fontSize: 18, letterSpacing: '.12em' }} />
         </div>
 
-        {verified && !error && <p style={{ fontSize: 13, color: '#5fffb0', marginBottom: 18 }}>✓ כתובת האימייל אושרה — אפשר להתחבר</p>}
-        {error && <p style={{ fontSize: 13, color: '#ff9bb3', marginBottom: needsConfirm ? 8 : 18 }}>⚠️ {error}</p>}
+        {verified && !error && <p style={{ fontSize: 13, color: 'var(--color-correct)', marginBottom: 18 }}>✓ כתובת האימייל אושרה — אפשר להתחבר</p>}
+        {error && <p style={{ fontSize: 13, color: 'var(--color-wrong)', marginBottom: needsConfirm ? 8 : 18 }}>⚠️ {error}</p>}
         {(needsConfirm || linkExpired) && (
-          <button onClick={resendConfirmation} disabled={resent} style={{ background: 'none', border: 'none', cursor: resent ? 'default' : 'pointer', color: 'var(--holo-cyan-bright)', fontSize: 13, marginBottom: 18, textDecoration: 'underline', fontFamily: 'var(--font-display)' }}>
+          <button onClick={resendConfirmation} disabled={resent} className="holo-button holo-button--staff holo-button--sm" style={{ fontSize: 13, marginBottom: 18, fontFamily: 'var(--font-display)' }}>
             {resent ? 'מייל האימות נשלח ✓' : 'שלחו שוב את מייל האימות'}
           </button>
         )}
@@ -140,14 +139,16 @@ export default function StaffLogin() {
         <div style={{ display: 'flex', gap: 12 }}>
           <button
             onClick={() => navigate('/')}
-            style={{ flex: 1, padding: '12px', borderRadius: 11, cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600, background: 'transparent', border: '1px solid rgba(120,180,220,.2)', color: 'rgba(150,190,220,.55)' }}
+            className="holo-link"
+            style={{ flex: 1, padding: '12px', fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}
           >
             ביטול
           </button>
           <button
             onClick={submit}
             disabled={busy}
-            style={{ flex: 2, padding: '12px', borderRadius: 11, cursor: busy ? 'default' : 'pointer', opacity: busy || !email.trim() || !password ? 0.6 : 1, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700, color: '#fff', background: 'linear-gradient(135deg, rgba(255,69,230,.22), rgba(255,69,230,.12))', border: '1px solid rgba(255,69,230,.5)', boxShadow: '0 0 20px rgba(255,69,230,.2)' }}
+            className="holo-button holo-button--staff"
+            style={{ flex: 2, padding: '12px', borderRadius: 11, opacity: !busy && (!email.trim() || !password) ? 0.7 : 1, fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 700 }}
           >
             {busy ? 'מתחבר…' : 'כניסה ←'}
           </button>
@@ -155,37 +156,28 @@ export default function StaffLogin() {
 
         {/* מפריד */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 16px' }}>
-          <div style={{ flex: 1, height: 1, background: 'rgba(120,180,220,.12)' }} />
-          <span style={{ fontSize: 12, color: 'rgba(140,170,200,.4)', fontFamily: 'var(--font-display)' }}>או</span>
-          <div style={{ flex: 1, height: 1, background: 'rgba(120,180,220,.12)' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--color-line)' }} />
+          <span style={{ fontSize: 12, color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>או</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-line)' }} />
         </div>
 
         {/* כניסת אורח */}
         <button
           onClick={guestLogin}
           disabled={busy}
-          style={{
-            width: '100%', padding: '11px', borderRadius: 11, cursor: busy ? 'default' : 'pointer',
-            fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600,
-            color: 'rgba(255,200,120,.85)',
-            background: 'rgba(255,160,60,.06)',
-            border: '1px solid rgba(255,160,60,.28)',
-            opacity: busy ? 0.5 : 1,
-            transition: 'all .15s',
-          }}
-          onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = 'rgba(255,160,60,.12)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,160,60,.06)' }}
+          className="holo-button holo-button--staff"
+          style={{ width: '100%', padding: '11px', borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 600 }}
         >
           👤 כניסה כמורה אורח
         </button>
 
-        <p style={{ fontSize: 12, marginTop: 10, color: 'rgba(140,170,200,.35)' }}>אורח רואה את מצב ההדגמה בלבד</p>
+        <p style={{ fontSize: 12, marginTop: 10, color: 'var(--color-muted)' }}>אורח רואה את מצב ההדגמה בלבד</p>
 
-        <p style={{ fontSize: 13, marginTop: 14, color: 'rgba(160,200,240,.55)' }}>
+        <p style={{ fontSize: 13, marginTop: 14, color: 'var(--color-muted)' }}>
           אין לך חשבון?{' '}
-          <Link to="/staff/signup" style={{ color: 'var(--holo-cyan-bright)' }}>הרשמה</Link>
+          <Link to="/staff/signup" className="holo-link">הרשמה</Link>
           {' · '}
-          <Link to="/staff/forgot" style={{ color: 'rgba(160,200,240,.7)' }}>שכחתי סיסמה</Link>
+          <Link to="/staff/forgot" className="holo-link">שכחתי סיסמה</Link>
         </p>
       </div>
     </EntryShell>

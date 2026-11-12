@@ -59,7 +59,7 @@ function MainPanel({ tabs, active, onTab, children }: { tabs: TabItem[]; active:
       <div style={{ padding: '6px 12px 4px', flex: '0 0 auto' }}>
         <TabBar items={tabs} value={active} onChange={onTab} ariaLabel={UI.partsLabel} idPrefix={PREFIX} withPanels />
       </div>
-      <div {...tabPanelProps(PREFIX, active)} style={{ ...scrollArea, padding: '2px 12px 10px' }}>
+      <div {...tabPanelProps(PREFIX, active)} style={{ ...scrollArea, padding: '2px 12px 8px' }}>
         {children}
       </div>
     </section>

@@ -8,6 +8,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
 import { Icon } from './icons'
+import { BTN, btnClass, NESTED_LINE } from './fills'
 import { FONT, MIN_TARGET, RADIUS, T } from './tokens'
 
 export interface HowWeCalcContent {
@@ -53,26 +54,27 @@ export function HowWeCalcButton({ lines, children, label = RESULTS_TEXT.howWeCal
 
   return (
     <div ref={rootRef} data-how-we-calc-slot style={{ position: 'relative', flex: '0 0 auto' }}>
-      <button ref={btnRef} type="button" data-tu-press data-how-we-calc-button aria-expanded={open} aria-controls={open ? panelId : undefined}
+      <button ref={btnRef} type="button" data-tu-press data-how-we-calc-button className={btnClass(open)} aria-expanded={open} aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', borderRadius: RADIUS.md, cursor: 'pointer',
-          fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.accentStrong, background: open ? T.accentFill : T.surface, border: `2px solid ${open ? T.accent : T.controlBorder}`,
+          fontFamily: FONT, fontSize: 16, fontWeight: 700,
         }}>
         <Icon name="info" size={18} />
-        <span style={{ textDecoration: 'underline', textUnderlineOffset: 3 }}>{label}</span>
+        <span>{label}</span>
       </button>
       {open && (
         <div ref={panelRef} id={panelId} role="dialog" aria-label={label} tabIndex={-1} data-how-we-calc
           style={{
             position: 'absolute', top: 'calc(100% + 6px)', insetInlineEnd: 0, zIndex: 40, boxSizing: 'border-box', width: 'min(620px, calc(100vw - 48px))', maxHeight: 'min(70vh, 560px)', overflowY: 'auto',
-            padding: '10px 18px 16px', borderRadius: RADIUS.lg, background: T.studioBg, border: `2px solid ${T.accent}`, outline: 'none',
+            padding: '10px 18px 16px', borderRadius: RADIUS.lg, outline: 'none',
+            background: T.surface, border: T.line, boxShadow: T.shadow,
             fontFamily: FONT, fontSize: 16, lineHeight: 1.7, color: T.textSoft,
           }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
-            <strong style={{ fontSize: 18, color: T.text }}>{label}</strong>
-            <button type="button" data-tu-press onClick={() => { setOpen(false); btnRef.current?.focus() }}
-              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: RADIUS.md, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 800, color: T.text, background: T.surface, border: `2px solid ${T.controlBorder}` }}>
+            <strong style={{ fontSize: 18, color: T.accent }}>{label}</strong>
+            <button type="button" data-tu-press className={BTN} onClick={() => { setOpen(false); btnRef.current?.focus() }}
+              style={{ minHeight: MIN_TARGET, padding: '0 18px', borderRadius: RADIUS.md, cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 800 }}>
               {CLOSE_LABEL}
             </button>
           </div>
@@ -88,8 +90,8 @@ export function HowWeCalcButton({ lines, children, label = RESULTS_TEXT.howWeCal
 /* ── <details> למסמכים (תדריך להדפסה) ── */
 export default function HowWeCalc({ lines, children, label = RESULTS_TEXT.howWeCalcLabel }: HowWeCalcContent) {
   return (
-    <details data-how-we-calc style={{ borderRadius: RADIUS.md, background: T.surface, border: `1px solid ${T.border}` }}>
-      <summary data-tu-press style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.accentStrong, borderRadius: RADIUS.md }}>
+    <details data-how-we-calc style={{ borderRadius: RADIUS.md, background: T.surface, border: NESTED_LINE }}>
+      <summary data-tu-press style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: MIN_TARGET, padding: '0 16px', cursor: 'pointer', fontFamily: FONT, fontSize: 16, fontWeight: 700, color: T.text, borderRadius: RADIUS.md }}>
         <Icon name="info" size={18} />
         <span style={{ textDecoration: 'underline', textUnderlineOffset: 3 }}>{label}</span>
         <span data-tu-chev style={{ display: 'inline-flex', marginInlineStart: 'auto' }}><Icon name="chevDown" size={18} /></span>

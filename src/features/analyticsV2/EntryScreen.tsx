@@ -68,13 +68,13 @@ export default function EntryScreen() {
         return (
         <div data-entry-ready data-v2-ready style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {previousAt === 'top' && (
-            <Card label={T_ENTRY.previousView} style={{ padding: '8px 16px' }}>{previousRow(true)}</Card>
+            <Card label={T_ENTRY.previousView} style={{ padding: '7px 15px' }}>{previousRow(true)}</Card>
           )}
 
           {data.alerts.length > 0 && (
-            <Card label={data.alertsTitle} style={{ borderInlineStart: `6px solid ${T.warn}`, padding: '10px 16px' }}>
+            <Card label={data.alertsTitle} style={{ background: T.findingFill, padding: '9px 15px', paddingInlineStart: 20 }}>
               <CardTitle style={{ marginBottom: 2 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.findingText }}>
                   <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={22} /></span>
                   {data.alertsTitle}
                 </span>
@@ -83,10 +83,10 @@ export default function EntryScreen() {
                 {data.alerts.map((a, i) => (
                   <li key={`${a.studentId}-${i}`} style={{ borderTop: i === 0 ? 'none' : `1px solid ${T.border}` }}>
                     <Link to={env.href(`/analytics/student/${a.studentId}`, { class: a.classId })} data-tu-press
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: MIN_TARGET + 4, padding: '2px 6px', borderRadius: RADIUS.sm, fontFamily: FONT, fontSize: 17, lineHeight: 1.45, color: T.text, textDecoration: 'none' }}>
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: MIN_TARGET + 4, padding: '2px 6px', borderRadius: RADIUS.sm, fontFamily: FONT, fontSize: 17, lineHeight: 1.45, color: T.findingText, textDecoration: 'none' }}>
                       <ToneMark tone="attention" size={20} />
                       <span style={{ flex: 1, minWidth: 0 }}>{a.text}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800, color: T.accentStrong, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 800, color: T.text, textDecoration: 'underline', textUnderlineOffset: 3, whiteSpace: 'nowrap' }}>
                         {L.openStudent(a.studentName.split(' ')[0])}<Icon name="chevLeft" size={16} />
                       </span>
                     </Link>
@@ -95,7 +95,7 @@ export default function EntryScreen() {
               </ul>
               {data.alertsMore && (
                 <div data-alerts-more style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
-                  <Note style={{ fontWeight: 700, color: T.text }}>{data.alertsMore}</Note>
+                  <Note style={{ fontWeight: 700, color: T.findingText }}>{data.alertsMore}</Note>
                   {moreHref && <LinkButton to={moreHref}>{T_ENTRY.seeAllStudents}<Icon name="chevLeft" size={16} /></LinkButton>}
                 </div>
               )}
@@ -107,7 +107,7 @@ export default function EntryScreen() {
 
           {/* הערת כיסוי: משחקים בהדמיות בלי מקצוע אינם נכנסים לתוצאות — אומרים למה חסר משהו; כפתור לספרייה המסוננת רק כשזו הסיבה */}
           {data.coverageNote && (
-            <Card label={T_ENTRY.assignSubjects} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '8px 16px' }}>
+            <Card label={T_ENTRY.assignSubjects} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '7px 15px' }}>
               <span style={{ color: T.accent, display: 'inline-flex' }}><Icon name="info" size={22} /></span>
               <Note style={{ flex: '1 1 320px', color: T.text }}>{data.coverageNote}</Note>
               {data.unclassifiedCount > 0 && <LinkButton to={LIBRARY_NOSUBJECT_HREF}>{T_ENTRY.assignSubjects}</LinkButton>}
@@ -127,7 +127,7 @@ export default function EntryScreen() {
                 const side = subjects.length > 0 && subjects.length <= 2
                 return (
                   <div key={c.id} data-class-id={c.id}
-                    style={{ display: 'flex', flexDirection: side ? 'row' : 'column', alignItems: 'stretch', minWidth: 0, borderRadius: RADIUS.lg, background: T.surface, border: `2px solid ${T.controlBorder}` }}>
+                    style={{ display: 'flex', flexDirection: side ? 'row' : 'column', alignItems: 'stretch', minWidth: 0, borderRadius: RADIUS.lg, background: T.surface, border: T.line, boxShadow: T.shadow }}>
                     <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
                       <BigChoiceButton flat to={env.href(`/analytics/class/${c.id}`)} label={`כיתה ${c.name}`}
                         sublabel={`${c.studentCount} תלמידים`} badge={badgeOf(c)}

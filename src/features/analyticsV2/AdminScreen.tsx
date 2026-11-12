@@ -161,7 +161,7 @@ function ErrorsTab({ d, notice }: { d: AdminOverview; notice: string | null }) {
         <ModeToggle ariaLabel="בחירת שכבה" value={String(grade.grade)} onChange={(id) => setPicked(Number(id))}
           options={withData.map((g) => ({ id: String(g.grade), label: `שכבה ${g.gradeLabel}` }))} />
       </div>
-      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: RADIUS.md, overflow: 'hidden' }}>
+      <div style={{ background: T.surface, border: T.line, boxShadow: T.shadow, borderRadius: RADIUS.md, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT }}>
           <caption style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>טעויות נפוצות בשכבה {grade.gradeLabel}</caption>
           <thead>

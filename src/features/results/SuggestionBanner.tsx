@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
-import { FONT, Icon, T } from '../teacherUi'
+import { BTN, FONT, Icon, T } from '../teacherUi'
 import { card, primaryButton, secondaryButton } from './styles'
 import { UI } from './text'
 
@@ -32,7 +32,7 @@ export default function SuggestionBanner({ openLink }: { openLink: (assignmentId
   const shown = items.slice(0, MAX_SHOWN)
   return (
     <section aria-label={UI.suggestTitle} data-suggestion-banner
-      style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '8px 16px', borderInlineStart: `6px solid ${T.violet}` }}>
+      style={{ ...card, flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '7px 15px', paddingInlineStart: 19, background: T.aiFill }}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text }}>
         <span style={{ color: T.violet, display: 'inline-flex' }}><Icon name="info" size={22} /></span>
         {UI.suggestTitle}
@@ -44,12 +44,12 @@ export default function SuggestionBanner({ openLink }: { openLink: (assignmentId
               {UI.suggestText(s.title, s.className, s.weakCount)}
             </span>
             {/* כמה הצעות — לכל כפתור אותה מילה, לכן לקורא מסך נוסף גם שם ההדמיה */}
-            <Link to={openLink(s.assignmentId)} data-tu-press aria-label={UI.suggestOpenFor(s.title, s.className)} style={primaryButton}>{UI.suggestOpen}</Link>
+            <Link to={openLink(s.assignmentId)} data-tu-press aria-label={UI.suggestOpenFor(s.title, s.className)} className={BTN} style={primaryButton}>{UI.suggestOpen}</Link>
           </div>
         ))}
       </div>
       <button type="button" data-tu-press onClick={() => { setDismissed(true); try { sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* אין אחסון — נשאר מוסתר עד הרענון */ } }}
-        style={secondaryButton}>{UI.notNow}</button>
+        className={BTN} style={secondaryButton}>{UI.notNow}</button>
     </section>
   )
 }

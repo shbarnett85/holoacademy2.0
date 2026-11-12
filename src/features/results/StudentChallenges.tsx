@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { detailAvailableLine } from '../../shared/lib/findingsNarrative'
 import type { StudentChallenge, StudentItem, StudentSubmissionView } from '../../shared/types/resultsV1'
-import { EmptyState, FONT, Icon, RADIUS, T, VisuallyHidden } from '../teacherUi'
+import { BTN, EmptyState, FILL, findingInline, FONT, Icon, NESTED_LINE, RADIUS, T, VisuallyHidden } from '../teacherUi'
 import ChallengeRowShell from './ChallengeRow'
 import { ExtraIcon, OutcomeTag } from './marks'
 import { attemptsWord, formatSeconds } from './logic'
@@ -49,13 +49,13 @@ function ItemFacts({ item, showPrompt }: { item: StudentItem; showPrompt: boolea
       {wrong && item.commonMistake && !item.errorTag && (
         <div data-common-mistake style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {item.commonMistake}</span>
+          <span style={findingInline}><strong>{UI.commonErrorShort}:</strong> {item.commonMistake}</span>
         </div>
       )}
       {wrong && item.errorTag && (
         <div data-common-error style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.5 }}>
           <span style={{ color: T.warn, display: 'inline-flex' }}><Icon name="alert" size={18} /></span>
-          <span><strong>{UI.commonErrorShort}:</strong> {item.errorTag.title}{item.commonMistake ? ` — ${item.commonMistake}` : ''}</span>
+          <span style={findingInline}><strong>{UI.commonErrorShort}:</strong> {item.errorTag.title}{item.commonMistake ? ` — ${item.commonMistake}` : ''}</span>
         </div>
       )}
       {facts.length > 0 && <div style={soft}>{facts.join(' · ')}</div>}
@@ -79,11 +79,11 @@ function ChallengeRow({ c }: { c: StudentChallenge }) {
       footer={(mistake || showCompare) ? (
         <div data-row-note style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '0 0 4px 0', paddingInlineStart: 46, fontFamily: FONT, fontSize: 16, color: T.text, lineHeight: 1.4 }}>
           <span style={{ color: mistake ? T.warn : T.muted, display: 'inline-flex', marginTop: 2 }}><Icon name={mistake ? 'alert' : 'info'} size={18} /></span>
-          <span>{[mistake ? `${UI.commonErrorShort}: ${mistake}` : null, showCompare ? c.comparison?.sentence : null].filter(Boolean).join(' · ')}</span>
+          <span style={mistake ? findingInline : undefined}>{[mistake ? `${UI.commonErrorShort}: ${mistake}` : null, showCompare ? c.comparison?.sentence : null].filter(Boolean).join(' · ')}</span>
         </div>
       ) : undefined}
       dataOutcome={c.outcome} canExpand={canExpand} summaryGrows={false} summary={<OutcomeTag outcome={c.outcome} />}>
-      <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: T.surfaceSoft, border: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '10px 14px', borderRadius: RADIUS.md, background: FILL.neutral, border: NESTED_LINE, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {moral ? <p style={{ ...soft, margin: 0 }}>{UI.moralStudentNote}</p> : c.items.map((item) => <ItemFacts key={item.itemIndex} item={item} showPrompt />)}
         {/* השוואה הוגנת: רק מול תלמידים שהגיעו לאותו אתגר בדרגה דומה — או ההסבר שאין מספיק כאלה */}
         {c.comparison && !showCompare && (
@@ -103,7 +103,7 @@ export default function StudentChallenges({ view, progressTo, progressLabel }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {progressTo && progressLabel && (
         <div>
-          <Link to={progressTo} data-tu-press data-progress-link style={{ ...secondaryButton, textDecoration: 'none' }}>
+          <Link to={progressTo} data-tu-press data-progress-link className={BTN} style={{ ...secondaryButton, textDecoration: 'none' }}>
             <Icon name="growth" size={18} />
             {progressLabel}
           </Link>

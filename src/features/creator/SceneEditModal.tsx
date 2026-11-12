@@ -3,6 +3,7 @@ import { apiFetch } from '../../shared/lib/api'
 import { PRIMARY_SCREEN, fitsScreen, gradeBandOfLevel, questionWordBudget, sceneDisplayText, OPTION_WORD_BUDGET, wordCount } from '../../shared/lib/sceneText'
 import { useEscToClose } from '../../shared/ui/useModalA11y'
 import type { GeneratedQuest } from './creatorStore'
+import { fieldStyle as fieldBase, modalBackdrop, panelAi, panelWrong } from '../../styles/ui'
 
 type Scene = GeneratedQuest['game_data']['scenes'][number]
 
@@ -25,11 +26,8 @@ interface ShortenSide { narrative: string; drHoloDialog: string; words: number; 
 interface ShortenProposal { needed: boolean; ok: boolean; reasons: string[]; before?: ShortenSide; after?: ShortenSide; checks?: { grammar: string[]; facts: string[] } }
 
 const fieldStyle: React.CSSProperties = {
+  ...fieldBase,
   width: '100%',
-  background: 'var(--t207)',
-  border: '1px solid var(--t208)',
-  borderRadius: '0.6rem',
-  color: 'var(--t301)',
   padding: '0.6rem 0.8rem',
   fontSize: '0.95rem',
   resize: 'vertical',
@@ -40,8 +38,13 @@ const labelStyle: React.CSSProperties = {
   marginBottom: '0.4rem',
   fontSize: '0.85rem',
   fontWeight: 700,
-  color: 'var(--t300)',
+  color: 'var(--color-machine-deep)',
 }
+
+/* כפתור קטן עם סימן בלבד (✕): סגירה / הסרת שורה */
+const iconBtn: React.CSSProperties = { width: 34, height: 34, padding: 0, display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: '0.95rem' }
+/* הערת תשומת לב (אורך טקסט) */
+const attention: React.CSSProperties = { background: 'var(--color-human-tint)', color: 'var(--color-human-deep)', border: '1.5px solid var(--color-human-deep)' }
 
 /* מודאל עריכת סצנה — נרטיב, חידה, ופרומפט תמונה */
 export default function SceneEditModal({
@@ -199,20 +202,18 @@ export default function SceneEditModal({
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'var(--t238)', backdropFilter: 'blur(4px)', zIndex: 60 }}
+      style={{ ...modalBackdrop, zIndex: 60 }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="עריכת סצנה"
     >
       <div
-        className="holo-panel w-full"
+        className="holo-panel holo-panel--staff w-full"
         style={{
           maxWidth: '40rem',
           maxHeight: '90vh',
           overflowY: 'auto',
-          boxShadow: 'var(--holo-glow)',
-          borderColor: 'var(--t300)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -220,8 +221,8 @@ export default function SceneEditModal({
           <h2 className="holo-text-glow text-xl font-black">✏️ עריכת סצנה — {scene.title}</h2>
           <button
             onClick={onClose}
-            className="cursor-pointer text-xl"
-            style={{ color: 'var(--t301)', opacity: 0.6 }}
+            className="cursor-pointer holo-button holo-button--staff holo-button--sm"
+            style={iconBtn}
             title="סגור"
           >
             ✕
@@ -261,21 +262,21 @@ export default function SceneEditModal({
           {/* כלל "אורך טקסט לתלמיד": תג + קיצור לאישור */}
           <div data-scene-fit={fit.fits ? 'ok' : 'long'} className="mt-2" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {fit.fits ? (
-              <span style={{ fontSize: 13, color: 'var(--t300)' }}>{fit.words} מילים · נכנס במסך אחד של התלמיד</span>
+              <span style={{ fontSize: 13, color: 'var(--color-muted)' }}>{fit.words} מילים · נכנס במסך אחד של התלמיד</span>
             ) : (
               <>
-                <span style={{ fontSize: 13, fontWeight: 800, padding: '3px 10px', borderRadius: 20, border: '1.5px solid #ffb84d', color: '#ffb84d' }}>
+                <span style={{ ...attention, fontSize: 13, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>
                   ארוך מדי למסך אחד · {fit.words} מילים · יוצג ב-{fit.pages} עמודים
                 </span>
-                <button type="button" onClick={requestShorten} disabled={shortenState === 'loading'} style={{ padding: '0.45rem 1rem', minHeight: 40, borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid #ffb84d', background: 'transparent', color: '#ffb84d' }}>
+                <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={requestShorten} disabled={shortenState === 'loading'} style={{ padding: '0.45rem 1rem', minHeight: 40, fontWeight: 700 }}>
                   {shortenState === 'loading' ? 'מקצר…' : 'קצר טקסט'}
                 </button>
               </>
             )}
-            {shortenMsg && <span role="status" style={{ fontSize: 13, color: shortenState === 'error' ? '#ff9b9b' : 'var(--t300)' }}>{shortenMsg}</span>}
+            {shortenMsg && <span role="status" style={shortenState === 'error' ? { ...panelWrong, fontSize: 13, padding: '2px 10px', borderRadius: 8 } : { fontSize: 13, color: 'var(--color-muted)' }}>{shortenMsg}</span>}
           </div>
           {proposal?.after && proposal.before && (
-            <div data-shorten-proposal className="mt-3 rounded-lg p-3" style={{ border: '1px solid var(--t239)', background: 'var(--t221)' }}>
+            <div data-shorten-proposal className="mt-3 rounded-lg p-3" style={{ ...panelAi }}>
               <div style={{ fontWeight: 800, marginBottom: 8 }}>הצעת קיצור — השוו ואשרו</div>
               <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
                 <div>
@@ -288,13 +289,13 @@ export default function SceneEditModal({
                 </div>
               </div>
               {proposal.checks && (proposal.checks.grammar.length > 0 || proposal.checks.facts.length > 0) && (
-                <ul style={{ margin: '10px 0 0', paddingInlineStart: 18, fontSize: 13, color: '#ffb84d' }}>
+                <ul style={{ margin: '10px 0 0', paddingInlineStart: 18, fontSize: 13, color: 'var(--color-human-deep)' }}>
                   {[...proposal.checks.facts, ...proposal.checks.grammar].map((x, i) => <li key={i}>{x}</li>)}
                 </ul>
               )}
               <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                <button type="button" onClick={approveShorten} style={{ padding: '0.5rem 1.2rem', minHeight: 40, borderRadius: 10, fontWeight: 800, cursor: 'pointer', border: 'none', background: 'linear-gradient(135deg,#0062cc,#6633cc)', color: '#fff' }}>אשרו את הקיצור</button>
-                <button type="button" onClick={cancelShorten} style={{ padding: '0.5rem 1.2rem', minHeight: 40, borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--t239)', background: 'transparent', color: 'var(--t301)' }}>ביטול</button>
+                <button type="button" className="holo-button holo-button--staff" onClick={approveShorten} style={{ padding: '0.5rem 1.2rem', minHeight: 40, fontWeight: 800 }}>אשרו את הקיצור</button>
+                <button type="button" className="holo-button holo-button--staff" onClick={cancelShorten} style={{ padding: '0.5rem 1.2rem', minHeight: 40, fontWeight: 700 }}>ביטול</button>
               </div>
             </div>
           )}
@@ -304,7 +305,7 @@ export default function SceneEditModal({
         {hasPuzzle && (
           <div
             className="mb-4 rounded-lg p-3"
-            style={{ background: 'var(--t221)', border: '1px solid var(--t239)' }}
+            style={{ background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)' }}
           >
             <label style={labelStyle}>🧩 טקסט החידה</label>
             <textarea
@@ -315,7 +316,7 @@ export default function SceneEditModal({
               placeholder="שאלת החידה…"
             />
             {(puzzleType === 'multipleChoice' || puzzleType === 'trueFalse') && (wordCount(question) > questionWordBudget(choices.length) || (choices.length > 2 && choices.some((c) => wordCount(c.text) > OPTION_WORD_BUDGET))) && (
-              <p data-question-long style={{ margin: '6px 0 0', fontSize: 13, color: '#ffb84d' }}>
+              <p data-question-long style={{ ...attention, margin: '6px 0 0', fontSize: 13, padding: '6px 10px', borderRadius: 8 }}>
                 הנוסח ארוך: כדי שהשאלה והתשובות ייכנסו במסך בלי גלילה — שאלה עד {questionWordBudget(choices.length)} מילים וכל תשובה עד {OPTION_WORD_BUDGET} מילים.
               </p>
             )}
@@ -366,10 +367,10 @@ export default function SceneEditModal({
                 {words.map((w, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <input value={w} onChange={(e) => updateList(setWords, i, e.target.value)} style={{ ...fieldStyle, padding: '0.4rem 0.7rem' }} />
-                    <button type="button" onClick={() => removeFromList(setWords, i)} style={{ color: 'var(--t5)' }}>✕</button>
+                    <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => removeFromList(setWords, i)} style={iconBtn}>✕</button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setWords((a) => [...a, ''])} className="text-sm" style={{ color: 'var(--t300)', alignSelf: 'flex-start' }}>+ הוסף מילה</button>
+                <button type="button" onClick={() => setWords((a) => [...a, ''])} className="text-sm holo-button holo-button--staff holo-button--sm" style={{ alignSelf: 'flex-start' }}>+ הוסף מילה</button>
               </div>
             )}
 
@@ -381,10 +382,10 @@ export default function SceneEditModal({
                   <div key={i} className="flex items-center gap-2">
                     <input value={p.a} onChange={(e) => setPairs((arr) => arr.map((x, j) => (j === i ? { ...x, a: e.target.value } : x)))} placeholder="מושג" style={{ ...fieldStyle, padding: '0.4rem 0.7rem', flex: 1 }} />
                     <input value={p.b} onChange={(e) => setPairs((arr) => arr.map((x, j) => (j === i ? { ...x, b: e.target.value } : x)))} placeholder="הגדרה" style={{ ...fieldStyle, padding: '0.4rem 0.7rem', flex: 1 }} />
-                    <button type="button" onClick={() => setPairs((arr) => arr.filter((_, j) => j !== i))} style={{ color: 'var(--t5)' }}>✕</button>
+                    <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => setPairs((arr) => arr.filter((_, j) => j !== i))} style={iconBtn}>✕</button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setPairs((a) => [...a, { a: '', b: '' }])} className="text-sm" style={{ color: 'var(--t300)', alignSelf: 'flex-start' }}>+ הוסף זוג</button>
+                <button type="button" onClick={() => setPairs((a) => [...a, { a: '', b: '' }])} className="text-sm holo-button holo-button--staff holo-button--sm" style={{ alignSelf: 'flex-start' }}>+ הוסף זוג</button>
               </div>
             )}
 
@@ -397,17 +398,17 @@ export default function SceneEditModal({
                 {answers.map((a, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <input value={a} onChange={(e) => updateList(setAnswers, i, e.target.value)} style={{ ...fieldStyle, padding: '0.4rem 0.7rem' }} />
-                    <button type="button" onClick={() => removeFromList(setAnswers, i)} style={{ color: 'var(--t5)' }}>✕</button>
+                    <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => removeFromList(setAnswers, i)} style={iconBtn}>✕</button>
                   </div>
                 ))}
-                <button type="button" onClick={() => setAnswers((a) => [...a, ''])} className="text-sm" style={{ color: 'var(--t300)', alignSelf: 'flex-start' }}>+ הוסף תשובה</button>
+                <button type="button" onClick={() => setAnswers((a) => [...a, ''])} className="text-sm holo-button holo-button--staff holo-button--sm" style={{ alignSelf: 'flex-start' }}>+ הוסף תשובה</button>
                 {wordBank.length > 0 && (
                   <>
                     <span style={{ ...labelStyle, marginBottom: 0, marginTop: '0.4rem' }}>בנק מילים</span>
                     {wordBank.map((w, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <input value={w} onChange={(e) => updateList(setWordBank, i, e.target.value)} style={{ ...fieldStyle, padding: '0.4rem 0.7rem' }} />
-                        <button type="button" onClick={() => removeFromList(setWordBank, i)} style={{ color: 'var(--t5)' }}>✕</button>
+                        <button type="button" className="holo-button holo-button--staff holo-button--sm" onClick={() => removeFromList(setWordBank, i)} style={iconBtn}>✕</button>
                       </div>
                     ))}
                   </>
@@ -440,7 +441,7 @@ export default function SceneEditModal({
                 <textarea value={situation} onChange={(e) => setSituation(e.target.value)} rows={2} style={fieldStyle} />
                 <span style={{ ...labelStyle, marginBottom: 0, marginTop: '0.4rem' }}>בחירות והשלכות</span>
                 {moralChoices.map((mc, i) => (
-                  <div key={i} className="flex flex-col gap-1 p-2 rounded" style={{ background: 'var(--t240)' }}>
+                  <div key={i} className="flex flex-col gap-1 p-2 rounded" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-line-strong)' }}>
                     <input value={mc.text} onChange={(e) => setMoralChoices((arr) => arr.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} placeholder="הבחירה" style={{ ...fieldStyle, padding: '0.4rem 0.7rem' }} />
                     <textarea value={mc.consequence} onChange={(e) => setMoralChoices((arr) => arr.map((x, j) => (j === i ? { ...x, consequence: e.target.value } : x)))} placeholder="ההשלכה" rows={2} style={fieldStyle} />
                   </div>
@@ -453,7 +454,7 @@ export default function SceneEditModal({
               <div className="mt-3 flex flex-col gap-3">
                 <span style={{ ...labelStyle, marginBottom: 0 }}>שאלות מבחן הסיכום</span>
                 {quizQuestions.map((q, qi) => (
-                  <div key={qi} className="flex flex-col gap-1 p-2 rounded" style={{ background: 'var(--t240)' }}>
+                  <div key={qi} className="flex flex-col gap-1 p-2 rounded" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-line-strong)' }}>
                     <input
                       value={q.question}
                       onChange={(e) => setQuizQuestions((arr) => arr.map((x, j) => (j === qi ? { ...x, question: e.target.value } : x)))}
@@ -513,7 +514,7 @@ export default function SceneEditModal({
               title="שומר את הפרומפט ויוצר ממנו תמונה"
               disabled={regenerating || saving}
               onClick={generateFromPrompt}
-              className="holo-button"
+              className="holo-button holo-button--staff holo-button--sm"
               style={{ padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}
             >
               {regenerating ? 'יוצר…' : 'צור תמונה 🎨'}
@@ -530,7 +531,7 @@ export default function SceneEditModal({
                     width: '7rem',
                     height: '4.2rem',
                     objectFit: 'cover',
-                    border: '1px solid var(--t219)',
+                    border: '2px solid var(--color-ink)',
                     opacity: regenerating ? 0.4 : 1,
                   }}
                 />
@@ -538,7 +539,7 @@ export default function SceneEditModal({
                   title="צור תמונה מחדש"
                   disabled={regenerating}
                   onClick={() => onRegenerateImage(scene.id)}
-                  className="holo-button mt-1 w-full"
+                  className="holo-button holo-button--staff holo-button--sm mt-1 w-full"
                   style={{ padding: '0.25rem', fontSize: '0.75rem' }}
                 >
                   {regenerating ? 'יוצר…' : 'צור מחדש 🔄'}
@@ -557,23 +558,21 @@ export default function SceneEditModal({
         )}
 
         {error && (
-          <p className="text-sm mb-3" style={{ color: 'var(--t5)' }}>
+          <p className="text-sm mb-3" style={{ ...panelWrong, padding: '0.45rem 0.8rem' }}>
             ⚠️ {error}
           </p>
         )}
 
         <div className="flex gap-3 justify-end">
           <button
-            className="holo-button"
-            style={{ background: 'transparent', border: '1px solid var(--t220)' }}
+            className="holo-button holo-button--staff"
             onClick={onClose}
             disabled={saving}
           >
             ביטול
           </button>
           <button
-            className="holo-button font-bold"
-            style={{ opacity: saving ? 0.5 : 1 }}
+            className="holo-button holo-button--staff font-bold"
             onClick={save}
             disabled={saving}
           >
