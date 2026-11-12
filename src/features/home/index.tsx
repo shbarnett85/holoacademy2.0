@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
+import SubjectTag from '../../shared/ui/SubjectTag'
+import { legacySubjectToCode, subjectVisual } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 
-/* הדמיה בחלון הראווה — מדף "התנסו עכשיו" ללא הרשמה */
+/* שיעור בחלון הראווה — המדף "התנסו עכשיו" ללא הרשמה */
 interface ShowcaseQuest {
   id: string
   title: string
@@ -22,16 +24,6 @@ function gradeRangeLabel(min: number | null, max: number | null): string | null 
   const b = max && max >= 1 && max <= 12 ? GRADE_LETTERS[max - 1] : null
   if (a && b) return a === b ? `כיתה ${a}׳` : `כיתות ${a}׳-${b}׳`
   return a ? `כיתה ${a}׳` : null
-}
-
-/* מסמן מספר שלב — יהלום קו-מתאר דק עם הספרה, בדיו (דיסקרטי, סימון סדר בלבד) */
-function StepNum({ n }: { n: string }) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
-      <path d="M12 2.5L21.5 12L12 21.5L2.5 12Z" strokeWidth="1.6" strokeLinejoin="round" style={{ stroke: 'var(--color-ink)' }} />
-      <text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize="10" fontWeight="700" fontFamily="var(--font-display)" style={{ fill: 'var(--color-ink)' }}>{n}</text>
-    </svg>
-  )
 }
 
 /* קובץ הלוגו (לא עורכים אותו; רק בוחרים איזה קובץ קיים מוצג) */
@@ -55,57 +47,57 @@ const reduceMotion =
     /* override ל-QA — מדמה reduced-motion בלי לשנות הגדרת מערכת */
     new URLSearchParams(window.location.search).has('reduce-motion'))
 
-/* ── קרוסלת ההדמיות (אנכית, מעגלית) ─────────────────────────────────────────
-   כל ההדמיות ב-DOM תמיד (נגישות מקלדת); הנראוּת נגזרת מהמרחק המעגלי d מהאינדקס
-   הנוכחי: ‏d≤2 גלוי בחלון, d=n-1 חונה מעל (כניסה/יציאה מלמעלה), השאר מתחת.
-   כל תנועה "בלתי-נראית" קורית ב-opacity 0 בתוך חלון עם overflow:hidden — כך
-   המעבר מהאחרון לראשון רציף, בלי קפיצה. transform/opacity בלבד.
-   סיבוב אוטומטי 7ש׳ לפריט; נעצר בריחוף/פוקוס; כבוי לגמרי ב-reduced-motion.
-   פוקוס על כרטיס נסתר מקפיץ אותו לחלון (אין מלכודת מקלדת). */
-const CARD_H = 104
-const CARD_GAP = 10
-const STEP = CARD_H + CARD_GAP
-const VISIBLE = 3
-/* מקום לצל הקשיח של כרטיס (shadow-student: 6px ימינה ולמטה) בתוך חלון הקרוסלה, שחותך גלישה */
-const SHADOW_ROOM = 6
+/* ── המדף: השיעורים כספרים שעומדים על מדף (אופקי, מעגלי) ──────────────────────
+   כל שיעור הוא כריכה: תמונה, שם, ופס בצבע המקצוע בצד הכריכה (ימין, כמו ספר בעברית).
+   כל השיעורים ב-DOM תמיד (נגישות מקלדת); הנראוּת נגזרת מהמרחק המעגלי d מהאינדקס הנוכחי:
+   d<cols גלוי על המדף, d=n-1 חונה מימין (כניסה/יציאה), השאר משמאל. transform/opacity בלבד.
+   סיבוב אוטומטי 7ש׳ לספר; נעצר בריחוף/פוקוס; כבוי לגמרי ב-reduced-motion.
+   פוקוס על ספר נסתר מביא אותו אל המדף (אין מלכודת מקלדת). */
+const COVER_W = 160
+const COVER_H = 244
+const COVER_GAP = 14
+const COVER_STEP = COVER_W + COVER_GAP
+const SPINE_W = 12
+/* הספר מתרומם מעט בריחוף: משאירים לו מקום מעל המדף */
+const LIFT_ROOM = 8
 
-/* ── טוקנים משותפים לשני הטורים הצדדיים — סימטריה מדויקת: ערך אחד לשניהם ──
-   כותרת, רוחב, גובה כרטיס, מרווח, גובה ערימה ושורת-תחתית זהים בין
-   "התנסו עכשיו" (שמאל) ל"איך זה עובד" (ימין). */
-export const SIDE = { cardH: CARD_H, gap: CARD_GAP, footH: 26 }
-/* גובה הערימה נגזר ממספר השורות הגלויות (גדל עם גובה המסך) — זהה לשני הטורים */
-export const stackHFor = (rows: number) => rows * STEP - CARD_GAP
-
-/* כמה שורות קרוסלה נכנסות — לפי גובה החלון: 3 רגיל, 4 במסך מלא, 5 בענק */
-function useVisibleRows() {
-  const calc = () => (typeof window === 'undefined' ? VISIBLE : window.innerHeight >= 1250 ? 5 : window.innerHeight >= 980 ? 4 : 3)
-  const [rows, setRows] = useState(calc)
-  useEffect(() => {
-    const on = () => setRows(calc())
-    window.addEventListener('resize', on)
-    return () => window.removeEventListener('resize', on)
-  }, [])
-  return rows
+/* כמה ספרים נכנסים במדף, לפי הרוחב שלו בפועל */
+function useShelfCols(ref: React.RefObject<HTMLDivElement | null>): number {
+  const [cols, setCols] = useState(3)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const calc = () => setCols(Math.max(1, Math.floor((el.clientWidth + COVER_GAP) / COVER_STEP)))
+    calc()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(calc)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref])
+  return cols
 }
 
-/* כותרת טור צדדי — אייקון + כותרת + שורת משנה, מבנה זהה לשני הצדדים */
-function SideHead({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub: string }) {
+function SectionHead({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub: string }) {
   return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)' }}>
-        <span>{icon}</span> {title}
-      </div>
-      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'var(--color-muted)', marginTop: 3, lineHeight: 1.35, minHeight: 'calc(var(--fs-side-sub) * 2.7)' }}>{sub}</div>
+    <div>
+      <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', lineHeight: 1.25 }}>
+        <span aria-hidden="true" style={{ display: 'inline-flex' }}>{icon}</span>
+        <span>{title}</span>
+      </h2>
+      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'var(--color-muted)', marginTop: 2, lineHeight: 1.4 }}>{sub}</div>
     </div>
   )
 }
 
-function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: number }) {
+function Bookshelf({ quests }: { quests: ShowcaseQuest[] }) {
   const navigate = useNavigate()
+  const railRef = useRef<HTMLDivElement>(null)
+  const colsFit = useShelfCols(railRef)
   const [cur, setCur] = useState(0)
   const [paused, setPaused] = useState(false)
   const n = quests.length
-  const rotate = n > rows
+  const cols = Math.min(colsFit, n)
+  const rotate = n > cols
   const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => {
@@ -115,6 +107,8 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
   }, [rotate, paused, n])
 
   const go = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
+  /* הספרים ממורכזים על המדף כשיש פחות ספרים מהמקום */
+  const rowW = cols * COVER_STEP - COVER_GAP
 
   return (
     <div
@@ -123,65 +117,78 @@ function ShowcaseCarousel({ quests, rows }: { quests: ShowcaseQuest[]; rows: num
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) }}
       aria-label="שיעורים מוכנים להתנסות"
-      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
     >
-      <SideHead
-        icon={<BrandIcon name="playGem" size={19} style={{ color: 'var(--color-ink)' }} />}
-        title={<>התנסו עכשיו - <span style={{ color: 'var(--color-human-deep)' }}>ללא הרשמה</span></>}
-        sub="מהספרייה הרשמית — לחצו ושחקו"
-      />
-
-      {/* חלון הקרוסלה. גבוה ורחב ב-SHADOW_ROOM (עם שוליים שליליים, כך שהפריסה לא זזה) כדי שהצל הקשיח לא ייחתך */}
-      <div style={{ position: 'relative', height: stackHFor(rows) + SHADOW_ROOM, marginBottom: -SHADOW_ROOM, marginRight: -SHADOW_ROOM, overflow: 'hidden' }}>
-        {quests.map((q, i) => {
-          const d = ((i - cur) % n + n) % n
-          const visible = d < rows
-          /* מיקום: גלויים בחלון; האחרון-במעגל חונה מעל (ציר הכניסה/יציאה העליון); השאר מתחת */
-          const slot = visible ? d : d === n - 1 ? -1 : rows
-          const grades = gradeRangeLabel(q.gradeMin, q.gradeMax)
-          return (
-            <button
-              key={q.id}
-              onClick={() => { trackFunnel('showcase_click', q.id); navigate(`/play/${q.id}`) }}
-              onFocus={() => { if (!visible) setCur(i) }}
-              tabIndex={0}
-              aria-hidden={visible ? undefined : true}
-              style={{
-                position: 'absolute', top: 0, left: 0, right: SHADOW_ROOM, height: CARD_H, boxSizing: 'border-box',
-                transform: `translateY(${slot * STEP}px)`,
-                opacity: visible ? 1 : 0,
-                pointerEvents: visible ? 'auto' : 'none',
-                transition: reduceMotion ? 'none' : 'transform .55s cubic-bezier(.3,.7,.3,1), opacity .35s ease',
-                display: 'flex', alignItems: 'stretch', gap: 0, padding: 0, overflow: 'hidden',
-                cursor: 'pointer', textAlign: 'right', fontFamily: 'var(--font-display)',
-                ...panelStudent, borderRadius: 16,
-              }}
-            >
-              {q.thumbUrl && (
-                <img src={q.thumbUrl} alt="" loading="lazy"
-                  style={{ width: 92, height: '100%', objectFit: 'cover', flexShrink: 0, display: 'block' }} />
-              )}
-              <div style={{ flex: 1, minWidth: 0, padding: '7px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--color-ink)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{q.title}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap', minWidth: 0, marginTop: 'auto' }}>
-                  {q.subject && <span style={{ ...infoChip, fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{q.subject}</span>}
-                  {grades && <span style={{ ...infoChip, fontSize: 'var(--fs-tag)', fontWeight: 600, padding: '1px 7px', borderRadius: 6, whiteSpace: 'nowrap', flexShrink: 0 }}>{grades}</span>}
-                  <span className="holo-button holo-button--sm" style={{ marginRight: 'auto', fontFamily: 'inherit', fontSize: 'var(--fs-tag)', fontWeight: 700, padding: '3px 10px', borderRadius: 7, whiteSpace: 'nowrap', flexShrink: 0 }}>שחקו <BrandIcon name="play" size={11} /></span>
-                </div>
-              </div>
-            </button>
-          )
-        })}
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <SectionHead
+          icon={<BrandIcon name="playGem" size={22} style={{ color: 'var(--color-ink)' }} />}
+          title={<>התנסו עכשיו - <span style={{ color: 'var(--color-human-deep)' }}>ללא הרשמה</span></>}
+          sub="מהספרייה הרשמית — לחצו ושחקו"
+        />
+        {/* חצים ידניים — גלויים תמיד כשיש יותר ספרים מהמקום (וגם היחידים ב-reduced-motion) */}
+        {rotate && (
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            {([['chevUp', -1, 'השיעור הקודם', 'rotate(90deg)'], ['chevDown', 1, 'השיעור הבא', 'rotate(90deg)']] as const).map(([name, dir, label, turn]) => (
+              <button key={name} onClick={() => go(dir)} aria-label={label} className="holo-button holo-button--sm"
+                style={{ width: 44, height: 36, padding: 0, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <BrandIcon name={name} size={16} style={{ transform: turn }} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* חצים ידניים — גלויים תמיד (וגם היחידים ב-reduced-motion) */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, height: SIDE.footH }}>
-        {rotate && ([['chevUp', -1, 'השיעור הקודם'], ['chevDown', 1, 'השיעור הבא']] as const).map(([name, dir, label]) => (
-          <button key={name} onClick={() => go(dir)} aria-label={label} className="holo-button holo-button--sm"
-            style={{ width: 34, height: SIDE.footH, padding: 0, borderRadius: 8, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            <BrandIcon name={name} size={14} />
-          </button>
-        ))}
+      {/* המדף: הספרים, ומתחתיהם הקרש */}
+      <div>
+        <div ref={railRef} style={{ position: 'relative', height: COVER_H + LIFT_ROOM, overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', top: LIFT_ROOM, bottom: 0, left: '50%', width: rowW, transform: 'translateX(-50%)' }}>
+            {quests.map((q, i) => {
+              const d = ((i - cur) % n + n) % n
+              const visible = d < cols
+              /* מיקום: גלויים על המדף (מימין לשמאל); האחרון במעגל חונה מימין; השאר משמאל */
+              const slot = visible ? d : d === n - 1 ? -1 : cols
+              const grades = gradeRangeLabel(q.gradeMin, q.gradeMax)
+              const code = legacySubjectToCode(q.subject)
+              return (
+                <div key={q.id} style={{
+                  position: 'absolute', top: 0, right: 0, width: COVER_W, height: COVER_H,
+                  transform: `translateX(${-slot * COVER_STEP}px)`,
+                  opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none',
+                  transition: reduceMotion ? 'none' : 'transform .55s cubic-bezier(.3,.7,.3,1), opacity .35s ease',
+                }}>
+                  <button
+                    className="home-cover"
+                    data-showcase-cover={q.id}
+                    onClick={() => { trackFunnel('showcase_click', q.id); navigate(`/play/${q.id}`) }}
+                    onFocus={() => { if (!visible) setCur(i) }}
+                    tabIndex={0}
+                    aria-hidden={visible ? undefined : true}
+                    style={{
+                      position: 'relative', width: '100%', height: '100%', boxSizing: 'border-box', padding: 0, overflow: 'hidden',
+                      display: 'flex', flexDirection: 'column', textAlign: 'right', cursor: 'pointer', fontFamily: 'var(--font-display)',
+                      background: 'var(--color-surface)', color: 'var(--color-ink)', border: 'var(--border-student)', borderRadius: '6px 12px 12px 6px',
+                      paddingInlineStart: SPINE_W,
+                    }}
+                  >
+                    {/* שדרת הספר: פס בצבע המקצוע (שם המקצוע כתוב בתגית שעל התמונה) */}
+                    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: 0, width: SPINE_W, background: subjectVisual(code).color, borderInlineEnd: '2px solid var(--color-ink)' }} />
+                    <span style={{ position: 'relative', display: 'block', flex: '0 0 auto', height: 112, background: 'var(--color-machine-tint)', borderBottom: '2px solid var(--color-ink)' }}>
+                      {q.thumbUrl && <img src={q.thumbUrl} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                      {q.subject && <span style={{ position: 'absolute', top: 6, insetInlineStart: 6, maxWidth: 'calc(100% - 12px)', display: 'inline-flex' }}><SubjectTag code={code} size="sm" /></span>}
+                    </span>
+                    <span style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6, padding: '7px 9px 8px' }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{q.title}</span>
+                      {grades && <span style={{ ...infoChip, alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>{grades}</span>}
+                      <span className="holo-button holo-button--sm" style={{ marginTop: 'auto', marginInlineEnd: 3, marginBottom: 3, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, padding: '3px 9px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>שחקו <BrandIcon name="play" size={11} /></span>
+                    </span>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        {/* הקרש של המדף */}
+        <div aria-hidden="true" style={{ height: 14, background: 'var(--color-human-soft)', border: 'var(--border-student)', borderRadius: 6, boxShadow: 'var(--shadow-button)' }} />
       </div>
     </div>
   )
@@ -194,20 +201,23 @@ interface ModeCard {
   icon: React.ReactNode
 }
 
-/* מסך הבית — שלושה טורים במסך אחד: שלבים (ימין) · כניסה (מרכז, שולט) ·
-   הדמיות (שמאל) · רצועת יתרונות. הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה →
-   /class/:code, מורה → /staff/login. */
+/* שלושת השלבים: אדם מתאר → המכונה בונה → משחקים יחד. צבע התג של כל שלב לפי תפקידי הצבע
+   (אנושיות / המכונה / משטח), והמספר כתוב בתוכו, כך שהצבע לא נושא משמעות לבד. */
+const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text: string; fill: string }[] = [
+  { n: '1', icon: 'doc', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.', fill: 'var(--color-human-soft)' },
+  { n: '2', icon: 'crystal', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.', fill: 'var(--color-machine)' },
+  { n: '3', icon: 'chart', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.', fill: 'var(--color-surface)' },
+]
+
+/* מסך הבית — "דלפק הספרייה": מימין הכניסה (לוגו ושתי דלתות: תלמידים ומורים), משמאל מדף
+   השיעורים להתנסות, ומתחת שלושת השלבים ורצועת היתרונות. הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה →
+   /class/:code; מורה → /staff/login; ספר במדף → /play/:id. */
 export default function Home() {
   const navigate = useNavigate()
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
   const [showcase, setShowcase] = useState<ShowcaseQuest[]>(showcaseMemo ?? [])
-  const rowsByHeight = useVisibleRows()
-  /* לא פותחים חלון גדול ממספר ההדמיות — חריץ ריק שובר את מלאות הטור */
-  const rows = Math.max(3, Math.min(rowsByHeight, showcase.length || 3))
-  /* גובה כרטיס-שלב: שלושת השלבים נמתחים בדיוק לגובה ערימת הקרוסלה — איזון נשמר */
-  const stepH = (stackHFor(rows) - 2 * SIDE.gap) / 3
   useEffect(() => {
     if (showcaseMemo) return /* cache מודול — הבית מרונדר גם כרקע מסכי הכניסה, בלי הבהוב */
     fetch('/api/quests/showcase')
@@ -262,103 +272,56 @@ export default function Home() {
     else navigate('/staff/login')
   }
 
-  const colTitle: React.CSSProperties = { textAlign: 'center', fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 10 }
-
   return (
     <HoloBackdrop>
       <div className="home3">
 
-        {/* ── טור ימני: איך זה עובד — מבנה ומידות זהים לטור "התנסו עכשיו" ── */}
-        <div className="home3-steps" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <SideHead
-            icon={<BrandIcon name="compass" size={19} style={{ color: 'var(--color-ink)' }} />}
-            title="איך זה עובד?"
-            sub="שיעורים אינטראקטיביים בהדמיה — לכל מקצוע, שכבה ורמה"
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: SIDE.gap, height: stackHFor(rows) }}>
-            {[
-              { n: '1', icon: 'doc' as const, title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.' },
-              { n: '2', icon: 'crystal' as const, title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.' },
-              { n: '3', icon: 'chart' as const, title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.' },
-            ].map((s) => (
-              <div key={s.n} style={{
-                height: stepH, boxSizing: 'border-box', padding: '10px 14px', textAlign: 'right',
-                ...panelStudent, borderRadius: 16,
-                display: 'flex', flexDirection: 'column', justifyContent: 'center',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                  <StepNum n={s.n} />
-                  <BrandIcon name={s.icon} size={17} style={{ color: 'var(--color-ink)' }} />
-                  <span style={{ fontSize: 'var(--fs-step-title)', fontWeight: 800, color: 'var(--color-ink)' }}>{s.title}</span>
-                </div>
-                <div style={{ fontSize: 'var(--fs-body)', color: 'var(--color-muted)', lineHeight: 1.6 }}>{s.text}</div>
-              </div>
-            ))}
-          </div>
-          {/* מקביל לשורת החצים של הקרוסלה — אותו גובה, משני צידי המסך */}
-          <div style={{ display: 'flex', justifyContent: 'center', height: SIDE.footH }}>
-            <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" className="holo-link" style={{
-              display: 'inline-flex', alignItems: 'center', height: SIDE.footH, boxSizing: 'border-box',
-              fontSize: 'var(--fs-chip)', fontWeight: 600,
-            }}><BrandIcon name="brief" size={13} style={{ marginLeft: 5 }} />תקציר לרשויות ובתי ספר</a>
-          </div>
-        </div>
-
-        {/* ── טור מרכזי: לוגו + כניסה (הדומיננטי) ── */}
-        <div className="home3-login" style={{ textAlign: 'center' }}>
+        {/* ── הדלפק: לוגו ושתי הכניסות ── */}
+        <section className="home3-login" style={{ ...panelStudent, textAlign: 'center' }}>
           <div className="holo-logo-glow">
             <img
               src={LOGO_SRC}
               alt="HOLO ACADEMY"
               onError={retryLogo}
-              style={{ width: 'var(--logo-w, clamp(180px, 21vw, 240px))', height: 'auto', margin: '0 auto', display: 'block' }}
+              style={{ width: 'var(--logo-w, 160px)', height: 'auto', margin: '0 auto', display: 'block' }}
             />
           </div>
           <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
-          {/* טאגליין — צבע כותרת שטוח */}
-          <p style={{
-            margin: '10px 0 0',
-            fontSize: 'var(--fs-tagline)',
-            fontWeight: 600,
-            letterSpacing: '.09em',
-            color: 'var(--color-machine-deep)',
-          }}>ממד חדש של למידה!</p>
+          <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-tagline)', fontWeight: 700, letterSpacing: '.06em', color: 'var(--color-machine-deep)' }}>ממד חדש של למידה!</p>
 
-          {/* שני כפתורי הכניסה — זה לצד זה. כרטיס לחיץ = כפתור; המבטא של כרטיס המורה במשפחת האנושיות */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 20 }}>
-            {cards.map((c) => {
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => selectCard(c.id)}
-                  className="holo-button"
-                  style={{
-                    width: 'var(--mode-card-w)', padding: 'clamp(16px, 1.6vh, 26px) 16px 16px', borderRadius: 18,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9,
-                    fontFamily: 'var(--font-display)', fontWeight: 400,
-                  }}
-                >
-                  <div>{c.icon}</div>
-                  <div style={{ fontSize: 'var(--fs-mode-title)', fontWeight: 800 }}>{c.label}</div>
-                  <div style={{ fontSize: 'var(--fs-mode-sub)', color: 'var(--color-muted)', lineHeight: 1.55 }}>{c.sub}</div>
-                  <div style={{
-                    marginTop: 2, padding: '7px 26px', borderRadius: 9, fontSize: 'var(--fs-btn)', fontWeight: 700,
-                    background: c.id === 'teacher' ? 'var(--color-human-soft)' : 'var(--color-surface)',
-                    color: 'var(--color-ink)', border: '2px solid var(--color-ink)',
-                  }}>כניסה</div>
-                </button>
-              )
-            })}
+          {/* שתי הכניסות — זו לצד זו. כרטיס לחיץ = כפתור; המבטא של כניסת המורה במשפחת האנושיות */}
+          <div className="home3-doors">
+            {cards.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => selectCard(c.id)}
+                className="holo-button"
+                style={{
+                  padding: 'clamp(12px, 1.6vh, 20px) 12px 14px', borderRadius: 16,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
+                  fontFamily: 'var(--font-display)', fontWeight: 400, minWidth: 0,
+                }}
+              >
+                <div>{c.icon}</div>
+                <div style={{ fontSize: 'var(--fs-mode-title)', fontWeight: 800 }}>{c.label}</div>
+                <div style={{ fontSize: 'var(--fs-mode-sub)', color: 'var(--color-muted)', lineHeight: 1.5 }}>{c.sub}</div>
+                <div style={{
+                  marginTop: 'auto', padding: '6px 26px', borderRadius: 9, fontSize: 'var(--fs-btn)', fontWeight: 700,
+                  background: c.id === 'teacher' ? 'var(--color-human-soft)' : 'var(--color-surface)',
+                  color: 'var(--color-ink)', border: '2px solid var(--color-ink)',
+                }}>כניסה</div>
+              </button>
+            ))}
           </div>
-        </div>
+        </section>
 
-        {/* ── טור שמאלי: קרוסלת ההדמיות ── */}
-        <div className="home3-shelf">
+        {/* ── המדף: שיעורים להתנסות ── */}
+        <section className="home3-shelf">
           {showcase.length > 0 ? (
-            <ShowcaseCarousel quests={showcase} rows={rows} />
+            <Bookshelf quests={showcase} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <div style={colTitle}>התנסו עכשיו</div>
+              <div style={{ textAlign: 'center', fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 10 }}>התנסו עכשיו</div>
               <button
                 onClick={startDemo}
                 className="holo-button"
@@ -372,11 +335,41 @@ export default function Home() {
               </button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* ── רצועת יתרונות + קישור התקציר + זכויות ── */}
-        {/* פוטר: רצועת היתרונות ממורכזת על ציר הדף, והזכויות בשורה נפרדת מתחתיה */}
-        <div className="home3-strip" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7, paddingTop: 4 }}>
+        {/* ── איך זה עובד: שלושה שלבים ברצף ── */}
+        <section className="home3-steps">
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <SectionHead
+              icon={<BrandIcon name="compass" size={22} style={{ color: 'var(--color-ink)' }} />}
+              title="איך זה עובד?"
+              sub="שיעורים אינטראקטיביים בהדמיה — לכל מקצוע, שכבה ורמה"
+            />
+            <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" className="holo-link" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
+              <BrandIcon name="brief" size={14} style={{ marginLeft: 5 }} />תקציר לרשויות ובתי ספר
+            </a>
+          </div>
+          <ol className="home3-step-row">
+            {STEPS.map((s, i) => (
+              <li key={s.n} className="home3-step">
+                <div style={{ ...panelStudent, borderRadius: 16, boxShadow: 'var(--shadow-button)', flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'right' }}>
+                  <span aria-hidden="true" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', background: s.fill, border: '2px solid var(--color-ink)', fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, color: 'var(--color-ink)' }}>{s.n}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 'var(--fs-step-title)', fontWeight: 800, color: 'var(--color-ink)', lineHeight: 1.3 }}>
+                      <BrandIcon name={s.icon} size={17} style={{ color: 'var(--color-ink)', flexShrink: 0 }} />
+                      <span>{s.title}</span>
+                    </div>
+                    <div style={{ fontSize: 'var(--fs-body)', color: 'var(--color-muted)', lineHeight: 1.5, marginTop: 3 }}>{s.text}</div>
+                  </div>
+                </div>
+                {i < STEPS.length - 1 && <span className="home3-step-arrow" aria-hidden="true">←</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* ── רצועת היתרונות + זכויות ── */}
+        <footer className="home3-strip" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
             {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
               <span key={c} style={{ ...infoChip, fontSize: 'var(--fs-chip)', fontWeight: 600, padding: '4px 12px', borderRadius: 9, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -387,7 +380,7 @@ export default function Home() {
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-foot)', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--color-muted)', textAlign: 'center' }}>
             © 2026 HoloAcademy
           </div>
-        </div>
+        </footer>
       </div>
 
       {/* מודאל קוד כיתה */}

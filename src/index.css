@@ -78,59 +78,66 @@
 .holo-logo-glow > img { position: relative; z-index: 1; }
 .holo-logo-glow .hlg-glitch { display: none; }
 
-/* ── דף הבית: שלושה טורים במסך אחד (RTL) ─────────────────────────────────
-   grid-template-areas שולט בסדר — בדסקטופ: ימין=שלבים, מרכז=כניסה (רחב
-   ושולט), שמאל=הדמיות; שורת יתרונות מתחת. במובייל הסדר מוכתב מהאזורים
-   (כניסה→הדמיות→שלבים→רצועה), לא מסדר ה-DOM. */
+/* ── דף הבית: "דלפק הספרייה" (RTL) ────────────────────────────────────────
+   שורה ראשונה: הדלפק (לוגו ושתי כניסות) מימין, ומדף השיעורים להתנסות משמאל.
+   שורה שנייה: שלושת השלבים ברצף. שורה שלישית: רצועת היתרונות.
+   במסך צר הכול נערם בטור אחד: כניסה → מדף → שלבים → רצועה. */
 .home3 {
   display: grid;
-  grid-template-areas: 'steps login shelf' 'strip strip strip';
-  /* טורים ביחסים (fr), לא ברוחב קבוע — גדלים עם המסך; המרכז תמיד הרחב.
-     טוקני הטיפוגרפיה מדורגים (clamp) — גדלים בהדרגה עם הרוחב. */
-  /* טורי צד רחבים מעט יותר (שניהם שווים) — שורת תגית+שכבה+שחקו נכנסת בשורה אחת */
-  grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.6fr) minmax(320px, 1fr);
-  grid-template-rows: 1fr auto;
+  grid-template-areas: 'login shelf' 'steps steps' 'strip strip';
+  grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
   align-items: center;
-  gap: clamp(12px, 1.6vh, 22px) clamp(20px, 3vw, 56px);
+  align-content: center;
+  gap: clamp(14px, 2.4vh, 28px) clamp(24px, 3.4vw, 60px);
   /* תקרה ומרכוז במסכים ענקיים — לא נמתחים ל-3000px */
-  width: min(1860px, 100%);
+  width: min(1500px, 100%);
+  margin: 0 auto;
   min-height: 100dvh;
-  padding: clamp(14px, 2vh, 30px) clamp(20px, 2.6vw, 52px) clamp(10px, 1.6vh, 20px);
+  padding: clamp(14px, 2.4vh, 34px) clamp(20px, 3vw, 56px) clamp(10px, 1.6vh, 20px);
   box-sizing: border-box;
   position: relative;
   z-index: 1;
-  /* הסולם הטיפוגרפי — הוגדל ~25-30% בכל הרזולוציות, ביחסים שמורים */
-  --fs-side-title: clamp(20px, 1.5vw, 27px);
+  /* הסולם הטיפוגרפי (clamp) — גדל בהדרגה עם הרוחב */
+  --fs-side-title: clamp(20px, 1.6vw, 27px);
   --fs-side-sub: clamp(14px, 1.05vw, 17px);
   --fs-step-title: clamp(16px, 1.2vw, 20px);
   --fs-body: clamp(14px, 1.05vw, 17px);
-  --fs-mode-title: clamp(21px, 1.65vw, 29px);
-  --fs-mode-sub: clamp(14px, 1.05vw, 17px);
-  --fs-tagline: clamp(17px, 1.7vw, 26px); /* משנית ללוגו */
+  --fs-mode-title: clamp(20px, 1.6vw, 27px);
+  --fs-mode-sub: clamp(14px, 1.02vw, 16px);
+  --fs-tagline: clamp(18px, 1.7vw, 26px);
   --fs-tag: clamp(11.5px, 0.85vw, 14px);
   --fs-btn: clamp(15px, 1.1vw, 19px);
   --fs-chip: clamp(13px, 0.95vw, 16px);
   --fs-foot: clamp(10.5px, 0.8vw, 12.5px);
-  /* הקובץ רופד-מחדש סימטרית (466px רוחב, היה 640) — הכיול שומר על אותו גודל חזותי */
-  --logo-w: min(clamp(170px, 16.5vw, 300px), 31vh); /* הלוגו דומיננטי */
-  --mode-card-w: clamp(186px, 15vw, 264px);
+  --logo-w: min(clamp(120px, 11.5vw, 200px), 21vh);
 }
-.home3-steps { grid-area: steps; }
-.home3-login { grid-area: login; }
-.home3-shelf { grid-area: shelf; }
+.home3-login { grid-area: login; padding: clamp(14px, 2.2vh, 26px) clamp(16px, 1.8vw, 28px); min-width: 0; }
+.home3-doors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: clamp(10px, 1.8vh, 20px); align-items: stretch; }
+.home3-shelf { grid-area: shelf; min-width: 0; }
+.home3-steps { grid-area: steps; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .home3-strip { grid-area: strip; }
+.home3-step-row { list-style: none; margin: 0; padding: 0; display: flex; align-items: stretch; gap: 10px; }
+.home3-step { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; }
+.home3-step-arrow { flex-shrink: 0; font-size: 26px; font-weight: 900; color: var(--color-ink); line-height: 1; }
+/* ספר על המדף: מתרומם מעט בריחוף ובפוקוס */
+.home-cover { transition: transform .14s ease; }
+.home-cover:hover, .home-cover:focus-visible { transform: translateY(-6px); }
+.home-cover:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; }
 @media (max-width: 900px) {
   .home3 {
     grid-template-areas: 'login' 'shelf' 'steps' 'strip';
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    justify-items: center;
+    align-content: start;
     gap: 26px;
     min-height: 0;
-    padding: 26px 16px 14px;
+    padding: 22px 16px 14px;
   }
-  .home3-steps, .home3-shelf { width: min(430px, 100%); }
-  .home3-login { width: 100%; }
+  .home3-step-row { flex-direction: column; }
+  .home3-step { flex-direction: column; align-items: stretch; }
+  .home3-step-arrow { align-self: center; transform: rotate(-90deg); }
+}
+@media (max-width: 420px) {
+  .home3-doors { grid-template-columns: 1fr; }
 }
 
 /* ── שיעור חדש: סרגלי בחירה, שדות ופס גלילה פנימי ── */
@@ -550,6 +557,15 @@ html {
 /* כפתור קטן (שורת כלים, תג לחיץ) */
 .holo-button--sm { padding: 0.3rem 0.8rem; border-width: 2px; box-shadow: 2px 2px 0 var(--color-ink); }
 .holo-button--sm:active:not(:disabled):not([aria-disabled="true"]) { transform: translate(2px, 2px); box-shadow: none; }
+/* כפתור בחירת מקצוע: נושא את צבע המקצוע (--btn-fill) ואת צבע הטקסט שעובר עליו ניגודיות (--btn-ink).
+   שם המקצוע כתוב על הכפתור, כך שהצבע לא מופיע לבד. נבחר: רקע דיו וטקסט לבן, והצבע נשאר בנקודה שלצד השם. */
+.holo-button--subject { background: var(--btn-fill); color: var(--btn-ink); display: inline-flex; align-items: center; gap: 6px; }
+.holo-button--subject:active:not(:disabled):not([aria-disabled="true"]) { background: var(--btn-fill); }
+.holo-button--subject.is-selected,
+.holo-button--subject[aria-pressed="true"] { background: var(--color-ink); color: var(--color-surface); }
+.holo-button--subject > .holo-subject-dot { display: none; width: .8em; height: .8em; border-radius: 50%; background: var(--btn-fill); border: 2px solid var(--color-surface); flex-shrink: 0; }
+.holo-button--subject.is-selected > .holo-subject-dot,
+.holo-button--subject[aria-pressed="true"] > .holo-subject-dot { display: inline-block; }
 .holo-button:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 3px; }
 
 /* ניווט וקישורים: בדיו, לא בתכלת */

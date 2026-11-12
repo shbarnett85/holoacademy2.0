@@ -15,7 +15,7 @@ import LessonCard from '../../shared/ui/LessonCard'
 import StudioTopBar from './StudioTopBar'
 import { glass, micro } from './studioStyles'
 import { fieldStyle, infoChip, modalBackdrop, panelFinding, panelWrong, progressFill, progressTrack } from '../../styles/ui'
-import { SUBJECTS, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
+import { SUBJECTS, UNCLASSIFIED_LABEL, subjectTagColors } from '../../shared/lib/subjects'
 
 interface QuestSummary {
   id: string
@@ -65,8 +65,6 @@ interface StudentRow {
 }
 
 const GRADES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ז׳', 'ח׳', 'ט׳', 'י׳', 'י״א', 'י״ב']
-/* רשימת המקצועות — מקור יחיד משותף (shared/lib/subjects.ts); אין עוד רשימה מקומית */
-const SUBJECT_NAMES: string[] = SUBJECTS.map((s) => s.nameHe)
 const WORK_MSGS = ['טוען פרופיל…', 'מתאים רמת טקסט…', 'מכוון קושי חידות…', 'מגבש גרסה אישית…']
 
 /* שכבה = gradeLabel ללא ספרת הכיתה */
@@ -817,10 +815,17 @@ export default function Library() {
             <div style={{ ...micro, marginBottom: 10 }}>מקצוע</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1, minWidth: 220 }}>
-                {[...SUBJECT_NAMES, UNCLASSIFIED_LABEL].map((sub) => {
+                {/* כל כפתור בצבע המקצוע שלו (אותה חוקיות כמו התגית שעל כרטיס השיעור); נבחר: דיו, עם נקודה בצבע המקצוע וסימן ✓ */}
+                {[...SUBJECTS.map((sb) => ({ name: sb.nameHe, code: sb.code as string | null })), { name: UNCLASSIFIED_LABEL, code: null }].map(({ name: sub, code }) => {
                   const on = !!subjOn[sub]
+                  const tag = subjectTagColors(code)
                   return (
-                    <button key={sub} onClick={() => toggleSubj(sub)} className={BTN_SM + (on ? ' is-selected' : '')} style={{ padding: '8px 15px', fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)' }}>{sub}</button>
+                    <button key={sub} type="button" data-subject-filter={tag.code} aria-pressed={on} onClick={() => toggleSubj(sub)} className={BTN_SM + ' holo-button--subject'}
+                      style={{ padding: '8px 15px', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-display)', ['--btn-fill' as string]: tag.bg, ['--btn-ink' as string]: tag.fg }}>
+                      <span className="holo-subject-dot" aria-hidden="true" />
+                      {on && <span aria-hidden="true">✓</span>}
+                      {sub}
+                    </button>
                   )
                 })}
               </div>
