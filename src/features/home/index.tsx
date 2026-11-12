@@ -4,6 +4,7 @@ import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
+import { GemDefs, GemIcon } from '../../shared/ui/Gem'
 import { legacySubjectToCode, subjectVisual } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 
@@ -26,16 +27,17 @@ function gradeRangeLabel(min: number | null, max: number | null): string | null 
   return a ? `כיתה ${a}׳` : null
 }
 
-/* קובץ הלוגו (לא עורכים אותו; רק בוחרים איזה קובץ קיים מוצג) */
-const LOGO_SRC = '/holo-transparent-for-light-backgrounds.svg'
-
-/* עמידות טעינת הלוגו: כשל חולף (רשת רעועה / שרת שקם מחדש) → ניסיון חוזר
-   אחד עם cache-bust אחרי 1.5 שניות. */
-function retryLogo(e: React.SyntheticEvent<HTMLImageElement>) {
-  const el = e.currentTarget
-  if (el.dataset.retried) return
-  el.dataset.retried = '1'
-  setTimeout(() => { el.src = LOGO_SRC + '?r=' + Date.now() }, 1500)
+/* סימן הבית: הקריסטל בשפה החזותית החדשה (אותו קריסטל של המשחק, מקובץ הטוקנים) ומתחתיו שם המותג באותיות בדיו.
+   זה סימן זמני שמצויר בקוד: קובצי הלוגו עצמם לא נערכו ולא מוצגים כאן, כי שניהם בפלטה הישנה
+   (הדיוקן עם הכיתוב הלבן נועד לרקע כהה, והקריסטל במעבר ציאן-מג'נטה). כשיגיע לוגו חדש, מחליפים רק את הרכיב הזה. */
+function HomeMark() {
+  return (
+    <div data-home-mark style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <GemIcon size={84} style={{ width: 'var(--logo-w, 84px)', height: 'auto' }} />
+      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'var(--fs-wordmark, 46px)', lineHeight: 1, letterSpacing: '.04em', color: 'var(--color-ink)', marginTop: 6 }}>HOLO</div>
+      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'calc(var(--fs-wordmark, 46px) * .3)', lineHeight: 1, letterSpacing: '.52em', marginInlineEnd: '-.52em', color: 'var(--color-machine-deep)' }}>ACADEMY</div>
+    </div>
+  )
 }
 
 /* cache מודול לחלון הראווה — הבית מרונדר שוב כרקע חי של מסכי הכניסה */
@@ -278,14 +280,8 @@ export default function Home() {
 
         {/* ── הדלפק: לוגו ושתי הכניסות ── */}
         <section className="home3-login" style={{ ...panelStudent, textAlign: 'center' }}>
-          <div className="holo-logo-glow">
-            <img
-              src={LOGO_SRC}
-              alt="HOLO ACADEMY"
-              onError={retryLogo}
-              style={{ width: 'var(--logo-w, 160px)', height: 'auto', margin: '0 auto', display: 'block' }}
-            />
-          </div>
+          <GemDefs />
+          <HomeMark />
           <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
           <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-tagline)', fontWeight: 700, letterSpacing: '.06em', color: 'var(--color-machine-deep)' }}>ממד חדש של למידה!</p>
 
