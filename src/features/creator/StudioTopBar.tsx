@@ -42,7 +42,7 @@ function BarButton({ icon, label, onClick, pressed }: { icon: React.ReactNode; l
 }
 
 /* סרגל עליון משותף למסכי המורה והמנהל: פס ברקע "המכונה" עם טקסט בדיו.
-   הלשונית הפעילה מסומנת בקו תחתון בדיו (ובמשקל מודגש); שם המורה והאווטאר באפרסק; כפתורי הפעולה בתכלת. */
+   הלשוניות הן כפתורים בתכלת, והפעילה ברקע דיו עם טקסט לבן; שם המורה והאווטאר באפרסק; כפתורי הפעולה בתכלת. */
 export default function StudioTopBar({ active }: { active: TabId }) {
   const navigate = useNavigate()
   const { logout, user, isStaff } = useStaffAuth()
@@ -82,17 +82,16 @@ export default function StudioTopBar({ active }: { active: TabId }) {
           <div style={{ fontSize: 16, fontWeight: 600, letterSpacing: '.04em', color: 'var(--color-ink)', marginTop: 1 }}>HoloAcademy</div>
         </div>
       </div>
-      <nav aria-label="ניווט ראשי" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      <nav aria-label="ניווט ראשי" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {tabs.map((t) => {
           const isActive = t.id === active
           return (
-            <button key={t.id} type="button" data-tu-press aria-current={isActive ? 'page' : undefined} onClick={() => !isActive && navTab(tabHref(t))}
+            <button key={t.id} type="button" aria-current={isActive ? 'page' : undefined} onClick={() => !isActive && navTab(tabHref(t))}
+              /* כפתור בתכלת על הפס הסגול; הלשונית הפעילה ברקע דיו עם טקסט לבן ובמשקל כבד (לא בצבע בלבד) */
+              className={`holo-button holo-button--staff${isActive ? ' is-selected' : ''}`}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 12px', borderRadius: 8, cursor: isActive ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8, minHeight: TARGET, padding: '0 14px', cursor: isActive ? 'default' : 'pointer',
                 fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: isActive ? 800 : 600, whiteSpace: 'nowrap',
-                background: 'transparent', border: 'none', color: 'var(--color-ink)',
-                /* הלשונית הפעילה: קו תחתון בדיו (סימון שאינו צבע בלבד) */
-                boxShadow: isActive ? 'inset 0 -4px 0 var(--color-ink)' : 'none',
               }}>
               {t.label}
             </button>

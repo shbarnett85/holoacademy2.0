@@ -1,6 +1,6 @@
 /* טאבים (עיקרון 3: במקום גלילה ארוכה; לכל היותר שתי שורות). role=tablist, אזור לחיצה 44px+, חיצים במקלדת.
    טאב חסום (עיקרון 10): אפור + מנעול + הסיבה כטקסט גלוי בתוך הטאב עצמו (לא tooltip), אינו ניתן לבחירה.
-   טאבים הם ניווט: טקסט בדיו בלי מילוי; הנבחר מסומן בקו תחתון עבה בדיו ובמשקל כבד (לא בצבע בלבד). */
+   טאבים הם כפתורים בתכלת (`holo-button`); הנבחר ברקע דיו עם טקסט לבן ובמשקל כבד (לא בצבע בלבד). */
 import { useRef } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { Icon } from './icons'
@@ -77,7 +77,7 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
         }
         const base = {
           display: 'inline-flex', flexDirection: 'column' as const, alignItems: 'flex-start', justifyContent: 'center', gap: 2,
-          minHeight: MIN_TARGET, padding: secondary ? '6px 14px' : '6px 14px', borderRadius: '8px 8px 0 0',
+          minHeight: MIN_TARGET, padding: secondary ? '5px 14px' : '5px 14px', borderRadius: 12,
           fontFamily: FONT, fontSize: secondary ? 16 : 17, textAlign: 'start' as const, lineHeight: 1.3,
         }
         if (t.locked) {
@@ -95,13 +95,12 @@ export default function TabBar({ items, value, onChange, ariaLabel, variant = 'p
           )
         }
         return (
-          <button key={t.id} type="button" data-tu-press {...common} tabIndex={t.id === focusableId ? 0 : -1} onClick={() => onChange(t.id)}
+          <button key={t.id} type="button" {...common} tabIndex={t.id === focusableId ? 0 : -1} onClick={() => onChange(t.id)}
+            /* כפתור בתכלת; הנבחר (aria-selected) ברקע דיו עם טקסט לבן ובמשקל כבד, לא בצבע בלבד */
+            className={`holo-button holo-button--staff${secondary ? ' holo-button--sm' : ''}`}
             style={{
               ...base, flexDirection: 'row', alignItems: 'center', gap: 8, cursor: selected ? 'default' : 'pointer',
-              fontWeight: selected ? 800 : 600,
-              background: 'transparent', color: T.text,
-              /* נבחר = קו תחתון עבה בדיו + משקל כבד (לא צבע בלבד) */
-              border: 'none', borderBottom: `${secondary ? 3 : 4}px solid ${selected ? T.controlBorder : 'transparent'}`,
+              fontWeight: selected ? 800 : 600, borderRadius: undefined,
             }}>
             {t.icon && <span aria-hidden="true" style={{ display: 'inline-flex' }}>{t.icon}</span>}
             <span>{t.label}</span>
