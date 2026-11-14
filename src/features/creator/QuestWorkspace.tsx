@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { LAB } from '../player/lab/labComposition'
+import { SUMMARY_STAGE } from '../player/lab/labComposition'
 import { apiFetch } from '../../shared/lib/api'
 import { useEscToClose } from '../../shared/ui/useModalA11y'
 import { ART_STYLES, type GeneratedQuest, type HubInfo } from './creatorStore'
@@ -126,7 +126,7 @@ function EndingCard({ which, ending, onEdit }: {
         )}
       </div>
       <div style={{ position: 'relative', width: 120, flexShrink: 0, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--color-ink)', alignSelf: 'stretch', minHeight: 90 }}>
-        <img src={LAB.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <img src={SUMMARY_STAGE.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       </div>
     </div>
   )

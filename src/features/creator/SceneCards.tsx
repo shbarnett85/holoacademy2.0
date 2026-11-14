@@ -1,4 +1,4 @@
-import { LAB } from '../player/lab/labComposition'
+import { OPENING_STAGE } from '../player/lab/labComposition'
 import { puzzleTypeLabel } from '../../shared/lib/labels'
 import { infoChip, panelStaff } from '../../styles/ui'
 
@@ -109,7 +109,7 @@ function SceneRow({ scene, n, last, onRegenerateImage, regenerating, onEdit }: {
         onClick={onEdit ? () => onEdit(scene.id) : undefined}
         style={{ position: 'relative', alignSelf: 'stretch', width: 'clamp(150px, 26%, 240px)', flexShrink: 0, borderRadius: 12, overflow: 'hidden', border: '2px solid var(--color-ink)', background: 'var(--color-surface)', cursor: onEdit ? 'pointer' : 'default' }}>
         {fixedLab ? (
-          <img src={LAB.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={OPENING_STAGE.src} alt="המעבדה" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         ) : scene.imageUrl ? (
           <>
             <img src={scene.imageUrl} alt={scene.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: regenerating ? 0.4 : 1 }} />

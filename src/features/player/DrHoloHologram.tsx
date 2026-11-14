@@ -85,7 +85,7 @@ const CSS = `
 }
 `
 
-export default function DrHoloHologram({ mood, build = false, height, className = '', video = false, human = false }: {
+export default function DrHoloHologram({ mood, build = false, height, className = '', video = false, still = false, human = false }: {
   mood?: HoloMood
   build?: boolean
   /* גובה הדמות (CSS). בלי ערך: ממלאה את גובה ההורה */
@@ -93,6 +93,8 @@ export default function DrHoloHologram({ mood, build = false, height, className 
   className?: string
   /* מסכי הפתיחה והסיכום בלבד: הקטעים לא נטענים בשאר המסכים */
   video?: boolean
+  /* בלי קטע הווידאו: התמונה הקבועה עם הריחוף העדין. למסך שבו הרקע עצמו הוא וידאו (שני קטעים בו-זמנית מורידים את קצב הפריימים) */
+  still?: boolean
   /* 5 גבישים: אחרי שההולוגרמה נבנית היא עוברת במעבר רך לגוונים טבעיים. פרט ויזואלי בלבד, בלי טקסט */
   human?: boolean
 }) {
@@ -110,7 +112,7 @@ export default function DrHoloHologram({ mood, build = false, height, className 
 
   const animateBuild = build && !built && feel.level !== 'gentle' && !feel.reduced
   /* armed: עוצמת הכיתה נקבעת ב-effect של ההורה, ובמעבר ראשון עוד לא ידועה. לא טוענים וידאו לפני שיודעים */
-  const clip = armed && video && !clipFailed && feel.level !== 'gentle' && !feel.reduced ? holoClipFor(current) : null
+  const clip = armed && video && !still && !clipFailed && feel.level !== 'gentle' && !feel.reduced ? holoClipFor(current) : null
   const fallbackFloat = armed && video && !clip && !feel.reduced
   const humanOn = human && (feel.reduced || (armed && !animateBuild))
   const live = !feel.reading && !feel.reduced && !animateBuild && !humanOn

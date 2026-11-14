@@ -67,6 +67,10 @@ async function next(page: Page): Promise<void> {
   await btn.click()
 }
 const clipOf = (page: Page) => page.evaluate(() => document.querySelector<HTMLVideoElement>('[data-dr-holo] video')?.getAttribute('src') ?? null)
+/* בפתיחה הרקע הוא וידאו (ספריית השרתים), ולכן ד"ר הולו מוצג שם בתמונה הקבועה של מצב הרוח, בלי קטע וידאו משלו */
+const OPENING_READY = '[data-lab-video][data-playing]'
+const moodOf = (page: Page) => page.evaluate(() => document.querySelector('[data-dr-holo]')?.getAttribute('data-dr-holo') ?? null)
+const holoClips = (page: Page) => page.evaluate(() => document.querySelectorAll('[data-dr-holo] video').length)
 const cameraScale = (page: Page) => page.evaluate(() => {
   const el = document.querySelector('.lab-camera')
   if (!el) return null
@@ -193,9 +197,10 @@ const page_ready = async (page: Page) => { await page.waitForTimeout(500); await
 async function dive(browser: Browser, kind: 'new' | 'old'): Promise<void> {
   console.log(`\n== צלילה, שיעור ${kind === 'new' ? 'חדש' : 'ישן'} ==`)
   const { ctx, page, requested } = await open(browser, { kind, holoMoods: kind === 'new' ? { opening: 'scared', closed: 'celebrating', open: 'thinking' } : undefined })
-  await page.waitForSelector('[data-dr-holo] video', { timeout: 20000 })
+  await page.waitForSelector(OPENING_READY, { timeout: 20000 })
   await page.waitForTimeout(2500)
-  check((await clipOf(page)) === (kind === 'new' ? '/dr-holo/scared.mp4' : '/dr-holo/neutral.mp4'), `פתיחה: הקטע ${await clipOf(page)}`)
+  check((await moodOf(page)) === (kind === 'new' ? 'scared' : 'neutral'), `פתיחה: מצב הרוח ${await moodOf(page)}`)
+  check((await holoClips(page)) === 0, 'פתיחה: הרקע הוא הווידאו, וד"ר הולו בתמונה קבועה (בלי קטע שני)')
   const s1 = (await cameraScale(page))!
   await page.waitForTimeout(1500)
   const s2 = (await cameraScale(page))!
@@ -225,7 +230,7 @@ async function dive(browser: Browser, kind: 'new' | 'old'): Promise<void> {
 
   if (RECORD) {
     const a = await open(browser, { kind, holoMoods: kind === 'new' ? { opening: 'scared', closed: 'celebrating', open: 'thinking' } : undefined })
-    await a.page.waitForSelector('[data-dr-holo] video', { timeout: 20000 })
+    await a.page.waitForSelector(OPENING_READY, { timeout: 20000 })
     await a.page.waitForTimeout(2200)
     await record(a.page, `${kind}-opening-dive`, 4.5, async () => { await a.page.locator('.holo-panel-actions button').locator('visible=true').first().click() })
     await a.page.close(); await a.ctx.close()
@@ -319,8 +324,8 @@ async function modes(browser: Browser): Promise<void> {
   console.log('\n== ולידציית מצב רוח ==')
   {
     const { ctx, page } = await open(browser, { holoMoods: { opening: 'furious', closed: 'happy', open: 'sad' } })
-    await page.waitForSelector('[data-dr-holo] video', { timeout: 20000 })
-    check((await clipOf(page)) === '/dr-holo/neutral.mp4', 'ערך שלא ברשימה מוצג כ"רגיל"')
+    await page.waitForSelector(OPENING_READY, { timeout: 20000 })
+    check((await moodOf(page)) === 'neutral', 'ערך שלא ברשימה מוצג כ"רגיל"')
     await page.close(); await ctx.close()
   }
   console.log('\n== כל הקטעים נטענים ==')
@@ -340,7 +345,7 @@ async function perf(browser: Browser): Promise<void> {
   console.log('\n== ביצועים בצלילה ==')
   for (const rate of [1, 4]) {
     const { ctx, page } = await open(browser)
-    await page.waitForSelector('[data-dr-holo] video', { timeout: 20000 })
+    await page.waitForSelector(OPENING_READY, { timeout: 20000 })
     const cdp = await ctx.newCDPSession(page)
     await cdp.send('Emulation.setCPUThrottlingRate', { rate })
     await page.waitForTimeout(1500)

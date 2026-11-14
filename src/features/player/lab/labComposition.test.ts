@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LAB, cameraInsidePortal, cameraOpening, cameraSummary, labCover, labPortalImages, portalPoints } from './labComposition'
+import { LAB, LIBRARY, cameraInsidePortal, cameraOpening, cameraSummary, labCover, labPortalImages, portalPoints, stageFor } from './labComposition'
 
 describe('labCover', () => {
   it('ממלא את המסך וממרכז לפי נקודת המוקד', () => {
@@ -70,5 +70,52 @@ describe('labPortalImages', () => {
   })
   it('שיעור בלי תמונות: בלי תמונה בפורטל', () => {
     expect(labPortalImages([{ id: 'lab' }, { id: 's1' }], 'lab')).toEqual({ opening: undefined })
+  })
+})
+
+describe('ספריית השרתים (הרקע של מסך הפתיחה)', () => {
+  const SIZES = [[1366, 768], [1920, 1080], [740, 360], [1024, 768], [1366, 620]]
+  it('מסך הפתיחה על הספרייה, הסיכום עדיין על המעבדה', () => {
+    expect(stageFor('opening')).toBe(LIBRARY)
+    expect(stageFor('closed')).toBe(LAB)
+    expect(stageFor('open')).toBe(LAB)
+    expect(LIBRARY.video).toBeTruthy()
+  })
+  it('ממלא את המסך, והפורטל נשאר במרכז בכל גודל', () => {
+    const cx = LIBRARY.portal.box.x + LIBRARY.portal.box.width / 2
+    for (const [w, h] of SIZES) {
+      const { scale, x, y } = labCover(w, h, LIBRARY)
+      expect(LIBRARY.width * scale).toBeGreaterThanOrEqual(w - 0.01)
+      expect(LIBRARY.height * scale).toBeGreaterThanOrEqual(h - 0.01)
+      expect(x).toBeLessThanOrEqual(0)
+      expect(y).toBeLessThanOrEqual(0)
+      expect(Math.abs(cx * scale + x - w / 2) / w).toBeLessThan(0.01)
+    }
+  })
+  it('המסכה: עיגול שהבמה חותכת מלמטה, כולו בתוך המלבן של הפורטל', () => {
+    const { box } = LIBRARY.portal
+    const pts = portalPoints(LIBRARY).split(' ').map((p) => p.split(',').map(Number))
+    expect(pts.length).toBeGreaterThan(40)
+    for (const [x, y] of pts) {
+      expect(x).toBeGreaterThanOrEqual(box.x)
+      expect(x).toBeLessThanOrEqual(box.x + box.width)
+      expect(y).toBeGreaterThanOrEqual(box.y)
+      expect(y).toBeLessThanOrEqual(box.y + box.height)
+    }
+    expect(Math.max(...pts.map((p) => p[1]))).toBe(box.y + box.height)
+  })
+  it('בתוך הפורטל: תמונת הפורטל ממלאת את כל המסך', () => {
+    const { box } = LIBRARY.portal
+    for (const [w, h] of SIZES) {
+      const cover = labCover(w, h, LIBRARY)
+      const cam = cameraInsidePortal(w, h, LIBRARY)
+      /* המלבן של הפורטל על המסך אחרי המצלמה: מכסה את כל פינות המסך */
+      const sx = (wx: number) => (wx * cam.scale + cam.x) * cover.scale + cover.x
+      const sy = (wy: number) => (wy * cam.scale + cam.y) * cover.scale + cover.y
+      expect(sx(box.x)).toBeLessThanOrEqual(0)
+      expect(sx(box.x + box.width)).toBeGreaterThanOrEqual(w)
+      expect(sy(box.y)).toBeLessThanOrEqual(0)
+      expect(sy(box.y + box.height)).toBeGreaterThanOrEqual(h)
+    }
   })
 })

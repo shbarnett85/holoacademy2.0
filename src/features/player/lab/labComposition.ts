@@ -1,9 +1,57 @@
-/* הקומפוזיציה הקבועה של מסכי הפתיחה והסיכום, בקואורדינטות של תמונת המעבדה (2560×1440) ולא של המסך.
+/* הקומפוזיציה הקבועה של מסכי הפתיחה והסיכום, בקואורדינטות של תמונת הרקע ולא של המסך.
    הפורטל במרכז המסך, חלון הטקסט מימינו וד"ר הולו משמאלו, בחצי גוף וקרוב למצלמה (הרגליים מתחת לקצה התמונה).
-   מסכת הפורטל נגזרה מהתמונה עצמה (קרניים מהמרכז עד הקצה הזוהר של הטבעת), כי הטבעת בתמונה לא עגולה מדויק. */
+   יש שתי קומפוזיציות, אחת לכל רקע, וכל הפונקציות מקבלות את הקומפוזיציה (ברירת המחדל: המעבדה):
+     · LIBRARY — "ספריית השרתים": הרקע של מסך הפתיחה. וידאו בלולאה (6 שניות) עם תמונה קבועה כגיבוי.
+     · LAB — המעבדה הכהה: עדיין הרקע של מסך הסיכום, עד שיגיע לו רקע חדש.
+   מסכת הפורטל של המעבדה נגזרה מהתמונה עצמה (קרניים מהמרכז עד הקצה הזוהר של הטבעת), כי הטבעת בתמונה לא עגולה מדויק.
+   בספרייה הפתח הוא עיגול שהבמה חותכת מלמטה, ולכן המסכה מחושבת (circlePolygon). */
 
-export const LAB = {
+export interface StageComposition {
+  /** תמונת הרקע (וגם הגיבוי לווידאו) */
+  src: string
+  /** וידאו בלולאה מעל התמונה; בלי ערך: תמונה בלבד */
+  video?: string
+  /** light = רקע בהיר (בלי שכבות הזוהר של המעבדה הכהה) */
+  tone: 'dark' | 'light'
+  width: number
+  height: number
+  /** נקודת המוקד של cover: הפורטל נשאר במרכז גם כשהמסך חותך את התמונה */
+  focal: { x: number; y: number }
+  portal: { box: { x: number; y: number; width: number; height: number }; polygon: readonly number[] }
+  camera: { openingScale: number; summaryScale: number; summaryFocus: { x: number; y: number }; approachMs: number; diveMs: number; pullbackMs: number; revealMs: number }
+  /** ד"ר הולו: מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הדמות המלאה */
+  holo: { centerX: number; top: number; height: number }
+}
+
+/* עיגול שנחתך מלמטה בקו ישר (הבמה שלפני הפורטל): רשימת x,y שטוחה */
+function circlePolygon(cx: number, cy: number, r: number, floorY: number, steps = 72): number[] {
+  const out: number[] = []
+  for (let i = 0; i < steps; i++) {
+    const t = (i / steps) * Math.PI * 2
+    out.push(Math.round(cx + r * Math.cos(t)), Math.min(floorY, Math.round(cy + r * Math.sin(t))))
+  }
+  return out
+}
+
+/* ספריית השרתים (1672×940). הטבעת הזוהרת: מרכז (835, 402), רדיוס 224 עד 230; הפתח שבתוכה ברדיוס 215, והבמה חותכת אותו ב-y=576 */
+export const LIBRARY: StageComposition = {
+  src: '/lab/library.webp',
+  video: '/lab/library.mp4',
+  tone: 'light',
+  width: 1672,
+  height: 940,
+  focal: { x: 0.5, y: 0.43 },
+  portal: {
+    box: { x: 620, y: 187, width: 430, height: 389 },
+    polygon: circlePolygon(835, 402, 215, 576),
+  },
+  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 248, y: 330 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
+  holo: { centerX: 248, top: 190, height: 1500 },
+}
+
+export const LAB: StageComposition = {
   src: '/lab/lab.webp',
+  tone: 'dark',
   width: 2560,
   height: 1440,
   /* נקודת המוקד של cover: הפורטל במרכז */
@@ -25,7 +73,12 @@ export const LAB = {
   camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 380, y: 500 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
   /* ד"ר הולו: מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הדמות המלאה. המותן בערך בקצה התחתון של התמונה */
   holo: { centerX: 380, top: 290, height: 2300 },
-} as const
+}
+
+/* איזה רקע לכל מסך. כשיגיע רקע חדש לסיכום: מחליפים כאן שורה אחת */
+export const OPENING_STAGE: StageComposition = LIBRARY
+export const SUMMARY_STAGE: StageComposition = LAB
+export const stageFor = (state: 'opening' | 'closed' | 'open'): StageComposition => (state === 'opening' ? OPENING_STAGE : SUMMARY_STAGE)
 
 const pairs = (flat: readonly number[]): [number, number][] => {
   const out: [number, number][] = []
@@ -33,40 +86,40 @@ const pairs = (flat: readonly number[]): [number, number][] => {
   return out
 }
 
-export const portalPoints = (): string => pairs(LAB.portal.polygon).map(([x, y]) => `${x},${y}`).join(' ')
+export const portalPoints = (comp: StageComposition = LAB): string => pairs(comp.portal.polygon).map(([x, y]) => `${x},${y}`).join(' ')
 
 /* clip-path ביחס למלבן של הפורטל */
-export const portalClipPath = (): string => `polygon(${pairs(LAB.portal.polygon).map(([x, y]) => `${x - LAB.portal.box.x}px ${y - LAB.portal.box.y}px`).join(',')})`
+export const portalClipPath = (comp: StageComposition = LAB): string => `polygon(${pairs(comp.portal.polygon).map(([x, y]) => `${x - comp.portal.box.x}px ${y - comp.portal.box.y}px`).join(',')})`
 
 /* cover עם נקודת מוקד: אותה טרנספורמציה לכל הקומפוזיציה, ולכן הפורטל וד"ר הולו נשארים מיושרים למעבדה בכל גודל מסך */
-export function labCover(width: number, height: number): { scale: number; x: number; y: number } {
-  const scale = Math.max(width / LAB.width, height / LAB.height)
-  return { scale, x: (width - LAB.width * scale) * LAB.focal.x, y: (height - LAB.height * scale) * LAB.focal.y }
+export function labCover(width: number, height: number, comp: StageComposition = LAB): { scale: number; x: number; y: number } {
+  const scale = Math.max(width / comp.width, height / comp.height)
+  return { scale, x: (width - comp.width * scale) * comp.focal.x, y: (height - comp.height * scale) * comp.focal.y }
 }
 
 export interface CameraTransform { scale: number; x: number; y: number }
 export const cameraCss = ({ scale, x, y }: CameraTransform): string => `translate(${x}px, ${y}px) scale(${scale})`
 
 /* קואורדינטות המעבדה של מרכז המסך */
-const screenCenter = (width: number, height: number): { x: number; y: number } => {
-  const c = labCover(width, height)
+const screenCenter = (width: number, height: number, comp: StageComposition = LAB): { x: number; y: number } => {
+  const c = labCover(width, height, comp)
   return { x: (width / 2 - c.x) / c.scale, y: (height / 2 - c.y) / c.scale }
 }
 
 /* טרנספורמציה של המצלמה בעולם המעבדה (transform-origin: 0 0). קירוב סביב נקודה: הנקודה נשארת במקומה */
 const zoomAround = (p: { x: number; y: number }, scale: number): CameraTransform => ({ scale, x: p.x * (1 - scale), y: p.y * (1 - scale) })
 export const cameraRest: CameraTransform = { scale: 1, x: 0, y: 0 }
-export const cameraOpening = (width: number, height: number): CameraTransform => zoomAround(screenCenter(width, height), LAB.camera.openingScale)
-export const cameraSummary = (): CameraTransform => zoomAround(LAB.camera.summaryFocus, LAB.camera.summaryScale)
+export const cameraOpening = (width: number, height: number, comp: StageComposition = LAB): CameraTransform => zoomAround(screenCenter(width, height, comp), comp.camera.openingScale)
+export const cameraSummary = (comp: StageComposition = LAB): CameraTransform => zoomAround(comp.camera.summaryFocus, comp.camera.summaryScale)
 
 /* בתוך הפורטל: מרכז הפתח על מרכז המסך, והפתח גדול מאלכסון המסך, ולכן תמונת הפורטל ממלאה את כל המסך */
-export function cameraInsidePortal(width: number, height: number): CameraTransform {
-  const c = labCover(width, height)
-  const { box } = LAB.portal
+export function cameraInsidePortal(width: number, height: number, comp: StageComposition = LAB): CameraTransform {
+  const c = labCover(width, height, comp)
+  const { box } = comp.portal
   const center = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
   const radius = Math.min(box.width, box.height) / 2
   const scale = (Math.hypot(width, height) / 2 / c.scale / radius) * 1.06
-  const s = screenCenter(width, height)
+  const s = screenCenter(width, height, comp)
   return { scale, x: s.x - center.x * scale, y: s.y - center.y * scale }
 }
 

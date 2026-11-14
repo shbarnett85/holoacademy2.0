@@ -14,7 +14,7 @@ import EndScreen from './EndScreen'
 import { preloadSummaryClips } from './drHoloClips'
 import LabStage from './lab/LabStage'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
-import { CLASSROOM_SRC, LAB, labPortalImages } from './lab/labComposition'
+import { CLASSROOM_SRC, OPENING_STAGE, labPortalImages } from './lab/labComposition'
 import { GateUnlock, StreakBadge } from './FeelBits'
 import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
@@ -228,7 +228,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* רשת ביטחון: האנימציה לא חייבת להסתיים (לשונית מוסתרת, ביטול). הסצנה כבר הוחלפה, ולכן אסור שהמעבדה תישאר מעליה */
   useEffect(() => {
     if (!labExit) return
-    const t = window.setTimeout(() => setLabExit(null), LAB.camera.diveMs + LAB.camera.revealMs + 1500)
+    const t = window.setTimeout(() => setLabExit(null), OPENING_STAGE.camera.diveMs + OPENING_STAGE.camera.revealMs + 1500)
     return () => window.clearTimeout(t)
   }, [labExit])
   /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
