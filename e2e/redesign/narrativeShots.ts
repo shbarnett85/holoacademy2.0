@@ -233,7 +233,7 @@ async function end(browser: Browser): Promise<void> {
       check(text.includes('סוף הפרק'), `${gems} קריסטלים: הכותרת "סוף הפרק"`)
       check(await page.locator('[data-end-screen] .holo-panel .holo-button:visible').count() === 1, `${gems} קריסטלים: כפתור אחד`)
       check((await page.locator('[data-end-screen] .holo-panel .holo-button:visible').first().innerText()).includes('חזרה לספרייה'), `${gems} קריסטלים: "חזרה לספרייה"`)
-      check(text.includes('דוקטור הולו') && text.includes('המדריך שלכם'), `${gems} קריסטלים: "דוקטור הולו" ו"המדריך שלכם"`)
+      check(await page.locator('[data-lab-nameplate]').count() === 0, `${gems} קריסטלים: בלי תווית שם מתחת לד"ר הולו`)
       check(!/סצנ/.test(text), `${gems} קריסטלים: אין "סצנה"`)
       await ctx.close()
     })

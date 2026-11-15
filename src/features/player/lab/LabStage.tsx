@@ -15,7 +15,6 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import DrHoloHologram from '../DrHoloHologram'
 import { HOLO_ASPECT } from '../drHoloClips'
 import { useGameFeel, type HoloMood } from '../gameFeel/engine'
-import { BOOK_TEXT } from '../gameFeel/text'
 import PortalHologram, { PORTAL_GOLD_MS } from './PortalHologram'
 import { cameraCss, cameraInsidePortal, cameraOpening, cameraRest, cameraSummary, hologramGeometry, labCover, portalClipPath, portalPoints, stageFor, type StageComposition } from './labComposition'
 
@@ -70,13 +69,6 @@ const CSS = `
 .lab-stage[data-lab-tone=light] .lab-portal { background: transparent; }
 .lab-stage[data-lab-tone=light] .lab-rim__base { stroke: var(--color-surface); stroke-width: 5; opacity: 0; filter: none; }
 .lab-stage[data-lab-tone=light] .lab-portal-hit:hover + .lab-rim .lab-rim__base, .lab-stage[data-lab-tone=light] .lab-portal-hit:focus-visible + .lab-rim .lab-rim__base { opacity: 1; stroke-width: 7; }
-/* תווית השם של ד"ר הולו: במרחב המסך (לא זזה עם המצלמה), מתחת לדמות. לבנה עם קו דיו, כמו שאר משטחי התלמיד */
-.lab-nameplate { position: absolute; bottom: clamp(.5rem, 3.2vh, 1.4rem); transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: .05rem;
-  padding: .28rem .9rem .32rem; border: var(--border-student); border-radius: 12px; background: var(--color-surface); color: var(--color-ink); box-shadow: var(--shadow-button);
-  font-family: var(--font-display); line-height: 1.2; white-space: nowrap; text-align: center; transition: opacity .25s ease; }
-.lab-nameplate b { font-size: .8rem; font-weight: 800; }
-.lab-nameplate span { font-size: .62rem; font-weight: 600; }
-.lab-nameplate[data-hidden] { opacity: 0; }
 /* פורטל לא יציב: הבהוב קל, לא יותר מפעמיים בשנייה. על כל שכבה בנפרד ולא על העוטף, כי שקיפות על העוטף הייתה מבודדת את המיזוג (screen) מהרקע */
 .lab-stage[data-portal=open] :is(.lab-portal, .lab-hologram, .lab-pglow--cyan > *) { animation: lab-portal-unstable 5.5s steps(1, end) infinite; }
 @keyframes lab-portal-unstable { 0%, 100% { opacity: 1; } 18% { opacity: .84; } 22% { opacity: 1; } 47% { opacity: .9; } 53% { opacity: .78; } 58% { opacity: 1; } 81% { opacity: .88; } 86% { opacity: 1; } }
@@ -284,13 +276,6 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
             <DrHoloHologram mood={mood} build video human={human} height={`${comp.holo.height}px`} />
           </div>
           </div>
-        </div>
-      )}
-      {/* "דוקטור הולו" ומתחתיו "המדריך שלכם". מוסתרת בזמן הצלילה לפורטל, ובסיכום עד שהמצלמה נסוגה ממנו */}
-      {fit && (
-        <div className="lab-nameplate" data-lab-nameplate data-hidden={leaving || !armed ? '' : undefined} style={{ left: fit.x + comp.holo.centerX * scale }}>
-          <b>{BOOK_TEXT.holoName}</b>
-          <span>{BOOK_TEXT.holoRole}</span>
         </div>
       )}
     </div>
