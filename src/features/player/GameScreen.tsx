@@ -68,7 +68,7 @@ interface Props {
   /* נתיב חזרה בסיום/יציאה (ברירת מחדל: ספריית המורה) */
   backPath?: string
   /* משחק ללא session (מבקר קר / קישור משותף / מקרן) — מסך הסיום מקבל פוטר המרה:
-     שיתוף וואטסאפ, עוד הדמיות, ו-CTA למורים. לתלמיד אמיתי (יש session) — ללא שינוי. */
+     שיתוף וואטסאפ ו-CTA למורים ("חזרה לספרייה" מוביל את המבקר לדף הבית, שבו שאר השיעורים). לתלמיד אמיתי (יש session) — בלי פוטר. */
   visitorMode?: boolean
 }
 
@@ -358,7 +358,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         hasSession={hasSession}
         saved={saved}
         onPlayAgain={() => onPlayAgain?.(saved)}
-        onExit={visitorMode ? undefined : handleExit}
         onHome={handleExit}
         footer={visitorMode ? (
           <>
@@ -374,9 +373,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 }}
               >
                 שתפו בוואטסאפ 💬
-              </button>
-              <button className="holo-button" onClick={() => navigate('/')}>
-                עוד שיעורים 🎮
               </button>
             </div>
             {/* פוטר המרה למבקרים — הרגע חוו את ה-wow; זו נקודת ההצטרפות הטבעית של מורה */}

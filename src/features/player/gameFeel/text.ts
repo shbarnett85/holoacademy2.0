@@ -63,8 +63,8 @@ export const END_TEXT = {
   kickerClosed: 'הסיפור נסגר',
   kickerOpen: 'הסיפור נשאר פתוח',
   kickerRadiant: 'חמישה גבישים זוהרים',
-  titleClosed: 'סוף הסיפור',
-  titleOpen: 'הסיפור עוד לא נגמר',
+  /* הכותרת של מסך הסיום, בשני המצבים */
+  chapterEnd: 'סוף הפרק',
   narrativeClosed: 'אספתם מספיק תובנות, והסיפור נסגר.',
   narrativeOpen: 'חסרות עוד תובנות כדי לסגור את הסיפור. אפשר לשחק שוב ולגלות אותן.',
   gemsCount: (whole: number, hasPartial: boolean): string => {
@@ -75,9 +75,10 @@ export const END_TEXT = {
   retried: (n: number): string => (n === 1 ? 'פעם אחת ניסיתם שוב והצלחתם' : `${n} פעמים ניסיתם שוב והצלחתם`),
   needMore: 'אפשר לשחק שוב ולגלות את מה שחסר.',
   enough: 'אספתם מספיק תובנות כדי לסגור את הסיפור',
-  home: 'חזרה למסך הראשי',
+  /* הכפתור היחיד במסך הסיום (וגם לחיצה על הפורטל בסיפור שנסגר) */
+  back: 'חזרה לספרייה',
+  /* קישור בדיו, לא כפתור (וגם לחיצה על הפורטל בסיפור שנשאר פתוח) */
   playAgain: 'שחקו שוב',
-  back: 'חזרה לשיעורים',
   classTitle: 'גבישי הכיתה בשיעור הזה',
   classLine: (x: number, y: number, z: number): string => `הכיתה אספה עד עכשיו ${x} גבישים, ו-${y} מהם שלכם. היעד: ${z}.`,
   journeyTitle: 'המסע שלכם',

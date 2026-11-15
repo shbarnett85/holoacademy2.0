@@ -55,7 +55,7 @@ describe('משפטי צמיחה', () => {
     const lines = [
       HUD_TEXT.barLabel(3), HUD_TEXT.streak(4), HUD_TEXT.bigChallenge, ...Object.values(RETRY_TEXT),
       END_TEXT.gemsCount(3, true), END_TEXT.firstTry(4), END_TEXT.retried(2), END_TEXT.classLine(40, 3, 72),
-      END_TEXT.kickerClosed, END_TEXT.kickerOpen, END_TEXT.titleClosed, END_TEXT.titleOpen, END_TEXT.narrativeOpen, JOURNEY_TEXT.done(3), JOURNEY_TEXT.classClosed,
+      END_TEXT.kickerClosed, END_TEXT.kickerOpen, END_TEXT.chapterEnd, END_TEXT.back, END_TEXT.narrativeOpen, JOURNEY_TEXT.done(3), JOURNEY_TEXT.classClosed,
     ]
     for (const t of lines) {
       expect(t).not.toMatch(/%|אחוז|דרג|רמה|מקום ה|ממוצע|יותר מ/)

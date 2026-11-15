@@ -1,4 +1,5 @@
-/* מסך הסיום: שני מצבים בלבד — הסיפור נסגר (3 גבישים שלמים ומעלה), או הסיפור נשאר פתוח. 5 גבישים: אותו סוף, עם זוהר מיוחד.
+/* מסך הסיום, "סוף הפרק": שני מצבים בלבד — הסיפור נסגר (3 גבישים שלמים ומעלה), או הסיפור נשאר פתוח. 5 גבישים: אותו סוף, עם זוהר מיוחד.
+   כפתור אחד: "חזרה לספרייה" (המסך הראשי של מי שמשחק). "שחקו שוב" הוא קישור בדיו מתחתיו, ולחיצה על הפורטל בסיפור פתוח.
    משפטי צמיחה בלבד: בלי רמת קושי, בלי אחוזים ובלי השוואה לאחרים.
    גבישי הכיתה נטענים אחרי שהמשחק נשמר. במשחק בלי session (מקרן, מבקר) אין גבישי כיתה ואין מסע. */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -34,8 +35,9 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   /* מסתיימת כשהמשחק נשמר בשרת */
   saved?: Promise<void> | null
   onPlayAgain: () => void
+  /* לא בשימוש עוד: הכפתור היחיד הוא onHome. נשאר כדי לא לשבור קריאות קיימות */
   onExit?: () => void
-  /* לחיצה על הפורטל בסיפור שנסגר: המסך הראשי של מי שמשחק (תלמיד, מורה, או האתר למבקר) */
+  /* "חזרה לספרייה", וגם לחיצה על הפורטל בסיפור שנסגר: המסך הראשי של מי שמשחק (תלמיד, מורה, או האתר למבקר) */
   onHome?: () => void
   /* פוטר למבקרים (שיתוף, הזמנה למורים) */
   footer?: ReactNode
@@ -94,7 +96,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const showJourney = !!currentLesson
 
   const kicker = state === 'radiant' ? END_TEXT.kickerRadiant : state === 'closed' ? END_TEXT.kickerClosed : END_TEXT.kickerOpen
-  const title = ending?.title ?? (closed ? END_TEXT.titleClosed : END_TEXT.titleOpen)
+  const goHome = onHome ?? onExit
   const narrative = ending?.narrative ?? (closed ? END_TEXT.narrativeClosed : END_TEXT.narrativeOpen)
 
   return (
@@ -110,6 +112,14 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         @media (max-height: 500px) {
           [data-end-screen] .holo-panel { gap: 4px !important; padding: 8px !important; }
           [data-end-screen] .holo-panel h1 { font-size: 16px !important; }
+          [data-end-screen] .holo-panel h2[data-end-title] { font-size: 12.5px !important; margin: 0 !important; flex-basis: 100%; }
+          /* הכותרת והמצב בשורה אחת, והכפתור והקישור זה לצד זה: חוסכים שתי שורות של גובה */
+          [data-end-screen] [data-end-head] { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+          [data-end-screen] [data-end-head] h1 { order: -1; }
+          [data-end-screen] [data-end-actions] { flex-direction: row !important; align-items: center !important; gap: 12px !important; }
+          [data-end-screen] [data-play-again] { font-size: 12px !important; }
+          [data-end-screen] [data-class-gems], [data-end-screen] [data-end-journey] { padding: 5px 10px !important; }
+          [data-end-screen] [data-class-gems] h2, [data-end-screen] [data-end-journey] h2 { margin-bottom: 3px !important; font-size: 12px !important; }
           [data-end-screen] .holo-panel p, [data-end-screen] [data-growth] { font-size: 11px !important; line-height: 1.25 !important; }
           [data-end-screen] [data-end-gems] { gap: 3px !important; }
           [data-end-screen] [data-end-gems] svg { width: 24px !important; height: 24px !important; }
@@ -123,14 +133,16 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
       `}</style>
       <div className="holo-summary-whiteout" aria-hidden />
       <div style={{ position: 'fixed', inset: 0 }}>
-        <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.home : END_TEXT.playAgain} />
+        <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.back : END_TEXT.playAgain} />
       </div>
 
       <div className="holo-panel" style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.2vh, 22px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', justifyContent: 'center' }}>
-          <div style={{ minWidth: 0, textAlign: 'start' }}>
+          <div data-end-head style={{ minWidth: 0, textAlign: 'start' }}>
             <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? 'var(--color-human-deep)' : 'var(--color-machine-deep)' }}>{kicker}</div>
-            <h1 className="holo-text-glow" style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2, textWrap: 'balance' }}>{title}</h1>
+            <h1 className="holo-text-glow" data-end-heading style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2 }}>{END_TEXT.chapterEnd}</h1>
+            {/* הכותרת שהשיעור נתן לסיום שלו */}
+            {ending?.title && <h2 data-end-title style={{ margin: '2px 0 0', fontSize: 'clamp(15px, 1.7vw, 19px)', fontWeight: 800, lineHeight: 1.25, color: 'var(--color-ink)', textWrap: 'balance' }}>{ending.title}</h2>}
           </div>
         </div>
         <p style={{ margin: 0, lineHeight: 1.5, textAlign: 'start', width: '100%', fontSize: 15 }}>
@@ -176,11 +188,10 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button type="button" data-play-again className="holo-button" style={{ padding: '0.6rem 1.8rem' }} onClick={onPlayAgain}>{END_TEXT.playAgain}</button>
-          {onExit && (
-            <button type="button" data-end-exit className="holo-button" style={{ padding: '0.6rem 1.4rem' }} onClick={onExit}>{END_TEXT.back}</button>
-          )}
+        {/* כפתור אחד: חזרה לספרייה. "שחקו שוב" הוא קישור בדיו (ניווט), לא כפתור */}
+        <div data-end-actions style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          {goHome && <button type="button" data-end-exit className="holo-button" style={{ padding: '0.6rem 1.8rem' }} onClick={goHome}>{END_TEXT.back}</button>}
+          <button type="button" data-play-again className="holo-link" style={{ fontSize: 15 }} onClick={onPlayAgain}>{END_TEXT.playAgain}</button>
         </div>
         {footer}
         <span className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{questTitle}</span>
