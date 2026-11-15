@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       sessionStatus: i === 3 ? 'completed' : i === 4 ? 'completed' : i === 1 ? 'in_progress' : null, crystals: i === 3 ? 4 : i === 4 ? 2 : null, maxScore: 5, isReview: i === 1,
     })) } }))
     await page.goto(`${DEFAULT_BASE}/student`, { waitUntil: 'networkidle' }).catch(() => undefined)
-    await page.waitForSelector('[data-lesson-card]', { timeout: 10_000 }).catch(() => console.log('לא נמצא כרטיס תלמיד — כתובת /student אינה נכונה?', page.url()))
+    await page.waitForSelector('[data-book-cover]', { timeout: 10_000 }).catch(() => console.log('לא נמצא כריכה במדף התלמיד — כתובת /student אינה נכונה?', page.url()))
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(outDir, 'lesson-student-list-dark.png') })
     await ctx.close()

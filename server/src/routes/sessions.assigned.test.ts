@@ -26,7 +26,7 @@ vi.mock('../middleware/studentAuth.js', () => ({
 }))
 vi.mock('../lib/activeColumn.js', async (orig) => {
   const m = await orig<Record<string, unknown>>()
-  return { ...m, hasSessionGems: async () => false, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true, hasQuestGrade: async () => true, hasQuestThumb: async () => true }
+  return { ...m, hasSessionLive: async () => true, hasSessionGems: async () => false, hasAssignmentDueAt: async () => true, hasQuestSubject: async () => true, hasQuestSubjectId: async () => true, hasQuestGrade: async () => true, hasQuestThumb: async () => true }
 })
 vi.mock('../lib/subjects.js', () => ({
   questSubjectOut: async (r: { subject_id?: string | null }) => (r.subject_id ? { subject: 'מדעים', subjectCode: 'science' } : { subject: null, subjectCode: null }),
@@ -113,5 +113,27 @@ describe('שיעורים של התלמיד: מקצוע, תמונה, מועד ו�
     expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: 'completed', late: false, crystals: 5 })
     h.db.sessions = [{ quest_id: 'q-1', user_id: 'stu-1', completed_at: null, crystals: null }]
     expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: 'in_progress', late: false })
+  })
+})
+
+describe('הסימנייה במדף הספרים (bookmarkPage)', () => {
+  it('שיעור בקריאה: העמוד של הקריאה הפתוחה (המקום של העמוד בספר)', async () => {
+    now('2026-10-12T10:00:00Z')
+    h.db.sessions = [{ quest_id: 'q-1', user_id: 'stu-1', completed_at: null, last_seen_at: '2026-10-12T09:00:00Z', live: { sceneId: 'b' } }]
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: 'in_progress', bookmarkPage: 2 })
+  })
+  it('בלי דופק חי: בקריאה, בלי מספר עמוד', async () => {
+    now('2026-10-12T10:00:00Z')
+    h.db.sessions = [{ quest_id: 'q-1', user_id: 'stu-1', completed_at: null, live: null }]
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: 'in_progress', bookmarkPage: null })
+  })
+  it('שיעור חדש ושיעור שהושלם: בלי סימנייה', async () => {
+    now('2026-10-12T10:00:00Z')
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: null, bookmarkPage: null })
+    h.db.sessions = [
+      { quest_id: 'q-1', user_id: 'stu-1', completed_at: '2026-10-11T09:00:00Z', crystals: 2, total_score: 2, max_score: 5 },
+      { quest_id: 'q-1', user_id: 'stu-1', completed_at: null, last_seen_at: '2026-10-12T09:00:00Z', live: { sceneId: 'b' } },
+    ]
+    expect(byId((await get()).quests, 'q-1')).toMatchObject({ sessionStatus: 'completed', bookmarkPage: null })
   })
 })

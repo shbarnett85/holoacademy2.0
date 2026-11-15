@@ -3,14 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
-import LessonCard from '../../shared/ui/LessonCard'
-import { GemDefs, GemSocket } from '../../shared/ui/Gem'
-import { gemTier } from '../../shared/lib/gemTier'
-import { GEM_TOTAL } from '../../shared/lib/gemModel'
+import { GemDefs } from '../../shared/ui/Gem'
+import BookShelf from './BookShelf'
 import { MyJourney } from './Journey'
-import { BOOK_TEXT } from './gameFeel/text'
-import { formatIsraelDate } from '../../shared/lib/lessonState'
-import { fieldStyle, infoChip, nameChip, panelStudent } from '../../styles/ui'
+import { BOOK_TEXT, SHELF_TEXT } from './gameFeel/text'
+import { fieldStyle, nameChip, panelStudent } from '../../styles/ui'
 
 
 type SortKey = 'newest' | 'oldest' | 'alpha' | 'alpha-desc' | 'score-high' | 'score-low'
@@ -45,70 +42,8 @@ interface AssignedQuest {
   maxScore: number | null
   /* הדמיית חזרה — משימת חיזוק שנוצרה מהמושגים שהכיתה התקשתה בהם */
   isReview?: boolean
-}
-
-/* הגבישים של המשחק הטוב ביותר */
-function GemRow({ gems }: { gems: number }) {
-  return (
-    <div dir="ltr" role="img" aria-label={gems === 1 ? 'גביש אחד' : `${gems} גבישים`} style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-      {Array.from({ length: GEM_TOTAL }).map((_, i) => <GemSocket key={i} fill={i < gems ? 1 : 0} size={20} tier={gemTier(gems)} />)}
-    </div>
-  )
-}
-
-/* ── כרטיס שיעור — הרכיב המשותף (shared/ui/LessonCard): תמונה, כותרת, תגית מקצוע, תגית שכבות. מתחתיו: מועד הגשה ו"שחקו" ── */
-/* תג מצב (לא לחיץ): לבן עם קו דיו, תמיד סימן ומילה */
-const BADGE: React.CSSProperties = { ...infoChip, borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-display)', lineHeight: 1.3 }
-
-function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onPlay: () => void }) {
-  const [hov, setHov] = useState(false)
-  const status = q.sessionStatus
-  const gems = q.gems ?? q.crystals ?? 0
-  /* "להגשה עד [תאריך]" — רק לשיעור שעוד לא הושלם; אחרי המועד: "המועד עבר" (השיעור לא ננעל) */
-  const due = q.dueAt && status !== 'completed'
-    ? (q.state === 'ended' ? { text: `המועד עבר · ${formatIsraelDate(q.dueAt)}`, color: 'var(--color-human-deep)' } : { text: `להגשה עד ${formatIsraelDate(q.dueAt)}`, color: 'var(--color-ink)' })
-    : null
-
-  return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-      <LessonCard
-        mode="dark" title={q.title} subjectCode={q.subjectCode} thumbUrl={q.thumbUrl}
-        gradeMin={q.gradeMin} gradeMax={q.gradeMax} glow={hov} onClick={onPlay}
-        badges={<>
-          {isNew && <span style={BADGE}>✦ חדש</span>}
-          {q.isReview && <span style={BADGE}>🔄 חיזוק</span>}
-          {status === 'completed' && <span style={BADGE}>{q.late ? '✓ הושלם · באיחור' : '✓ הושלם'}</span>}
-          {status === 'in_progress' && <span style={BADGE}>↻ בתהליך</span>}
-        </>}
-        body={due ? <div style={{ fontSize: 13, fontWeight: 700, color: due.color, fontFamily: 'var(--font-display)' }}>{due.text}</div> : undefined}
-        actions={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div>
-              {status === 'completed'
-                ? <GemRow gems={gems} />
-                : <span style={{
-                    fontSize: 12, padding: '2px 8px', borderRadius: 5, fontWeight: 600,
-                    background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)',
-                    color: 'var(--color-ink)',
-                  }}>{BOOK_TEXT.pagesCount(q.sceneCount)}</span>
-              }
-            </div>
-            <button
-              className="holo-button"
-              onClick={(e) => { e.stopPropagation(); onPlay() }}
-              style={{
-                fontWeight: 800, fontSize: 13,
-                padding: '7px 16px', borderRadius: 9,
-                fontFamily: 'var(--font-display)', flexShrink: 0,
-              }}
-            >
-              {status === 'completed' ? '▶ שחקו שוב' : status === 'in_progress' ? '▶ המשיכו' : '▶ שחקו'}
-            </button>
-          </div>
-        }
-      />
-    </div>
-  )
+  /* הסימנייה: העמוד שבו נעצרה הקריאה (רק לשיעור בקריאה, כשהשרת יודע) */
+  bookmarkPage?: number | null
 }
 
 /* ── chip לשורת סינון: כפתור בחירה; הנבחר ברקע דיו ── */
@@ -155,9 +90,9 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'all',         label: 'הכל'        },
-  { key: 'new',         label: '✦ חדשות'    },
-  { key: 'not_started', label: 'טרם התחלתם' },
-  { key: 'in_progress', label: '↻ בתהליך'   },
+  { key: 'new',         label: '✦ נוספו לאחרונה' },
+  { key: 'not_started', label: 'חדשים'      },
+  { key: 'in_progress', label: 'בקריאה'     },
   { key: 'completed',   label: '✓ הושלמו'   },
 ]
 
@@ -204,6 +139,8 @@ export default function StudentHome() {
   }, [isLoggedIn])
 
   const isNew = (q: AssignedQuest) => !!(lastLogin && q.assignedAt && q.assignedAt > lastLogin)
+  /* נוספו למדף מאז הביקור הקודם: הסימן ✦ על הכריכה */
+  const freshIds = useMemo(() => new Set(quests.filter((q) => !!(lastLogin && q.assignedAt && q.assignedAt > lastLogin)).map((q) => q.id)), [quests, lastLogin])
 
   /* רשימות ייחודיות לדרופדאונים */
   const subjects  = useMemo(() => [...new Set(quests.map(q => q.subject).filter(Boolean))] as string[], [quests])
@@ -285,20 +222,17 @@ export default function StudentHome() {
           borderBottom: '1px solid var(--color-line-strong)',
           marginBottom: '1.4rem',
         }}>
-          <div>
-            <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
-              color: 'var(--color-muted)', textTransform: 'uppercase', marginBottom: 3,
-            }}>HoloAcademy</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-ink)', fontFamily: 'var(--font-display)', marginBottom: 4 }}>
+              שלום, <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span> 👋
+            </div>
             <h1 style={{
               margin: 0, fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(1.25rem,3.5vw,1.65rem)', fontWeight: 800,
+              fontSize: 'clamp(1.5rem,3.6vw,2rem)', fontWeight: 900, lineHeight: 1.2,
               color: 'var(--color-machine-deep)',
-            }}>
-              שלום, <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span> 👋
-            </h1>
+            }}>{BOOK_TEXT.libraryTitle}</h1>
             {/* פעם אחת, כאן: מי מנהל את הספרייה. בתוך ספר הוא "המדריך שלכם" */}
-            <p data-holo-librarian style={{ margin: '10px 0 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+            <p data-holo-librarian style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
               <span aria-hidden="true" style={{ flex: '0 0 auto', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', boxSizing: 'border-box', border: '2px solid var(--color-ink)', background: 'var(--color-holo)' }}>
                 <img src="/dr-holo/neutral.webp" alt="" draggable={false} style={{ display: 'block', width: '100%', transform: 'scale(2.7)', transformOrigin: '50% 9%' }} />
               </span>
@@ -419,27 +353,13 @@ export default function StudentHome() {
         {/* ── CONTENT ── */}
         <div style={{ width: '100%' }}>
           <GemDefs />
-          {/* המסע שלי: טאב לכל מקצוע */}
+          {/* כמה ספרים על המדף (אחרי הסינון) */}
           {!loading && quests.length > 0 && (
-            <MyJourney
-              lessons={quests.map((q) => ({ id: q.id, title: q.title, subjectCode: q.subjectCode ?? null, assignedAt: q.assignedAt, gems: q.sessionStatus === 'completed' ? (q.gems ?? q.crystals ?? 0) : null, classClosed: q.classClosed, inProgress: q.sessionStatus === 'in_progress' }))}
-              onOpen={(id) => navigate(`/play/${id}`)}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '0.6rem' }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>{SHELF_TEXT.count(displayed.length, quests.length)}</span>
+            </div>
           )}
-
-          {/* כותרת מקטע */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: '1rem' }}>
-            <span style={{
-              fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-              color: 'var(--color-machine-deep)', textTransform: 'uppercase', fontFamily: 'var(--font-display)',
-            }}>השיעורים שלכם</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
-            {!loading && (
-              <span style={{ fontSize: 11, color: 'var(--color-muted)', fontFamily: 'var(--font-display)' }}>
-                {displayed.length}{displayed.length !== quests.length ? `/${quests.length}` : ''} שיעורים
-              </span>
-            )}
-          </div>
 
           {dbgError && (
             <div style={{
@@ -485,13 +405,15 @@ export default function StudentHome() {
             </div>
           )}
 
-          {/* גריד 3 עמודות */}
-          {!loading && displayed.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 270px), 1fr))', gap: 'clamp(10px,1.2vw,16px)' }}>
-              {displayed.map((q) => (
-                <QuestCard key={q.id} q={q} isNew={isNew(q)} onPlay={() => navigate(`/play/${q.id}`)} />
-              ))}
-            </div>
+          {/* מדף הספרים: כל שיעור הוא כריכה, והכריכה היא הקישור לשיעור */}
+          {!loading && displayed.length > 0 && <BookShelf books={displayed} freshIds={freshIds} />}
+
+          {/* המסע שלי: טאב לכל מקצוע. מתחת למדף, כדי שהמדף יהיה הדבר הראשון שרואים מתחת לכותרת */}
+          {!loading && quests.length > 0 && (
+            <div style={{ marginTop: 26 }}><MyJourney
+              lessons={quests.map((q) => ({ id: q.id, title: q.title, subjectCode: q.subjectCode ?? null, assignedAt: q.assignedAt, gems: q.sessionStatus === 'completed' ? (q.gems ?? q.crystals ?? 0) : null, classClosed: q.classClosed, inProgress: q.sessionStatus === 'in_progress' }))}
+              onOpen={(id) => navigate(`/play/${id}`)}
+            /></div>
           )}
         </div>
       </div>

@@ -136,6 +136,52 @@
   .home3-doors { grid-template-columns: 1fr; }
 }
 
+/* ── מדף הספרים של התלמיד ("הספרייה ההולוגרפית", features/player/BookShelf.tsx) ──────────────
+   ארון ספרים: מסגרת בדיו, ובתוכה מדפים. כל כריכה עומדת על קרש; הקרש של כל תא נמתח לכל רוחב הארון
+   (והארון חותך אותו), ולכן כל שורה היא מדף רציף גם כשהיא לא מלאה.
+   הכריכה היא קישור בדיו עם קו מתאר (לא כפתור): בלי צל, ומתרוממת מעט בריחוף ובפוקוס. */
+.book-case {
+  --cover-w: 172px; --cover-h: 258px; --cover-img: 116px; --cover-title: 15px; --plank: 16px;
+  border: var(--border-student); border-radius: var(--radius-student); box-shadow: var(--shadow-student);
+  background: var(--color-surface); overflow: hidden; padding: 0 clamp(8px, 1.4vw, 20px);
+}
+.book-shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-w) + 18px), 1fr)); }
+.book-cell { position: relative; display: flex; justify-content: center; padding: 30px 0 var(--plank); }
+.book-cell::after {
+  content: ''; position: absolute; bottom: 0; inset-inline: -100vw; height: var(--plank); box-sizing: border-box;
+  background: var(--color-human-soft); border-block: 3px solid var(--color-ink);
+}
+.book-cover {
+  position: relative; z-index: 1; display: block; box-sizing: border-box; width: var(--cover-w); height: var(--cover-h);
+  background: var(--color-surface); color: var(--color-ink); text-decoration: none; font-family: var(--font-display);
+  border: 3px solid var(--color-ink); border-bottom-width: 0;
+  border-start-start-radius: 6px; border-start-end-radius: 14px;
+  transition: transform .14s ease;
+}
+.book-cover:hover, .book-cover:focus-visible { transform: translateY(-6px); }
+.book-cover:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; }
+.book-cover:hover .book-title, .book-cover:focus-visible .book-title { text-decoration: underline; text-underline-offset: 3px; }
+.book-cover__inner { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-start-start-radius: 3px; border-start-end-radius: 11px; padding-inline-start: 12px; }
+.book-spine { position: absolute; inset-block: 0; inset-inline-start: 0; width: 12px; border-inline-end: 2px solid var(--color-ink); }
+.book-img { position: relative; display: block; flex: 0 0 auto; height: var(--cover-img); border-bottom: 2px solid var(--color-ink); background: var(--color-machine-tint); }
+.book-tags { position: absolute; z-index: 2; bottom: 6px; inset-inline: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
+.book-tags--top { bottom: auto; top: 6px; }
+.book-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 7px 9px 8px; }
+.book-title { font-size: var(--cover-title); font-weight: 800; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.book-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.book-line { font-size: 12.5px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.book-gems { display: flex; gap: 2px; align-items: center; }
+/* הסימנייה: יוצאת מעל ראש הכריכה, בצד שמול השדרה */
+.book-mark { position: absolute; z-index: 3; top: -12px; inset-inline-end: 12px; min-width: 30px; min-height: 46px; padding: 14px 6px 18px; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: center; }
+.book-mark > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.book-mark > b { position: relative; font-size: 12.5px; font-weight: 800; line-height: 1.2; color: var(--color-ink); white-space: nowrap; }
+@media (max-height: 500px), (max-width: 480px) {
+  .book-case { --cover-w: 138px; --cover-h: 214px; --cover-img: 86px; --cover-title: 13.5px; --plank: 14px; }
+  .book-cell { padding-top: 24px; }
+  .book-title { -webkit-line-clamp: 2; }
+}
+@media (prefers-reduced-motion: reduce) { .book-cover { transition: none; } .book-cover:hover, .book-cover:focus-visible { transform: none; } }
+
 /* ── שיעור חדש: סרגלי בחירה, שדות ופס גלילה פנימי ── */
 .cf input[type=range] {
   -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 6px;

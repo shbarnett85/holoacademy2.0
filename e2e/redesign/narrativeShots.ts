@@ -81,9 +81,10 @@ async function shelf(browser: Browser): Promise<void> {
   const day = 86_400_000
   const now = Date.now()
   const subj = ['math', 'history', 'science', 'hebrew', 'english', null, 'geography']
+  const names = ['מתמטיקה', 'היסטוריה', 'מדעים', 'עברית', 'אנגלית', null, 'גאוגרפיה']
   const titles = ['קרב השברים', 'מסע אל המעיין', 'טיפת המים', 'בלשי השורש', 'The Lost Key', 'שיעור בלי מקצוע', 'מפת האוצר של הנגב']
   const quests = subj.map((s, i) => ({
-    id: `q${i}`, title: titles[i], sceneCount: 6, artStyle: 'digital-painting', subject: s, subjectCode: s, teacherName: 'המורה רון',
+    id: `q${i}`, title: titles[i], sceneCount: 6, artStyle: 'digital-painting', subject: names[i], subjectCode: s, teacherName: 'המורה רון',
     assignedAt: new Date(now - (i + 1) * day).toISOString(), entryImageUrl: i === 4 ? null : IMGS[i % IMGS.length], thumbUrl: i === 4 ? null : IMGS[i % IMGS.length], gradeMin: 5, gradeMax: 6,
     dueAt: i === 6 ? null : new Date(now + (i === 2 ? -2 : 3 + i) * day).toISOString(), state: i === 2 ? 'ended' : 'open', late: i === 4,
     sessionStatus: i === 3 || i === 4 ? 'completed' : i === 1 || i === 6 ? 'in_progress' : null, crystals: i === 3 ? 4 : i === 4 ? 2 : null, gems: i === 3 ? 5 : i === 4 ? 2 : null, maxScore: 5, isReview: false,

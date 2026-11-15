@@ -15,6 +15,7 @@ import { perTypeFromChallenges } from '../../../src/shared/lib/difficultyCalibra
 import { parseAnswers, parseMoral, parseGateEvents, toGateEventRow, writeAnswerTelemetry } from '../lib/answerWriter.js'
 import { effectLevelOf, GEM_TOTAL, wholeGems } from '../../../src/shared/lib/gemModel.js'
 import { classGemsFor, classGemsForLessons } from '../lib/classGems.js'
+import { bookmarkPage } from '../../../src/shared/lib/bookPages.js'
 
 /* כל המסלולים דורשים תלמיד מחובר; תלמיד יכול לכתוב/לקרוא רק את ה-session שלו. */
 export const sessionsRouter = Router()
@@ -43,11 +44,11 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     for (const r of asgRows) { const cur = latestAsg.get(r.quest_id); if (!cur || r.created_at > cur.created_at) latestAsg.set(r.quest_id, r) }
     const assignedAtMap = new Map([...latestAsg].map(([id, r]) => [id, r.created_at]))
 
-    const [withGrade, withThumb, withGems] = await Promise.all([hasQuestGrade(), hasQuestThumb(), hasSessionGems()])
+    const [withGrade, withThumb, withGems, withLive] = await Promise.all([hasQuestGrade(), hasQuestThumb(), hasSessionGems(), hasSessionLive()])
     const [questResult, sessionResult] = await Promise.all([
       supabaseAdmin.from('quests').select('id, title, game_data, art_style, created_by, difficulty_settings' + (withGrade ? ', grade_min, grade_max' : '') + (withThumb ? ', ' + THUMB_COLUMNS : '')).in('id', questIds),
       supabaseAdmin.from('sessions')
-        .select('quest_id, completed_at, crystals, total_score, max_score' + (withGems ? ', gems' : ''))
+        .select('quest_id, completed_at, crystals, total_score, max_score' + (withGems ? ', gems' : '') + (withLive ? ', live, last_seen_at' : ''))
         .eq('user_id', req.student!.userId)
         .in('quest_id', questIds),
     ])
@@ -83,7 +84,7 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
     }
 
     /* מיפוי quest_id → מצב session הטוב ביותר */
-    type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null; gems?: number | null }
+    type SessionRow = { quest_id: string; completed_at: string | null; crystals?: number | null; total_score?: number | null; max_score?: number | null; gems?: number | null; live?: { sceneId?: unknown } | null; last_seen_at?: string | null }
     const sessionsByQuest = new Map<string, SessionRow[]>()
     for (const s of (sessionResult.data ?? []) as unknown as SessionRow[]) {
       const arr = sessionsByQuest.get(s.quest_id) ?? []
@@ -132,6 +133,8 @@ sessionsRouter.get('/assigned', async (req, res, next) => {
         gems: completedSession ? (completedSession.gems ?? null) : null,
         classClosed: closedLessons.has(q.id),
         maxScore: completedSession?.max_score ?? null,
+        /* הסימנייה במדף הספרים: העמוד שבו נעצרה הקריאה הפתוחה (מהדופק החי). רק לשיעור שנמצא בקריאה */
+        bookmarkPage: sessionStatus === 'in_progress' ? bookmarkPage(gd?.scenes, sessions) : null,
       }
     })
 

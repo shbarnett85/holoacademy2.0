@@ -18,6 +18,23 @@ export const BOOK_TEXT = {
   libraryTitle: 'הספרייה ההולוגרפית',
 } as const
 
+/* מדף הספרים של התלמיד: שלושה מצבים (חדש, בקריאה, הושלם), סימנייה ומועד הגשה */
+export const SHELF_TEXT = {
+  fresh: 'חדש',
+  /* נוסף למדף מאז הביקור הקודם */
+  freshMark: '✦ חדש',
+  reading: 'בקריאה',
+  readingAt: (page: number): string => `בקריאה, ${BOOK_TEXT.pageShort(page)}`,
+  bookmark: (page: number): string => BOOK_TEXT.pageShort(page),
+  done: '✓ הושלם',
+  doneLate: '✓ הושלם · באיחור',
+  gems: (n: number): string => gemsWord(n),
+  dueBy: (date: string): string => `להגשה עד ${date}`,
+  duePassed: (date: string): string => `המועד עבר · ${date}`,
+  review: '🔄 חיזוק',
+  count: (shown: number, total: number): string => `${shown}${shown !== total ? `/${total}` : ''} שיעורים`,
+} as const
+
 export const HUD_TEXT = {
   barLabel: (whole: number): string => `${gemsWord(whole)} מתוך 5`,
   streak: (n: number): string => `רצף ×${n}`,

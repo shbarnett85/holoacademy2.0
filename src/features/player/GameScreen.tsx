@@ -25,6 +25,7 @@ import { homePathForRole } from '../../shared/lib/homePath'
 import { initSound } from '../../shared/lib/sound'
 import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 import { BOOK_TEXT } from './gameFeel/text'
+import { pageNumberOf } from '../../shared/lib/bookPages'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -740,7 +741,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         /* ההתקדמות בשיעור: כמה סצנות שונות כבר נראו (כולל הנוכחית) מתוך כל סצנות השיעור. ערך נגזר בלבד */
         progress={{ current: new Set([...engine.visitedScenes, scene.id]).size, total: gameData.scenes.length }}
         /* "עמוד 3 מתוך 6": המקום של העמוד בספר (בקוד: scene). עמוד שלא נמצא במערך: בלי תווית */
-        page={sceneIdx >= 0 ? { current: sceneIdx + 1, total: gameData.scenes.length } : null}
+        page={{ current: pageNumberOf(gameData.scenes, scene.id) ?? 0, total: gameData.scenes.length }}
         hudSlot={<>
           <GemBar value={engine.gemValue} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
