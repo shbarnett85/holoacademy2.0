@@ -45,3 +45,22 @@ describe('מחרוזות ממשק התלמיד — לשון רבים', () => {
     }
   })
 })
+
+/* הספרייה ההולוגרפית: התלמיד רואה "עמוד". "סצנה" נשארת רק בקוד, במסד ובמסכי המורה */
+describe('מחרוזות ממשק התלמיד — "עמוד" ולא "סצנה"', () => {
+  /* פנייה למורים בפוטר של מבקר (מסך הסיום בלי session): אצל המורים המונח לא השתנה */
+  const TEACHER_FACING = [/^מתארים את חומר הלימוד/]
+  it('אין "סצנה" בשום מחרוזת שהתלמיד רואה', () => {
+    const bad: string[] = []
+    for (const f of FILES) {
+      for (const s of hebrewStrings(readFileSync(f, 'utf8'))) {
+        if (/סצנ/.test(s) && !TEACHER_FACING.some((re) => re.test(s))) bad.push(`${path.relative(SRC, f)}: "${s.slice(0, 70)}"`)
+      }
+    }
+    expect(bad).toEqual([])
+  })
+  it('הסורק באמת תופס', () => {
+    expect(hebrewStrings("const a = '6 סצנות'").some((s) => /סצנ/.test(s))).toBe(true)
+    expect(hebrewStrings('<span>סצנה 3 מתוך 6</span>').some((s) => /סצנ/.test(s))).toBe(true)
+  })
+})

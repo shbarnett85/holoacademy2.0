@@ -1,9 +1,10 @@
 import { useSoundSettings } from '../../shared/lib/sound'
+import { BOOK_TEXT } from './gameFeel/text'
 
 /* ה-HUD שבראש מסך המשחק: רקע לבן וקו דיו (index.css: .holo-hud-top).
    התחלה (ימין ב-RTL): שם התלמיד/ה ואווטאר באפרסק, וכותרת העמוד. סוף: קריסטלים וחפצים, השתקה ויציאה.
    פס ההתקדמות (כתום) רץ לאורך הקצה התחתון של ה-HUD, ולכן אינו תופס מקום בשורה. */
-export default function TopHUD({ title, onExit, hidden = false, hudSlot, studentName, progress }: {
+export default function TopHUD({ title, onExit, hidden = false, hudSlot, studentName, progress, page }: {
   title: string; onExit: () => void; hidden?: boolean
   /* קריסטלים + תאי חפצים. הם חיים ברצועה **העליונה** ולא בפס תחתון נפרד:
      במצב רוחבי במובייל הגובה הוא המשאב הנדיר, ורצועה שנייה גוזלת ~50px יקרים. */
@@ -12,6 +13,8 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
   studentName?: string | null
   /* ההתקדמות בשיעור: העמוד הנוכחי מתוך הכול. בלי ערך הפס לא מוצג */
   progress?: { current: number; total: number } | null
+  /* מספר העמוד: המקום של העמוד הנוכחי בספר ("עמוד 3 מתוך 6") */
+  page?: { current: number; total: number } | null
 }) {
   const { muted, toggleMuted } = useSoundSettings()
   const name = (studentName ?? '').trim()
@@ -35,16 +38,13 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
             <span aria-hidden="true">{name}</span>
           </span>
         )}
-        {/* התחלה (ימין ב-RTL): כותרת + כפתורי הבקרה. סוף (שמאל): קריסטלים וחפצים. */}
-        <h1
-          className="holo-text-glow text-xl font-black truncate"
-          /* המקום השמור לכפתורים (יציאה+סאונד, שניהם בצד ימין ב-RTL). הכותרת ממורכזת,
-             ולכן הרזרבה נספרת פעמיים — במובייל היא גדלה כדי שהכותרת לא תיגלוש מתחת
-             לכפתור הסאונד (ראו --tophud-reserve ב-index.css). */
-          style={{ flex: '0 1 auto', minWidth: 0 }}
-        >
-          {title}
-        </h1>
+        {/* כותרת העמוד, ומתחתיה "עמוד 3 מתוך 6". בטלפון לרוחב (גובה נמוך) התווית עוברת לצד הכותרת, כדי שה-HUD לא יגבה */}
+        <div className="holo-hud-title">
+          <h1 className="holo-text-glow text-xl font-black truncate">{title}</h1>
+          {page && page.total > 0 && page.current > 0 && (
+            <span className="holo-hud-page" data-hud-page={page.current}>{BOOK_TEXT.page(page.current, page.total)}</span>
+          )}
+        </div>
 
         {/* בקרות — נדחפות אל הקצה הנגדי, במקום שבו ישב כפתור העין שהוסר */}
         <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>

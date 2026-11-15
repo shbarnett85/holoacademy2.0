@@ -24,6 +24,7 @@ import { GEM_TOTAL, effectLevelOf } from '../../shared/lib/gemModel'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { initSound } from '../../shared/lib/sound'
 import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
+import { BOOK_TEXT } from './gameFeel/text'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -586,7 +587,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
               לפני שהטקסט נגמר בפועל. */}
           <div ref={actionsRef} className="holo-panel-actions" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
           {pages.length > 1 && (
-            <span className="holo-page-indicator" data-page-indicator aria-label={`עמוד ${pageIdx + 1} מתוך ${pages.length}`}>
+            <span className="holo-page-indicator" data-page-indicator aria-label={BOOK_TEXT.part(pageIdx + 1, pages.length)}>
               {pageIdx + 1}/{pages.length}
             </span>
           )}
@@ -738,6 +739,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         studentName={studentName}
         /* ההתקדמות בשיעור: כמה סצנות שונות כבר נראו (כולל הנוכחית) מתוך כל סצנות השיעור. ערך נגזר בלבד */
         progress={{ current: new Set([...engine.visitedScenes, scene.id]).size, total: gameData.scenes.length }}
+        /* "עמוד 3 מתוך 6": המקום של העמוד בספר (בקוד: scene). עמוד שלא נמצא במערך: בלי תווית */
+        page={sceneIdx >= 0 ? { current: sceneIdx + 1, total: gameData.scenes.length } : null}
         hudSlot={<>
           <GemBar value={engine.gemValue} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />

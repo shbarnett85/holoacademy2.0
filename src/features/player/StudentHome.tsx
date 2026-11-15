@@ -8,6 +8,7 @@ import { GemDefs, GemSocket } from '../../shared/ui/Gem'
 import { gemTier } from '../../shared/lib/gemTier'
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { MyJourney } from './Journey'
+import { BOOK_TEXT } from './gameFeel/text'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
 import { fieldStyle, infoChip, nameChip, panelStudent } from '../../styles/ui'
 
@@ -89,7 +90,7 @@ function QuestCard({ q, isNew, onPlay }: { q: AssignedQuest; isNew: boolean; onP
                     fontSize: 12, padding: '2px 8px', borderRadius: 5, fontWeight: 600,
                     background: 'var(--color-ink-wash)', border: '1px solid var(--color-line-strong)',
                     color: 'var(--color-ink)',
-                  }}>{q.sceneCount} סצנות</span>
+                  }}>{BOOK_TEXT.pagesCount(q.sceneCount)}</span>
               }
             </div>
             <button
@@ -296,6 +297,13 @@ export default function StudentHome() {
             }}>
               שלום, <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span> 👋
             </h1>
+            {/* פעם אחת, כאן: מי מנהל את הספרייה. בתוך ספר הוא "המדריך שלכם" */}
+            <p data-holo-librarian style={{ margin: '10px 0 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+              <span aria-hidden="true" style={{ flex: '0 0 auto', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', boxSizing: 'border-box', border: '2px solid var(--color-ink)', background: 'var(--color-holo)' }}>
+                <img src="/dr-holo/neutral.webp" alt="" draggable={false} style={{ display: 'block', width: '100%', transform: 'scale(2.7)', transformOrigin: '50% 9%' }} />
+              </span>
+              {BOOK_TEXT.holoLibrarian}
+            </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button

@@ -3,6 +3,21 @@
 
 const gemsWord = (n: number): string => (n === 1 ? 'גביש אחד' : `${n} גבישים`)
 
+/* הספרייה ההולוגרפית: כל שיעור הוא ספר, ולכן התלמיד רואה "עמוד" (בקוד ובמסד השם נשאר scene).
+   מספר העמוד הוא המקום של העמוד בספר, ולא כמה עמודים כבר נקראו. */
+export const BOOK_TEXT = {
+  page: (n: number, total: number): string => `עמוד ${n} מתוך ${total}`,
+  pageShort: (n: number): string => `עמוד ${n}`,
+  pagesCount: (n: number): string => (n === 1 ? 'עמוד אחד' : `${n} עמודים`),
+  /* טקסט ארוך של עמוד אחד מתחלק לחלקים בתוך תיבת הטקסט */
+  part: (i: number, n: number): string => `חלק ${i} מתוך ${n}`,
+  holoName: 'דוקטור הולו',
+  holoRole: 'המדריך שלכם',
+  /* פעם אחת, במסך הפתיחה של התלמיד (מדף הספרים) */
+  holoLibrarian: 'דוקטור הולו, הספרן הראשי של הספרייה ההולוגרפית',
+  libraryTitle: 'הספרייה ההולוגרפית',
+} as const
+
 export const HUD_TEXT = {
   barLabel: (whole: number): string => `${gemsWord(whole)} מתוך 5`,
   streak: (n: number): string => `רצף ×${n}`,

@@ -610,6 +610,14 @@ html {
 .holo-hud-progress { position: absolute; inset-inline: 0; bottom: -3px; height: 6px; background: var(--color-surface); pointer-events: none; }
 .holo-hud-progress > i { display: block; height: 100%; background: var(--color-human); border-inline-end: 2px solid var(--color-ink); transition: width .4s ease; }
 .holo-hud-btn { flex-shrink: 0; }
+/* כותרת העמוד ומתחתיה "עמוד 3 מתוך 6" (מידע, לא לחיץ: טקסט בדיו) */
+.holo-hud-title { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.holo-hud-title > h1 { margin: 0; min-width: 0; line-height: 1.2; }
+.holo-hud-page { white-space: nowrap; color: var(--color-ink); font-weight: 700; font-size: .62rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+@media (max-height: 500px) {
+  .holo-hud-title { flex-direction: row; align-items: baseline; gap: .5rem; }
+  .holo-hud-page { font-size: .72rem; flex-shrink: 0; }
+}
 @media (max-width: 900px) {
   /* במסך צר נשאר רק האווטאר; השם המלא נמצא ב-aria-label */
   .holo-hud-name { padding: .1rem; border: none; background: none; }
