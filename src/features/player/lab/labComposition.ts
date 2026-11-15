@@ -21,6 +21,8 @@ export interface StageComposition {
   camera: { openingScale: number; summaryScale: number; summaryFocus: { x: number; y: number }; approachMs: number; diveMs: number; pullbackMs: number; revealMs: number }
   /** ד"ר הולו: מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הדמות המלאה */
   holo: { centerX: number; top: number; height: number }
+  /** הפורטל כהולוגרמה (PortalHologram): מרכז הפתח ורדיוסו, וקדמת הבמה (מכאן הרצפה וההשתקפות). בלי ערך: תמונה בלבד */
+  hologram?: { cx: number; cy: number; r: number; stageFront: number }
 }
 
 /* עיגול שנחתך מלמטה בקו ישר (הבמה שלפני הפורטל): רשימת x,y שטוחה */
@@ -50,6 +52,8 @@ const libraryStage = (name: string): StageComposition => ({
   },
   camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 190, y: 253 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
   holo: { centerX: 190, top: 145, height: 1148 },
+  /* קדמת הבמה ב-y=545; ההשתקפות האפויה של הטבעת ברצפה מתאימה למראה עם קיצור של 0.85 */
+  hologram: { cx: 640, cy: 355, r: 182, stageFront: 545 },
 })
 export const LIBRARY: StageComposition = libraryStage('library')
 export const LIBRARY_OPEN: StageComposition = libraryStage('library-open')
@@ -86,6 +90,20 @@ export const LAB: StageComposition = {
 export const OPENING_STAGE: StageComposition = LIBRARY
 const STAGES = { opening: LIBRARY, open: LIBRARY_OPEN, closed: LIBRARY_CLOSED } as const
 export const stageFor = (state: 'opening' | 'closed' | 'open'): StageComposition => STAGES[state]
+
+/* הגאומטריה של ההולוגרמה בעולם: הפתח, הבמה, והאזור שהקנבס מכסה (הפורטל, הזוהר שלו וההשתקפות עד תחתית התמונה) */
+export function hologramGeometry(comp: StageComposition) {
+  const h = comp.hologram
+  if (!h) return null
+  const { box } = comp.portal
+  const top = box.y - 12
+  return {
+    box, cx: h.cx, cy: h.cy, r: h.r,
+    stageTop: box.y + box.height,
+    stageFront: h.stageFront,
+    rect: { x: h.cx - h.r - 58, y: top, width: (h.r + 58) * 2, height: comp.height - top },
+  }
+}
 
 const pairs = (flat: readonly number[]): [number, number][] => {
   const out: [number, number][] = []

@@ -201,6 +201,8 @@ async function dive(browser: Browser, kind: 'new' | 'old'): Promise<void> {
   await page.waitForTimeout(2500)
   check((await moodOf(page)) === (kind === 'new' ? 'scared' : 'neutral'), `פתיחה: מצב הרוח ${await moodOf(page)}`)
   check((await holoClips(page)) === 0, 'פתיחה: הרקע הוא הווידאו, וד"ר הולו בתמונה קבועה (בלי קטע שני)')
+  check(await page.locator('[data-lab-hologram=on]').count() === 1, 'פתיחה: הפורטל הולוגרמה חיה (WebGL)')
+  check(await page.locator('[data-lab-stage]').getAttribute('data-portal-gold') === null, 'פתיחה: הפורטל בתכלת')
   const s1 = (await cameraScale(page))!
   await page.waitForTimeout(1500)
   const s2 = (await cameraScale(page))!
@@ -259,6 +261,9 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     check(later >= 0.999 && later < 1.03, `${c.name}: נסיגה, ואז קירוב איטי (${later.toFixed(4)})`)
     /* גם הסיכום על רקע וידאו (ספריית השרתים), ולכן ד"ר הולו בתמונה קבועה של מצב הרוח, בלי קטע שני */
     check((await holoClips(page)) === 0 && (await moodOf(page)) === c.clip, `${c.name}: רקע וידאו, וד"ר הולו בתמונה קבועה (${await moodOf(page)})`)
+    check(await page.locator('[data-lab-hologram=on]').count() === 1, `${c.name}: הפורטל הולוגרמה חיה`)
+    const gold = await page.locator('[data-lab-stage]').getAttribute('data-portal-gold')
+    check((gold !== null) === (c.portal === 'closed'), `${c.name}: צבע הפורטל ${gold !== null ? 'כתום-זהוב' : 'תכלת'}`)
     const bg = await page.locator('[data-lab-video]').getAttribute('src')
     check(bg === (c.state === 'open' ? '/lab/library-open.mp4' : '/lab/library-closed.mp4'), `${c.name}: הרקע ${bg}`)
     await page.screenshot({ path: path.join(OUT, `${kind}-summary-${c.name}.png`) })
@@ -295,6 +300,8 @@ async function modes(browser: Browser): Promise<void> {
     const { ctx, page } = await open(browser, { level: 'gentle' })
     await page.waitForTimeout(2500)
     check((await cameraScale(page)) === 1, 'עדינה: המצלמה לא זזה')
+    check(await page.locator('[data-lab-hologram]').count() === 0 && await page.locator('.lab-portal__tint').count() > 0, 'עדינה: הפורטל במראה ההולוגרפי הקבוע, בלי WebGL')
+    await page.screenshot({ path: path.join(OUT, 'gentle-opening.png') })
     await next(page)
     const seen = await page.waitForFunction(() => document.querySelector('[data-lab-stage]')?.getAttribute('data-leaving') ?? 'gone', undefined, { timeout: 3000 }).then((h) => h.jsonValue())
     check(seen === 'reveal' || seen === 'gone', `עדינה: דהייה בלי צלילה (${seen})`)
@@ -323,6 +330,15 @@ async function modes(browser: Browser): Promise<void> {
     await play(page, ['wrong', 'wrong'])
     await page.waitForTimeout(300)
     check((await cameraScale(page)) === 1, 'מופחתת, סיכום: בלי נסיגה')
+    await page.close(); await ctx.close()
+  }
+  {
+    const { ctx, page } = await open(browser, { reduced: true })
+    await play(page, ['right', 'right'])
+    await page.waitForTimeout(300)
+    const op = await page.locator('[data-lab-pglow=gold] > *').first().evaluate((e) => getComputedStyle(e).opacity)
+    check(await page.locator('[data-lab-stage]').getAttribute('data-portal-gold') !== null && op === '1', `מופחתת, סיפור שנסגר: הפורטל כתום-זהוב מיד, בלי מעבר (${op})`)
+    await page.screenshot({ path: path.join(OUT, 'reduced-summary-closed.png') })
     await page.close(); await ctx.close()
   }
   console.log('\n== ולידציית מצב רוח ==')
