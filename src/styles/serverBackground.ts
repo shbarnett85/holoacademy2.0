@@ -1,9 +1,11 @@
-/* רקע העמוד: חזית של שרתים בארון (לבקשת המשתמש) — ארונות זה לצד זה, מסילות עם חורים, ובכל ארון יחידות:
-   שרת (סורג אוורור, נוריות, מגשי דיסק), אחסון (שמונה מגשים) ולוח ניקוב. אריח אחד של 480×168 (שלוש יחידות של 56px), חוזר על עצמו.
-   הצבעים נגזרים מהטוקנים (לילך, המכונה, לבן, הולו, אנושיות) בעצירה חדה, בלי מעבר צבע ובלי זוהר. הרקע לא זז.
+/* רקע העמוד: חזית שרת, מופשטת (לבקשת המשתמש, לפי חזית של שרת עם מסגרת משושים): רשת של משושים גבוהים (קודקוד למעלה ולמטה),
+   מוטות בהירים עם שפה דקה, ומאחוריהם שקעים כהים יותר ובהם מגשי דיסק — פסים אנכיים וטבעת קטנה בראש כל מגש, ומדי פעם נורית.
+   אריח אחד חוזר על עצמו. הצבעים נגזרים מהטוקנים (לילך, המכונה, לבן, הולו, אנושיות), בלי מעבר צבע ובלי תנועה.
    הקובץ מייצר את השורה --page-background ב-tokens.css (scripts/genServerBackground.ts), ו-serverBackground.test.ts בודק שהיא עדכנית. */
 
-export const TILE = { width: 480, height: 168, unit: 56 } as const
+/* משושה: רוחב (מצלע לצלע), גובה (מקודקוד לקודקוד), וגובה החוד. שורה כל height - point, ושורה שנייה מוזזת בחצי רוחב */
+export const HEX = { width: 120, height: 172, point: 42 } as const
+export const TILE = { width: HEX.width, height: 2 * (HEX.height - HEX.point) } as const
 
 export interface ServerPalette { bg: string; machine: string; surface: string; holo: string; human: string }
 
@@ -16,57 +18,43 @@ export function mixHex(a: string, b: string, p: number): string {
 
 export function serverColors(t: ServerPalette) {
   return {
-    face: mixHex(t.surface, t.bg, 0.4),   // חזית היחידה: בהירה מהרקע, כך שהרווחים בין היחידות נראים כעומק
-    rail: mixHex(t.machine, t.bg, 0.2),  // מסילות הארון
-    line: mixHex(t.machine, t.bg, 0.42),  // קווי מתאר, אוורור, ברגים. הכהה ביותר ברקע: טקסט muted עליו עדיין 4.5:1
-    holo: mixHex(t.holo, t.bg, 0.55),      // נוריות, מעט מעומעמות כדי שלא יתחרו בתוכן
+    bar: mixHex(t.surface, t.bg, 0.55),     // מוטות המשושים: בהירים מהרקע
+    cavity: mixHex(t.machine, t.bg, 0.22),  // השקע שמאחורי המשושה
+    line: mixHex(t.machine, t.bg, 0.42),    // שפת המוטות, מגשים וטבעות. הכהה ביותר בציור: טקסט muted עליו עדיין 4.5:1
+    holo: mixHex(t.holo, t.bg, 0.55),       // נוריות, מעומעמות כדי שלא יתחרו בתוכן
     human: mixHex(t.human, t.bg, 0.55),
   }
 }
 
+/* הנקודות של משושה סביב מרכז */
+function hexPoints(cx: number, cy: number): string {
+  const { width: w, height: h, point: p } = HEX
+  return [[0, -h / 2], [w / 2, -h / 2 + p], [w / 2, h / 2 - p], [0, h / 2], [-w / 2, h / 2 - p], [-w / 2, -h / 2 + p]]
+    .map(([x, y]) => `${+(cx + x).toFixed(1)},${+(cy + y).toFixed(1)}`).join(' ')
+}
+
 export function serverTileSvg(t: ServerPalette): string {
   const C = serverColors(t)
-  const { width: W, height: H, unit: U } = TILE
-  const s: string[] = []
-  const rect = (x: number, y: number, w: number, h: number, fill: string, extra = '') => s.push(`<rect x='${x}' y='${y}' width='${w}' height='${h}' fill='${fill}'${extra ? ' ' + extra : ''}/>`)
-  const circ = (x: number, y: number, r: number, fill: string) => s.push(`<circle cx='${x}' cy='${y}' r='${r}' fill='${fill}'/>`)
-  const outline = `rx='3' stroke='${C.line}' stroke-width='1.5'`
-  /* רשתות נקודות כתבנית, כדי שהקובץ יישאר קטן */
-  s.push(`<defs><pattern id='d' width='6' height='6' patternUnits='userSpaceOnUse'><circle cx='3' cy='3' r='1.4' fill='${C.line}'/></pattern>`
-    + `<pattern id='p' width='8' height='16' patternUnits='userSpaceOnUse'><circle cx='4' cy='4' r='1.7' fill='${C.line}'/><circle cx='8' cy='12' r='1.7' fill='${C.line}'/><circle cx='0' cy='12' r='1.7' fill='${C.line}'/></pattern>`
-    + `<pattern id='v' width='8' height='56' patternUnits='userSpaceOnUse'><rect x='2' y='0' width='3.2' height='56' rx='1.6' fill='${C.line}'/></pattern></defs>`)
-  /* מסילות בשני הצדדים, עם חורים מרובעים */
-  for (const x of [0, W - 16]) {
-    rect(x, 0, 16, H, C.rail)
-    for (let u = 0; u < 3; u++) for (const dy of [10, 28, 46]) rect(x + 5, u * U + dy - 3, 6, 6, C.line, "rx='1'")
-  }
-  const face = (y: number) => {
-    rect(20, y + 3, W - 40, U - 6, C.face, `rx='4' stroke='${C.line}' stroke-width='1.5'`)
-    for (const [x, yy] of [[30, 12], [30, 44], [W - 30, 12], [W - 30, 44]]) circ(x, y + yy, 2.6, C.line)
-  }
-  /* יחידה 1: שרת */
-  let y = 0
-  face(y)
-  rect(44, y + 14, 200, 28, 'url(#v)')
-  circ(262, y + 21, 3, C.holo); circ(262, y + 35, 3, C.human)
-  for (let i = 0; i < 4; i++) { const x = 282 + i * 41; rect(x, y + 11, 35, 34, 'none', outline); rect(x + 6, y + 37, 16, 3, C.line, "rx='1.5'"); circ(x + 28, y + 18, 2, i === 2 ? C.human : C.holo) }
-  /* יחידה 2: אחסון */
-  y = U
-  face(y)
-  for (let i = 0; i < 8; i++) {
-    const x = 42 + i * 50
-    rect(x, y + 10, 44, 36, 'none', outline)
-    rect(x + 5, y + 15, 30, 18, 'url(#d)')
-    circ(x + 37, y + 18, 2, i % 3 === 1 ? C.human : C.holo)
-    rect(x + 7, y + 38, 26, 3, C.line, "rx='1.5'")
-  }
-  /* יחידה 3: לוח ניקוב, תווית ונורית מתח */
-  y = U * 2
-  face(y)
-  rect(44, y + 11, 296, 32, 'url(#p)')
-  rect(352, y + 16, 64, 22, 'none', outline)
-  rect(360, y + 23, 34, 3, C.line, "rx='1.5'"); rect(360, y + 30, 22, 3, C.line, "rx='1.5'")
-  circ(434, y + 27, 3.2, C.holo)
+  const { width: W, height: H } = TILE
+  const step = HEX.height - HEX.point
+  /* מגש דיסק כל 15px: קו מפריד, וטבעת בראש המגש; שורת מגשים בכל שורת משושים */
+  const tray = 15
+  const s: string[] = [
+    `<defs><pattern id='t' width='${tray}' height='${step}' patternUnits='userSpaceOnUse'>`
+      + `<rect x='0' y='0' width='1.4' height='${step}' fill='${C.line}'/>`
+      + `<circle cx='${tray / 2 + 0.7}' cy='14' r='3.4' fill='none' stroke='${C.line}' stroke-width='1.6'/>`
+      + `<rect x='${tray / 2 - 2.3}' y='${step - 30}' width='6' height='16' rx='1.5' fill='none' stroke='${C.line}' stroke-width='1.2'/>`
+      + `</pattern></defs>`,
+    `<rect width='${W}' height='${H}' fill='${C.cavity}'/>`,
+    `<rect width='${W}' height='${H}' fill='url(%23t)'/>`.replace('%23', '#'),
+  ]
+  /* נוריות: מעט, במקומות קבועים באריח */
+  for (const [x, y, c] of [[23, 22, C.holo], [83, 22 + step, C.human], [68, 22, C.holo]] as const) s.push(`<circle cx='${x}' cy='${y}' r='2.2' fill='${c}'/>`)
+  /* המוטות: כל המשושים שנוגעים באריח, בשפה דקה (קו רחב בצבע השפה ומעליו קו צר בצבע המוט) */
+  const centers: [number, number][] = []
+  for (let r = -1; r <= 3; r++) for (let c = -1; c <= 2; c++) centers.push([c * W + (r % 2 ? W / 2 : 0), r * step])
+  for (const [cx, cy] of centers) s.push(`<polygon points='${hexPoints(cx, cy)}' fill='none' stroke='${C.line}' stroke-width='18' stroke-linejoin='round'/>`)
+  for (const [cx, cy] of centers) s.push(`<polygon points='${hexPoints(cx, cy)}' fill='none' stroke='${C.bar}' stroke-width='14.5' stroke-linejoin='round'/>`)
   return `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}' viewBox='0 0 ${W} ${H}'>${s.join('')}</svg>`
 }
 

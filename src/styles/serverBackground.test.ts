@@ -3,7 +3,7 @@ import { TOKENS_CSS, readHexTokens } from './readTokens'
 import { contrastRatio } from '../shared/lib/subjects'
 import { PAGE_BG_LINE, pageBackgroundCss, paletteFromTokens, serverColors } from './serverBackground'
 
-describe('רקע העמוד: חזית השרתים', () => {
+describe('רקע העמוד: חזית שרת מופשטת (משושים)', () => {
   const palette = paletteFromTokens(TOKENS_CSS)
   it('השורה ב-tokens.css נוצרה מהטוקנים הנוכחיים (אחרת: npx tsx scripts/genServerBackground.ts)', () => {
     expect(TOKENS_CSS.match(PAGE_BG_LINE)?.[0]).toBe(`  --page-background: ${pageBackgroundCss(palette)};`)
@@ -11,7 +11,7 @@ describe('רקע העמוד: חזית השרתים', () => {
   it('טקסט שיושב ישר על הרקע נשאר קריא גם על הצבע הכהה ביותר בציור', () => {
     const T = readHexTokens()
     const C = serverColors(palette)
-    for (const bg of [C.line, C.rail, C.face, palette.bg]) {
+    for (const bg of [C.line, C.cavity, C.bar, palette.bg]) {
       expect(contrastRatio(T['--color-ink'], bg.toLowerCase()), `ink על ${bg}`).toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(T['--color-muted'], bg.toLowerCase()), `muted על ${bg}`).toBeGreaterThanOrEqual(4.5)
       /* כותרות (machine-deep) גדולות: 3:1 */
