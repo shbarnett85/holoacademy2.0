@@ -3,7 +3,7 @@
    ממצא: כשמתנגנים שני סרטונים, Chrome מוריד את קצב הציור של כל העמוד לקצב של הסרטון האיטי יותר (24 או 30 → 30 פריימים בשנייה),
    גם בלי שום אפקט ועם כרטיס מסך חזק. לכן האנימציה של ד"ר הולו מקודדת ב-60 פריימים בשנייה (פריימים כפולים, אותה תנועה).
    הנגן האמיתי עם /api מדומה (בלי כתיבה ל-DB).
-   הרצה:  npx tsx e2e/gameFeel/holoFps.ts [--rate 1] [--gpu] [--headed] [--quick] [--names a,b] [--swap <mp4>] [--shot <dir>]
+   הרצה:  npx tsx e2e/gameFeel/holoFps.ts [--rate 1] [--gpu] [--headed] [--quick] [--names a,b] [--swap <mp4>] [--shot <dir>] [--early]
    ───────────────────────────────────────────────── */
 import { readFileSync } from 'node:fs'
 import { chromium, type Browser } from 'playwright-core'
@@ -55,6 +55,8 @@ async function measure(browser: Browser, css: string) {
   await page.route('**/api/sessions/start', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessionId: 's', resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0, effectsLevel: 'medium' }) }))
   /* --swap <קובץ>: האנימציה של ד"ר הולו מוחלפת בקובץ מקומי (ניסוי קידוד) */
   if (args.includes('--swap')) { const body = readFileSync(args[args.indexOf('--swap') + 1]); await page.route('**/dr-holo/v2/welcome.mp4', (r) => r.fulfill({ status: 200, contentType: 'video/mp4', body })) }
+  /* --early: ההאטה מתחילה לפני הטעינה, כך שמדידת הקצב של תחילת השיעור רואה מחשב חלש (בודק שהשיעור יורד לעדין) */
+  if (args.includes('--early') && rate > 1) await (await ctx.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate })
   await page.goto(`${DEFAULT_BASE}/play/${QID}`, { waitUntil: 'domcontentloaded', timeout: 90000 })
   await page.waitForSelector('[data-lab-video][data-playing]', { timeout: 30000 })
   if (css) await page.addStyleTag({ content: css })

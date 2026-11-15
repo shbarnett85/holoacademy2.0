@@ -74,6 +74,26 @@ export function averageFps(frameTimes: readonly number[]): number {
   return span > 0 ? ((frameTimes.length - 1) * 1000) / span : Infinity
 }
 export function shouldLowerLevel(fps: number): boolean { return fps < LOW_FPS }
+/* פריים טיפוסי (חציון) מעל זה: הדפדפן כמעט לא מצייר — חלון מכוסה, ממוזער או לא בפוקוס — ולא מחשב חלש (מחשב חלש מצייר 20–35 בשנייה) */
+export const THROTTLED_FRAME_MS = 100
+/* כמה פעמים מודדים שוב אחרי מדידה שלא הכריעה, ובאיזה מרווח */
+export const PROBE_RETRIES = 3
+export const PROBE_RETRY_MS = 2500
+
+export function medianFrameMs(frameTimes: readonly number[]): number {
+  const gaps = frameTimes.slice(1).map((t, i) => t - frameTimes[i]).sort((a, b) => a - b)
+  if (!gaps.length) return 0
+  const m = gaps.length >> 1
+  return gaps.length % 2 ? gaps[m] : (gaps[m - 1] + gaps[m]) / 2
+}
+/* ההכרעה לפי הפריים הטיפוסי ולא לפי הממוצע: עצירה אחת בזמן הטעינה (פענוח תמונה, וידאו, WebGL) מורידה את הממוצע מתחת ל-40
+   גם במחשב מהיר, וכך כל השיעור עבר לעדין ונשאר בלי תנועה. 'throttled': הדפדפן לא באמת צייר, ולכן אין מסקנה ומודדים שוב */
+export function probeVerdict(frameTimes: readonly number[], visible = true): 'ok' | 'slow' | 'throttled' {
+  if (!visible || frameTimes.length < 3) return 'throttled'
+  const ms = medianFrameMs(frameTimes)
+  if (ms > THROTTLED_FRAME_MS) return 'throttled'
+  return shouldLowerLevel(1000 / ms) ? 'slow' : 'ok'
+}
 
 let probing = false
 let probeWaiters: (() => void)[] = []
@@ -83,8 +103,10 @@ export function whenFpsProbeDone(cb: () => void): () => void {
   probeWaiters.push(cb)
   return () => { probeWaiters = probeWaiters.filter((w) => w !== cb) }
 }
-export function startFpsProbe(): void {
+let retryTimer: number | undefined
+export function startFpsProbe(attempt = 0): void {
   if (!isBrowser || probing || state.autoLowered || prefersReducedMotion() || state.level === 'gentle') return
+  window.clearTimeout(retryTimer)
   probing = true
   const times: number[] = []
   const t0 = performance.now()
@@ -92,11 +114,12 @@ export function startFpsProbe(): void {
     times.push(now)
     if (now - t0 < FPS_PROBE_MS) { requestAnimationFrame(step); return }
     probing = false
-    /* לשונית ברקע לא מציירת פריימים: לא מסיקים מזה שהמחשב חלש */
-    if (document.visibilityState === 'visible' && shouldLowerLevel(averageFps(times))) set({ level: 'gentle', autoLowered: true })
+    const verdict = probeVerdict(times, document.visibilityState === 'visible')
+    if (verdict === 'slow') set({ level: 'gentle', autoLowered: true })
     const waiters = probeWaiters
     probeWaiters = []
     for (const w of waiters) w()
+    if (verdict === 'throttled' && attempt + 1 < PROBE_RETRIES) retryTimer = window.setTimeout(() => startFpsProbe(attempt + 1), PROBE_RETRY_MS)
   }
   requestAnimationFrame(step)
 }

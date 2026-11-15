@@ -1,6 +1,6 @@
 /* שכבת התחושה: נקודות מהטלמטריה, הרמז לניסיון השני, משפטי הצמיחה, מדידת FPS, והטקסט לתלמיד. סריקת הקוד לניסוחים אסורים: server/src/lib/gameFeelWording.test.ts */
 import { describe, expect, it } from 'vitest'
-import { averageFps, FPS_PROBE_MS, LEVELS, LOW_FPS, shouldLowerLevel } from './engine'
+import { averageFps, FPS_PROBE_MS, LEVELS, LOW_FPS, medianFrameMs, probeVerdict, shouldLowerLevel, THROTTLED_FRAME_MS } from './engine'
 import { allowedMistakes, countMistakes, growthCounts, pointsFromTelemetry } from './points'
 import { END_TEXT, HUD_TEXT, JOURNEY_TEXT, retryHint, RETRY_TEXT } from './text'
 import { scaleMemory, scaleWordCompletion } from '../../../shared/lib/difficultyScaling'
@@ -73,6 +73,22 @@ describe('מדידת FPS', () => {
     expect(shouldLowerLevel(39.9)).toBe(true)
     expect(shouldLowerLevel(40)).toBe(false)
     expect(FPS_PROBE_MS).toBeGreaterThan(0)
+  })
+  it('ההכרעה לפי הפריים הטיפוסי: עצירה בזמן הטעינה לא הופכת מחשב מהיר לחלש', () => {
+    const frames = (gaps: number[]) => gaps.reduce<number[]>((acc, g) => [...acc, acc[acc.length - 1] + g], [0])
+    /* 3 שניות ב-60, עם עצירה אחת של 1.5 שניות: הממוצע מתחת ל-40, אבל המחשב מהיר */
+    const stalled = frames([...Array(100).fill(1000 / 60), 1500, ...Array(70).fill(1000 / 60)])
+    expect(averageFps(stalled)).toBeLessThan(LOW_FPS)
+    expect(probeVerdict(stalled)).toBe('ok')
+    /* מחשב חלש: 28 פריימים בשנייה לאורך כל המדידה */
+    expect(probeVerdict(frames(Array(84).fill(1000 / 28)))).toBe('slow')
+    expect(medianFrameMs(frames([10, 30, 20]))).toBe(20)
+  })
+  it('דפדפן שכמעט לא מצייר (חלון מכוסה) או לשונית מוסתרת: אין מסקנה', () => {
+    const frames = (gaps: number[]) => gaps.reduce<number[]>((acc, g) => [...acc, acc[acc.length - 1] + g], [0])
+    expect(probeVerdict(frames([1000, 1000, 1000]))).toBe('throttled')
+    expect(probeVerdict(frames(Array(180).fill(1000 / 60)), false)).toBe('throttled')
+    expect(THROTTLED_FRAME_MS).toBeGreaterThan(1000 / 20)
   })
   it('כמויות האפקטים עולות עם העוצמה', () => {
     expect(LEVELS.gentle.confetti).toBeLessThan(LEVELS.medium.confetti)
