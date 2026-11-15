@@ -13,6 +13,7 @@
    העולם הוא stacking context שכולל את המעבדה, ולכן המיזוג של ההולוגרמה עם המעבדה עובד. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import DrHoloHologram from '../DrHoloHologram'
+import { HOLO_ASPECT } from '../drHoloClips'
 import { useGameFeel, type HoloMood } from '../gameFeel/engine'
 import { BOOK_TEXT } from '../gameFeel/text'
 import PortalHologram, { PORTAL_GOLD_MS } from './PortalHologram'
@@ -63,8 +64,6 @@ const CSS = `
 .lab-rim__swirl { stroke: #D8F3FF; stroke-width: 11; stroke-dasharray: 340 300; stroke-linecap: round; filter: drop-shadow(0 0 16px #8FD3FF); animation: lab-rim-swirl 34s linear infinite; }
 @keyframes lab-rim-swirl { to { stroke-dashoffset: -2560; } }
 .lab-holo { position: absolute; }
-/* חצי גוף: המעבר של צבעי המותג מכווץ כדי שהמג'נטה ייכנס עד המותן */
-.lab-holo .dr-holo__tint { background: linear-gradient(170deg, #2ff3ff 4%, #5AB8FF 24%, #8f86ff 38%, #ff45e6 56%); }
 /* רקע בהיר (ספריית השרתים): בלי שכבות הזוהר של המעבדה הכהה. הטבעת כבר חלק מהרקע, ולכן קו הטבעת מופיע רק כסימן שאפשר ללחוץ */
 .lab-stage[data-lab-tone=light] { background: var(--color-machine-bg); }
 .lab-stage[data-lab-tone=light] .lab-glow, .lab-stage[data-lab-tone=light] .lab-rim__swirl { display: none; }
@@ -228,7 +227,7 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
 
   /* גל אור בהולוגרמה: ביציאה מהפורטל בסיכום, וברגע הצלילה אליו */
   const splashKey = leaving === 'dive' ? 2 : state === 'opening' ? 0 : 1
-  const holoWidth = comp.holo.height * 9 / 16
+  const holoWidth = comp.holo.height * HOLO_ASPECT
   const box = comp.portal.box
   const scale = fit?.scale ?? 1
   const liveBg = !!comp.video && moving
@@ -281,9 +280,8 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
             </svg>
           </div>
           <div className="lab-holo" data-lab-holo style={{ left: comp.holo.centerX - holoWidth / 2, top: comp.holo.top }}>
-            {/* שני קטעי וידאו בו-זמנית (הרקע וד"ר הולו) מורידים את הקצב מ-60 ל-40 פריימים בשנייה, מתחת לסף שמעביר את כל השיעור לעוצמה עדינה.
-                לכן כשהרקע הוא וידאו, ד"ר הולו מוצג בתמונה הקבועה של מצב הרוח (עם הריחוף העדין), ובמסך בלי וידאו ברקע הקטע שלו מתנגן כרגיל */}
-            <DrHoloHologram mood={mood} build video still={liveBg} human={human} height={`${comp.holo.height}px`} />
+            {/* האנימציה מתנגנת גם מעל רקע וידאו: הנכס החדש קטן (896×706, H.264) ושני הסרטונים יחד נשארים מעל סף הקצב */}
+            <DrHoloHologram mood={mood} build video human={human} height={`${comp.holo.height}px`} />
           </div>
           </div>
         </div>

@@ -11,7 +11,7 @@ import LoadingQuest from './LoadingQuest'
 import SceneImageStage from './SceneImageStage'
 import WormholeTransition from './WormholeTransition'
 import EndScreen from './EndScreen'
-import { preloadSummary } from './drHoloClips'
+import { holoStillFor, preloadSummary } from './drHoloClips'
 import LabStage from './lab/LabStage'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
 import { OPENING_STAGE, labPortalImages, stageFor } from './lab/labComposition'
@@ -254,7 +254,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     return () => window.clearTimeout(t)
   }, [labExit])
   /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
-  useEffect(() => { for (const m of [labMoods.opening, labMoods.closed, labMoods.open]) new Image().src = `/dr-holo/${m}.webp` }, [labMoods])
+  useEffect(() => { for (const m of [labMoods.opening, labMoods.closed, labMoods.open]) new Image().src = holoStillFor(m) }, [labMoods])
 
 
   /* transitioning=true כל עוד מעבר (סריקה/חור-תולעת) פעיל. בזמן הזה הסצנה החדשה כבר הוחלפה במנוע, ופאנל הטקסט מוסתר.

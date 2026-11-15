@@ -1,22 +1,36 @@
-/* קטעי הווידאו של ד"ר הולו (server/src/scripts/genDrHoloClip.ts): MP4 על רקע שחור, בלולאה, קטע אחד לכל מצב רוח. נטענים רק במסכי הפתיחה והסיכום. */
+/* ד"ר הולו (הדמות החדשה, 2026-11): חצי גוף, כבר בגוון הולוגרפי. כל אנימציה היא MP4 על רקע שחור (השקיפות של המקור נצרבה על שחור,
+   כי הדמות ממוזגת ב-screen והשחור הוא "אין אור"; כך גם דפדפן בלי וידאו שקוף מציג אותה נכון) + פריים ראשון כתמונה קבועה באותו שם.
+   נטענים רק במסכי הפתיחה והסיכום. מקור: public/dr-holo/v2/<name>.{mp4,webp} */
 import type { HoloMood } from './gameFeel/engine'
 import { feelLevel, prefersReducedMotion } from './gameFeel/engine'
 
 /* וידאו שלא התחיל לנגן אחרי הזמן הזה: נשארים עם התמונה */
 export const HOLO_CLIP_START_TIMEOUT_MS = 5000
 
+/* יחס הרוחב לגובה של הנכסים (896×706) */
+export const HOLO_ASPECT = 896 / 706
+
+/* איזו אנימציה לכל מצב רוח. כרגע יש אנימציה אחת ("ברוכים הבאים"), ולכן כל מצבי הרוח משתמשים בה. אנימציה חדשה = שורה כאן */
+const ANIMATION_OF: Partial<Record<HoloMood, string>> = {}
+const animationOf = (mood: HoloMood): string => ANIMATION_OF[mood] ?? 'welcome'
+
 export function holoClipFor(mood: HoloMood): string {
-  return `/dr-holo/${mood}.mp4`
+  return `/dr-holo/v2/${animationOf(mood)}.mp4`
 }
 
-/* מסך הסיכום מתחיל להיטען כשמתחיל האתגר האחרון, כדי שיהיה מוכן כשהוא מופיע: הרקעים של שני מצבי הסיפור (תמונה, ווידאו כשמותר לזוז)
-   ותמונות ד"ר הולו. על רקע וידאו ד"ר הולו הוא תמונה קבועה, ולכן הקטעים שלו לא נטענים */
+export function holoStillFor(mood: HoloMood): string {
+  return `/dr-holo/v2/${animationOf(mood)}.webp`
+}
+
+/* מסך הסיכום מתחיל להיטען כשמתחיל האתגר האחרון, כדי שיהיה מוכן כשהוא מופיע: הרקעים של שני מצבי הסיפור (תמונה, וידאו כשמותר לזוז)
+   ונכסי ד"ר הולו של שני המצבים */
 export function preloadSummary(moods: readonly HoloMood[], stages: readonly { src: string; video?: string }[]): void {
   if (typeof document === 'undefined') return
-  for (const m of moods) new Image().src = `/dr-holo/${m}.webp`
+  for (const m of moods) new Image().src = holoStillFor(m)
   for (const st of stages) new Image().src = st.src
   if (prefersReducedMotion() || feelLevel() === 'gentle') return
-  for (const src of stages.flatMap((st) => (st.video ? [st.video] : []))) {
+  const videos = [...stages.flatMap((st) => (st.video ? [st.video] : [])), ...moods.map(holoClipFor)]
+  for (const src of new Set(videos)) {
     if (document.querySelector(`video[data-holo-preload="${src}"]`)) continue
     const el = document.createElement('video')
     el.dataset.holoPreload = src

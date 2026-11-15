@@ -76,6 +76,13 @@ export function averageFps(frameTimes: readonly number[]): number {
 export function shouldLowerLevel(fps: number): boolean { return fps < LOW_FPS }
 
 let probing = false
+let probeWaiters: (() => void)[] = []
+/* מחכים לסוף המדידה לפני שמתחילים עבודה כבדה שאינה הכרחית (קטע הווידאו של ד"ר הולו), כדי שהטעינה שלה לא תיחשב כמחשב חלש. מחזיר ביטול */
+export function whenFpsProbeDone(cb: () => void): () => void {
+  if (!probing) { cb(); return () => {} }
+  probeWaiters.push(cb)
+  return () => { probeWaiters = probeWaiters.filter((w) => w !== cb) }
+}
 export function startFpsProbe(): void {
   if (!isBrowser || probing || state.autoLowered || prefersReducedMotion() || state.level === 'gentle') return
   probing = true
@@ -87,6 +94,9 @@ export function startFpsProbe(): void {
     probing = false
     /* לשונית ברקע לא מציירת פריימים: לא מסיקים מזה שהמחשב חלש */
     if (document.visibilityState === 'visible' && shouldLowerLevel(averageFps(times))) set({ level: 'gentle', autoLowered: true })
+    const waiters = probeWaiters
+    probeWaiters = []
+    for (const w of waiters) w()
   }
   requestAnimationFrame(step)
 }

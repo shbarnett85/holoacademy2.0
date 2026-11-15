@@ -19,7 +19,7 @@ export interface StageComposition {
   focal: { x: number; y: number }
   portal: { box: { x: number; y: number; width: number; height: number }; polygon: readonly number[] }
   camera: { openingScale: number; summaryScale: number; summaryFocus: { x: number; y: number }; approachMs: number; diveMs: number; pullbackMs: number; revealMs: number }
-  /** ד"ר הולו: מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הדמות המלאה */
+  /** ד"ר הולו (חצי גוף, drHoloClips.HOLO_ASPECT): מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הנכס. הקצה התחתון (המותן) מתחת לתחתית התמונה */
   holo: { centerX: number; top: number; height: number }
   /** הפורטל כהולוגרמה (PortalHologram): מרכז הפתח ורדיוסו, וקדמת הבמה (מכאן הרצפה וההשתקפות). בלי ערך: תמונה בלבד */
   hologram?: { cx: number; cy: number; r: number; stageFront: number }
@@ -50,8 +50,9 @@ const libraryStage = (name: string): StageComposition => ({
     box: { x: 458, y: 173, width: 364, height: 321 },
     polygon: circlePolygon(640, 355, 182, 494),
   },
-  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 190, y: 253 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
-  holo: { centerX: 190, top: 145, height: 1148 },
+  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 250, y: 370 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
+  /* הידיים הפתוחות נכנסות במסך: יד שמאל בקצה, יד ימין מול מסגרת הטבעת. הנכס נגמר 15px מתחת לתחתית */
+  holo: { centerX: 250, top: 295, height: 440 },
   /* קדמת הבמה ב-y=545; ההשתקפות האפויה של הטבעת ברצפה מתאימה למראה עם קיצור של 0.85 */
   hologram: { cx: 640, cy: 355, r: 182, stageFront: 545 },
 })
@@ -82,8 +83,7 @@ export const LAB: StageComposition = {
   },
   /* המצלמה: קירוב איטי בפתיחה (לכיוון מרכז המסך) ובסיכום (לכיוון הפנים של ד"ר הולו) */
   camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 380, y: 500 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
-  /* ד"ר הולו: מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הדמות המלאה. המותן בערך בקצה התחתון של התמונה */
-  holo: { centerX: 380, top: 290, height: 2300 },
+  holo: { centerX: 520, top: 560, height: 900 },
 }
 
 /* איזה רקע לכל מסך: פתיחה — הספרייה הרגילה; סיפור שנשאר פתוח — הגרסה האפורה; סיפור שנסגר — הגרסה הבוהקת */
