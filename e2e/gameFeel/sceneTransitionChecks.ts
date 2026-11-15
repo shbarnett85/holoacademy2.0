@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   check(d.kind === 'scan', `סריקה בין שתי תמונות (${d.kind})`)
   check(d.layers === 2, 'שתי התמונות על המסך במהלך המעבר')
   check(!d.text && !d.button, 'בתחילת המעבר הטקסט החדש עוד לא מוצג, ואין כפתור המשך')
-  check(!!d.beam?.includes('si-beam--fwd'), 'קדימה: הסריקה מימין לשמאל')
+  check(!!d.beam?.includes('si-beam--fwd'), 'קדימה: הסריקה משמאל לימין')
   await page.waitForSelector('[data-lab-stage]', { state: 'detached', timeout: 5000 }).catch(() => {})
   check(await page.locator('[data-dr-holo]').count() === 0, 'בסצנות אין ד"ר הולו')
   await idle(page)

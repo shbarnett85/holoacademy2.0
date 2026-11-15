@@ -297,10 +297,10 @@ html.holo-playing body { overflow-y: auto; }
   padding: 0.4rem 0.2rem;
 }
 /* ── דפדוף בין עמודים (כ-250ms, sceneSwap.ts): הטקסט היוצא מחליק החוצה ונמוג, והנכנס מחליק פנימה.
-   בלי קיפול נייר, בלי מרקם ובלי פינות. הכיוון כמו סריקת התמונה: קדימה = שמאלה (--turn: -1), חזרה = ימינה.
+   בלי קיפול נייר, בלי מרקם ובלי פינות. הכיוון כמו סריקת התמונה: קדימה = ימינה, משמאל לימין (--turn: 1), חזרה = שמאלה.
    עוצמה עדינה (data-page-turn=fade): דהייה בלי תזוזה. תנועה מופחתת: החלפה מיידית (שכבת היציאה לא נבנית בכלל). */
-@keyframes page-turn-out { from { opacity: 1; transform: translate3d(0, 0, 0); } to { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, -1)), 0, 0); } }
-@keyframes page-turn-in { from { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, -1) * -1), 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes page-turn-out { from { opacity: 1; transform: translate3d(0, 0, 0); } to { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, 1)), 0, 0); } }
+@keyframes page-turn-in { from { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, 1) * -1), 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 .holo-text-area { --turn-shift: 1.6rem; }
 .holo-text-area[data-page-turn=fade] { --turn-shift: 0px; }
 .page-turn-out { position: absolute; inset: 0; padding: inherit; pointer-events: none; animation: page-turn-out var(--turn-out-ms, 110ms) ease-in both; will-change: transform, opacity; }
@@ -689,14 +689,15 @@ body {
   background: var(--color-human); color: var(--color-ink); border: 2px solid var(--color-ink); font-weight: 900; font-size: .8rem;
 }
 .holo-hud-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.holo-hud-progress { position: absolute; inset-inline: 0; bottom: -3px; height: 6px; background: var(--color-surface); pointer-events: none; }
+.holo-hud-progress { position: absolute; inset-inline: 0; bottom: -3px; height: 6px; background: var(--hud-groove); pointer-events: none; }
 .holo-hud-progress > i { display: block; height: 100%; background: var(--color-human); border-inline-end: 2px solid var(--color-ink); transition: width .4s ease; }
-/* פס מחולק לעמודים: מקטע לכל עמוד בספר, בתוך ה-HUD מעל הקו התחתון. מקטע ריק לבן עם קו דיו; עמוד שנפתח כתום; העמוד הנוכחי גבוה יותר */
+/* פס מחולק לעמודים, בתוך ה-HUD מעל הקו התחתון, בשפה של הפס הסגול: עמוד שעוד לא נקרא הוא חריץ סגול כהה בתוך הפס (בלי לבן);
+   עמוד שנקרא — כתום עם קו דיו; העמוד הנוכחי — כתום, קו דיו, גבוה יותר וצל קשיח קטן */
+.holo-hud-top { --hud-groove: color-mix(in srgb, var(--color-ink) 20%, var(--color-machine)); --hud-groove-edge: color-mix(in srgb, var(--color-ink) 38%, var(--color-machine)); }
 .holo-hud-progress--pages { inset-inline: var(--hud-pad-x, 1rem); bottom: 3px; height: 10px; background: none; display: flex; align-items: center; gap: 5px; }
-.holo-hud-progress--pages > i { flex: 1 1 0; min-width: 0; height: 100%; box-sizing: border-box; background: var(--color-surface); border: 2px solid var(--color-ink); border-radius: 999px; transition: background-color .3s ease; }
-.holo-hud-progress--pages > i[data-page=read], .holo-hud-progress--pages > i[data-page=current] { background: var(--color-human); }
-.holo-hud-progress--pages > i[data-page=current] { height: 150%; }
-/* המקטעים יושבים בריפוד התחתון של ה-HUD. הגובה של ה-HUD לא משתנה (הוא נמדד בכלל אורך הטקסט): הריפוד רק עובר מלמעלה למטה */
+.holo-hud-progress--pages > i { flex: 1 1 0; min-width: 0; height: 70%; box-sizing: border-box; background: var(--hud-groove); border: 1.5px solid var(--hud-groove-edge); border-radius: 999px; transition: background-color .3s ease, height .3s ease; }
+.holo-hud-progress--pages > i[data-page=read], .holo-hud-progress--pages > i[data-page=current] { height: 100%; background: var(--color-human); border: 2px solid var(--color-ink); }
+.holo-hud-progress--pages > i[data-page=current] { height: 150%; box-shadow: 2px 2px 0 var(--color-ink); }
 .holo-hud-top:has(.holo-hud-progress--pages) { padding-top: max(0.25rem, env(safe-area-inset-top, 0px)); padding-bottom: 0.75rem; }
 @media (max-height: 500px) {
   .holo-hud-progress--pages { height: 7px; gap: 4px; bottom: 2px; }

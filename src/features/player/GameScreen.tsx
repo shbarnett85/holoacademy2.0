@@ -570,7 +570,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה.
               אזור הטקסט: גובה קבוע, **בלי גלילה**; הטקסט מתחלק לעמודים (useScenePages). הוא נשאר גלוי
               גם כשאתגר פעיל — התלמיד יכול לחזור לקרוא את ההקשר. */}
-          <div ref={textAreaRef} className="holo-text-area" data-page-turn={pageTurn} data-story-font={storyFont ? '' : undefined} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease', ['--turn' as string]: engine.transitionDir === 'back' ? 1 : -1, ['--turn-out-ms' as string]: `${PAGE_TEXT_OUT_MS}ms`, ['--turn-in-ms' as string]: `${PAGE_TEXT_IN_MS}ms` }}>
+          <div ref={textAreaRef} className="holo-text-area" data-page-turn={pageTurn} data-story-font={storyFont ? '' : undefined} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease', ['--turn' as string]: engine.transitionDir === 'back' ? -1 : 1, ['--turn-out-ms' as string]: `${PAGE_TEXT_OUT_MS}ms`, ['--turn-in-ms' as string]: `${PAGE_TEXT_IN_MS}ms` }}>
           {/* העמוד היוצא: מחליק החוצה ונמוג. לא נבנה בלי מעבר (תנועה מופחתת, חור-תולעת) */}
           {turnText.out && pageTurn !== 'none' && (
             <div key={`out-${turnText.out.id}`} className="page-turn-out" data-page-out aria-hidden="true" onAnimationEnd={clearTurnOut}>

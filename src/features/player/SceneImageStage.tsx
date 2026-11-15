@@ -44,10 +44,11 @@ const CSS = `
 /* קו הסריקה: קו דיו שטוח על קצה החשיפה, בלי זוהר ובלי שובל */
 .si-edge { position: absolute; inset-block: 0; width: 4px; background: var(--color-ink); }
 .si-wash { display: none; }
-.si-beam--fwd { left: 0; }
-.si-beam--fwd .si-edge { left: -2px; }
-.si-beam--back { right: 0; }
-.si-beam--back .si-edge { right: -2px; }
+/* קו הסריקה בקצה המוביל: קדימה (משמאל לימין) בצד ימין, חזרה בצד שמאל */
+.si-beam--fwd { right: 0; }
+.si-beam--fwd .si-edge { right: -2px; }
+.si-beam--back { left: 0; }
+.si-beam--back .si-edge { left: -2px; }
 
 /* עוצמה מלאה: מסגרת שטוחה מופיעה פעם אחת כשהסריקה מסתיימת */
 .si-frame { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; border: 5px solid var(--color-machine-deep); border-radius: inherit;
@@ -139,9 +140,10 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger, sceneId])
 
-  const fromRight = dir === 'forward' /* עברית: קדימה זה מימין לשמאל */
+  /* קדימה: הסריקה עוברת משמאל לימין (לבקשת המשתמש; הדף בצד ימין, והסריקה מגיעה אליו). חזרה לעמוד קודם: מימין לשמאל */
+  const fromLeft = dir === 'forward'
   const scan = run?.kind === 'scan'
-  const vars = run ? ({ ['--si-ms' as string]: `${run.ms}ms`, ['--si-ease' as string]: 'cubic-bezier(.62,.02,.24,1)', ['--si-from' as string]: fromRight ? '100%' : '-100%' }) : undefined
+  const vars = run ? ({ ['--si-ms' as string]: `${run.ms}ms`, ['--si-ease' as string]: 'cubic-bezier(.62,.02,.24,1)', ['--si-from' as string]: fromLeft ? '-100%' : '100%' }) : undefined
   /* אותו עץ לתמונה נכנסת ולתמונה שעל המסך: בסוף המעבר הנכנסת הופכת לנוכחית בלי להיבנות מחדש, והזום שלה לא קופץ */
   const layer = (l: Layer, cls: string, dim: boolean) => (
     <div key={l.key} className={`si-layer ${cls}`}>
@@ -162,7 +164,7 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
       {run && layer(run.layer, scan ? 'si-run--scan' : 'si-run--fade', false)}
       {scan && (
         <div className="si-scan" aria-hidden>
-          <div className={`si-beam ${fromRight ? 'si-beam--fwd' : 'si-beam--back'}`}><div className="si-wash" /><div className="si-edge" /></div>
+          <div className={`si-beam ${fromLeft ? 'si-beam--fwd' : 'si-beam--back'}`}><div className="si-wash" /><div className="si-edge" /></div>
         </div>
       )}
       {scan && feelLevel() === 'full' && <div className="si-frame" aria-hidden />}
