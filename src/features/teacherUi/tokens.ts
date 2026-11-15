@@ -52,6 +52,8 @@ export const T = {
   /** טקסט על גרדיאנט-מבטא (לא בשימוש בערכה עצמה — לכפתורי מילוי מלאים) */
   onAccent: 'var(--color-ink)',
   studioBg: 'var(--color-machine-bg)',
+  /* רקע עמוד שלם (עם רשת הנקודות); studioBg הוא הצבע האחיד, לפסים ולשכבות מעל העמוד */
+  pageBg: 'var(--page-background)',
   /** קו מתאר וצל קשיח של משטח (מסכי מורה ומנהל) */
   line: 'var(--border-staff)',
   shadow: 'var(--shadow-staff)',

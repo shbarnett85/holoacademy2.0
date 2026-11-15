@@ -7,7 +7,7 @@ export default function HoloBackdrop({ children }: { children: ReactNode }) {
     <div
       dir="rtl"
       className="relative flex flex-col items-center justify-center min-h-screen overflow-hidden"
-      style={{ background: 'var(--color-machine-bg)', color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}
+      style={{ background: 'var(--page-background)', color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}
     >
 
       {children}

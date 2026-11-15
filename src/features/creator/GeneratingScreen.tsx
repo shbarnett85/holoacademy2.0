@@ -185,7 +185,7 @@ export default function GeneratingScreen({ title, onCancel }: { title?: string; 
     <div
       dir="rtl"
       className="flex flex-col items-center justify-center min-h-screen overflow-hidden relative"
-      style={{ background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}
+      style={{ background: 'var(--page-background)', fontFamily: 'var(--font-display)' }}
     >
       <style>{`
         @keyframes ld-blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }

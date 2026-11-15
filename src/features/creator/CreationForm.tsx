@@ -152,7 +152,7 @@ function Studio() {
   const col: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }
 
   return (
-    <div className="cf holo-page-enter" dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--color-machine-bg)' }}>
+    <div className="cf holo-page-enter" dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--page-background)' }}>
       <style>{`@keyframes cf-spin { to { transform: rotate(360deg); } }
         /* הכפתורים באולפן נשארים בגופן התצוגה של המסך (המחלקה holo-button קובעת Heebo) */
         .cf .holo-button { font-family: inherit; }

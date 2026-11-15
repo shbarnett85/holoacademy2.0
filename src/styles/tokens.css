@@ -14,7 +14,7 @@
      · ניגודיות AA (4.5:1) לטקסט רגיל: `styles/tokens.test.ts` מחשב מהקובץ הזה ואוכף. */
 :root {
   /* ── המכונה ── */
-  --color-machine-bg: #D9D2EC;     /* רקע הממשק */
+  --color-machine-bg: #E6DEFA;     /* רקע הממשק. היה #D9D2EC (אפרפר ועמום); עכשיו לילך בהיר ונקי יותר באותו גוון */
   --color-machine: #B9A2E8;        /* פסי כותרת וסרגל ניווט. טקסט עליו: דיו בלבד */
   --color-machine-deep: #6A3FB5;   /* כותרות על רקע לוונדר, לבן או machine-tint */
   --color-machine-tint: #F1EBFC;   /* אזורים שבהם ה-AI מציע */
@@ -77,6 +77,10 @@
   --color-correct-text: color-mix(in srgb, var(--color-correct) 80%, var(--color-ink));
   --color-wrong-text: color-mix(in srgb, var(--color-wrong) 80%, var(--color-ink));
   --color-disabled: color-mix(in srgb, var(--color-ink) 12%, var(--color-surface)); /* כפתור מנוטרל */
+  /* רקע העמוד: הלילך ועליו רשת נקודות עדינה בסגול של המכונה (כמו נייר משבצות של שרטוט), כדי שהרקע לא ייראה שטוח.
+     נקודות בעצירה חדה, לא מעבר צבע. מסכים שמציירים רקע עמוד משתמשים ב-var(--page-background); צבע אחיד: --color-machine-bg */
+  --page-dot: color-mix(in srgb, var(--color-machine) 62%, var(--color-machine-bg));
+  --page-background: radial-gradient(circle at 2px 2px, var(--page-dot) 1.4px, transparent 1.9px) 0 0 / 24px 24px, var(--color-machine-bg); /* redesign-allow: hard-stop dot pattern */
 
   /* ── קו וצל ── */
   --border-student: 3px solid var(--color-ink);

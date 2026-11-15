@@ -101,7 +101,7 @@ async function shelf(browser: Browser): Promise<void> {
       await page.waitForTimeout(1500); await shot(page, name)
       const text = await visibleText(page)
       check(text.includes('הספרייה ההולוגרפית'), `${name}: הכותרת "הספרייה ההולוגרפית"`)
-      check((text.match(/הספרן הראשי/g) ?? []).length === 1, `${name}: "הספרן הראשי" מופיע פעם אחת`)
+      check(!text.includes('הספרן הראשי') && await page.locator('img[src*="dr-holo"]').count() === 0, `${name}: בלי שורת הספרן ובלי התמונה של ד"ר הולו`)
       check(!/סצנ/.test(text), `${name}: אין "סצנה"`)
       check(text.includes('עמוד 3'), `${name}: סימנייה "עמוד 3"`)
       check(await page.locator('[data-book-cover] .holo-button, [data-book-cover] button').count() === 0, `${name}: בכריכה אין כפתור`)

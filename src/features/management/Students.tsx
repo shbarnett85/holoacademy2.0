@@ -634,7 +634,7 @@ export default function Students() {
   const diffModalStudent = diffModalStudentId ? all.find((s) => s.id === diffModalStudentId) ?? null : null
 
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--color-machine-bg)', paddingBottom: isDirty ? 64 : 0 }}>
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--page-background)', paddingBottom: isDirty ? 64 : 0 }}>
       <style>{`select option { background: var(--color-surface); color: var(--color-ink); }
         .holo-scroll::-webkit-scrollbar { width: 5px; }
         .holo-scroll::-webkit-scrollbar-track { background: var(--color-ink-wash); border-radius: 4px; }

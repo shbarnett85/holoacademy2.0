@@ -541,7 +541,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
              מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
           paddingBottom: '1rem', /* אין יותר פס תחתון — הגובה מוחזר לבמה */
           paddingTop: '4rem', /* מרווח מתחת לפס העליון (TopHUD) כדי שהתוכן לא ייחתך */
-          background: 'var(--color-machine-bg)',
+          background: 'var(--page-background)',
         }}
       >
         {/* התמונה עברה אל **עמוד התמונה** (מלבן סגור בתוך הפס) — היא לא

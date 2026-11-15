@@ -5,8 +5,8 @@
   "icons": [
     { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
-  "theme_color": "#D9D2EC",
-  "background_color": "#D9D2EC",
+  "theme_color": "#E6DEFA",
+  "background_color": "#E6DEFA",
   "display": "standalone",
   "lang": "he",
   "dir": "rtl",

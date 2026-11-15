@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
 import { useState } from 'react'
 import { PAGE_BOTTOM } from '../teacherUi'
+import { pageScrollTop } from '../../shared/lib/pageScroll'
 
 /* רוחב חלון מינימלי לפריסה של שתי עמודות בגובה קבוע (מתחתיו — עמודה אחת והעמוד גולל; בשתי עמודות צרות מדי הטאבים נדחסים) */
 export const WIDE_MIN = 1200
@@ -28,7 +29,7 @@ export function useFillHeight<E extends HTMLElement>(minHeight = 380): { ref: Re
     if (!el) return
     const measure = (): void => {
       if (window.innerWidth < WIDE_MIN) { setHeight((p) => (p === undefined ? p : undefined)); return }
-      const top = el.getBoundingClientRect().top + window.scrollY
+      const top = el.getBoundingClientRect().top + pageScrollTop()
       const next = Math.max(minHeight, Math.floor(window.innerHeight - top - PAGE_BOTTOM))
       setHeight((p) => (p === next ? p : next))
     }

@@ -1,9 +1,11 @@
 import { useSoundSettings } from '../../shared/lib/sound'
+import BrandIcon from '../../shared/ui/BrandIcon'
 import { BOOK_TEXT } from './gameFeel/text'
 import type { PageMark } from '../../shared/lib/bookPages'
 
-/* ה-HUD שבראש מסך המשחק: רקע לבן וקו דיו (index.css: .holo-hud-top).
-   התחלה (ימין ב-RTL): שם התלמיד/ה ואווטאר באפרסק, וכותרת העמוד. סוף: קריסטלים וחפצים, השתקה ויציאה.
+/* ה-HUD שבראש מסך המשחק, באותה שפה של הסרגל העליון של המורה (StudioTopBar): פס ברקע "המכונה" (סגול) עם קו דיו,
+   אריח לבן עם סמל הספר, כותרת בדיו, שם ואווטאר באפרסק, וכפתורים בתכלת (index.css: .holo-hud-top).
+   התחלה (ימין ב-RTL): הסמל, שם התלמיד/ה וכותרת העמוד. סוף: קריסטלים וחפצים, השתקה ויציאה.
    פס ההתקדמות (כתום) רץ לאורך הקצה התחתון של ה-HUD, ולכן אינו תופס מקום בשורה. */
 export default function TopHUD({ title, onExit, hidden = false, hudSlot, studentName, progress, page, pageMarks }: {
   title: string; onExit: () => void; hidden?: boolean
@@ -35,6 +37,10 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
           pointerEvents: hidden ? 'none' : 'auto',
         }}
       >
+        {/* כמו הלוגו בסרגל של המורה: אריח לבן עם קו דיו. כאן סמל של ספר פתוח (כל שיעור הוא ספר) */}
+        <span className="holo-hud-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.5C10.2 5.2 7.6 4.6 4 4.8V18c3.6-.2 6.2.4 8 1.7 1.8-1.3 4.4-1.9 8-1.7V4.8c-3.6-.2-6.2.4-8 1.7Z" /><path d="M12 6.5v13.2" /></svg>
+        </span>
         {name && (
           <span className="holo-hud-name" data-hud-student aria-label={name} title={name}>
             <span className="holo-hud-avatar" aria-hidden="true">{name.charAt(0)}</span>
@@ -61,17 +67,18 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
           aria-label={muted ? 'הפעל סאונד' : 'השתק סאונד'}
           aria-pressed={muted}
           className="holo-button holo-button--sm holo-hud-btn flex items-center justify-center"
-          style={{ width: '2.1rem', height: '2.1rem', fontSize: '1.05rem', padding: 0 }}
+          style={{ width: '2.1rem', height: '2.1rem', padding: 0 }}
         >
-          {muted ? '🔇' : '🔊'}
+          <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={18} />
         </button>
 
         {/* כפתור יציאה — פינה ימנית-עליונה (RTL) */}
         <button
           onClick={onExit}
-          className="holo-button holo-button--sm holo-hud-btn text-sm"
-          style={{ padding: '.25rem .75rem' }}
+          className="holo-button holo-button--sm holo-hud-btn holo-hud-exit text-sm"
+          style={{ height: '2.1rem', padding: '0 .75rem' }}
         >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
           יציאה
         </button>
 

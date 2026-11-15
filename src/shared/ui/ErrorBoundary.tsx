@@ -16,7 +16,7 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, { 
   render() {
     if (!this.state.hasError) return this.props.children
     return (
-      <div dir="rtl" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)', color: 'var(--color-ink)', padding: 24, textAlign: 'center' }}>
+      <div dir="rtl" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, background: 'var(--page-background)', fontFamily: 'var(--font-display)', color: 'var(--color-ink)', padding: 24, textAlign: 'center' }}>
         <span style={{ fontSize: 44 }}>🛰️</span>
         <h1 className="holo-text-glow" style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>משהו השתבש בהולוגרמה</h1>
         <p style={{ margin: 0, opacity: 0.75, fontSize: 15, maxWidth: 380 }}>אירעה שגיאה בלתי צפויה. רעננו את העמוד כדי להמשיך — ההתקדמות שנשמרה לא הולכת לאיבוד.</p>

@@ -38,7 +38,7 @@ export default function ScreenShell({ active, title, breadcrumb, lensSwitcher, t
 
   return (
     <div dir="rtl" data-teacher-ui
-      style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', fontSize: 16, color: T.text, background: T.studioBg }}>
+      style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', fontSize: 16, color: T.text, background: T.pageBg }}>
       <a href="#tu-main" className="tu-skip" onClick={(e) => { e.preventDefault(); document.getElementById('tu-main')?.focus() }}>דלג לתוכן</a>
       <StudioTopBar active={active} />
       <main id="tu-main" tabIndex={-1} data-studio-content className="holo-tab-enter"

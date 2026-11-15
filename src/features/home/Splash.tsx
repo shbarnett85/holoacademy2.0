@@ -118,7 +118,7 @@ export default function Splash({ onDone }: { onDone: () => void }) {
       onClick={skip}
       onTouchStart={skip}
       style={{
-        position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--color-machine-bg)',
+        position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--page-background)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         opacity: phase === 'out' ? 0 : 1,
         transition: phase === 'out' ? 'opacity .4s ease' : 'none',

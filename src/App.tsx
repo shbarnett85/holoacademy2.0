@@ -36,7 +36,7 @@ function Loader() {
   const teacher = TEACHER_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
   if (teacher) {
     return (
-      <div role="status" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}>
+      <div role="status" style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--page-background)', fontFamily: 'var(--font-display)' }}>
         <div style={{ position: 'relative', width: 64, height: 64 }}>
           <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '3px solid color-mix(in srgb, var(--color-machine-deep) 16%, transparent)', borderTopColor: 'var(--color-machine-deep)', borderRightColor: 'var(--color-machine-deep)', animation: 'holo-spin 0.9s linear infinite' }} />
         </div>
@@ -45,7 +45,7 @@ function Loader() {
     )
   }
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--color-machine-bg)', fontFamily: 'var(--font-display)' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 22, background: 'var(--page-background)', fontFamily: 'var(--font-display)' }}>
       <div style={{ position: 'relative', width: 64, height: 64 }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '4px solid var(--color-line)', borderTopColor: 'var(--color-ink)', borderRightColor: 'var(--color-ink)', animation: 'holo-spin 0.9s linear infinite' }} />
       </div>

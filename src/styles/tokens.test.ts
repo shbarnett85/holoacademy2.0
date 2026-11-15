@@ -7,7 +7,7 @@ const c = (fg: string, bg: string): number => contrastRatio(T[fg], T[bg])
 
 describe('קובץ הטוקנים — ערכי הפלטה כפי שהוגדרו', () => {
   it.each([
-    ['--color-machine-bg', '#d9d2ec'], ['--color-machine', '#b9a2e8'], ['--color-machine-deep', '#6a3fb5'], ['--color-machine-tint', '#f1ebfc'],
+    ['--color-machine-bg', '#e6defa'], ['--color-machine', '#b9a2e8'], ['--color-machine-deep', '#6a3fb5'], ['--color-machine-tint', '#f1ebfc'],
     ['--color-crystal-empty', '#9a80d4'], ['--color-holo', '#3ab0f2'], ['--color-action', '#b3e4ff'], ['--color-action-pressed', '#8fd0f7'],
     ['--color-human', '#ff7a45'], ['--color-human-soft', '#ffd2ba'], ['--color-human-tint', '#fff1e8'], ['--color-human-deep', '#8a3a16'],
     ['--color-ink', '#1e1830'], ['--color-surface', '#ffffff'], ['--color-muted', '#4f4866'], ['--color-wrong', '#d7263d'],

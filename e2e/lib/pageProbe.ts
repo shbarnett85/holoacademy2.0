@@ -79,7 +79,7 @@ export function probePage(opts: ProbeOptions, interactiveSelector: string): Layo
       if (!visible(el)) continue
       const cs = getComputedStyle(el)
       if (cs.position === 'fixed') continue
-      const bottom = el.getBoundingClientRect().bottom + window.scrollY
+      const bottom = el.getBoundingClientRect().bottom + window.scrollY + document.body.scrollTop
       /* אלמנטים שחורגים מעבר לגובה המסמך נמצאים בתוך אזור גלילה/חיתוך פנימי — לא הם שקובעים את גובה הדף */
       if (bottom <= scrollHeight + opts.fitTolerance) ranked.push({ el, bottom })
     }
@@ -97,7 +97,8 @@ export function probePage(opts: ProbeOptions, interactiveSelector: string): Layo
   const innerScrollers: { selector: string; overflowPx: number }[] = []
   for (const el of all) {
     const h = el as HTMLElement
-    if (h.clientHeight < 40) continue
+    /* גוף העמוד הוא אזור הגלילה של העמוד (פס הגלילה בשמאל) — נספר כגלילת עמוד, לא כאזור פנימי */
+    if (h.clientHeight < 40 || h === document.body) continue
     const cs = getComputedStyle(h)
     if (cs.overflowY !== 'auto' && cs.overflowY !== 'scroll') continue
     if (h.scrollHeight > h.clientHeight + 2 && visible(h)) innerScrollers.push({ selector: describe(h), overflowPx: h.scrollHeight - h.clientHeight })

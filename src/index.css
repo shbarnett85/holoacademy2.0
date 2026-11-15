@@ -212,10 +212,9 @@
 }
 
 body {
-  background-color: var(--color-machine-bg);
+  background: var(--page-background);
   color: var(--color-ink);
   font-family: 'Heebo', sans-serif;
-  min-height: 100vh;
   direction: rtl;
   margin: 0;
 }
@@ -546,11 +545,23 @@ html.holo-playing { font-size: 144%; }
   .holo-stage .holo-answers:has(> :nth-child(5)) > * { margin: 0 !important; }
 }
 
+/* פסי הגלילה תמיד בצד שמאל. Chrome מצייר את פס הגלילה של החלון בימין גם בעמוד בעברית (dir=rtl על html לא משנה),
+   ולכן החלון לא גולל: גוף העמוד הוא אזור הגלילה, ופס של אזור גלילה מימין לשמאל יושב בשמאל.
+   window.scrollY תמיד 0 — מיקום הגלילה הוא document.body.scrollTop (shared/lib/pageScroll.ts) */
 html {
-  overflow-y: scroll;            /* הפס תמיד מרונדר — track אפרפר גם כשאין תוכן לגלול */
-  scrollbar-gutter: stable;      /* שומר את רוחב הפס גם בדפדפנים שמסתירים אותו */
-  scrollbar-width: thin;                                  /* Firefox */
-  scrollbar-color: var(--color-line-strong) var(--color-ink-wash); /* Firefox */
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  height: 100%;
+  overflow-y: scroll;            /* הפס תמיד מרונדר — track אפרפר גם כשאין תוכן לגלול, כדי שהפריסה לא תקפוץ */
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) var(--color-ink-wash);
+}
+/* הדפסה (תדריך, משוב): כל העמוד, לא רק מה שבחלון */
+@media print {
+  html, body { height: auto; overflow: visible; }
 }
 /* WebKit — פס עדין ואפרפר; מתבהר לציאן בריחוף. רכיבי גלילה פנימיים (.cf-scroll/.holo-scroll)
    שומרים על העיצוב הצר שלהם דרך הסלקטור הספציפי יותר. */
@@ -656,8 +667,19 @@ html {
   .gem--full .gem__flash { opacity: .45 !important; }
 }
 
-/* ══ ה-HUD שבראש מסך המשחק: רקע לבן, קו דיו; שם ואווטאר באפרסק; פס ההתקדמות בכתום ══ */
-.holo-hud-top { background: var(--color-surface); color: var(--color-ink); border-bottom: var(--border-student); }
+/* ══ ה-HUD שבראש מסך המשחק: כמו הסרגל העליון של המורה — רקע "המכונה" (סגול), קו דיו, כותרת בדיו;
+   שם ואווטאר באפרסק; כפתורים בתכלת; פס ההתקדמות בכתום. על הסגול רק דיו עובר ניגודיות כטקסט ══ */
+.holo-hud-top { background: var(--color-machine); color: var(--color-ink); border-bottom: var(--border-student); }
+.holo-hud-top .holo-hud-title > h1 { color: var(--color-ink); }
+.holo-hud-mark {
+  flex-shrink: 0; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 10px;
+  background: var(--color-surface); color: var(--color-ink); border: 2px solid var(--color-ink);
+}
+.holo-hud-mark > svg { width: 62%; height: 62%; }
+.holo-hud-exit { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.holo-hud-exit > svg { width: 1em; height: 1em; transform: rotate(180deg); flex-shrink: 0; }
+/* טלפון לאורך: אין מקום לסמל */
+@media (max-width: 480px) { .holo-hud-mark { display: none; } }
 .holo-hud-name {
   display: inline-flex; align-items: center; gap: .4rem; flex-shrink: 0; min-width: 0; max-width: 11rem;
   padding: .12rem .6rem .12rem .15rem; border-radius: 999px;

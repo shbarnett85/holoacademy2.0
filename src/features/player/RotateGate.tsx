@@ -44,7 +44,7 @@ export default function RotateGate() {
         /* safe-area — במצב לאורך ה-notch למעלה והסרגל למטה */
         paddingTop: 'calc(2rem + env(safe-area-inset-top))',
         paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
-        background: 'var(--color-machine-bg)',
+        background: 'var(--page-background)',
         textAlign: 'center', fontFamily: 'var(--font-display)',
       }}
     >

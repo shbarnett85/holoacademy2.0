@@ -797,7 +797,7 @@ export default function Library() {
   const emptyMsg = (text: string) => <div style={{ ...micro, color: 'var(--color-muted)', textAlign: 'center', padding: '34px 0', fontSize: 11 }}>{text}</div>
 
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--color-machine-bg)' }}>
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-display)', background: 'var(--page-background)' }}>
 
       <style>{`.lib-subject-select option { background: var(--color-surface); color: var(--color-ink); }`}</style>
       <StudioTopBar active="library" />

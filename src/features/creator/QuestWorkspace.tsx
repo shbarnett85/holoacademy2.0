@@ -346,7 +346,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
   }
 
   return (
-    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', background: 'var(--color-machine-bg)' }}>
+    <div dir="rtl" style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden', background: 'var(--page-background)' }}>
 
       <div className="flex flex-col items-center min-h-screen p-6 gap-6 mx-auto" style={{ position: 'relative', zIndex: 2, fontFamily: 'var(--font-display)', width: '100%', maxWidth: 960 }}>
       <header className="w-full" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, maxWidth: 760 }}>

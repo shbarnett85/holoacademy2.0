@@ -68,7 +68,7 @@ function LegacyAnalyticsPanel({ backTo, notice }: { backTo?: string; notice?: Re
 
 /* האנליטיקה (analyticsV2) היא המסך של כל המורים והמנהלים. AnalyticsV2App טוען את התצורה פעם אחת ומחליט:
    מתג כיבוי → התצוגה הקודמת (או /admin למנהל-על); "התצוגה הקודמת" מבקשת-במפורש (?view=previous) של מורה אמיתי → גם היא. */
-const Loading = () => <div role="status" style={{ minHeight: '100vh', background: 'var(--color-machine-bg)' }} />
+const Loading = () => <div role="status" style={{ minHeight: '100vh', background: 'var(--page-background)' }} />
 
 export default function AnalyticsPanel() {
   return <Suspense fallback={<Loading />}><AnalyticsV2App Legacy={LegacyAnalyticsPanel} /></Suspense>

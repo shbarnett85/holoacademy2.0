@@ -15,7 +15,7 @@ export default function LoadingQuest({ overlay = false }: { overlay?: boolean })
         zIndex: overlay ? 79 : undefined,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         gap: '1.4rem',
-        background: 'var(--color-machine-bg)',
+        background: 'var(--page-background)',
         fontFamily: 'var(--font-display)',
       }}
     >

@@ -231,13 +231,6 @@ export default function StudentHome() {
               fontSize: 'clamp(1.5rem,3.6vw,2rem)', fontWeight: 900, lineHeight: 1.2,
               color: 'var(--color-machine-deep)',
             }}>{BOOK_TEXT.libraryTitle}</h1>
-            {/* פעם אחת, כאן: מי מנהל את הספרייה. בתוך ספר הוא "המדריך שלכם" */}
-            <p data-holo-librarian style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, lineHeight: 1.35, color: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-              <span aria-hidden="true" style={{ flex: '0 0 auto', width: 40, height: 40, borderRadius: '50%', overflow: 'hidden', boxSizing: 'border-box', border: '2px solid var(--color-ink)', background: 'var(--color-holo)' }}>
-                <img src="/dr-holo/neutral.webp" alt="" draggable={false} style={{ display: 'block', width: '100%', transform: 'scale(2.7)', transformOrigin: '50% 9%' }} />
-              </span>
-              {BOOK_TEXT.holoLibrarian}
-            </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
