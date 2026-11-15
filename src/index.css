@@ -5,6 +5,8 @@
 :root {
   --font-display: 'Rubik', 'Heebo', sans-serif;
   --font-mono: 'Space Mono', monospace;
+  /* גופן הסיפור: רק לטקסט העלילה, מרמת טקסט 8 ומעלה (shared/lib/storyFont.ts) */
+  --font-story: 'Frank Ruhl Libre', 'Heebo', serif;
 }
 
 /* ── DigitalEntrance: pulse עדין ל-scanline/glow (אינסופי) ── */
@@ -306,6 +308,8 @@ html.holo-playing { font-size: 144%; }
 .page-turn-out { position: absolute; inset: 0; padding: inherit; pointer-events: none; animation: page-turn-out var(--turn-out-ms, 110ms) ease-in both; will-change: transform, opacity; }
 .page-turn-in { animation: page-turn-in var(--turn-in-ms, 140ms) ease-out both; will-change: transform, opacity; }
 @media (prefers-reduced-motion: reduce) { .page-turn-out { display: none; } .page-turn-in { animation: none; } }
+/* גופן הסיפור: טקסט העלילה בלבד (וגם אלמנט המדידה של חלוקת העמודים, שהוא פסקה באותה תיבה). הגודל ורווח השורות לא משתנים */
+.holo-text-area[data-story-font] p, .holo-story-font { font-family: var(--font-story); }
 /* הקופסה הפנימית מאבדת כרום כפול — המסגרת היא כבר החלון */
 .holo-side-panel .holo-panel {
   background: none;

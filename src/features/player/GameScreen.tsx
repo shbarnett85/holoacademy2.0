@@ -26,6 +26,7 @@ import { initSound } from '../../shared/lib/sound'
 import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 import { BOOK_TEXT } from './gameFeel/text'
 import { pageNumberOf } from '../../shared/lib/bookPages'
+import { STORY_FONT_FAMILY, usesStoryFont } from '../../shared/lib/storyFont'
 import { PAGE_TEXT_IN_MS, PAGE_TEXT_OUT_MS, pageTextDelayMs, planPageTurn } from './sceneSwap'
 
 const prefersReducedMotion = () =>
@@ -87,6 +88,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     startFpsProbe()
   }, [effectsLevel])
   const [puzzleOpen, setPuzzleOpen] = useState(false)
+  /* גופן הסיפור: מרמת טקסט 8 ומעלה. נטען מראש, כדי שהעמוד הראשון לא יוצג לרגע בגופן אחר */
+  const storyFont = usesStoryFont(gameData.readingScale)
+  useEffect(() => { if (storyFont) void document.fonts?.load(`400 1em '${STORY_FONT_FAMILY}'`, 'א').catch(() => undefined) }, [storyFont])
   /* שם התלמיד/ה לפס העליון: נקרא פעם אחת. בלי session של תלמיד (מורה, מבקר, מקרן) אין שם */
   const studentName = useMemo<string | null>(() => {
     try { return sessionStorage.getItem('holo_student_name') } catch { return null }
@@ -568,7 +572,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה.
               אזור הטקסט: גובה קבוע, **בלי גלילה**; הטקסט מתחלק לעמודים (useScenePages). הוא נשאר גלוי
               גם כשאתגר פעיל — התלמיד יכול לחזור לקרוא את ההקשר. */}
-          <div ref={textAreaRef} className="holo-text-area" data-page-turn={pageTurn} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease', ['--turn' as string]: engine.transitionDir === 'back' ? 1 : -1, ['--turn-out-ms' as string]: `${PAGE_TEXT_OUT_MS}ms`, ['--turn-in-ms' as string]: `${PAGE_TEXT_IN_MS}ms` }}>
+          <div ref={textAreaRef} className="holo-text-area" data-page-turn={pageTurn} data-story-font={storyFont ? '' : undefined} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease', ['--turn' as string]: engine.transitionDir === 'back' ? 1 : -1, ['--turn-out-ms' as string]: `${PAGE_TEXT_OUT_MS}ms`, ['--turn-in-ms' as string]: `${PAGE_TEXT_IN_MS}ms` }}>
           {/* העמוד היוצא: מחליק החוצה ונמוג. לא נבנה בלי מעבר (תנועה מופחתת, חור-תולעת) */}
           {turnText.out && pageTurn !== 'none' && (
             <div key={`out-${turnText.out.id}`} className="page-turn-out" data-page-out aria-hidden="true" onAnimationEnd={clearTurnOut}>

@@ -7,6 +7,7 @@ import { GEM_TOTAL, gemFill, gemsValue, storyState, wholeGems, type JourneyLesso
 import { GemDefs, GemSocket } from '../../shared/ui/Gem'
 import { gemTier } from '../../shared/lib/gemTier'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
+import { usesStoryFont } from '../../shared/lib/storyFont'
 import LabStage from './lab/LabStage'
 import { CLASSROOM_SRC, labPortalImages } from './lab/labComposition'
 import { confetti, cfg, prefersReducedMotion, sounds } from './gameFeel/engine'
@@ -145,7 +146,8 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
             {ending?.title && <h2 data-end-title style={{ margin: '2px 0 0', fontSize: 'clamp(15px, 1.7vw, 19px)', fontWeight: 800, lineHeight: 1.25, color: 'var(--color-ink)', textWrap: 'balance' }}>{ending.title}</h2>}
           </div>
         </div>
-        <p style={{ margin: 0, lineHeight: 1.5, textAlign: 'start', width: '100%', fontSize: 15 }}>
+        {/* טקסט העלילה של הסיום: בגופן הסיפור, כמו בעמודים */}
+        <p className={usesStoryFont(gameData.readingScale) ? 'holo-story-font' : undefined} data-end-narrative style={{ margin: 0, lineHeight: 1.5, textAlign: 'start', width: '100%', fontSize: 15 }}>
           {narrative}
           {ending?.drHoloDialog ? ` ד״ר הולו אומר: "${ending.drHoloDialog}"` : ''}
         </p>
