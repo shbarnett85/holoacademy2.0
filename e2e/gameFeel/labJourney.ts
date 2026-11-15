@@ -275,7 +275,7 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     })
     check(hit, `${c.name}: חלון הטקסט מעל הכול`)
     const portal = await page.locator('.lab-portal img').first().getAttribute('src')
-    check(portal === (c.state === 'open' ? IMG.first : '/lab/classroom.webp'), `${c.name}: בפורטל ${portal}`)
+    check(portal === IMG.first, `${c.name}: בפורטל אותה תמונה כמו בפתיחה (${portal})`)
     /* החלקיקים ממשיכים כל עוד המסך פתוח: אחרי שגל הפתיחה כבר נגמר (חיי קונפטי: עד 4.6 שניות) */
     await page.waitForTimeout(c.state === 'open' ? 0 : 4000)
     const lit = await page.evaluate(() => [...document.querySelectorAll('canvas')].reduce((sum, cv) => {

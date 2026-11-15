@@ -9,7 +9,7 @@ import { gemTier } from '../../shared/lib/gemTier'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
 import { usesStoryFont } from '../../shared/lib/storyFont'
 import LabStage from './lab/LabStage'
-import { CLASSROOM_SRC, labPortalImages } from './lab/labComposition'
+import { labPortalImages } from './lab/labComposition'
 import { confetti, cfg, prefersReducedMotion, sounds } from './gameFeel/engine'
 import { growthCounts } from './gameFeel/points'
 import { END_TEXT } from './gameFeel/text'
@@ -50,7 +50,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const ending: EndingScene | undefined = closed ? gameData.endingGood : gameData.endingBad
   const reduced = prefersReducedMotion()
   const popIn = !reduced && cfg().holo
-  const portalSrc = closed ? CLASSROOM_SRC : labPortalImages(gameData.scenes, gameData.entrySceneId).opening
+  const portalSrc = labPortalImages(gameData.scenes, gameData.entrySceneId).opening
   const radiant = state === 'radiant'
   const moods = labMoodsOf(gameData.holoMoods)
 

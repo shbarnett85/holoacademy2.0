@@ -16,7 +16,7 @@ import DrHoloHologram from '../DrHoloHologram'
 import { useGameFeel, type HoloMood } from '../gameFeel/engine'
 import { BOOK_TEXT } from '../gameFeel/text'
 import PortalHologram, { PORTAL_GOLD_MS } from './PortalHologram'
-import { cameraCss, cameraInsidePortal, cameraOpening, cameraRest, cameraSummary, hologramGeometry, labCover, portalClipPath, portalFocusX, portalPoints, stageFor, type StageComposition } from './labComposition'
+import { cameraCss, cameraInsidePortal, cameraOpening, cameraRest, cameraSummary, hologramGeometry, labCover, portalClipPath, portalPoints, stageFor, type StageComposition } from './labComposition'
 
 const CSS = `
 .lab-stage { position: fixed; inset: 0; overflow: hidden; background: #040913; pointer-events: none; }
@@ -264,13 +264,13 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
             {geo && <PortalGlow comp={comp} tone="cyan" />}
             {geo && state === 'closed' && <PortalGlow comp={comp} tone="gold" />}
             <div className="lab-portal" data-holo-live={holoLive && portalSrc ? '' : undefined} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }}>
-              {portalSrc && <img className="lab-portal__img" src={portalSrc} alt="" draggable={false} style={{ objectPosition: `${portalFocusX(portalSrc) * 100}% 50%` }} />}
+              {portalSrc && <img className="lab-portal__img" src={portalSrc} alt="" draggable={false} />}
               {portalSrc && geo && <PortalStaticLook comp={comp} tone="cyan" />}
               {portalSrc && geo && state === 'closed' && <PortalStaticLook comp={comp} tone="gold" />}
               {portalSrc && geo && <span className="lab-portal__scan" />}
             </div>
             {portalSrc && moving && geo && (
-              <PortalHologram src={portalSrc} geo={geo} screenScale={scale} focusX={portalFocusX(portalSrc)} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
+              <PortalHologram src={portalSrc} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
             )}
             {onPortalClick && armed && !leaving && (
               <button type="button" className="lab-portal-hit" data-lab-portal-hit aria-label={portalLabel} onClick={onPortalClick} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />

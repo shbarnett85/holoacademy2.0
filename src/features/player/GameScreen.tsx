@@ -14,7 +14,7 @@ import EndScreen from './EndScreen'
 import { preloadSummary } from './drHoloClips'
 import LabStage from './lab/LabStage'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
-import { CLASSROOM_SRC, OPENING_STAGE, labPortalImages, stageFor } from './lab/labComposition'
+import { OPENING_STAGE, labPortalImages, stageFor } from './lab/labComposition'
 import { GateUnlock, StreakBadge } from './FeelBits'
 import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
@@ -290,7 +290,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   useEffect(() => () => setReading(false), [])
   /* האתגר האחרון התחיל: מסך הסיכום קרוב, ומתחילים לטעון את הרקעים ואת ד"ר הולו שלו */
   const lastChallengeOpen = puzzleOpen && !!scene.puzzle && [...gameData.scenes].reverse().find((s) => s.puzzle)?.id === scene.id
-  useEffect(() => { if (lastChallengeOpen) { preloadSummary([labMoods.closed, labMoods.open], [stageFor('closed'), stageFor('open')]); new Image().src = CLASSROOM_SRC } }, [lastChallengeOpen, labMoods])
+  useEffect(() => { if (lastChallengeOpen) { preloadSummary([labMoods.closed, labMoods.open], [stageFor('closed'), stageFor('open')]) } }, [lastChallengeOpen, labMoods])
 
   /* פתיחת שער: מפתח מסתובב, שער נפתח, וצליל */
   useEffect(() => { if (engine.unlockBubble) sounds.gate() }, [engine.unlockBubble])

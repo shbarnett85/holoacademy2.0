@@ -150,12 +150,8 @@ export function cameraInsidePortal(width: number, height: number, comp: StageCom
 
 interface SceneRef { id: string; imageUrl?: string | null; nextSceneId?: string | null; choices?: { nextSceneId?: string | null }[] }
 
-/* מה רואים בפורטל: תמונה שכבר קיימת בשיעור. פתיחה — הסצנה הראשונה אחרי המעבדה. סיכום — הסצנה האחרונה */
-/* בפורטל: בפתיחה ובסיפור שנשאר פתוח, ה-establishing shot של השיעור (הסצנה שאחרי המעבדה), כי צריך לחזור ולנסות שוב.
-   בסיפור שנסגר: כיתה בבית ספר, כי מסיימים וחוזרים לשיעור הרגיל (CLASSROOM_SRC) */
-export const CLASSROOM_SRC = '/lab/classroom.webp'
-/* בכיתה החיתוך זז ימינה, כי פינת הקיר משמאל נראתה בעיגול כמו קצה של התמונה */
-export const portalFocusX = (src: string): number => src === CLASSROOM_SRC ? 0.665 : 0.5
+/* בפורטל, בפתיחה ובשני מצבי הסיכום: ה-establishing shot של השיעור (הסצנה שאחרי המעבדה).
+   נכנסים לעולם של השיעור דרך הפורטל בפתיחה, ויוצאים ממנו דרכו בסוף */
 export function labPortalImages(scenes: readonly SceneRef[], entrySceneId: string): { opening?: string } {
   const byId = new Map(scenes.map((s) => [s.id, s]))
   const entry = byId.get(entrySceneId)
