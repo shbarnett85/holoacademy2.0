@@ -296,6 +296,16 @@ html.holo-playing { font-size: 144%; }
   position: relative;
   padding: 0.4rem 0.2rem;
 }
+/* ── דפדוף בין עמודים (כ-250ms, sceneSwap.ts): הטקסט היוצא מחליק החוצה ונמוג, והנכנס מחליק פנימה.
+   בלי קיפול נייר, בלי מרקם ובלי פינות. הכיוון כמו סריקת התמונה: קדימה = שמאלה (--turn: -1), חזרה = ימינה.
+   עוצמה עדינה (data-page-turn=fade): דהייה בלי תזוזה. תנועה מופחתת: החלפה מיידית (שכבת היציאה לא נבנית בכלל). */
+@keyframes page-turn-out { from { opacity: 1; transform: translate3d(0, 0, 0); } to { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, -1)), 0, 0); } }
+@keyframes page-turn-in { from { opacity: 0; transform: translate3d(calc(var(--turn-shift) * var(--turn, -1) * -1), 0, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
+.holo-text-area { --turn-shift: 1.6rem; }
+.holo-text-area[data-page-turn=fade] { --turn-shift: 0px; }
+.page-turn-out { position: absolute; inset: 0; padding: inherit; pointer-events: none; animation: page-turn-out var(--turn-out-ms, 110ms) ease-in both; will-change: transform, opacity; }
+.page-turn-in { animation: page-turn-in var(--turn-in-ms, 140ms) ease-out both; will-change: transform, opacity; }
+@media (prefers-reduced-motion: reduce) { .page-turn-out { display: none; } .page-turn-in { animation: none; } }
 /* הקופסה הפנימית מאבדת כרום כפול — המסגרת היא כבר החלון */
 .holo-side-panel .holo-panel {
   background: none;

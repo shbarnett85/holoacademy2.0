@@ -56,7 +56,8 @@ const sampleDuring = (page: Page) => page.evaluate(() => new Promise<{ kind: str
     if (kind !== 'idle' || performance.now() - started > 1500) {
       resolve({
         kind,
-        text: !!document.querySelector('.holo-text-area .holo-panel'),
+        /* הטקסט של העמוד החדש (data-page-in). הטקסט היוצא (data-page-out) עוד מחליק החוצה ברגע הזה */
+        text: !!document.querySelector('.holo-text-area [data-page-in]'),
         button: !!document.querySelector('.holo-panel-actions button'),
         beam: document.querySelector('.si-beam')?.className ?? null,
         dim: !!document.querySelector('.si-dim'),
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
   let d = await during
   check(d.kind === 'scan', `סריקה בין שתי תמונות (${d.kind})`)
   check(d.layers === 2, 'שתי התמונות על המסך במהלך המעבר')
-  check(!d.text && !d.button, 'בזמן המעבר אין טקסט ואין כפתור המשך')
+  check(!d.text && !d.button, 'בתחילת המעבר הטקסט החדש עוד לא מוצג, ואין כפתור המשך')
   check(!!d.beam?.includes('si-beam--fwd'), 'קדימה: הסריקה מימין לשמאל')
   await page.waitForSelector('[data-lab-stage]', { state: 'detached', timeout: 5000 }).catch(() => {})
   check(await page.locator('[data-dr-holo]').count() === 0, 'בסצנות אין ד"ר הולו')

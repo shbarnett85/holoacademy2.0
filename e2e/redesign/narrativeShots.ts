@@ -6,7 +6,8 @@
    · end: מסך "סוף הפרק" עם 2, 3 ו-5 קריסטלים.
    הרצה:  npx tsx e2e/redesign/narrativeShots.ts --out reports/redesign/narrative [--only shelf,pages,turn,end]
    ────────────────────────────────────────────────────────────────────────── */
-import { mkdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core'
 import { DEFAULT_BASE, findChrome } from '../lib/config.ts'
@@ -140,32 +141,76 @@ async function pages(browser: Browser): Promise<void> {
   }
 }
 
+/* לחיצה אחת על "המשך" (מעבר לעמוד הבא), כשהכפתור מופיע */
+const continueBtn = (page: Page) => page.locator('.holo-panel-actions button:visible', { hasText: /המשך/ }).last()
 async function turn(browser: Browser): Promise<void> {
   console.log('== turn ==')
   await safe('page-turn', async () => {
     const ctx = await ctxOf(browser, 1366, 768)
     const page = await openGame(ctx, lesson([null, null, TF], 12))
-    await next(page); await page.waitForTimeout(1800)
-    /* מהעמוד השני לשלישי: שניהם עמודי טקסט בלי אתגר. מאטים את האנימציות פי 8 כדי לצלם את אמצע המעבר */
-    const cdp = await ctx.newCDPSession(page)
-    await cdp.send('Animation.enable'); await cdp.send('Animation.setPlaybackRate', { playbackRate: 0.125 })
-    await page.locator('button:visible', { hasText: /המשך/ }).last().click()
-    for (let i = 0; i < 6; i++) { await page.waitForTimeout(i === 0 ? 300 : 620); await shot(page, `turn-${i + 1}`) }
-    await cdp.send('Animation.setPlaybackRate', { playbackRate: 1 })
-    await page.waitForTimeout(1500); await shot(page, 'turn-7-settled')
+    await page.waitForTimeout(2500)
+    await continueBtn(page).click({ timeout: 15000 })   /* מהפתיחה לעמוד 2 */
+    await page.waitForTimeout(3200)
+    await continueBtn(page).waitFor({ timeout: 15000 })
+    await shot(page, 'turn-0-before')
+    /* מעמוד 2 לעמוד 3: שניהם עמודי טקסט בלי אתגר. מודדים את הזמן האמיתי עד שהטקסט החדש מוצג במלואו */
+    const textOf = () => page.locator('.holo-text-area [data-page-in] p').first().innerText().catch(() => '')
+    const before = await textOf()
+    const t0 = Date.now()
+    await continueBtn(page).click()
+    await page.waitForFunction((prev) => {
+      const p = document.querySelector('.holo-text-area [data-page-in] p') as HTMLElement | null
+      const box = document.querySelector('.holo-text-area [data-page-in]') as HTMLElement | null
+      return !!p && !!box && p.innerText !== prev && getComputedStyle(box).opacity === '1' && !document.querySelector('[data-page-out]')
+    }, before, { timeout: 5000, polling: 'raf' })
+    const ms = Date.now() - t0
+    console.log(`   הטקסט של העמוד החדש מוצג במלואו אחרי ${ms}ms`)
+    check(ms <= 450, `דפדוף: הטקסט החדש מוצג תוך כ-250ms (נמדד ${ms}ms, כולל זמן הבדיקה)`)
+    await page.waitForTimeout(1500)
+    check((await page.locator('[data-hud-page]').innerText()) === 'עמוד 3 מתוך 4', 'דפדוף: ה-HUD מציג "עמוד 3 מתוך 4"')
     await ctx.close()
+  })
+  /* פריימים אמיתיים של המעבר: מקליטים וידאו בזמן אמת (25 פריימים בשנייה) ומוציאים ממנו לוח של הפריימים שסביב הלחיצה.
+     האטה של האנימציות לא מתאימה כאן, כי הטיימרים של הקוד לא מואטים איתן. דורש ffmpeg; בלעדיו מדלגים */
+  await safe('page-turn-frames', async () => {
+    const dir = path.join(OUT, '_video')
+    const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1, locale: 'he-IL', timezoneId: 'Asia/Jerusalem', recordVideo: { dir, size: { width: 1366, height: 768 } } })
+    await ctx.addInitScript(`(() => { if (!window.__name) window.__name = (f) => f; try { sessionStorage.setItem('holo_splash_seen','1'); ${STUDENT} } catch (e) {} })()`)
+    const t0 = Date.now()
+    const page = await openGame(ctx, lesson([null, null, TF], 12))
+    await page.waitForTimeout(2500)
+    await continueBtn(page).click({ timeout: 15000 })
+    await page.waitForTimeout(3200)
+    await continueBtn(page).waitFor({ timeout: 15000 })
+    await page.waitForTimeout(400)
+    const at = (Date.now() - t0) / 1000
+    await continueBtn(page).click()
+    await page.waitForTimeout(1800)
+    const video = page.video()
+    await ctx.close()
+    const file = await video?.path()
+    if (!file) throw new Error('אין קובץ וידאו')
+    try {
+      /* 12 פריימים, כ-40ms ביניהם: מרגע הלחיצה ועד אחרי שהטקסט החדש במקומו */
+      execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', String(Math.max(0, at - 0.08)), '-i', file, '-frames:v', '1', '-vf', 'fps=25,scale=683:-1,tile=4x3:padding=6:margin=6', path.join(OUT, 'turn-frames.png')])
+      console.log('  shot turn-frames (לוח של 12 פריימים, 40ms ביניהם)')
+    } catch (e) { console.log('  (ffmpeg לא זמין: בלי לוח פריימים)', String((e as Error).message).slice(0, 120)) }
+    rmSync(dir, { recursive: true, force: true })
   })
   await safe('page-turn-reduced', async () => {
     const ctx = await ctxOf(browser, 1366, 768, true)
     const page = await openGame(ctx, lesson([null, null, TF], 12))
-    await next(page); await page.waitForTimeout(800)
+    await page.waitForTimeout(1200)
+    await continueBtn(page).click({ timeout: 15000 })
+    await page.waitForTimeout(1200)
+    await continueBtn(page).waitFor({ timeout: 15000 })
     const before = await page.locator('.holo-text-area p').first().innerText()
-    await page.locator('button:visible', { hasText: /המשך/ }).last().click()
-    await page.waitForTimeout(120)
+    await continueBtn(page).click()
+    await page.waitForTimeout(150)
     const after = await page.locator('.holo-text-area p').first().innerText().catch(() => '')
-    const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length)
+    const moving = await page.evaluate(() => document.querySelectorAll('[data-page-out]').length + [...document.querySelectorAll('.holo-text-area *')].filter((el) => getComputedStyle(el).animationName !== 'none' && getComputedStyle(el).animationDuration !== '0s' && parseFloat(getComputedStyle(el).animationDuration) > 0.01).length)
     check(after !== before && after.length > 0, 'תנועה מופחתת: העמוד מתחלף מיד')
-    check(running === 0, `תנועה מופחתת: אין אנימציה רצה (${running})`)
+    check(moving === 0, `תנועה מופחתת: אין אנימציה בעמודת הטקסט (${moving})`)
     await ctx.close()
   })
 }

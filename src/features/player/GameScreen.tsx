@@ -26,16 +26,19 @@ import { initSound } from '../../shared/lib/sound'
 import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 import { BOOK_TEXT } from './gameFeel/text'
 import { pageNumberOf } from '../../shared/lib/bookPages'
+import { PAGE_TEXT_IN_MS, PAGE_TEXT_OUT_MS, pageTextDelayMs, planPageTurn } from './sceneSwap'
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-/* רצף הופעה מדורג (visual-novel): קופסת הטקסט מתחילה DigitalEntrance *מיד* עם עליית
-   הסצנה (במקביל) → הקלדה → materialize של הכפתורים. כל הזמנים נגישים כאן לכוונון. */
-const PANEL_MAT_MS = 800     /* משך הכניסה הדיגיטלית של קופסת הטקסט (ההקלדה מתחילה אחריו) — תואם ל-DigitalEntrance (~0.8s) */
+/* רצף הופעה מדורג: הטקסט של העמוד החדש מחליק פנימה (דפדוף, sceneSwap.ts) → materialize של הכפתורים. */
+const PANEL_MAT_MS = PAGE_TEXT_IN_MS     /* משך הכניסה של הטקסט; הכפתורים מופיעים אחריו */
 
 /* טקסט הסצנה. בזמן קריאה שום דבר לא זז (CLAUDE.md "תחושת משחק: כללים", כלל 1): הטקסט מוצג שלם, בלי הקלדה, בלי סמן ובלי צליל.
    אחרי שהפאנל נכנס (start) מדווחים onDone, וזה מניע את שלב הכפתורים. לחיצה על טקסט מפעילה onAdvance, כשהפעולה היחידה היא "המשך". */
+const noop = () => {}
+type RevealPhase = 'scene' | 'panel' | 'typing' | 'buttons'
+
 function SceneText({ text, onAdvance, start = true, onDone }: { text: string; onAdvance?: () => void; start?: boolean; onDone?: () => void }) {
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone })
@@ -91,9 +94,16 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* רצף הופעה מדורג: 'panel' (fade-in פאנל) → 'typing' (הקלדה) → 'buttons' (כפתורים).
      ביקור חוזר/reduced-motion → מתחיל מיד ב-'buttons'. skipped → דילוג מיידי לסוף. */
   /* גלילה שנצמדת לנקודת הכתיבה כל עוד ההקלדה רצה */
-  const [reveal, setReveal] = useState<'scene' | 'panel' | 'typing' | 'buttons'>(
-    () => (engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene'),
+  /* רצף ההופעה המדורג מתחיל רק בסיום המעבר (onTransitionDone → bump). revealTick=0 בטעינה הראשונה */
+  const [revealTick, setRevealTick] = useState(0)
+  /* השלב שייך למעבר שבו נקבע (tick). שלב שנשאר מהעמוד הקודם לא תקף בעמוד החדש: עד שה-effect של המעבר החדש רץ,
+     השלב הוא 'panel' (הטקסט מוצג, בלי כפתורים). בלי זה, 'buttons' של העמוד הקודם סימן את הטקסט החדש כנקרא
+     ברינדור הראשון שלו, והכפתור הופיע, נעלם והופיע שוב (ב-StrictMode סדר ה-effects הופך את זה לגלוי). */
+  const [revealState, setRevealState] = useState<{ tick: number; phase: RevealPhase }>(
+    () => ({ tick: 0, phase: engine.transitionDir === 'back' || prefersReducedMotion() ? 'buttons' : 'scene' }),
   )
+  const reveal: RevealPhase = revealState.tick === revealTick ? revealState.phase : 'panel'
+  const setReveal = useCallback((phase: RevealPhase) => setRevealState((r) => ({ ...r, phase })), [])
   /* הכפתורים תלויים בהשלמת הטקסט בפועל ולא בשלב ה-reveal (שמאותחל ל-'buttons'
      תחת prefers-reduced-motion). שומרים את **מזהה הסצנה** שבה הטקסט הושלם ולא
      בוליאני: בוליאני נשאר true מהסצנה הקודמת — GameScreen אינו מתמאונט מחדש —
@@ -132,6 +142,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const [donePageKey, setDonePageKey] = useState<string | null>(null)
   const pageDone = donePageKey === pageKey
   const goNextPage = useCallback(() => setPageState({ sceneId: curScene.id, idx: pageIdx + 1 }), [curScene.id, pageIdx])
+  /* דפדוף: הטקסט של העמוד היוצא נשמר לרגע ומחליק החוצה. נגזר בזמן הרינדור (כמו prevSceneId), בלי effect */
+  const shownText = pages[pageIdx] ?? sceneText
+  const [turnText, setTurnText] = useState<{ cur: { id: string; text: string }; out: { id: string; text: string } | null }>({ cur: { id: curScene.id, text: shownText }, out: null })
+  if (turnText.cur.id !== curScene.id) setTurnText({ cur: { id: curScene.id, text: '' }, out: turnText.cur.text ? turnText.cur : null })
+  else if (turnText.cur.text !== shownText && shownText) setTurnText({ ...turnText, cur: { id: curScene.id, text: shownText } })
+  const clearTurnOut = useCallback(() => setTurnText((t) => (t.out ? { ...t, out: null } : t)), [])
   /* גובה אזור הפעולות שמור מראש לפי מספר הכפתורים המרבי בסצנה — כך תיבת הטקסט (ומספר העמודים) יציבה גם כשהבחירות מופיעות */
   const actionRows = Math.max(1, (curScene.puzzle ? 1 : 0) + (curScene.collectableItem ? 1 : 0))
   /* טלמטריה: זמן על כל עמוד (נרשם ביציאה מהעמוד/הסצנה/סיום המשחק) */
@@ -236,9 +252,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* נכסי ההולוגרמה: טעינה מראש, כדי שהחלפת הבעה לא תהבהב */
   useEffect(() => { for (const m of [labMoods.opening, labMoods.closed, labMoods.open]) new Image().src = `/dr-holo/${m}.webp` }, [labMoods])
 
-  /* רצף ההופעה המדורג מתחיל רק בסיום המעבר (onComplete → bump). revealTick=0 בטעינה
-     הראשונה (סצנה ראשונה בלי מעבר) מריץ את הרצף מיד. */
-  const [revealTick, setRevealTick] = useState(0)
 
   /* transitioning=true כל עוד מעבר (סריקה/חור-תולעת) פעיל. בזמן הזה הסצנה החדשה כבר הוחלפה במנוע, ופאנל הטקסט מוסתר.
      נגזר סינכרונית מהמפתח ולא נקבע ב-effect: בלי זה הפאנל הספיק להתרנדר רנדר אחד עם הטקסט החדש, סימן אותו
@@ -247,7 +260,23 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   const transitioning = engine.transitionKey !== settledKey
   const transitionKeyRef = useRef(engine.transitionKey)
   useEffect(() => { transitionKeyRef.current = engine.transitionKey }, [engine.transitionKey])
-  const onTransitionDone = useCallback(() => { setSettledKey(transitionKeyRef.current); setRevealTick((t) => t + 1) }, [])
+  /* פעם אחת לכל מעבר: גם חור-התולעת וגם טיימר הדפדוף קוראים לזה */
+  const settledRef = useRef(0)
+  const onTransitionDone = useCallback(() => {
+    if (settledRef.current === transitionKeyRef.current) return
+    settledRef.current = transitionKeyRef.current
+    setSettledKey(transitionKeyRef.current)
+    setRevealTick((t) => t + 1)
+  }, [])
+  /* דפדוף בין עמודים: הטקסט החדש נכנס אחרי שהיוצא יצא (כ-110ms), ולא מחכה לסוף המעבר של התמונה.
+     חור-התולעת (כניסה לשיעור וסיום) מדווח על הסיום שלו בעצמו. תנועה מופחתת: מיד */
+  const pageTurn = planPageTurn({ wormhole: engine.transitionType === 'wormhole', reduced: prefersReducedMotion(), level: feelLevel() })
+  useEffect(() => {
+    if (engine.transitionType === 'wormhole') return
+    const t = window.setTimeout(onTransitionDone, pageTextDelayMs(pageTurn))
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.transitionKey])
 
   /* preload של קבצי הסאונד בכניסה למשחק (אין lag באירוע הראשון) */
   useEffect(() => { initSound() }, [])
@@ -276,12 +305,12 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      ה-timeout מנוקה ב-cleanup (מעבר סצנה לא משאיר טיימר). */
   useEffect(() => {
     setSkipSceneId(null)
-    if (engine.transitionDir === 'back' || prefersReducedMotion()) { setReveal('buttons'); return }
+    if (engine.transitionDir === 'back' || prefersReducedMotion()) { setRevealState({ tick: revealTick, phase: 'buttons' }); return }
     /* revealTick===0 = טעינה ראשונה — ממתינים לסיום מעבר הכניסה (wormhole) שיקדם את revealTick. */
-    if (revealTick === 0) { setReveal('scene'); return }
+    if (revealTick === 0) { setRevealState({ tick: 0, phase: 'scene' }); return }
     const hasText = !!(scene.narrative || scene.drHoloDialog)
     /* קופסת הטקסט מתחילה את ה-DigitalEntrance *מיד* עם עליית הסצנה (לא אחרי המתנה) */
-    setReveal('panel')
+    setRevealState({ tick: revealTick, phase: 'panel' })
     const timers = [
       window.setTimeout(() => setReveal(hasText ? 'typing' : 'buttons'), PANEL_MAT_MS), /* ואז הקלדה */
     ]
@@ -297,7 +326,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [reveal, lastPage, scene.id])
 
   /* דילוג-בלחיצה: עוצר את הרצף ומציג הכול מיד (skipped→הטקסט מיידי, reveal→buttons) */
-  const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setReveal('buttons') }, [scene.id])
+  const skipReveal = useCallback(() => { setSkipSceneId(scene.id); setReveal('buttons') }, [scene.id, setReveal])
   /* כשמדלגים / ביקור חוזר / reduced-motion — בלי אנימציית materialize (הכול מיד) */
   const skipped = skipSceneId === scene.id
   const stageInstant = skipped || engine.transitionDir === 'back' || prefersReducedMotion()
@@ -539,9 +568,15 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
           {/* כותרת הסצנה עברה לפס העליון (TopHUD) — אין כותרת מרחפת כפולה.
               אזור הטקסט: גובה קבוע, **בלי גלילה**; הטקסט מתחלק לעמודים (useScenePages). הוא נשאר גלוי
               גם כשאתגר פעיל — התלמיד יכול לחזור לקרוא את ההקשר. */}
-          <div ref={textAreaRef} className="holo-text-area" style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease' }}>
+          <div ref={textAreaRef} className="holo-text-area" data-page-turn={pageTurn} style={{ opacity: contentVisible ? 1 : 0, transition: 'opacity 0.22s ease', ['--turn' as string]: engine.transitionDir === 'back' ? 1 : -1, ['--turn-out-ms' as string]: `${PAGE_TEXT_OUT_MS}ms`, ['--turn-in-ms' as string]: `${PAGE_TEXT_IN_MS}ms` }}>
+          {/* העמוד היוצא: מחליק החוצה ונמוג. לא נבנה בלי מעבר (תנועה מופחתת, חור-תולעת) */}
+          {turnText.out && pageTurn !== 'none' && (
+            <div key={`out-${turnText.out.id}`} className="page-turn-out" data-page-out aria-hidden="true" onAnimationEnd={clearTurnOut}>
+              <div className="holo-panel text-start"><SceneText text={turnText.out.text} start={false} /></div>
+            </div>
+          )}
           {reveal !== 'scene' && !transitioning && !!sceneText && (
-            <DigitalEntrance instant={stageInstant}>
+            <div className={`relative ${pageTurn !== 'none' && !skipped ? 'page-turn-in' : ''}`} data-page-in>
             <div className="holo-panel text-start">
               {/* אין תווית "ד״ר הולו" מעל הטקסט: הנרטיב בגוף שלישי, והדיבור של הדוקטור כבר מסומן
                  בתוך הפרוזה עצמה (ד״ר הולו אומר: "…") — תווית קבועה אכלה גובה. */}
@@ -565,7 +600,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
                 }
               />
             </div>
-            </DigitalEntrance>
+            </div>
           )}
           {/* הודעות מערכת — מרחפות מעל תחתית אזור הטקסט (לא משנות את הפריסה) */}
           {engine.message && (
@@ -661,7 +696,8 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             dir={engine.transitionDir}
             wormhole={engine.transitionType === 'wormhole'}
             dimmed={onStage || choicesOnStage}
-            onComplete={onTransitionDone}
+            /* הטקסט לא מחכה לתמונה: הדפדוף של עמודת הטקסט מתוזמן כאן (pageTurn), והתמונה מסיימת את המעבר שלה בעמודה שלה */
+            onComplete={noop}
           />
 
           {/* ד"ר הולו: עותק וירטואלי, ולכן תמיד הולוגרמה. נבנה מקווי סריקה בכניסה לשיעור, ומגיב לתשובות */}
