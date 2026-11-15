@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LAB, LIBRARY, LIBRARY_CLOSED, LIBRARY_OPEN, cameraInsidePortal, cameraOpening, cameraSummary, labCover, labPortalImages, portalPoints, stageFor } from './labComposition'
+import { LAB, LIBRARY, LIBRARY_CLOSED, LIBRARY_OPEN, cameraInsidePortal, labCover, labPortalImages, portalPoints, stageFor } from './labComposition'
 
 describe('labCover', () => {
   it('ממלא את המסך וממרכז לפי נקודת המוקד', () => {
@@ -40,17 +40,6 @@ describe('מצלמה', () => {
         expect(inside((world.x - cam.x) / cam.scale, (world.y - cam.y) / cam.scale)).toBe(true)
       }
     }
-  })
-  it('קירוב הפתיחה משאיר את מרכז המסך במקומו, וקירוב הסיכום את הפנים של ד"ר הולו', () => {
-    for (const [w, h] of SIZES) {
-      const cover = labCover(w, h)
-      const center = { x: (w / 2 - cover.x) / cover.scale, y: (h / 2 - cover.y) / cover.scale }
-      const cam = cameraOpening(w, h)
-      expect(center.x * cam.scale + cam.x).toBeCloseTo(center.x)
-      expect(center.y * cam.scale + cam.y).toBeCloseTo(center.y)
-    }
-    const s = cameraSummary()
-    expect(LAB.camera.summaryFocus.x * s.scale + s.x).toBeCloseTo(LAB.camera.summaryFocus.x)
   })
 })
 

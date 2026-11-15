@@ -8,7 +8,7 @@
    · state=open (הסיפור נשאר פתוח): הפורטל לא יציב — מהבהב קלות, והריצוד חזק יותר.
    · הפורטל לחיץ (onPortalClick): בפתיחה כמו "המשך", בסיפור פתוח ניסיון נוסף, בסיפור שנסגר חזרה לספרייה (המסך הראשי של מי שמשחק).
    · התאורה מגיבה לפורטל: זוהר בצבע הממוצע של התמונה, על הרצפה ועל הקירות הקרובים.
-   · מצלמה: טרנספורמציה אחת על כל הקומפוזיציה (.lab-camera). פתיחה: קירוב איטי, ובסיום צלילה לפורטל (leaving=dive) עד שתמונתו ממלאת את המסך.
+   · מצלמה: טרנספורמציה אחת על כל הקומפוזיציה (.lab-camera). בפתיחה הרקע עומד במקום, וביציאה צלילה לפורטל (leaving=dive) עד שתמונתו ממלאת את המסך. בסיכום: נסיגה מתוך הפורטל, ואז במקום.
      סיכום: מתחילים בתוך הפורטל, נסוגים, ואז קירוב איטי אל ד"ר הולו. בעוצמה עדינה: דהייה בלבד. בתנועה מופחתת: בלי תנועת מצלמה.
    העולם הוא stacking context שכולל את המעבדה, ולכן המיזוג של ההולוגרמה עם המעבדה עובד. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -16,7 +16,7 @@ import DrHoloHologram from '../DrHoloHologram'
 import { HOLO_ASPECT } from '../drHoloClips'
 import { useGameFeel, type HoloMood } from '../gameFeel/engine'
 import PortalHologram, { PORTAL_GOLD_MS } from './PortalHologram'
-import { cameraCss, cameraInsidePortal, cameraOpening, cameraRest, cameraSummary, hologramGeometry, labCover, portalClipPath, portalPoints, stageFor, type StageComposition } from './labComposition'
+import { cameraCss, cameraInsidePortal, cameraRest, hologramGeometry, labCover, portalClipPath, portalPoints, stageFor, type StageComposition } from './labComposition'
 
 const CSS = `
 .lab-stage { position: fixed; inset: 0; overflow: hidden; background: #040913; pointer-events: none; }
@@ -185,21 +185,15 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
     return () => ro.disconnect()
   }, [comp])
 
-  /* המצלמה: WAAPI ולא CSS, כי הצלילה יוצאת מהנקודה שבה הקירוב האיטי נמצא עכשיו */
+  /* המצלמה (WAAPI): רק במעברים — הנסיגה מהפורטל בתחילת הסיכום והצלילה אליו ביציאה מהפתיחה. בין לבין הרקע עומד במקום:
+     קירוב איטי (1–2 פיקסלים בשנייה) נראה על המסך כרעד, כי התמונה קופצת מפיקסל לפיקסל, ונעצר רק כשהקירוב נגמר */
   useEffect(() => {
     const cam = cameraRef.current
     const el = ref.current
-    if (!cam || !el || !moving || leaving) return
-    const w = el.clientWidth
-    const h = el.clientHeight
-    const { approachMs, pullbackMs } = comp.camera
-    const fill = 'forwards' as const
-    const approach = (to: string) => { anim.current = cam.animate([{ transform: cameraCss(cameraRest) }, { transform: to }], { duration: approachMs, easing: 'linear', fill }) }
-    if (state === 'opening') { approach(cameraCss(cameraOpening(w, h, comp))); return () => anim.current?.cancel() }
-    const back = cam.animate([{ transform: cameraCss(cameraInsidePortal(w, h, comp)) }, { transform: cameraCss(cameraRest) }], { duration: pullbackMs, easing: 'cubic-bezier(.16,.8,.3,1)', fill })
+    if (!cam || !el || !moving || leaving || state === 'opening') return
+    const back = cam.animate([{ transform: cameraCss(cameraInsidePortal(el.clientWidth, el.clientHeight, comp)) }, { transform: cameraCss(cameraRest) }], { duration: comp.camera.pullbackMs, easing: 'cubic-bezier(.16,.8,.3,1)' })
     anim.current = back
-    back.onfinish = () => approach(cameraCss(cameraSummary(comp)))
-    return () => { back.onfinish = null; anim.current?.cancel() }
+    return () => anim.current?.cancel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasFit, moving, state])
 

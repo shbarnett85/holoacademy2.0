@@ -18,7 +18,7 @@ export interface StageComposition {
   /** נקודת המוקד של cover: הפורטל נשאר במרכז גם כשהמסך חותך את התמונה */
   focal: { x: number; y: number }
   portal: { box: { x: number; y: number; width: number; height: number }; polygon: readonly number[] }
-  camera: { openingScale: number; summaryScale: number; summaryFocus: { x: number; y: number }; approachMs: number; diveMs: number; pullbackMs: number; revealMs: number }
+  camera: { diveMs: number; pullbackMs: number; revealMs: number }
   /** ד"ר הולו (חצי גוף, drHoloClips.HOLO_ASPECT): מרכז הנכס בציר x, ראש הנכס בציר y, וגובה הנכס. הקצה התחתון (המותן) מתחת לתחתית התמונה */
   holo: { centerX: number; top: number; height: number }
   /** הפורטל כהולוגרמה (PortalHologram): מרכז הפתח ורדיוסו, וקדמת הבמה (מכאן הרצפה וההשתקפות). בלי ערך: תמונה בלבד */
@@ -50,7 +50,7 @@ const libraryStage = (name: string): StageComposition => ({
     box: { x: 458, y: 173, width: 364, height: 321 },
     polygon: circlePolygon(640, 355, 182, 494),
   },
-  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 250, y: 370 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
+  camera: { diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
   /* הידיים הפתוחות נכנסות במסך: יד שמאל בקצה, יד ימין מול מסגרת הטבעת. הנכס נגמר 15px מתחת לתחתית */
   holo: { centerX: 250, top: 295, height: 440 },
   /* קדמת הבמה ב-y=545; ההשתקפות האפויה של הטבעת ברצפה מתאימה למראה עם קיצור של 0.85 */
@@ -81,8 +81,8 @@ export const LAB: StageComposition = {
       1600, 366, 1627, 396, 1650, 428, 1671, 461, 1690, 496, 1704, 533, 1716, 571, 1724, 609, 1728, 648,
     ],
   },
-  /* המצלמה: קירוב איטי בפתיחה (לכיוון מרכז המסך) ובסיכום (לכיוון הפנים של ד"ר הולו) */
-  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 380, y: 500 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
+  /* המצלמה: רק הצלילה לפורטל והנסיגה ממנו; בין לבין הרקע עומד במקום */
+  camera: { diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
   holo: { centerX: 520, top: 560, height: 900 },
 }
 
@@ -131,11 +131,8 @@ const screenCenter = (width: number, height: number, comp: StageComposition = LA
   return { x: (width / 2 - c.x) / c.scale, y: (height / 2 - c.y) / c.scale }
 }
 
-/* טרנספורמציה של המצלמה בעולם המעבדה (transform-origin: 0 0). קירוב סביב נקודה: הנקודה נשארת במקומה */
-const zoomAround = (p: { x: number; y: number }, scale: number): CameraTransform => ({ scale, x: p.x * (1 - scale), y: p.y * (1 - scale) })
+/* טרנספורמציה של המצלמה בעולם המעבדה (transform-origin: 0 0) */
 export const cameraRest: CameraTransform = { scale: 1, x: 0, y: 0 }
-export const cameraOpening = (width: number, height: number, comp: StageComposition = LAB): CameraTransform => zoomAround(screenCenter(width, height, comp), comp.camera.openingScale)
-export const cameraSummary = (comp: StageComposition = LAB): CameraTransform => zoomAround(comp.camera.summaryFocus, comp.camera.summaryScale)
 
 /* בתוך הפורטל: מרכז הפתח על מרכז המסך, והפתח גדול מאלכסון המסך, ולכן תמונת הפורטל ממלאה את כל המסך */
 export function cameraInsidePortal(width: number, height: number, comp: StageComposition = LAB): CameraTransform {

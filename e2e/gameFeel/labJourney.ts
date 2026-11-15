@@ -208,7 +208,7 @@ async function dive(browser: Browser, kind: 'new' | 'old'): Promise<void> {
   const s1 = (await cameraScale(page))!
   await page.waitForTimeout(1500)
   const s2 = (await cameraScale(page))!
-  check(s2 > s1 && s2 < 1.04, `פתיחה: המצלמה מתקרבת לאט (${s1.toFixed(4)} → ${s2.toFixed(4)})`)
+  check(s1 === 1 && s2 === 1, `פתיחה: הרקע עומד במקום, בלי קירוב (${s1.toFixed(4)} → ${s2.toFixed(4)})`)
   check(!requested.some((u) => u.includes('scene_scene_lab') || u.includes('?old')), 'תמונות הפתיחה והסיום הישנות לא נטענות')
   await page.screenshot({ path: path.join(OUT, `${kind}-opening.png`) })
   const go = async () => {
@@ -260,7 +260,8 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     if (RECORD) await record(page, `${kind}-summary-${c.name}`, 5)
     else await page.waitForTimeout(5000)
     const later = (await cameraScale(page))!
-    check(later >= 0.999 && later < 1.03, `${c.name}: נסיגה, ואז קירוב איטי (${later.toFixed(4)})`)
+    const after = (await cameraScale(page))!
+    check(later === 1 && after === 1, `${c.name}: נסיגה, ואז הרקע עומד במקום (${later.toFixed(4)})`)
     /* גם הסיכום על רקע וידאו (ספריית השרתים), והאנימציה של ד"ר הולו מתנגנת מעליו */
     check((await holoClips(page)) === 1 && (await moodOf(page)) === c.clip, `${c.name}: רקע וידאו, והאנימציה של ד"ר הולו מתנגנת (${await moodOf(page)})`)
     check(await page.locator('[data-lab-hologram=on]').count() === 1, `${c.name}: הפורטל הולוגרמה חיה`)
