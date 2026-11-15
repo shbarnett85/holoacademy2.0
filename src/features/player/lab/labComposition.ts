@@ -1,8 +1,8 @@
 /* הקומפוזיציה הקבועה של מסכי הפתיחה והסיכום, בקואורדינטות של תמונת הרקע ולא של המסך.
    הפורטל במרכז המסך, חלון הטקסט מימינו וד"ר הולו משמאלו, בחצי גוף וקרוב למצלמה (הרגליים מתחת לקצה התמונה).
-   יש שתי קומפוזיציות, אחת לכל רקע, וכל הפונקציות מקבלות את הקומפוזיציה (ברירת המחדל: המעבדה):
-     · LIBRARY — "ספריית השרתים": הרקע של מסך הפתיחה. וידאו בלולאה (6 שניות) עם תמונה קבועה כגיבוי.
-     · LAB — המעבדה הכהה: עדיין הרקע של מסך הסיכום, עד שיגיע לו רקע חדש.
+   לכל רקע קומפוזיציה משלו, וכל הפונקציות מקבלות את הקומפוזיציה (ברירת המחדל: המעבדה):
+     · LIBRARY / LIBRARY_OPEN / LIBRARY_CLOSED — "ספריית השרתים" בשלוש גרסאות (פתיחה, סיפור פתוח, סיפור שנסגר). וידאו בלולאה עם תמונה קבועה כגיבוי.
+     · LAB — המעבדה הכהה, הרקע הקודם; לא מוצגת יותר.
    מסכת הפורטל של המעבדה נגזרה מהתמונה עצמה (קרניים מהמרכז עד הקצה הזוהר של הטבעת), כי הטבעת בתמונה לא עגולה מדויק.
    בספרייה הפתח הוא עיגול שהבמה חותכת מלמטה, ולכן המסכה מחושבת (circlePolygon). */
 
@@ -33,22 +33,29 @@ function circlePolygon(cx: number, cy: number, r: number, floorY: number, steps 
   return out
 }
 
-/* ספריית השרתים (1672×940). הטבעת הזוהרת: מרכז (835, 402), רדיוס 224 עד 230; הפתח שבתוכה ברדיוס 215, והבמה חותכת אותו ב-y=576 */
-export const LIBRARY: StageComposition = {
-  src: '/lab/library.webp',
-  video: '/lab/library.mp4',
+/* ספריית השרתים (1280×720): שלוש גרסאות של אותו צילום, באותה קומפוזיציה בדיוק — פתיחה (רגילה), סיפור שנשאר פתוח (אפורה ואפלה),
+   סיפור שנסגר (בהירה ובוהקת). הדלת שבתוך הטבעת: עיגול כהה ריק במרכז (640, 355) ברדיוס 178; המסכה ברדיוס 182, כדי שקצה הדלת לא ייראה,
+   והבמה חותכת אותה ב-y=494. הדלת כהה ולכן גם ההשתקפות שלה ברצפה ניטרלית, והיא מתאימה לכל תמונה בפורטל.
+   כל לולאה 3.5 שניות ב-24 פריימים, עם מעבר רך בנקודת החיבור */
+const libraryStage = (name: string): StageComposition => ({
+  src: `/lab/${name}.webp`,
+  video: `/lab/${name}.mp4`,
   tone: 'light',
-  width: 1672,
-  height: 940,
-  focal: { x: 0.5, y: 0.43 },
+  width: 1280,
+  height: 720,
+  focal: { x: 0.5, y: 0.47 },
   portal: {
-    box: { x: 620, y: 187, width: 430, height: 389 },
-    polygon: circlePolygon(835, 402, 215, 576),
+    box: { x: 458, y: 173, width: 364, height: 321 },
+    polygon: circlePolygon(640, 355, 182, 494),
   },
-  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 248, y: 330 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
-  holo: { centerX: 248, top: 190, height: 1500 },
-}
+  camera: { openingScale: 1.04, summaryScale: 1.025, summaryFocus: { x: 190, y: 253 }, approachMs: 24000, diveMs: 1100, pullbackMs: 1500, revealMs: 420 },
+  holo: { centerX: 190, top: 145, height: 1148 },
+})
+export const LIBRARY: StageComposition = libraryStage('library')
+export const LIBRARY_OPEN: StageComposition = libraryStage('library-open')
+export const LIBRARY_CLOSED: StageComposition = libraryStage('library-closed')
 
+/* המעבדה הכהה: הרקע הקודם של מסכי הפתיחה והסיכום. לא מוצגת יותר; נשארת כקומפוזיציה לדוגמה ולבדיקות */
 export const LAB: StageComposition = {
   src: '/lab/lab.webp',
   tone: 'dark',
@@ -75,10 +82,10 @@ export const LAB: StageComposition = {
   holo: { centerX: 380, top: 290, height: 2300 },
 }
 
-/* איזה רקע לכל מסך. כשיגיע רקע חדש לסיכום: מחליפים כאן שורה אחת */
+/* איזה רקע לכל מסך: פתיחה — הספרייה הרגילה; סיפור שנשאר פתוח — הגרסה האפורה; סיפור שנסגר — הגרסה הבוהקת */
 export const OPENING_STAGE: StageComposition = LIBRARY
-export const SUMMARY_STAGE: StageComposition = LAB
-export const stageFor = (state: 'opening' | 'closed' | 'open'): StageComposition => (state === 'opening' ? OPENING_STAGE : SUMMARY_STAGE)
+const STAGES = { opening: LIBRARY, open: LIBRARY_OPEN, closed: LIBRARY_CLOSED } as const
+export const stageFor = (state: 'opening' | 'closed' | 'open'): StageComposition => STAGES[state]
 
 const pairs = (flat: readonly number[]): [number, number][] => {
   const out: [number, number][] = []

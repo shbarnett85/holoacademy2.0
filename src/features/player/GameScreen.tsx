@@ -11,10 +11,10 @@ import LoadingQuest from './LoadingQuest'
 import SceneImageStage from './SceneImageStage'
 import WormholeTransition from './WormholeTransition'
 import EndScreen from './EndScreen'
-import { preloadSummaryClips } from './drHoloClips'
+import { preloadSummary } from './drHoloClips'
 import LabStage from './lab/LabStage'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
-import { CLASSROOM_SRC, OPENING_STAGE, labPortalImages } from './lab/labComposition'
+import { CLASSROOM_SRC, OPENING_STAGE, labPortalImages, stageFor } from './lab/labComposition'
 import { GateUnlock, StreakBadge } from './FeelBits'
 import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
@@ -288,9 +288,9 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* שלב הקריאה: אלמנטים "חיים" עוצרים בזמן קריאת טקסט */
   useEffect(() => { setReading(!puzzleOpen && !engine.finished) }, [puzzleOpen, engine.finished])
   useEffect(() => () => setReading(false), [])
-  /* האתגר האחרון התחיל: מסך הסיכום קרוב, ומתחילים לטעון את הקטעים שלו */
+  /* האתגר האחרון התחיל: מסך הסיכום קרוב, ומתחילים לטעון את הרקעים ואת ד"ר הולו שלו */
   const lastChallengeOpen = puzzleOpen && !!scene.puzzle && [...gameData.scenes].reverse().find((s) => s.puzzle)?.id === scene.id
-  useEffect(() => { if (lastChallengeOpen) { preloadSummaryClips([labMoods.closed, labMoods.open]); new Image().src = CLASSROOM_SRC } }, [lastChallengeOpen, labMoods])
+  useEffect(() => { if (lastChallengeOpen) { preloadSummary([labMoods.closed, labMoods.open], [stageFor('closed'), stageFor('open')]); new Image().src = CLASSROOM_SRC } }, [lastChallengeOpen, labMoods])
 
   /* פתיחת שער: מפתח מסתובב, שער נפתח, וצליל */
   useEffect(() => { if (engine.unlockBubble) sounds.gate() }, [engine.unlockBubble])

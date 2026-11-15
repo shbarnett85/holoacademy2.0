@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LAB, LIBRARY, cameraInsidePortal, cameraOpening, cameraSummary, labCover, labPortalImages, portalPoints, stageFor } from './labComposition'
+import { LAB, LIBRARY, LIBRARY_CLOSED, LIBRARY_OPEN, cameraInsidePortal, cameraOpening, cameraSummary, labCover, labPortalImages, portalPoints, stageFor } from './labComposition'
 
 describe('labCover', () => {
   it('ממלא את המסך וממרכז לפי נקודת המוקד', () => {
@@ -73,12 +73,17 @@ describe('labPortalImages', () => {
   })
 })
 
-describe('ספריית השרתים (הרקע של מסך הפתיחה)', () => {
+describe('ספריית השרתים (הרקע של מסכי הפתיחה והסיכום)', () => {
   const SIZES = [[1366, 768], [1920, 1080], [740, 360], [1024, 768], [1366, 620]]
-  it('מסך הפתיחה על הספרייה, הסיכום עדיין על המעבדה', () => {
+  it('פתיחה: הספרייה הרגילה; סיפור פתוח: האפורה; סיפור שנסגר: הבוהקת', () => {
     expect(stageFor('opening')).toBe(LIBRARY)
-    expect(stageFor('closed')).toBe(LAB)
-    expect(stageFor('open')).toBe(LAB)
+    expect(stageFor('closed')).toBe(LIBRARY_CLOSED)
+    expect(stageFor('open')).toBe(LIBRARY_OPEN)
+    /* שלוש הגרסאות הן אותו צילום: אותה קומפוזיציה, רק קבצים אחרים */
+    for (const c of [LIBRARY_OPEN, LIBRARY_CLOSED]) {
+      expect({ ...c, src: '', video: '' }).toEqual({ ...LIBRARY, src: '', video: '' })
+      expect(c.video).toBeTruthy()
+    }
     expect(LIBRARY.video).toBeTruthy()
   })
   it('ממלא את המסך, והפורטל נשאר במרכז בכל גודל', () => {

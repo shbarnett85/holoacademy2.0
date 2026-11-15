@@ -371,13 +371,13 @@ async function fallback(browser: Browser): Promise<void> {
   {
     const { ctx, page } = await open(browser)
     await page.waitForTimeout(800)
-    check(await page.locator('video[data-holo-preload]').count() === 0, 'לפני האתגר האחרון: הקטעים של הסיכום לא נטענים')
+    check(await page.locator('video[data-holo-preload]').count() === 0, 'לפני האתגר האחרון: הרקעים של הסיכום לא נטענים')
     await next(page)
     await page.waitForTimeout(1300)
     await next(page)
     await page.waitForSelector('.holo-stage button', { timeout: 15000 })
     await page.waitForTimeout(300)
-    check(await page.locator('video[data-holo-preload]').count() === 2, 'האתגר האחרון התחיל: הקטעים של הסיכום נטענים')
+    check(await page.locator('video[data-holo-preload]').count() === 2, 'האתגר האחרון התחיל: שני הרקעים של הסיכום נטענים')
     await page.close(); await ctx.close()
   }
   /* וידאו שלא נטען */

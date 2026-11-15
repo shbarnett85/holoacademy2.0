@@ -257,7 +257,11 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     else await page.waitForTimeout(5000)
     const later = (await cameraScale(page))!
     check(later >= 0.999 && later < 1.03, `${c.name}: נסיגה, ואז קירוב איטי (${later.toFixed(4)})`)
-    check((await clipOf(page)) === `/dr-holo/${c.clip}.mp4`, `${c.name}: הקטע ${await clipOf(page)}`)
+    /* גם הסיכום על רקע וידאו (ספריית השרתים), ולכן ד"ר הולו בתמונה קבועה של מצב הרוח, בלי קטע שני */
+    check((await holoClips(page)) === 0 && (await moodOf(page)) === c.clip, `${c.name}: רקע וידאו, וד"ר הולו בתמונה קבועה (${await moodOf(page)})`)
+    const bg = await page.locator('[data-lab-video]').getAttribute('src')
+    check(bg === (c.state === 'open' ? '/lab/library-open.mp4' : '/lab/library-closed.mp4'), `${c.name}: הרקע ${bg}`)
+    await page.screenshot({ path: path.join(OUT, `${kind}-summary-${c.name}.png`) })
     const hit = await page.evaluate(() => {
       const panel = document.querySelector('[data-end-screen] .holo-panel')!
       const r = panel.getBoundingClientRect()
