@@ -1,7 +1,7 @@
-/* מייצר את --page-background (חזית השרתים) ב-src/styles/tokens.css מתוך הטוקנים. להריץ אחרי שינוי של צבע רקע/מכונה/הולו/אנושיות:
-   npx tsx scripts/genServerBackground.ts */
+/* מייצר את --page-background (רשת הפיקסלים) ב-src/styles/tokens.css מתוך הטוקנים. להריץ אחרי שינוי של צבע רקע/מכונה/הולו/אנושיות:
+   npx tsx scripts/genPageBackground.ts */
 import { readFileSync, writeFileSync } from 'node:fs'
-import { PAGE_BG_LINE, pageBackgroundCss, paletteFromTokens } from '../src/styles/serverBackground.ts'
+import { PAGE_BG_LINE, pageBackgroundCss, paletteFromTokens } from '../src/styles/pageBackground.ts'
 
 const file = 'src/styles/tokens.css'
 const css = readFileSync(file, 'utf8')
