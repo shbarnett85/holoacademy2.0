@@ -501,6 +501,8 @@ html.holo-playing { font-size: 144%; }
   .holo-playing .holo-panel { padding-block: 0.75rem; }
   /* בתוך עמוד הטקסט הריפוד האנכי מוגדר ע"י .holo-text-area — לא מוסיפים עוד */
   .holo-playing .holo-side-panel .holo-panel { padding-block: 0; }
+  /* הכפתור נמוך יותר, כדי שמחוון החלקים ("2/3") שמעליו לא ייחתך על ידו */
+  .holo-playing .holo-panel-actions .holo-button { padding-block: 0.4rem !important; }
 
   /* ── רוחב במובייל: הגובה נדיר, הרוחב יש בשפע ──
      הפאנל מצטמצם לרצועה צדדית והבמה מקבלת את רוב הרוחב. שניהם ממלאים את
