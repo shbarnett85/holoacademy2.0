@@ -235,6 +235,10 @@ html.holo-playing { font-size: 144%; }
    גם את עמוד הסיכום, שתוכנו גבוה מה-viewport: עם justify-center על גובה קבוע
    בלי גלילה, הסיכום נחתך משני הקצוות ולא ניתן היה להגיע אליו. */
 .holo-playing .holo-scene-root { height: 100dvh; }
+/* רוחב הדף (עמוד הטקסט, וגם הדף של מסך הסיום): שליש מהמסך, בכל גודל מסך */
+:root { --page-w: 33.333vw; }
+/* במשחק המסך לא גולל: פס גלילה רק אם באמת יש מה לגלול, כדי שלא יישאר פס ריק לצד התמונה */
+html.holo-playing body { overflow-y: auto; }
 .holo-playing .scene-fade { min-height: 0; }
 
 .holo-scene-band {
@@ -244,23 +248,18 @@ html.holo-playing { font-size: 144%; }
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
-  align-items: center;
-  /* התחלה = ימין ב-RTL. הפאנל תמיד באותו צד גם כשאין במה — העקביות המרחבית
-     חשובה יותר ממילוי הרוחב, והשטח הפנוי מראה את התמונה, שהיא הנקודה. */
+  /* מקצה לקצה, בלי רווחים ובלי מסגרות (לבקשת המשתמש, כמו מסך הפתיחה): דף לבן בשליש הימני, צמוד לקצה המסך,
+     והתמונה ממלאת את שני השלישים הנותרים. התחלה = ימין ב-RTL */
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 1.25rem;
-  /* safe-area — במצב רוחבי ה-notch בצדדים ועלול לחתוך את הפאנל */
-  padding-inline: max(0px, env(safe-area-inset-left), env(safe-area-inset-right));
+  gap: 0;
 }
 
 /* ── הפאנל: תצוגה הולוגרפית של ד"ר הולו, לא רכיב UI גנרי ── */
-/* ── עמוד הטקסט: מלבן סגור לצד עמוד התמונה ──
-   ~33% מהרוחב, אך לא צר מ-19rem — מתחת לזה אורך השורה בעברית יורד מתחת
-   ל-45 תווים והקריאה נשברת לגלילה מתמדת בגובה שאין. */
+/* ── עמוד הטקסט: דף בשליש הימני של המסך, צמוד לקצה (--page-w) ── */
 .holo-side-panel {
-  flex: 0 1 33%;
+  flex: 0 0 var(--page-w);
   min-width: 0;
-  max-width: 34rem;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
@@ -349,29 +348,31 @@ html.holo-playing { font-size: 144%; }
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
-/* ── עמוד הטקסט: דף של ספר. משטח לבן, קו דיו וצל קשיח. הטקסט בדיו ── */
+/* ── עמוד הטקסט: דף של ספר. משטח לבן עד קצות המסך, וקו דיו רק בצד שפונה לתמונה. הטקסט בדיו ── */
 .holo-side-panel {
   position: relative;
-  border: var(--border-student);
-  border-radius: var(--radius-student);
-  box-shadow: var(--shadow-student);
+  border: 0;
+  border-inline-end: var(--border-student);
+  border-radius: 0;
+  box-shadow: none;
   background-color: var(--color-surface);
   color: var(--color-ink);
-  padding: 0.5rem 0.7rem;
+  padding: 0.8rem 1.1rem max(0.6rem, env(safe-area-inset-bottom));
+  padding-inline-start: max(1.1rem, env(safe-area-inset-right));
 }
 
-/* ── עמוד התמונה: מלבן סגור ─────────────────────────────────────────────
+/* ── עמוד התמונה: שני השלישים השמאליים, מקצה לקצה, בלי מסגרת ──────────────────
    התמונה חיה **רק כאן** ואינה גולשת מאחורי עמוד הטקסט. overflow:hidden כולא
-   את החיתוך, את סחיפת ה-Ken Burns ואת מעבר-הסצנה בתוך המלבן. */
+   את החיתוך, את סחיפת ה-Ken Burns ואת מעבר-הסצנה בתוך האזור. */
 .holo-image-page {
-  flex: 1 1 67%;
+  flex: 1 1 auto;
   min-width: 0;
   align-self: stretch;
   position: relative;
   overflow: hidden;
-  border-radius: var(--radius-student);
-  border: var(--border-student);
-  box-shadow: var(--shadow-student);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   background: var(--color-machine-tint);
   display: flex;
   align-items: center;
@@ -382,9 +383,10 @@ html.holo-playing { font-size: 144%; }
 
 /* ד"ר הולו כהולוגרמה: בפינת עמוד התמונה, מעל התמונה ומתחת לאתגר עצמו. לא תופס לחיצות.
    בלי z-index: הוא היה יוצר stacking context, והמיזוג עם התמונה (screen) היה נשבר למלבן שחור */
-/* מסך הפתיחה: המעבדה ממלאת את כל המסך, הפורטל במרכז וחלון הטקסט מימינו, ברווח שבין הטבעת לקצה (הטבעת כ-19.3vw או 34.3vh לכל צד, ועוד 4% לקירוב המצלמה) */
+/* מסך הפתיחה: המעבדה ממלאת את כל השכבה שמתחת לדף (גם מאחוריו), והדף באותו מקום ובאותו רוחב כמו בעמודי השיעור */
 .holo-scene-band--lab .holo-image-page { position: fixed; inset: 0; flex: none; z-index: -1; border: 0; border-radius: 0; box-shadow: none; }
-.holo-scene-band--lab .holo-side-panel { flex: 0 0 auto; width: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); max-width: none; }
+/* אתגר במסך הפתיחה: במרכז האזור שמשמאל לדף ומתחת לפס העליון, לא במרכז המסך (שם הדף היה מסתיר חלק ממנו) */
+.holo-scene-band--lab .holo-stage { position: absolute; inset-block: var(--hud-h, 4rem) 0; inset-inline-start: var(--page-w); inset-inline-end: 0; }
 /* גוף מלא: עיגון בתחתית התמונה, בצד, כ-80% מגובה התמונה. במסך נמוך הדמות גדלה, כדי שהפנים יהיו קריאים, ולא נחתכת */
 
 /* שכבת כהיה מקומית — רק בתוך מלבן התמונה, לא על כל המסך. האתגר קריא
@@ -507,13 +509,9 @@ html.holo-playing { font-size: 144%; }
      הפאנל מצטמצם לרצועה צדדית והבמה מקבלת את רוב הרוחב. שניהם ממלאים את
      מלוא הגובה הפנוי בין הסרגלים, ומה שגולש נגלל בתוך האלמנט עצמו — כך אף
      אתגר לא נדחף מתחת ל-HUD. */
-  .holo-scene-band { gap: 0.7rem; align-items: stretch; }
-  .holo-side-panel {
-    flex: 0 1 33%;
-    min-width: 0;          /* ברוחב מובייל 33% מ-844 = 278px, עדיין קריא */
-    max-width: 20rem;
-  }
-  .holo-image-page { border-radius: 0.75rem; }
+  /* אין מקום לסמל הספר: הכותרת קודמת לו */
+  .holo-hud-top .holo-hud-mark { display: none; }
+  .holo-side-panel { padding: 0.5rem 0.75rem max(0.4rem, env(safe-area-inset-bottom)); padding-inline-start: max(0.75rem, env(safe-area-inset-right)); }
 
   /* בחירה מרובה במרכז על גובה ~390px: רשימה אנכית של 4 תשובות בעברית לא
      נכנסת בלי גלילה. פריסת 2×2 מנצלת את הרוחב שיש במקום הגובה שאין. */

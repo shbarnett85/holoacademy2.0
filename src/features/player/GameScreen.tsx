@@ -534,13 +534,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
 
       {/* אזור הסצנה — רקע הממשק, ועליו עמוד הטקסט ועמוד התמונה */}
       <div
-        className="scene-fade flex-1 flex flex-col items-center justify-center p-6 gap-6 relative"
+        className="scene-fade flex-1 flex flex-col relative"
         style={{
           zIndex: 1,
-          /* התמונה (absolute inset:0) ממלאת את כל ה-viewport; ה-padding התחתון שומר על התוכן
-             מעל הפס התחתון (HUD) שמרחף שקוף מעל תחתית התמונה */
-          paddingBottom: '1rem', /* אין יותר פס תחתון — הגובה מוחזר לבמה */
-          paddingTop: '4rem', /* מרווח מתחת לפס העליון (TopHUD) כדי שהתוכן לא ייחתך */
+          /* מקצה לקצה: הדף והתמונה מתחילים בדיוק מתחת לפס העליון (גובהו הנמדד, TopHUD → --hud-h) ונגמרים בתחתית המסך */
+          paddingTop: 'var(--hud-h, 4rem)',
           background: 'var(--page-background)',
         }}
       >

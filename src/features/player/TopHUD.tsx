@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useSoundSettings } from '../../shared/lib/sound'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import { BOOK_TEXT } from './gameFeel/text'
@@ -22,12 +23,25 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
   pageMarks?: PageMark[]
 }) {
   const { muted, toggleMuted } = useSoundSettings()
+  /* הגובה של הפס נמדד ונחשף כ---hud-h: הדף והתמונה שמתחתיו מתחילים בדיוק בקצה התחתון שלו */
+  const barRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const el = barRef.current
+    if (!el) return
+    const root = document.documentElement
+    const set = () => root.style.setProperty('--hud-h', `${el.offsetHeight}px`)
+    set()
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(set)
+    ro?.observe(el)
+    return () => { ro?.disconnect(); root.style.removeProperty('--hud-h') }
+  }, [])
   const name = (studentName ?? '').trim()
   const pct = progress && progress.total > 0 ? Math.max(0, Math.min(100, Math.round((progress.current / progress.total) * 100))) : null
   return (
     <>
       {/* הפס עצמו — מחליק כלפי מעלה במצב-עין */}
       <div
+        ref={barRef}
         className="fixed top-0 left-0 right-0 flex items-center gap-3 px-4 py-2 holo-hud-top"
         style={{
           zIndex: 70,
