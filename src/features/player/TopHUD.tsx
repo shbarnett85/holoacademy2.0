@@ -1,10 +1,11 @@
 import { useSoundSettings } from '../../shared/lib/sound'
 import { BOOK_TEXT } from './gameFeel/text'
+import type { PageMark } from '../../shared/lib/bookPages'
 
 /* ה-HUD שבראש מסך המשחק: רקע לבן וקו דיו (index.css: .holo-hud-top).
    התחלה (ימין ב-RTL): שם התלמיד/ה ואווטאר באפרסק, וכותרת העמוד. סוף: קריסטלים וחפצים, השתקה ויציאה.
    פס ההתקדמות (כתום) רץ לאורך הקצה התחתון של ה-HUD, ולכן אינו תופס מקום בשורה. */
-export default function TopHUD({ title, onExit, hidden = false, hudSlot, studentName, progress, page }: {
+export default function TopHUD({ title, onExit, hidden = false, hudSlot, studentName, progress, page, pageMarks }: {
   title: string; onExit: () => void; hidden?: boolean
   /* קריסטלים + תאי חפצים. הם חיים ברצועה **העליונה** ולא בפס תחתון נפרד:
      במצב רוחבי במובייל הגובה הוא המשאב הנדיר, ורצועה שנייה גוזלת ~50px יקרים. */
@@ -15,6 +16,8 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
   progress?: { current: number; total: number } | null
   /* מספר העמוד: המקום של העמוד הנוכחי בספר ("עמוד 3 מתוך 6") */
   page?: { current: number; total: number } | null
+  /* פס ההתקדמות מחולק למקטעים: מקטע לכל עמוד בספר (נפתח / נוכחי / עוד לא). בלי ערך: פס רציף */
+  pageMarks?: PageMark[]
 }) {
   const { muted, toggleMuted } = useSoundSettings()
   const name = (studentName ?? '').trim()
@@ -73,9 +76,13 @@ export default function TopHUD({ title, onExit, hidden = false, hudSlot, student
         </button>
 
         </div>
+        {/* פס ההתקדמות: מקטע לכל עמוד, לאורך תחתית ה-HUD. עמוד שנפתח מתמלא בכתום, והעמוד הנוכחי גבוה יותר */}
         {pct !== null && (
-          <div className="holo-hud-progress" data-hud-progress={pct} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="ההתקדמות בשיעור">
-            <i style={{ width: `${pct}%` }} />
+          <div className={`holo-hud-progress${pageMarks?.length ? ' holo-hud-progress--pages' : ''}`} data-hud-progress={pct} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="ההתקדמות בשיעור"
+            aria-valuetext={page && page.current > 0 ? BOOK_TEXT.page(page.current, page.total) : undefined}>
+            {pageMarks?.length
+              ? pageMarks.map((m, i) => <i key={i} data-page={m} />)
+              : <i style={{ width: `${pct}%` }} />}
           </div>
         )}
       </div>

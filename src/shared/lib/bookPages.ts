@@ -16,3 +16,10 @@ export function bookmarkPage(scenes: readonly { id: string }[] | null | undefine
     .sort((a, b) => String(b.last_seen_at ?? '').localeCompare(String(a.last_seen_at ?? '')))[0]
   return open ? pageNumberOf(scenes, open.live!.sceneId as string) : null
 }
+
+/* פס ההתקדמות ב-HUD: מקטע לכל עמוד בספר, לפי סדר העמודים. read = עמוד שכבר נפתח, current = העמוד שקוראים עכשיו */
+export type PageMark = 'read' | 'current' | 'unread'
+export function pageMarks(scenes: readonly { id: string }[] | null | undefined, visited: readonly string[], currentId: string | null | undefined): PageMark[] {
+  const seen = new Set(visited)
+  return (scenes ?? []).map((s) => (s.id === currentId ? 'current' : seen.has(s.id) ? 'read' : 'unread'))
+}

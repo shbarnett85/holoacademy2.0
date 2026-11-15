@@ -25,7 +25,7 @@ import { homePathForRole } from '../../shared/lib/homePath'
 import { initSound } from '../../shared/lib/sound'
 import { feelLevel, resetFeel, setFeelLevel, setReading, sounds, startFpsProbe } from './gameFeel/engine'
 import { BOOK_TEXT } from './gameFeel/text'
-import { pageNumberOf } from '../../shared/lib/bookPages'
+import { pageMarks, pageNumberOf } from '../../shared/lib/bookPages'
 import { STORY_FONT_FAMILY, usesStoryFont } from '../../shared/lib/storyFont'
 import { PAGE_TEXT_IN_MS, PAGE_TEXT_OUT_MS, pageTextDelayMs, planPageTurn } from './sceneSwap'
 
@@ -778,6 +778,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
         progress={{ current: new Set([...engine.visitedScenes, scene.id]).size, total: gameData.scenes.length }}
         /* "עמוד 3 מתוך 6": המקום של העמוד בספר (בקוד: scene). עמוד שלא נמצא במערך: בלי תווית */
         page={{ current: pageNumberOf(gameData.scenes, scene.id) ?? 0, total: gameData.scenes.length }}
+        pageMarks={pageMarks(gameData.scenes, engine.visitedScenes, scene.id)}
         hudSlot={<>
           <GemBar value={engine.gemValue} />
           <ItemSlots inventory={engine.inventory} justCollected={engine.justCollected} onUseItem={engine.useItem} />
