@@ -32,6 +32,37 @@ export const SHELF_TEXT = {
   count: (shown: number, total: number): string => `${shown}${shown !== total ? `/${total}` : ''} שיעורים`,
 } as const
 
+/* הבית של התלמיד: הפורטל מציג שיעור אחד (ברירת המחדל: האחרון שהתקבל), החצים מדפדפים, ולמטה חיפוש ובחירה */
+export const PORTAL_TEXT = {
+  hello: 'שלום,',
+  position: (i: number, n: number): string => `שיעור ${i} מתוך ${n}`,
+  prev: 'השיעור הקודם',
+  next: 'השיעור הבא',
+  /* הכפתור שמתחת לפורטל, לפי מצב השיעור */
+  playNew: 'שחקו עכשיו',
+  playContinue: 'המשיכו לקרוא',
+  playAgain: 'שחקו שוב',
+  /* מה ד"ר הולו אומר, לפי מצב השיעור שבפורטל */
+  bubbleNew: 'שיעור חדש מחכה לכם בפורטל!',
+  bubbleReading: 'אתם באמצע השיעור הזה. ממשיכים?',
+  bubbleDone: 'את השיעור הזה כבר סיימתם. אפשר לשחק שוב.',
+  bubbleEmpty: 'הפורטל מחכה לשיעור הראשון שלכם.',
+  fromTeacher: (name: string): string => `מאת ${name}`,
+  findLink: 'חיפוש שיעור ↓',
+  findTitle: 'מחפשים שיעור מסוים?',
+  findSub: 'בחרו שיעור מהרשימה, והוא יופיע בפורטל.',
+  searchPlaceholder: 'חיפוש לפי שם שיעור…',
+  clear: '✕ ניקוי הסינון',
+  noMatch: 'לא נמצאו שיעורים שמתאימים לסינון',
+  inPortal: 'בפורטל עכשיו',
+  none: 'עדיין לא הוקצו לכם שיעורים',
+  noneSub: 'המורה יעדכן בקרוב ✨',
+  notLoggedIn: 'לא מחוברים — חזרו לקישור הכיתה',
+  mute: 'השתקת הצליל',
+  unmute: 'הפעלת הצליל',
+  exit: 'יציאה',
+} as const
+
 export const HUD_TEXT = {
   barLabel: (whole: number): string => `${gemsWord(whole)} מתוך 5`,
   streak: (n: number): string => `רצף ×${n}`,

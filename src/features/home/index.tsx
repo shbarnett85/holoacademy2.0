@@ -1,16 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import { GemDefs, GemIcon } from '../../shared/ui/Gem'
-import { legacySubjectToCode, subjectVisual } from '../../shared/lib/subjects'
+import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
-import LabStage from '../player/lab/LabStage'
-import { OPENING_STAGE, labCover } from '../player/lab/labComposition'
-import { useGameFeel } from '../player/gameFeel/engine'
+import PortalHero from '../player/lab/PortalHero'
+import { usePortalDive } from '../player/lab/usePortalDive'
 
-/* שיעור בחלון הראווה — המדף "התנסו עכשיו" ללא הרשמה */
+/* שיעור בחלון הראווה — שיעורי ההתנסות ללא הרשמה, שמוצגים בפורטל */
 interface ShowcaseQuest {
   id: string
   title: string
@@ -19,14 +18,6 @@ interface ShowcaseQuest {
   gradeMax: number | null
   sceneCount: number
   thumbUrl: string | null
-}
-
-const GRADE_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'יא', 'יב']
-function gradeRangeLabel(min: number | null, max: number | null): string | null {
-  const a = min && min >= 1 && min <= 12 ? GRADE_LETTERS[min - 1] : null
-  const b = max && max >= 1 && max <= 12 ? GRADE_LETTERS[max - 1] : null
-  if (a && b) return a === b ? `כיתה ${a}׳` : `כיתות ${a}׳-${b}׳`
-  return a ? `כיתה ${a}׳` : null
 }
 
 /* סימן הבית: הקריסטל בשפה החזותית החדשה (אותו קריסטל של המשחק, מקובץ הטוקנים) ומתחתיו שם המותג באותיות בדיו.
@@ -51,36 +42,6 @@ const reduceMotion =
     /* override ל-QA — מדמה reduced-motion בלי לשנות הגדרת מערכת */
     new URLSearchParams(window.location.search).has('reduce-motion'))
 
-/* ── המדף: השיעורים כספרים שעומדים על מדף (אופקי, מעגלי) ──────────────────────
-   כל שיעור הוא כריכה: תמונה, שם, ופס בצבע המקצוע בצד הכריכה (ימין, כמו ספר בעברית).
-   כל השיעורים ב-DOM תמיד (נגישות מקלדת); הנראוּת נגזרת מהמרחק המעגלי d מהאינדקס הנוכחי:
-   d<cols גלוי על המדף, d=n-1 חונה מימין (כניסה/יציאה), השאר משמאל. transform/opacity בלבד.
-   סיבוב אוטומטי 7ש׳ לספר; נעצר בריחוף/פוקוס; כבוי לגמרי ב-reduced-motion.
-   פוקוס על ספר נסתר מביא אותו אל המדף (אין מלכודת מקלדת). */
-const COVER_W = 160
-const COVER_H = 244
-const COVER_GAP = 14
-const COVER_STEP = COVER_W + COVER_GAP
-const SPINE_W = 12
-/* הספר מתרומם מעט בריחוף: משאירים לו מקום מעל המדף */
-const LIFT_ROOM = 8
-
-/* כמה ספרים נכנסים במדף, לפי הרוחב שלו בפועל */
-function useShelfCols(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [cols, setCols] = useState(3)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const calc = () => setCols(Math.max(1, Math.floor((el.clientWidth + COVER_GAP) / COVER_STEP)))
-    calc()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(calc)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [ref])
-  return cols
-}
-
 function SectionHead({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub: string }) {
   return (
     <div>
@@ -89,111 +50,6 @@ function SectionHead({ icon, title, sub }: { icon: React.ReactNode; title: React
         <span>{title}</span>
       </h2>
       <div style={{ fontSize: 'var(--fs-side-sub)', color: 'var(--color-muted)', marginTop: 2, lineHeight: 1.4 }}>{sub}</div>
-    </div>
-  )
-}
-
-function Bookshelf({ quests }: { quests: ShowcaseQuest[] }) {
-  const navigate = useNavigate()
-  const railRef = useRef<HTMLDivElement>(null)
-  const colsFit = useShelfCols(railRef)
-  const [cur, setCur] = useState(0)
-  const [paused, setPaused] = useState(false)
-  const n = quests.length
-  const cols = Math.min(colsFit, n)
-  const rotate = n > cols
-  const timer = useRef<number | undefined>(undefined)
-
-  useEffect(() => {
-    if (!rotate || reduceMotion || paused) return
-    timer.current = window.setInterval(() => setCur((c) => (c + 1) % n), 7000)
-    return () => window.clearInterval(timer.current)
-  }, [rotate, paused, n])
-
-  const go = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
-  /* הספרים ממורכזים על המדף כשיש פחות ספרים מהמקום */
-  const rowW = cols * COVER_STEP - COVER_GAP
-
-  return (
-    <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocusCapture={() => setPaused(true)}
-      onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) }}
-      aria-label="שיעורים מוכנים להתנסות"
-      style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
-    >
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <SectionHead
-          icon={<BrandIcon name="playGem" size={22} style={{ color: 'var(--color-ink)' }} />}
-          title={<>התנסו עכשיו - <span style={{ color: 'var(--color-human-deep)' }}>ללא הרשמה</span></>}
-          sub="מהספרייה הרשמית — לחצו ושחקו"
-        />
-        {/* חצים ידניים — גלויים תמיד כשיש יותר ספרים מהמקום (וגם היחידים ב-reduced-motion) */}
-        {rotate && (
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            {([['chevUp', -1, 'השיעור הקודם', 'rotate(90deg)'], ['chevDown', 1, 'השיעור הבא', 'rotate(90deg)']] as const).map(([name, dir, label, turn]) => (
-              <button key={name} onClick={() => go(dir)} aria-label={label} className="holo-button holo-button--sm"
-                style={{ width: 44, height: 36, padding: 0, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BrandIcon name={name} size={16} style={{ transform: turn }} />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* המדף: הספרים, ומתחתיהם הקרש */}
-      <div>
-        <div ref={railRef} style={{ position: 'relative', height: COVER_H + LIFT_ROOM, overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: LIFT_ROOM, bottom: 0, left: '50%', width: rowW, transform: 'translateX(-50%)' }}>
-            {quests.map((q, i) => {
-              const d = ((i - cur) % n + n) % n
-              const visible = d < cols
-              /* מיקום: גלויים על המדף (מימין לשמאל); האחרון במעגל חונה מימין; השאר משמאל */
-              const slot = visible ? d : d === n - 1 ? -1 : cols
-              const grades = gradeRangeLabel(q.gradeMin, q.gradeMax)
-              const code = legacySubjectToCode(q.subject)
-              return (
-                <div key={q.id} style={{
-                  position: 'absolute', top: 0, right: 0, width: COVER_W, height: COVER_H,
-                  transform: `translateX(${-slot * COVER_STEP}px)`,
-                  opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none',
-                  transition: reduceMotion ? 'none' : 'transform .55s cubic-bezier(.3,.7,.3,1), opacity .35s ease',
-                }}>
-                  <button
-                    className="home-cover"
-                    data-showcase-cover={q.id}
-                    onClick={() => { trackFunnel('showcase_click', q.id); navigate(`/play/${q.id}`) }}
-                    onFocus={() => { if (!visible) setCur(i) }}
-                    tabIndex={0}
-                    aria-hidden={visible ? undefined : true}
-                    style={{
-                      position: 'relative', width: '100%', height: '100%', boxSizing: 'border-box', padding: 0, overflow: 'hidden',
-                      display: 'flex', flexDirection: 'column', textAlign: 'right', cursor: 'pointer', fontFamily: 'var(--font-display)',
-                      background: 'var(--color-surface)', color: 'var(--color-ink)', border: 'var(--border-student)', borderRadius: '6px 12px 12px 6px',
-                      paddingInlineStart: SPINE_W,
-                    }}
-                  >
-                    {/* שדרת הספר: פס בצבע המקצוע (שם המקצוע כתוב בתגית שעל התמונה) */}
-                    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: 0, width: SPINE_W, background: subjectVisual(code).color, borderInlineEnd: '2px solid var(--color-ink)' }} />
-                    <span style={{ position: 'relative', display: 'block', flex: '0 0 auto', height: 112, background: 'var(--color-machine-tint)', borderBottom: '2px solid var(--color-ink)' }}>
-                      {q.thumbUrl && <img src={q.thumbUrl} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
-                      {q.subject && <span style={{ position: 'absolute', top: 6, insetInlineStart: 6, maxWidth: 'calc(100% - 12px)', display: 'inline-flex' }}><SubjectTag code={code} size="sm" /></span>}
-                    </span>
-                    <span style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6, padding: '7px 9px 8px' }}>
-                      <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>{q.title}</span>
-                      {grades && <span style={{ ...infoChip, alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 600, padding: '1px 7px', borderRadius: 6, whiteSpace: 'nowrap' }}>{grades}</span>}
-                      <span className="holo-button holo-button--sm" style={{ marginTop: 'auto', marginInlineEnd: 3, marginBottom: 3, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, padding: '3px 9px', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>שחקו <BrandIcon name="play" size={11} /></span>
-                    </span>
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-        {/* הקרש של המדף */}
-        <div aria-hidden="true" style={{ height: 14, background: 'var(--color-human-soft)', border: 'var(--border-student)', borderRadius: 6, boxShadow: 'var(--shadow-button)' }} />
-      </div>
     </div>
   )
 }
@@ -208,19 +64,15 @@ const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text
 
 /* כמה זמן שיעור אחד מוצג בפורטל לפני שהוא מתחלף */
 const PORTAL_ROTATE_MS = 7000
-/* רשת ביטחון לצלילה: האנימציה לא חייבת להסתיים (לשונית מוסתרת), והניווט לא יכול להיתקע */
-const DIVE_FALLBACK_MS = 1700
-/* איפה הבועה של ד"ר הולו, בקואורדינטות של תמונת הספרייה: מעל הראש שלו */
-const BUBBLE_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
 
-/* מסך הבית — "הספרייה ההולוגרפית": המסך הראשון הוא הבמה של פתיחת שיעור (LabStage) במסך מלא. הפורטל מציג שיעור התנסות
+/* מסך הבית — "הספרייה ההולוגרפית": המסך הראשון הוא הבמה של פתיחת שיעור במסך מלא (PortalHero). הפורטל מציג שיעור התנסות
    כהולוגרמה (מתחלף כל כמה שניות; לחיצה עליו או על "שחקו עכשיו" צוללת לתוכו ופותחת את השיעור), ד"ר הולו מקבל את הפנים,
-   ומימין חלון צף עם הסימן ושתי הכניסות. בגלילה למטה: מדף שיעורי ההתנסות, שלושת השלבים ורצועת היתרונות.
+   ומימין חלון צף עם הסימן ושתי הכניסות. בגלילה למטה: שלושת השלבים ורצועת היתרונות.
+   שיעורי ההתנסות מוצגים רק בפורטל (היה גם מדף מתחתיו; הוסר לבקשת המשתמש, כי הוא הציג את אותם שיעורים פעם שנייה).
    הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה → /class/:code; מורה → /staff/login; שיעור התנסות → /play/:id. */
 export default function Home() {
   const navigate = useNavigate()
-  const feel = useGameFeel()
-  const moving = !feel.reduced && feel.level !== 'gentle'
+  const { leaving, dive, onDiveEnd } = usePortalDive()
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
@@ -236,7 +88,6 @@ export default function Home() {
   /* השיעור שבפורטל: מתחלף מעצמו, ונעצר בריחוף ובפוקוס על השורה שמתחת לפורטל, בתנועה מופחתת ובזמן הצלילה */
   const [cur, setCur] = useState(0)
   const [paused, setPaused] = useState(false)
-  const [leaving, setLeaving] = useState<'dive' | undefined>(undefined)
   const n = showcase.length
   const featured: ShowcaseQuest | undefined = n ? showcase[cur % n] : undefined
   useEffect(() => {
@@ -246,31 +97,11 @@ export default function Home() {
   }, [n, paused, leaving])
   const step = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
 
-  /* כניסה לשיעור ההתנסות: צלילה לפורטל ואז ניווט. בלי תנועה (תנועה מופחתת, עוצמה עדינה): ניווט מיד */
-  const target = useRef<string | null>(null)
-  const go = () => { const to = target.current; target.current = null; if (to) navigate(to) }
   function play() {
-    if (target.current) return
+    if (leaving) return
     if (featured) trackFunnel('showcase_click', featured.id)
-    target.current = featured ? `/play/${featured.id}` : '/play/leonardo'
-    if (!moving) { go(); return }
-    setLeaving('dive')
-    window.setTimeout(go, DIVE_FALLBACK_MS)
+    dive(featured ? `/play/${featured.id}` : '/play/leonardo')
   }
-
-  /* הבועה של ד"ר הולו יושבת בקואורדינטות של תמונת הספרייה, ולכן נשארת מעל הראש שלו בכל גודל מסך */
-  const stageRef = useRef<HTMLDivElement>(null)
-  const [bubble, setBubble] = useState<{ left: number; top: number } | null>(null)
-  useLayoutEffect(() => {
-    const el = stageRef.current
-    if (!el) return
-    const measure = () => { const c = labCover(el.clientWidth, el.clientHeight, OPENING_STAGE); setBubble({ left: c.x + BUBBLE_AT.x * c.scale, top: c.y + BUBBLE_AT.y * c.scale }) }
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   /* ‏Escape סוגר את מודאל קוד-הכיתה — אותה התנהגות כמו כל חלונות הכניסה */
   useEffect(() => {
@@ -286,61 +117,39 @@ export default function Home() {
     navigate(`/class/${code}`)
   }
 
-  const featuredCode = featured ? legacySubjectToCode(featured.subject) : null
-
   return (
     <div dir="rtl" className="home4">
       <GemDefs />
 
       {/* ── המסך הראשון: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
-      <section className="home4-hero" data-home-hero data-leaving={leaving}>
-        <div ref={stageRef} className="home4-stage">
-          <LabStage
-            state="opening"
-            portalSrc={featured?.thumbUrl ?? undefined}
-            mood="neutral"
-            leaving={leaving}
-            onDiveEnd={go}
-            onPortalClick={play}
-            portalLabel={featured ? `שחקו עכשיו: ${featured.title}` : 'שחקו בשיעור ההתנסות'}
-          />
-          {bubble && (
-            <div className="home4-bubble home4-fade" data-home-bubble style={{ left: bubble.left, top: bubble.top }}>
-              ברוכים הבאים לספרייה ההולוגרפית! הפורטל פתוח.
+      <PortalHero
+        portalSrc={featured?.thumbUrl ?? undefined}
+        portalLabel={featured ? `שחקו עכשיו: ${featured.title}` : 'שחקו בשיעור ההתנסות'}
+        onPortalClick={play}
+        leaving={leaving}
+        onDiveEnd={onDiveEnd}
+        bubble="ברוכים הבאים לספרייה ההולוגרפית! הפורטל פתוח."
+        underProps={{
+          onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false),
+          onFocusCapture: () => setPaused(true), onBlurCapture: (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) },
+        }}
+        under={<>
+          {featured && (
+            <div className="home4-now-row">
+              {n > 1 && <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">→</span></button>}
+              <div className="home4-now-card" aria-live="polite">
+                <span className="home4-now-title">{featured.title}</span>
+                {featured.subject && <SubjectTag code={legacySubjectToCode(featured.subject)} size="sm" />}
+              </div>
+              {n > 1 && <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">←</span></button>}
             </div>
           )}
-          <div
-            className="home4-now home4-fade" data-home-now
-            onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-            onFocusCapture={() => setPaused(true)} onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) }}
-          >
-            {featured && (
-              <div className="home4-now-row">
-                {n > 1 && (
-                  <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow">
-                    <span aria-hidden="true">→</span>
-                  </button>
-                )}
-                <div className="home4-now-card" aria-live="polite">
-                  <span className="home4-now-title">{featured.title}</span>
-                  {featured.subject && <SubjectTag code={featuredCode} size="sm" />}
-                </div>
-                {n > 1 && (
-                  <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow">
-                    <span aria-hidden="true">←</span>
-                  </button>
-                )}
-              </div>
-            )}
-            <button onClick={play} className="holo-button home4-play" data-home-play>
-              <BrandIcon name="playGem" size={22} />
-              <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
-            </button>
-          </div>
-        </div>
-
-        {/* החלון הצף: הסימן ושתי הכניסות */}
-        <div className="home4-panel home4-fade" data-home-panel style={panelStudent}>
+          <button onClick={play} className="holo-button home4-play" data-home-play>
+            <BrandIcon name="playGem" size={22} />
+            <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
+          </button>
+        </>}
+        panel={<>
           <HomeMark />
           <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
           <p className="home4-tagline">ממד חדש של למידה!</p>
@@ -375,18 +184,11 @@ export default function Home() {
             style={{ alignSelf: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
             איך זה עובד? ↓
           </button>
-        </div>
-      </section>
+        </>}
+      />
 
-      {/* ── בגלילה למטה: מדף, שלבים ורצועה ── */}
+      {/* ── בגלילה למטה: שלושת השלבים ורצועת היתרונות ── */}
       <div className="home4-more">
-        {showcase.length > 0 && (
-          <section>
-            <Bookshelf quests={showcase} />
-          </section>
-        )}
-
-        {/* איך זה עובד: שלושה שלבים ברצף */}
         <section id="home-how" className="home4-steps">
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <SectionHead

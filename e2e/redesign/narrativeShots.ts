@@ -1,10 +1,10 @@
 /* ──────────────────────────────────────────────────────────────────────────
    צילומי חלק ב' (הנרטיב: "הספרייה ההולוגרפית"). כלי בדיקה בלבד: הנגן האמיתי עם /api מדומה, בלי כתיבה ל-DB.
-   · shelf: מדף הספרים בשלושת המצבים (חדש, בקריאה עם סימנייה, הושלם עם קריסטלים), גם בטלפון לרוחב.
+   (הבית של התלמיד, שהיה מדף ספרים והפך לפורטל: e2e/redesign/homeShots.ts --only student.)
    · pages: עמוד משחק ברמה 5 (הגופן הנקי) וברמה 12 (גופן הסיפור), במחשב נייד ובטלפון לרוחב, ובדיקה שאין גלישה.
    · turn: המעבר בין עמודים, פריים אחרי פריים (האנימציות מושהות ומקודמות ידנית).
    · end: מסך "סוף הפרק" עם 2, 3 ו-5 קריסטלים.
-   הרצה:  npx tsx e2e/redesign/narrativeShots.ts --out reports/redesign/narrative [--only shelf,pages,turn,end]
+   הרצה:  npx tsx e2e/redesign/narrativeShots.ts --out reports/redesign/narrative [--only pages,turn,end]
    ────────────────────────────────────────────────────────────────────────── */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync } from 'node:fs'
@@ -15,7 +15,7 @@ import { DEFAULT_BASE, findChrome } from '../lib/config.ts'
 const args = process.argv.slice(2)
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d }
 const OUT = opt('out', 'reports/redesign/narrative')
-const ONLY = opt('only', 'shelf,pages,turn,end').split(',')
+const ONLY = opt('only', 'pages,turn,end').split(',')
 mkdirSync(OUT, { recursive: true })
 let failed = 0
 const shot = async (page: Page, name: string) => { await page.screenshot({ path: path.join(OUT, `${name}.png`) }); console.log('  shot', name) }
@@ -76,41 +76,6 @@ async function next(page: Page): Promise<void> {
 }
 /* מה שהתלמיד רואה על המסך (בלי תגי קוד) */
 const visibleText = (page: Page) => page.evaluate(() => document.body.innerText)
-
-async function shelf(browser: Browser): Promise<void> {
-  console.log('== shelf ==')
-  const day = 86_400_000
-  const now = Date.now()
-  const subj = ['math', 'history', 'science', 'hebrew', 'english', null, 'geography']
-  const names = ['מתמטיקה', 'היסטוריה', 'מדעים', 'עברית', 'אנגלית', null, 'גאוגרפיה']
-  const titles = ['קרב השברים', 'מסע אל המעיין', 'טיפת המים', 'בלשי השורש', 'The Lost Key', 'שיעור בלי מקצוע', 'מפת האוצר של הנגב']
-  const quests = subj.map((s, i) => ({
-    id: `q${i}`, title: titles[i], sceneCount: 6, artStyle: 'digital-painting', subject: names[i], subjectCode: s, teacherName: 'המורה רון',
-    assignedAt: new Date(now - (i + 1) * day).toISOString(), entryImageUrl: i === 4 ? null : IMGS[i % IMGS.length], thumbUrl: i === 4 ? null : IMGS[i % IMGS.length], gradeMin: 5, gradeMax: 6,
-    dueAt: i === 6 ? null : new Date(now + (i === 2 ? -2 : 3 + i) * day).toISOString(), state: i === 2 ? 'ended' : 'open', late: i === 4,
-    sessionStatus: i === 3 || i === 4 ? 'completed' : i === 1 || i === 6 ? 'in_progress' : null, crystals: i === 3 ? 4 : i === 4 ? 2 : null, gems: i === 3 ? 5 : i === 4 ? 2 : null, maxScore: 5, isReview: false,
-    bookmarkPage: i === 1 ? 3 : null,
-  }))
-  for (const [name, w, h] of [['shelf-desktop', 1366, 768], ['shelf-phone-landscape', 740, 360]] as const) {
-    await safe(name, async () => {
-      const ctx = await ctxOf(browser, w, h)
-      const page = await ctx.newPage()
-      await page.route('**/api/**', (r) => r.fulfill({ json: {} }))
-      await page.route('**/api/sessions/assigned', (r) => r.fulfill({ json: { quests } }))
-      await page.goto(`${DEFAULT_BASE}/student`, { waitUntil: 'networkidle' }).catch(() => undefined)
-      await page.waitForTimeout(1500); await shot(page, name)
-      const text = await visibleText(page)
-      check(text.includes('הספרייה ההולוגרפית'), `${name}: הכותרת "הספרייה ההולוגרפית"`)
-      check(!text.includes('הספרן הראשי') && await page.locator('img[src*="dr-holo"]').count() === 0, `${name}: בלי שורת הספרן ובלי התמונה של ד"ר הולו`)
-      check(!/סצנ/.test(text), `${name}: אין "סצנה"`)
-      check(text.includes('עמוד 3'), `${name}: סימנייה "עמוד 3"`)
-      check(await page.locator('[data-book-cover] .holo-button, [data-book-cover] button').count() === 0, `${name}: בכריכה אין כפתור`)
-      await page.evaluate(() => document.querySelector('[data-book-shelf]')?.scrollIntoView({ block: 'start' }))
-      await page.waitForTimeout(400); await shot(page, `${name}-covers`)
-      await ctx.close()
-    })
-  }
-}
 
 async function pages(browser: Browser): Promise<void> {
   console.log('== pages ==')
@@ -253,7 +218,6 @@ async function end(browser: Browser): Promise<void> {
 
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--autoplay-policy=no-user-gesture-required'] })
 try {
-  if (ONLY.includes('shelf')) await shelf(browser)
   if (ONLY.includes('pages')) await pages(browser)
   if (ONLY.includes('turn')) await turn(browser)
   if (ONLY.includes('end')) await end(browser)

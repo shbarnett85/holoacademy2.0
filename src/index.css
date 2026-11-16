@@ -125,7 +125,7 @@
 /* ── דף הבית: "הספרייה ההולוגרפית" במסך מלא (RTL) ────────────────────────────
    המסך הראשון הוא הבמה של פתיחת שיעור (LabStage): ספריית השרתים, הפורטל במרכז עם שיעור התנסות כהולוגרמה,
    ד"ר הולו משמאל, ומימין חלון לבן צף עם הסימן ושתי הכניסות. מתחת לפורטל: איזה שיעור מוצג בו, וכפתור "שחקו עכשיו".
-   בגלילה למטה, על רקע העמוד: מדף שיעורי ההתנסות, שלושת השלבים ורצועת היתרונות.
+   בגלילה למטה, על רקע העמוד: שלושת השלבים ורצועת היתרונות. אותה במה משמשת גם את הבית של התלמיד (PortalHero).
    במסך צר או גבוה (אין מקום לחלון לצד הטבעת): הבמה למעלה, והחלון מתחתיה. */
 .home4 {
   position: relative;
@@ -204,10 +204,6 @@
 .home3-step-row { list-style: none; margin: 0; padding: 0; display: flex; align-items: stretch; gap: 10px; }
 .home3-step { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; }
 .home3-step-arrow { flex-shrink: 0; font-size: 26px; font-weight: 900; color: var(--color-ink); line-height: 1; }
-/* ספר על המדף: מתרומם מעט בריחוף ובפוקוס */
-.home-cover { transition: transform .14s ease; }
-.home-cover:hover, .home-cover:focus-visible { transform: translateY(-6px); }
-.home-cover:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; }
 /* אין מקום לחלון לצד הטבעת (מסך צר, או מסך גבוה ביחס לרוחב): הבמה למעלה והחלון מתחתיה */
 @media (max-width: 1099px), (max-aspect-ratio: 7/5) {
   .home4-hero { height: auto; min-height: 0; display: flex; flex-direction: column; }
@@ -235,51 +231,19 @@
   .home4-panel, .home4-bubble, .home4-now { animation: none; }
 }
 
-/* ── מדף הספרים של התלמיד ("הספרייה ההולוגרפית", features/player/BookShelf.tsx) ──────────────
-   ארון ספרים: מסגרת בדיו, ובתוכה מדפים. כל כריכה עומדת על קרש; הקרש של כל תא נמתח לכל רוחב הארון
-   (והארון חותך אותו), ולכן כל שורה היא מדף רציף גם כשהיא לא מלאה.
-   הכריכה היא קישור בדיו עם קו מתאר (לא כפתור): בלי צל, ומתרוממת מעט בריחוף ובפוקוס. */
-.book-case {
-  --cover-w: 172px; --cover-h: 258px; --cover-img: 116px; --cover-title: 15px; --plank: 16px;
-  border: var(--border-student); border-radius: var(--radius-student); box-shadow: var(--shadow-student);
-  background: var(--color-surface); overflow: hidden; padding: 0 clamp(8px, 1.4vw, 20px);
+/* ── הבית של התלמיד (features/player/StudentHome.tsx): השיעור שבפורטל, והרשימה שבתחתית העמוד ── */
+.home4-corner { position: absolute; z-index: 2; top: 14px; inset-inline-end: 14px; display: flex; gap: 10px; align-items: center; }
+.shome-lesson { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.2vh, 10px); padding: clamp(10px, 1.8vh, 16px) 12px; border-radius: 14px; background: var(--color-machine-tint); border: 2px solid var(--color-ink); }
+.shome-lesson-title { margin: 0; font-size: clamp(20px, 1.7vw, 27px); font-weight: 900; line-height: 1.25; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+/* הרשימה: שורה לכל שיעור (תמונה קטנה, שם, מקצוע ומצב). בחירה מביאה את השיעור אל הפורטל */
+.shome-results { list-style: none; margin: 0; padding: 2px 6px 6px 2px; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 12px; }
+.shome-result.holo-button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 14px; text-align: right; font-family: var(--font-display); }
+.shome-result-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.shome-result-title { font-size: 16px; font-weight: 800; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.shome-result-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; font-weight: 600; }
+@media (max-width: 1099px), (max-aspect-ratio: 7/5) {
+  .home4-corner { top: 10px; inset-inline-end: 10px; }
 }
-.book-shelf { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--cover-w) + 18px), 1fr)); }
-.book-cell { position: relative; display: flex; justify-content: center; padding: 30px 0 var(--plank); }
-.book-cell::after {
-  content: ''; position: absolute; bottom: 0; inset-inline: -100vw; height: var(--plank); box-sizing: border-box;
-  background: var(--color-human-soft); border-block: 3px solid var(--color-ink);
-}
-.book-cover {
-  position: relative; z-index: 1; display: block; box-sizing: border-box; width: var(--cover-w); height: var(--cover-h);
-  background: var(--color-surface); color: var(--color-ink); text-decoration: none; font-family: var(--font-display);
-  border: 3px solid var(--color-ink); border-bottom-width: 0;
-  border-start-start-radius: 6px; border-start-end-radius: 14px;
-  transition: transform .14s ease;
-}
-.book-cover:hover, .book-cover:focus-visible { transform: translateY(-6px); }
-.book-cover:focus-visible { outline: 3px solid var(--color-machine-deep); outline-offset: 2px; }
-.book-cover:hover .book-title, .book-cover:focus-visible .book-title { text-decoration: underline; text-underline-offset: 3px; }
-.book-cover__inner { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; border-start-start-radius: 3px; border-start-end-radius: 11px; padding-inline-start: 12px; }
-.book-spine { position: absolute; inset-block: 0; inset-inline-start: 0; width: 12px; border-inline-end: 2px solid var(--color-ink); }
-.book-img { position: relative; display: block; flex: 0 0 auto; height: var(--cover-img); border-bottom: 2px solid var(--color-ink); background: var(--color-machine-tint); }
-.book-tags { position: absolute; z-index: 2; bottom: 6px; inset-inline: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; }
-.book-tags--top { bottom: auto; top: 6px; }
-.book-body { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 7px 9px 8px; }
-.book-title { font-size: var(--cover-title); font-weight: 800; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.book-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.book-line { font-size: 12.5px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
-.book-gems { display: flex; gap: 2px; align-items: center; }
-/* הסימנייה: יוצאת מעל ראש הכריכה, בצד שמול השדרה */
-.book-mark { position: absolute; z-index: 3; top: -12px; inset-inline-end: 12px; min-width: 30px; min-height: 46px; padding: 14px 6px 18px; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: center; }
-.book-mark > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.book-mark > b { position: relative; font-size: 12.5px; font-weight: 800; line-height: 1.2; color: var(--color-ink); white-space: nowrap; }
-@media (max-height: 500px), (max-width: 480px) {
-  .book-case { --cover-w: 138px; --cover-h: 214px; --cover-img: 86px; --cover-title: 13.5px; --plank: 14px; }
-  .book-cell { padding-top: 24px; }
-  .book-title { -webkit-line-clamp: 2; }
-}
-@media (prefers-reduced-motion: reduce) { .book-cover { transition: none; } .book-cover:hover, .book-cover:focus-visible { transform: none; } }
 
 /* ── שיעור חדש: סרגלי בחירה, שדות ופס גלילה פנימי ── */
 .cf input[type=range] {
