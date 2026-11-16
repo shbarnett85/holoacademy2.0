@@ -202,7 +202,9 @@ async function dive(browser: Browser, kind: 'new' | 'old'): Promise<void> {
   check((await moodOf(page)) === (kind === 'new' ? 'scared' : 'neutral'), `פתיחה: מצב הרוח ${await moodOf(page)}`)
   /* האנימציה מתחילה אחרי מדידת קצב הפריימים של תחילת השיעור (3 שניות); עד אז התמונה הקבועה, שהיא הפריים הראשון שלה */
   const playing = await page.waitForFunction(() => document.querySelector('[data-dr-holo]')?.getAttribute('data-holo-media') === 'video', undefined, { timeout: 8000 }).then(() => true, () => false)
-  check(playing && (await holoClips(page)) === 1 && (await clipOf(page)) === '/dr-holo/v2/welcome.mp4', `פתיחה: האנימציה של ד"ר הולו מתנגנת מעל רקע הווידאו (${await clipOf(page)})`)
+  /* שיעור חדש עם מצב הרוח "מפוחד": האנימציה "מודאג". שיעור ישן (מצב רוח רגיל): "ברוכים הבאים" */
+  const wantClip = kind === 'new' ? '/dr-holo/v2/worried.mp4' : '/dr-holo/v2/welcome.mp4'
+  check(playing && (await holoClips(page)) === 1 && (await clipOf(page)) === wantClip, `פתיחה: האנימציה של ד"ר הולו מתנגנת מעל רקע הווידאו (${await clipOf(page)})`)
   check(await page.locator('[data-lab-hologram=on]').count() === 1, 'פתיחה: הפורטל הולוגרמה חיה (WebGL)')
   check(await page.locator('[data-lab-stage]').getAttribute('data-portal-gold') === null, 'פתיחה: הפורטל בתכלת')
   const s1 = (await cameraScale(page))!
