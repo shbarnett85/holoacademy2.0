@@ -235,8 +235,9 @@ html.holo-playing { font-size: 144%; }
    גם את עמוד הסיכום, שתוכנו גבוה מה-viewport: עם justify-center על גובה קבוע
    בלי גלילה, הסיכום נחתך משני הקצוות ולא ניתן היה להגיע אליו. */
 .holo-playing .holo-scene-root { height: 100dvh; }
-/* רוחב הדף (עמוד הטקסט, וגם הדף של מסך הסיום): שליש מהמסך, בכל גודל מסך */
-:root { --page-w: 33.333vw; }
+/* רוחב הדף בעמודי השיעור: רבע מהמסך (לבקשת המשתמש; היה שליש), ולא פחות מ-240px (טלפון לרוחב).
+   --lab-page-w: רוחב החלון הצף במסכי הפתיחה והסיכום — ברווח שבין טבעת הפורטל לקצה המסך (הטבעת כ-19.3vw או 34.3vh לכל צד) */
+:root { --page-w: max(25vw, 240px); --lab-page-w: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); }
 /* במשחק המסך לא גולל: פס גלילה רק אם באמת יש מה לגלול, כדי שלא יישאר פס ריק לצד התמונה */
 html.holo-playing body { overflow-y: auto; }
 .holo-playing .scene-fade { min-height: 0; }
@@ -256,7 +257,7 @@ html.holo-playing body { overflow-y: auto; }
 }
 
 /* ── הפאנל: תצוגה הולוגרפית של ד"ר הולו, לא רכיב UI גנרי ── */
-/* ── עמוד הטקסט: דף בשליש הימני של המסך, צמוד לקצה (--page-w) ── */
+/* ── עמוד הטקסט: דף ברבע הימני של המסך, צמוד לקצה (--page-w) ── */
 .holo-side-panel {
   flex: 0 0 var(--page-w);
   min-width: 0;
@@ -357,8 +358,8 @@ html.holo-playing body { overflow-y: auto; }
   box-shadow: none;
   background-color: var(--color-surface);
   color: var(--color-ink);
-  padding: 0.8rem 1.1rem max(0.6rem, env(safe-area-inset-bottom));
-  padding-inline-start: max(1.1rem, env(safe-area-inset-right));
+  padding: 0.8rem 0.8rem max(0.6rem, env(safe-area-inset-bottom));
+  padding-inline-start: max(0.8rem, env(safe-area-inset-right));
 }
 
 /* ── עמוד התמונה: שני השלישים השמאליים, מקצה לקצה, בלי מסגרת ──────────────────
@@ -383,10 +384,13 @@ html.holo-playing body { overflow-y: auto; }
 
 /* ד"ר הולו כהולוגרמה: בפינת עמוד התמונה, מעל התמונה ומתחת לאתגר עצמו. לא תופס לחיצות.
    בלי z-index: הוא היה יוצר stacking context, והמיזוג עם התמונה (screen) היה נשבר למלבן שחור */
-/* מסך הפתיחה: המעבדה ממלאת את כל השכבה שמתחת לדף (גם מאחוריו), והדף באותו מקום ובאותו רוחב כמו בעמודי השיעור */
+/* מסך הפתיחה (לבקשת המשתמש, כמו לפני הפריסה מקצה לקצה): המעבדה ממלאת את כל המסך, והטקסט בחלון לבן צף מעליה —
+   קו דיו, פינות עגולות וצל קשיח — מימין לפורטל, ברווח שבין הטבעת לקצה המסך */
+.holo-scene-band--lab { padding: 0.25rem 1.5rem 1rem; }
 .holo-scene-band--lab .holo-image-page { position: fixed; inset: 0; flex: none; z-index: -1; border: 0; border-radius: 0; box-shadow: none; }
-/* אתגר במסך הפתיחה: במרכז האזור שמשמאל לדף ומתחת לפס העליון, לא במרכז המסך (שם הדף היה מסתיר חלק ממנו) */
-.holo-scene-band--lab .holo-stage { position: absolute; inset-block: var(--hud-h, 4rem) 0; inset-inline-start: var(--page-w); inset-inline-end: 0; }
+.holo-scene-band--lab .holo-side-panel { flex: 0 0 auto; width: var(--lab-page-w); border: var(--border-student); border-radius: var(--radius-student); box-shadow: var(--shadow-student); padding: 0.5rem 0.7rem; }
+/* אתגר במסך הפתיחה: במרכז האזור שמשמאל לחלון ומתחת לפס העליון, לא במרכז המסך (שם החלון היה מסתיר חלק ממנו) */
+.holo-scene-band--lab .holo-stage { position: absolute; inset-block: var(--hud-h, 4rem) 0; inset-inline-start: calc(var(--lab-page-w) + 2rem); inset-inline-end: 0; }
 /* גוף מלא: עיגון בתחתית התמונה, בצד, כ-80% מגובה התמונה. במסך נמוך הדמות גדלה, כדי שהפנים יהיו קריאים, ולא נחתכת */
 
 /* שכבת כהיה מקומית — רק בתוך מלבן התמונה, לא על כל המסך. האתגר קריא

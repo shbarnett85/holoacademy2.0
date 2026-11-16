@@ -101,7 +101,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const narrative = ending?.narrative ?? (closed ? END_TEXT.narrativeClosed : END_TEXT.narrativeOpen)
 
   return (
-    <div data-end-screen={state} className="relative" style={{ minHeight: '100dvh' }}>
+    <div data-end-screen={state} className="relative" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'clamp(12px, 2.5vh, 24px)', overflow: 'auto' }}>
       <GemDefs />
       <style>{`
         @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
@@ -137,8 +137,8 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
         <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.back : END_TEXT.playAgain} />
       </div>
 
-      {/* הדף: בשליש הימני, צמוד לקצה המסך ומלמעלה עד למטה, כמו בעמודי השיעור; המעבדה ממלאת את כל השכבה שמתחתיו */}
-      <div className="holo-panel" data-end-page style={{ position: 'fixed', insetBlock: 0, insetInlineStart: 0, width: 'var(--page-w)', border: 0, borderInlineEnd: 'var(--border-student)', borderRadius: 0, boxShadow: 'none', overflowY: 'auto', display: 'flex', flexDirection: 'column', justifyContent: 'safe center', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.6vh, 26px) clamp(14px, 1.6vw, 24px)' }}>
+      {/* חלון לבן צף מעל המעבדה (קו דיו, פינות עגולות וצל), מימין לפורטל */}
+      <div className="holo-panel" style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.2vh, 22px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', justifyContent: 'center' }}>
           <div data-end-head style={{ minWidth: 0, textAlign: 'start' }}>
             <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? 'var(--color-human-deep)' : 'var(--color-machine-deep)' }}>{kicker}</div>
