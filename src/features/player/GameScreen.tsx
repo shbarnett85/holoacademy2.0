@@ -243,8 +243,11 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* הפורטל בפתיחה עושה בדיוק מה שהכפתור הזמין עושה עכשיו: אותו כפתור, ולכן אין לוגיקה שנייה. עדיין אין כפתור: לא קורה כלום */
   const actionsRef = useRef<HTMLDivElement | null>(null)
   const [prevSceneId, setPrevSceneId] = useState(scene.id)
+  /* המעבר האחרון יצא מהמעבדה (גם בתנועה מופחתת, שבה אין צלילה): צליל הפורטל ולא צליל הדפדוף */
+  const [fromLab, setFromLab] = useState(false)
   if (prevSceneId !== scene.id) {
     setPrevSceneId(scene.id)
+    setFromLab(prevSceneId === gameData.entrySceneId)
     if (prevSceneId === gameData.entrySceneId && !prefersReducedMotion()) setLabExit(feelLevel() === 'gentle' ? 'reveal' : 'dive')
   }
   /* רשת ביטחון: האנימציה לא חייבת להסתיים (לשונית מוסתרת, ביטול). הסצנה כבר הוחלפה, ולכן אסור שהמעבדה תישאר מעליה */
@@ -698,7 +701,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             dir={engine.transitionDir}
             wormhole={engine.transitionType === 'wormhole'}
             dimmed={onStage || choicesOnStage}
-            fromLab={!!labExit}
+            fromLab={fromLab}
             /* הטקסט לא מחכה לתמונה: הדפדוף של עמודת הטקסט מתוזמן כאן (pageTurn), והתמונה מסיימת את המעבר שלה בעמודה שלה */
             onComplete={noop}
           />

@@ -2,28 +2,29 @@ import { useSyncExternalStore } from 'react'
 
 /* ── מערכת סאונד מרכזית ל-HoloAcademy ─────────────────────────────────────────
    Web Audio API: כל ניגון = BufferSource חדש → סאונדים קצרים (click/good) נשמעים
-   ברצף מהיר בלי לחתוך זה את זה. סאונדים ארוכים (win/fusion/wormhole) — אם
+   ברצף מהיר בלי לחתוך זה את זה. סאונדים ארוכים (win/fusion/portal/wormhole) — אם
    מופעלים שוב לפני שנגמרו, ה-source הקודם נעצר (איפוס). preload פעם אחת.
    Autoplay: ה-AudioContext נוצר suspended ומתעורר (resume) ב-user-gesture הראשון.
    mute/volume נשמרים ב-localStorage. כשל טעינה (404)/קובץ חסר → **fallback סינתטי**
-   (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'hover' הוא סינתטי-בלבד (ללא קובץ).
+   (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'click', 'reveal' ו-'welcome' מסונתזים תמיד (בלי קובץ).
+   אין צליל ריחוף (לבקשת המשתמש): ריחוף מעל כפתור מתבטא רק ויזואלית (index.css).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'wormhole' | 'type' | 'hover' | 'reveal' | 'welcome'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'reveal' | 'welcome'
 
-/* 'hover'/'reveal' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
+/* 'click'/'reveal'/'welcome' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
 const FILES: Partial<Record<SoundName, string>> = {
-  click: '/sounds/digital_click.wav',
   good: '/sounds/good.mp3',
   win: '/sounds/crystal_win.mp3',
   error: '/sounds/digital_error.mp3',
   fusion: '/sounds/3fusion.mp3',
+  portal: '/sounds/portal_neon.wav',
   wormhole: '/sounds/wormhole.mp3',
   type: '/sounds/type.wav',
 }
 
 /* ארוכים — ניגון יחיד שמתאפס אם מופעל שוב לפני שנגמר */
-const LONG = new Set<SoundName>(['win', 'fusion', 'wormhole'])
+const LONG = new Set<SoundName>(['win', 'fusion', 'portal', 'wormhole'])
 
 const MUTED_KEY = 'holo_sound_muted'
 const VOLUME_KEY = 'holo_sound_volume'
@@ -70,7 +71,7 @@ export const getAudioContext = (): AudioContext | null => getCtx()
 
 async function decodeOne(name: SoundName, ac: AudioContext) {
   const url = FILES[name]
-  if (!url) return /* אין קובץ (למשל hover) → סינתזה בלבד */
+  if (!url) return /* אין קובץ (למשל click) → סינתזה בלבד */
   try {
     const res = await fetch(url)
     if (!res.ok) return /* 404 → יישאר ללא buffer → fallback סינתטי בזמן ניגון */
@@ -122,7 +123,7 @@ function bindUnlock() {
 if (isBrowser) bindUnlock()
 
 /* ── fallback סינתטי ─────────────────────────────────────────────────────────
-   מנגן קירוב מסונתז (oscillator/noise) כשאין buffer — קובץ חסר/נכשל, או 'hover'
+   מנגן קירוב מסונתז (oscillator/noise) כשאין buffer — קובץ חסר/נכשל, או צליל
    שאין לו קובץ. כך שום שם צליל לא "נעלם". עוצמה כפופה ל-volume הגלובלי. */
 function synth(name: SoundName) {
   const ac = getCtx()
@@ -132,18 +133,25 @@ function synth(name: SoundName) {
   out.gain.value = volume
   out.connect(ac.destination)
 
-  const beep = (freq: number, dur: number, type: OscillatorType, peak: number, slideTo?: number, attack = 0.006) => {
+  const beep = (freq: number, dur: number, type: OscillatorType, peak: number, slideTo?: number, attack = 0.006, when = 0) => {
+    const t = t0 + when
     const o = ac.createOscillator()
     const g = ac.createGain()
     o.type = type
-    o.frequency.setValueAtTime(freq, t0)
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t0 + dur)
-    g.gain.setValueAtTime(0.0001, t0)
-    g.gain.linearRampToValueAtTime(peak, t0 + attack)
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    o.frequency.setValueAtTime(freq, t)
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, slideTo), t + dur)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.linearRampToValueAtTime(peak, t + attack)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
     o.connect(g).connect(out)
-    o.start(t0)
-    o.stop(t0 + dur + 0.02)
+    o.start(t)
+    o.stop(t + dur + 0.02)
+  }
+  /* פעמון: יסוד ועוד שני עליונים — אותו גוון כמו צלילי המשחק (gameFeel) */
+  const bell = (freq: number, dur: number, peak: number, when = 0) => {
+    beep(freq, dur, 'sine', peak, undefined, 0.008, when)
+    beep(freq * 2, dur * 0.6, 'sine', peak * 0.28, undefined, 0.008, when)
+    beep(freq * 3, dur * 0.35, 'triangle', peak * 0.1, undefined, 0.008, when)
   }
   const noise = (dur: number, peak: number) => {
     const b = ac.createBuffer(1, Math.max(1, Math.floor(ac.sampleRate * dur)), ac.sampleRate)
@@ -159,19 +167,26 @@ function synth(name: SoundName) {
   }
 
   switch (name) {
-    case 'click': beep(420, 0.05, 'triangle', 0.32, 620); break
+    /* לחיצה: "בועה" קצרה ורכה שעולה. החליפה את הקובץ digital_click.wav (לבקשת המשתמש); שקטה, כי היא מתנגנת בכל לחיצה */
+    case 'click': beep(520, 0.07, 'sine', 0.09, 900, 0.004); break
     /* fallback סינתטי תואם לקובץ החדש — סינוס רך עם גלישה, לא square נוקשה */
     case 'type': beep(520, 0.05, 'sine', 0.06, 340, 0.004); break
-    case 'hover': beep(2100, 0.05, 'sine', 0.025, undefined, 0.001); break
     /* צליל "חומריאליזציה" עדין מאוד — מלווה את אנימציית פתיחת החלונות (DigitalEntrance) */
     case 'reveal': beep(950, 0.16, 'sine', 0.045, 1500, 0.02); break
     case 'error': beep(300, 0.32, 'sawtooth', 0.38, 120); break
     case 'good': beep(660, 0.12, 'sine', 0.32, 880); break
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
     case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
+    case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
     /* פיצוץ הספלאש — בום תת-נמוך קומפקטי + הדף רעש קצר */
-    /* צליל כניסה — עליית טרצה חמה + נצנוץ עליון עדין (קבלת פנים, לא פנפרה) */
-    case 'welcome': beep(587, 0.4, 'triangle', 0.22, 880); beep(880, 0.55, 'sine', 0.1, 1175); break
+    /* צליל הכניסה למשתמש (אחרי התחברות): שלושה פעמונים עולים (דו, מי, סול) ונצנוץ קטן בסוף. הוחלף לבקשת המשתמש */
+    case 'welcome':
+      bell(523.25, 0.24, 0.13)
+      bell(659.25, 0.24, 0.11, 0.1)
+      bell(783.99, 0.6, 0.11, 0.2)
+      bell(1568, 0.22, 0.05, 0.4)
+      bell(2093, 0.3, 0.05, 0.46)
+      break
     /* רעם נמוך + בום תת-צונח — בלי סוויפ גבוה (שריקה) */
     case 'wormhole': beep(55, 0.5, 'sine', 0.26, 62); noise(0.5, 0.2); beep(90, 1.0, 'sine', 0.45, 34); noise(0.9, 0.26); break
     default: beep(440, 0.05, 'triangle', 0.28)
@@ -181,7 +196,7 @@ function synth(name: SoundName) {
 /* הניגון בפועל — מניח ש-ac כבר 'running'. buffer אם נטען, אחרת fallback סינתטי. */
 function renderSound(name: SoundName, ac: AudioContext) {
   const buf = buffers[name]
-  if (!buf) { synth(name); return } /* אין buffer (חסר/נכשל/hover) → fallback סינתטי */
+  if (!buf) { synth(name); return } /* אין buffer (חסר/נכשל/בלי קובץ) → סינתזה */
   try {
     if (LONG.has(name)) {
       const prev = activeLong[name]
@@ -230,8 +245,8 @@ function holoTarget(e: Event): { el: HTMLElement; sound: SoundName } | null {
   return { el, sound: (custom as SoundName) || 'click' }
 }
 
-/* צליל קליק + hover גלובלי — מאזינים יחידים (capture) בכל האפליקציה (מורה/תלמיד/משחק).
-   pointerdown → click (או data-holo-sound); כניסת עכבר לכפתור חדש → hover. מותקן פעם אחת. */
+/* צליל לחיצה גלובלי — מאזין יחיד (capture) בכל האפליקציה (מורה/תלמיד/משחק).
+   pointerdown → click (או data-holo-sound). בלי צליל ריחוף. מותקן פעם אחת. */
 let clickBound = false
 export function installGlobalClickSound() {
   if (!isBrowser || clickBound) return
@@ -242,16 +257,6 @@ export function installGlobalClickSound() {
     if (hit) playSound(hit.sound)
   }, true)
 
-  /* hover — מנגן פעם אחת בכניסה לכפתור חדש (dedupe לפי האלמנט, לא בכל pointermove) */
-  let lastHover: HTMLElement | null = null
-  document.addEventListener('pointerover', (e) => {
-    const src = e.target as HTMLElement | null
-    const el = src?.closest?.(INTERACTIVE) as HTMLElement | null
-    if (el === lastHover) return
-    lastHover = el
-    const hit = holoTarget(e)
-    if (hit) playSound('hover')
-  }, true)
 }
 
 export function isMuted() { return muted }

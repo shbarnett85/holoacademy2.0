@@ -639,6 +639,19 @@ body {
 .holo-button.is-correct:disabled, .holo-button.is-correct[aria-disabled="true"] { background: var(--color-correct); color: var(--color-surface); }
 .holo-button.is-wrong:disabled, .holo-button.is-wrong[aria-disabled="true"] { background: var(--color-wrong); color: var(--color-surface); }
 .holo-button.is-selected:disabled, .holo-button.is-selected[aria-disabled="true"] { background: var(--color-ink); color: var(--color-surface); }
+/* ריחוף (לבקשת המשתמש: ויזואלי, בלי צליל): הכפתור מתרומם מעט והצל הקשיח גדל. רק במכשיר עם עכבר; לחיצה גוברת.
+   הכלל שאחרי הלחיצה באותה ספציפיות, ולכן :active נשאר לחוץ */
+@media (hover: hover) {
+  .holo-button:hover:not(:disabled):not([aria-disabled="true"]):not(:active):not(.is-pressed) {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--color-ink);
+  }
+  .holo-button--sm:hover:not(:disabled):not([aria-disabled="true"]):not(:active):not(.is-pressed) {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--color-ink);
+  }
+  .holo-link:hover { text-decoration-thickness: 3px; }
+}
 /* מסכי מורה ומנהל: קו 2px וצל 3px (אותו כפתור, שקט יותר) */
 /* הגופן נשאר זה של המסך (מסכי הצוות ב-Rubik): הכפתור לא מחליף גופן */
 .holo-button--staff { border: var(--border-staff); box-shadow: var(--shadow-staff); font-family: inherit; }

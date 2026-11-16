@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { playSound } from '../../shared/lib/sound'
 import { feelLevel, KEN_BURNS_SECONDS, prefersReducedMotion, sounds } from './gameFeel/engine'
 import { planSceneSwap, sceneSwapMs, type SceneSwapKind } from './sceneSwap'
 
@@ -82,7 +83,7 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
   wormhole: boolean
   /* האתגר עדיין פתוח על התמונה: התמונה היוצאת שומרת על ההכהיה, כדי שלא תבהיק לרגע לפני הסריקה */
   dimmed: boolean
-  /* המעבר הזה הוא היציאה מהמעבדה (צלילה לפורטל): צליל הצלילה במקום צליל הדפדוף */
+  /* המעבר הזה הוא היציאה מהמעבדה (צלילה לפורטל): צליל הפורטל המקורי, ולא צליל הדפדוף */
   fromLab?: boolean
   onComplete: () => void
 }) {
@@ -100,7 +101,7 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
   const dirRef = useRef(dir)
   const fromLabRef = useRef(fromLab)
   useEffect(() => { dirRef.current = dir; fromLabRef.current = fromLab })
-  const pageSound = () => { if (fromLabRef.current) sounds.dive(); else sounds.page(dirRef.current) }
+  const pageSound = () => { if (fromLabRef.current) playSound('portal'); else sounds.page(dirRef.current) }
   const currentRef = useRef(current)
   useEffect(() => { currentRef.current = current }, [current])
 
