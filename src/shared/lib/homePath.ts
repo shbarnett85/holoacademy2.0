@@ -1,3 +1,4 @@
+import { isGuestStudent } from './guestStudent'
 import { getSession } from './staffSession'
 
 /* בית המשתמש לפי רול — מקור יחיד לניווט "הביתה" (יציאה מהדמיה וכו').
@@ -9,6 +10,8 @@ import { getSession } from './staffSession'
 export function homePathForRole(): string {
   try {
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('holo_token')) return '/student'
+    /* תלמיד אורח (בלי טוקן): גם הוא חוזר לבית של התלמיד */
+    if (isGuestStudent()) return '/student'
   } catch { /* sessionStorage לא זמין */ }
   const s = getSession()
   if (s) return s.staff.role === 'super_admin' ? '/admin' : '/creator'

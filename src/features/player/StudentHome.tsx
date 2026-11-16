@@ -9,6 +9,8 @@ import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { gemTier } from '../../shared/lib/gemTier'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
+import { legacySubjectToCode } from '../../shared/lib/subjects'
+import { enterGuestStudent, guestProgress, isGuestStudent, leaveGuestStudent } from '../../shared/lib/guestStudent'
 import { GemDefs, GemSocket } from '../../shared/ui/Gem'
 import { MyJourney } from './Journey'
 import PortalHero from './lab/PortalHero'
@@ -129,11 +131,14 @@ const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
    הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
+  /* תלמיד אורח: בלי טוקן. הספרייה שלו היא שיעורי ההתנסות, ושום דבר לא נשמר בשרת (shared/lib/guestStudent.ts) */
+  const [guest, setGuest] = useState(() => isGuestStudent())
+  const signedIn = isLoggedIn || guest
   const { muted, toggleMuted } = useSoundSettings()
   useEffect(() => { setSoundOwnerFromToken() }, [])
   const navigate = useNavigate()
   const { leaving, dive, onDiveEnd } = usePortalDive()
-  const name = sessionStorage.getItem('holo_student_name') ?? ''
+  const name = sessionStorage.getItem('holo_student_name') ?? (isGuestStudent() ? PORTAL_TEXT.guestName : '')
   const [quests, setQuests] = useState<AssignedQuest[]>([])
   const [loading, setLoading] = useState(true)
   const [dbgError, setDbgError] = useState<string | null>(null)
@@ -153,6 +158,27 @@ export default function StudentHome() {
     setLastLogin(prev)
     localStorage.setItem('holo_last_login', new Date().toISOString())
   }, [])
+
+  /* אורח: שיעורי ההתנסות הרשמיים, באותו מבנה של שיעור שהוקצה. המצב (הושלם והגבישים) מהלשונית בלבד */
+  useEffect(() => {
+    if (!guest || isLoggedIn) return
+    let cancelled = false
+    setLoading(true)
+    fetch('/api/quests/showcase')
+      .then((r) => (r.ok ? r.json() : { quests: [] }))
+      .then((body: { quests?: { id: string; title: string; subject: string | null; gradeMin: number | null; gradeMax: number | null; sceneCount: number; thumbUrl: string | null }[] }) => {
+        if (cancelled) return
+        const progress = guestProgress()
+        setQuests((body.quests ?? []).map((q) => ({
+          id: q.id, title: q.title, sceneCount: q.sceneCount, subject: q.subject, subjectCode: q.subject ? legacySubjectToCode(q.subject) : null,
+          thumbUrl: q.thumbUrl, gradeMin: q.gradeMin, gradeMax: q.gradeMax,
+          sessionStatus: q.id in progress ? 'completed' as const : null, crystals: progress[q.id] ?? null, gems: progress[q.id] ?? null, maxScore: null,
+        })))
+      })
+      .catch((e) => { if (!cancelled) setDbgError(String(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [guest, isLoggedIn])
 
   useEffect(() => {
     if (!isLoggedIn) return
@@ -224,7 +250,7 @@ export default function StudentHome() {
   const hasFilters = search || statusFilter !== 'all' || subjectFilter !== 'all' || teacherFilter !== 'all'
   const clearFilters = () => { setSearch(''); setStatus('all'); setSubject('all'); setTeacher('all') }
 
-  if (!isLoggedIn) {
+  if (!signedIn) {
     return (
       <HoloBackdrop>
         <div style={{
@@ -232,7 +258,9 @@ export default function StudentHome() {
           padding: '40px 44px', width: 340, textAlign: 'center',
         }}>
           <div style={{ fontSize: '2.4rem', marginBottom: 8 }}>🔒</div>
-          <p style={{ color: 'var(--color-ink)', fontSize: 15 }}>{PORTAL_TEXT.notLoggedIn}</p>
+          <p style={{ color: 'var(--color-ink)', fontSize: 16 }}>{PORTAL_TEXT.notLoggedIn}</p>
+          <button className="holo-button" data-guest-enter onClick={() => { enterGuestStudent(PORTAL_TEXT.guestName); setGuest(true) }}
+            style={{ marginTop: 14, fontSize: 17, fontFamily: 'var(--font-display)' }}>{PORTAL_TEXT.guestEnter}</button>
         </div>
       </HoloBackdrop>
     )
@@ -252,10 +280,10 @@ export default function StudentHome() {
     document.querySelector('[data-portal-hero]')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   }
   const due = current?.dueAt && !done ? (current.state === 'ended' ? SHELF_TEXT.duePassed(formatIsraelDate(current.dueAt)) : SHELF_TEXT.dueBy(formatIsraelDate(current.dueAt))) : null
-  const bubble = loading ? undefined : !current ? (quests.length ? undefined : PORTAL_TEXT.bubbleEmpty) : done ? PORTAL_TEXT.bubbleDone : reading ? PORTAL_TEXT.bubbleReading : PORTAL_TEXT.bubbleNew
+  const bubble = loading ? undefined : !current ? (quests.length ? undefined : PORTAL_TEXT.bubbleEmpty) : done ? PORTAL_TEXT.bubbleDone : reading ? PORTAL_TEXT.bubbleReading : guest ? PORTAL_TEXT.guestBubble : PORTAL_TEXT.bubbleNew
 
   return (
-    <div dir="rtl" className="home4" data-student-home>
+    <div dir="rtl" className="home4" data-student-home data-guest={guest ? '' : undefined}>
       <GemDefs />
 
       <PortalHero
@@ -270,7 +298,7 @@ export default function StudentHome() {
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46, padding: 0 }}>
             <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={24} />
           </button>
-          <button className="holo-button holo-button--sm" onClick={() => { logout(); navigate('/') }}
+          <button className="holo-button holo-button--sm" onClick={() => { leaveGuestStudent(); logout(); navigate('/') }}
             style={{ minHeight: 46, padding: '0 18px', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
             {PORTAL_TEXT.exit}
           </button>
@@ -293,6 +321,7 @@ export default function StudentHome() {
             {PORTAL_TEXT.hello} {name && <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span>} 👋
           </div>
           <h1 className="home4-tagline" style={{ fontWeight: 900 }}>{BOOK_TEXT.libraryTitle}</h1>
+          {guest && <p data-guest-note style={{ margin: 0, fontSize: 15, color: 'var(--color-muted)', lineHeight: 1.4 }}>{PORTAL_TEXT.guestNote}</p>}
 
           {loading && <LoadingDots />}
 

@@ -5,6 +5,7 @@ import GameScreen from './GameScreen'
 import RotateGate from './RotateGate'
 import LoadingQuest from './LoadingQuest'
 import { homePathForRole } from '../../shared/lib/homePath'
+import { recordGuestResult } from '../../shared/lib/guestStudent'
 import { trackFunnel } from '../../shared/lib/funnel'
 import { usePlaySession } from './usePlaySession'
 import type { GameData } from './useGameEngine'
@@ -138,7 +139,11 @@ export default function Player() {
         questTitle={quest.title}
         initialState={initialState}
         saveResume={saveResume}
-        onComplete={complete}
+        onComplete={(analytics, totalScore, crystalsFull, finished) => {
+          /* תלמיד אורח: אין session ואין שמירה בשרת. מה שסיים נשמר בלשונית, כדי שהפורטל יציג "הושלם" והגבישים */
+          if (finished && questId) recordGuestResult(questId, crystalsFull)
+          return complete(analytics, totalScore, crystalsFull, finished)
+        }}
         live={live}
         backPath={homePathForRole()}
         visitorMode={isVisitor}

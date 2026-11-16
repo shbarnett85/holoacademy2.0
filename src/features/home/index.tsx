@@ -6,6 +6,7 @@ import SubjectTag from '../../shared/ui/SubjectTag'
 import { GemDefs, GemIcon } from '../../shared/ui/Gem'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
+import { enterGuestStudent } from '../../shared/lib/guestStudent'
 import PortalHero from '../player/lab/PortalHero'
 import { usePortalDive } from '../player/lab/usePortalDive'
 
@@ -279,6 +280,15 @@ export default function Home() {
                 כניסה ←
               </button>
             </div>
+            {/* בלי קוד כיתה: כניסת אורחים, עם שיעורי ההתנסות. שום דבר לא נשמר */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 14px', color: 'var(--color-muted)', fontSize: 14 }}>
+              <span style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />או<span style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
+            </div>
+            <button onClick={() => { enterGuestStudent('אורחים'); navigate('/student') }} className="holo-button" data-guest-enter
+              style={{ width: '100%', padding: '12px', borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, background: 'var(--color-surface)' }}>
+              כניסת אורחים
+            </button>
+            <div style={{ marginTop: 8, fontSize: 14, color: 'var(--color-muted)', lineHeight: 1.5 }}>בלי קוד כיתה: שיעורים לדוגמה, וההתקדמות לא נשמרת</div>
           </div>
         </div>
       )}

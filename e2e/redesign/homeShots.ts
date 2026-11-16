@@ -5,7 +5,9 @@
      בתוך המסך הראשון, החלון לא מכסה את הפורטל, והווידאו של הרקע ושל ד"ר הולו מתנגנים.
    · student: הבית של התלמיד (אותה במה, עם /api מדומה): הפורטל מציג את השיעור האחרון שהתקבל, החצים מדפדפים,
      הרשימה שבתחתית מביאה שיעור אל הפורטל, החיפוש מסנן, והכפתור צולל לשיעור.
-   הרצה:  npx tsx e2e/redesign/homeShots.ts --out reports/redesign/stages/home [--only splash,home,student]
+   · guest: כניסת אורחים (תלמיד אורח) מחלון קוד הכיתה: שיעורי ההתנסות בפורטל, הודעה שההתקדמות לא נשמרת,
+     שום בקשה לשרת שכותבת משהו (אין /api/sessions ואין /api/auth), ויציאה שמנקה את מצב האורח.
+   הרצה:  npx tsx e2e/redesign/homeShots.ts --out reports/redesign/stages/home [--only splash,home,student,guest]
    ────────────────────────────────────────────────────────────────────────── */
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
@@ -15,7 +17,7 @@ import { DEFAULT_BASE, findChrome } from '../lib/config.ts'
 const args = process.argv.slice(2)
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d }
 const OUT = opt('out', 'reports/redesign/stages/home')
-const ONLY = opt('only', 'splash,home,student').split(',')
+const ONLY = opt('only', 'splash,home,student,guest').split(',')
 mkdirSync(OUT, { recursive: true })
 let failed = 0
 const check = (ok: boolean, label: string) => { console.log(`  ${ok ? '✓' : '✗'} ${label}`); if (!ok) failed++ }
@@ -210,10 +212,57 @@ async function student(browser: Browser): Promise<void> {
   await ph.context().close()
 }
 
+async function guest(browser: Browser): Promise<void> {
+  console.log('== guest ==')
+  const page = await open(browser, 1366, 768)
+  /* כל בקשה שאינה קריאה בלבד, וכל בקשה לנתיבי התלמיד או ההזדהות */
+  const writes: string[] = []
+  page.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/') && (r.method() !== 'GET' || /\/api\/(sessions|auth)\//.test(u.pathname))) writes.push(`${r.method()} ${u.pathname}`) })
+  await page.waitForSelector('[data-home-door=student]', { timeout: 30000 })
+  await page.waitForTimeout(1500)
+  await page.locator('[data-home-door=student]').click()
+  await page.waitForSelector('[data-guest-enter]')
+  await page.waitForTimeout(300)
+  await shot(page, 'guest-entry')
+  await page.locator('[data-guest-enter]').click()
+  await page.waitForURL(/\/student$/, { timeout: 6000 }).catch(() => undefined)
+  await page.waitForSelector('[data-portal-lesson]', { timeout: 15000 }).catch(() => undefined)
+  await page.waitForTimeout(3000)
+  await shot(page, 'guest-student-home')
+  check(/\/student$/.test(page.url()), 'כניסת אורחים מובילה לבית של התלמיד')
+  check(await page.locator('[data-student-home][data-guest]').count() === 1 && await page.locator('[data-guest-note]').count() === 1, 'מסומן כאורח, עם ההודעה שההתקדמות לא נשמרת')
+  const lessons = await page.locator('[data-result]').count()
+  check(lessons >= 2, `שיעורי ההתנסות מוצגים (${lessons} ברשימה)`)
+  check((await page.evaluate(() => document.body.innerText)).includes('אורחים'), 'השלום פונה לאורחים')
+  /* מסמנים שיעור כאילו האורח סיים אותו (כמו שהנגן רושם בסוף משחק), ורואים שהפורטל מציג "הושלם" */
+  const firstId = await page.locator('[data-portal-lesson]').getAttribute('data-portal-lesson')
+  await page.evaluate((id) => sessionStorage.setItem('holo_guest_progress', JSON.stringify({ [id!]: 4 })), firstId)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('[data-portal-lesson]', { timeout: 15000 })
+  await page.waitForTimeout(1500)
+  check((await page.locator('[data-portal-state]').innerText()).includes('הושלם') && await page.locator('[data-portal-lesson] [role=img]').count() === 1, 'שיעור שהאורח סיים: "הושלם" והגבישים (מהלשונית בלבד)')
+  await page.locator('[data-portal-play]').click()
+  await page.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
+  check(/\/play\//.test(page.url()), 'האורח נכנס לשיעור דרך הפורטל')
+  await page.waitForTimeout(2500)
+  check(writes.length === 0, `שום בקשה לשרת שכותבת או מזדהה (${writes.join(', ') || 'אין'})`)
+  /* חזרה ויציאה: מצב האורח נמחק */
+  await page.goto(DEFAULT_BASE + '/student', { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('[data-portal-panel]')
+  await page.getByRole('button', { name: 'יציאה' }).click()
+  await page.waitForTimeout(600)
+  check(await page.evaluate(() => !sessionStorage.getItem('holo_guest_student') && !sessionStorage.getItem('holo_guest_progress')), 'יציאה מנקה את מצב האורח')
+  await page.goto(DEFAULT_BASE + '/student', { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('[data-guest-enter]', { timeout: 10000 }).catch(() => undefined)
+  check(await page.locator('[data-portal-panel]').count() === 0 && await page.locator('[data-guest-enter]').count() === 1, 'אחרי היציאה: בלי כניסה אין ספרייה, ויש כפתור כניסת אורחים')
+  await page.context().close()
+}
+
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--autoplay-policy=no-user-gesture-required'] })
 if (ONLY.includes('splash')) await splash(browser)
 if (ONLY.includes('home')) await home(browser)
 if (ONLY.includes('student')) await student(browser)
+if (ONLY.includes('guest')) await guest(browser)
 await browser.close()
 console.log(failed ? `\n${failed} נכשלו` : '\nהכול עבר')
 process.exit(failed ? 1 : 0)
