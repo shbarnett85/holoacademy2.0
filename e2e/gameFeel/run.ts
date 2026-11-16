@@ -250,7 +250,7 @@ async function flow(browser: Browser): Promise<void> {
   await shot(page, 'flow-end-closed')
   const endText = await page.locator('[data-end-screen]').innerText()
   check((await page.getAttribute('[data-end-screen]', 'data-end-screen')) === 'closed', 'הסיפור נסגר ב-3 גבישים')
-  check(/2 אתגרים הצליחו בניסיון הראשון/.test(endText), 'משפט צמיחה: בניסיון הראשון (2, בלי הדילמה)')
+  check(/2 אתגרים הצליחו במלואם/.test(endText), 'משפט צמיחה: הצליחו במלואם (2, בלי הדילמה)')
   check(/פעם אחת ניסיתם שוב והצלחתם/.test(endText), 'משפט צמיחה: ניסו שוב והצליחו')
   check(/הכיתה אספה עד עכשיו 41 גבישים, ו-3 מהם שלכם. היעד: 72./.test(endText), 'גבישי הכיתה: הטקסט המדויק')
   check(!/דרג|%|אחוז|מקום/.test(endText), 'אין דרגה, אחוזים או השוואה במסך הסיום')

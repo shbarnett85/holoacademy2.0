@@ -17,7 +17,6 @@ import { MathText } from '../../shared/ui/MathText'
 import { panelCorrect, panelWrong } from '../../styles/ui'
 import { challengePoints, hasSecondTry } from '../../shared/lib/gemModel'
 import { bigEntrance, feelCorrect, revealEl, setMood } from './gameFeel/engine'
-import { pointsFromTelemetry } from './gameFeel/points'
 import { HUD_TEXT, RETRY_TEXT, retryHint } from './gameFeel/text'
 import {
   createPuzzleTelemetry, buildPresentation, presentChoices, isTrueFalse, trailingMistakes, PUZZLE_READY_DELAY_MS,
@@ -171,11 +170,11 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
     else setMood('thinking')
   }
 
-  /* כל האתגרים חוץ מבחירה מרובה ומבחן סיכום: הנקודות נגזרות ממה שנרשם בטלמטריה */
+  /* כל האתגרים חוץ מבחירה מרובה: מבחן סיכום לפי השאלות שלו; כל אתגר אחר בינארי — הצליח נקודה מלאה, לא הצליח אפס */
   function handleResult(r: { correct: boolean; score?: number; quizAttempts?: number[] }) {
     const points = type === 'finalQuiz'
       ? challengePoints({ type, solved: r.correct, quizAttempts: r.quizAttempts ?? [] })
-      : pointsFromTelemetry(puzzle, r.correct, tel.state.events)
+      : challengePoints({ type, solved: r.correct })
     finish(r, points)
   }
 

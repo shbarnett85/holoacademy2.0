@@ -1,5 +1,6 @@
 /* ── מודל הגבישים (CLAUDE.md "תחושת משחק: כללים" + "מודל הגבישים") — pure, משותף ללקוח, לשרת ולבדיקות ──
    חמשת הגבישים הם פס התקדמות: כל אתגר שווה נקודה אחת לכל היותר, והגבישים = נקודות ÷ נקודות אפשריות × 5.
+   אתגר-משחק הוא בינארי (הצליח 1, לא הצליח 0); חצי נקודה קיימת רק בבחירה מרובה ובמבחן סיכום, על תשובה נכונה בניסיון השני.
    הגבישים הם שכבת המשחק בלבד: הכיול והאנליטיקה נשענים על הניסיון הראשון (`correct` ב-events), לא על הנקודות. */
 
 export const GEM_TOTAL = 5
@@ -9,31 +10,29 @@ const EPS = 1e-9
 
 export const POINTS = { clean: 1, afterMistake: 0.5, none: 0 } as const
 
-/* איך נקבעת "הצלחה נקייה" לכל סוג אתגר:
-   · secondTry — נכון בניסיון הראשון = 1, נכון בניסיון השני = 0.5
-   · single — ניסיון אחד (עם שתי אפשרויות ניסיון שני חסר משמעות)
-   · firstSubmit — נכון בהגשה הראשונה = 1, בהגשה מאוחרת יותר = 0.5
-   · halfBudget — הצלחה עם עד מחצית מהטעויות המותרות = 1, עם יותר = 0.5
-   · inTime — הצלחה בתוך הזמן = 1
+/* איך נקבעות הנקודות של כל סוג אתגר. ניקוד חלקי קיים רק במקום שיש בו ניסיון שני על אותה שאלה (לבקשת המשתמש):
+   · secondTry — בחירה מרובה ומבחן סיכום: נכון בניסיון הראשון = 1, נכון בניסיון השני = 0.5
+   · binary — כל שאר האתגרים (זיכרון, זיהוי קוד, פאזל, תפזורת, התאמת זוגות, סידור רצף, השלמת מילים, נכון/לא נכון):
+     הצליח = 1, לא הצליח = 0. מספר הטעויות בדרך לא משנה את הניקוד: באתגר-משחק או שפתרו אותו או שלא
    · always — דילמה מוסרית: אין תשובה נכונה, תמיד 1 */
-export type CleanRule = 'secondTry' | 'single' | 'firstSubmit' | 'halfBudget' | 'inTime' | 'always'
+export type CleanRule = 'secondTry' | 'binary' | 'always'
 
 export const CLEAN_SUCCESS: Readonly<Record<string, CleanRule>> = {
   multipleChoice: 'secondTry',
   finalQuiz: 'secondTry',
-  trueFalse: 'single',
-  memory: 'halfBudget',
-  matchPairs: 'halfBudget',
-  sequenceOrder: 'firstSubmit',
-  hangman: 'halfBudget',
-  wordCompletion: 'halfBudget',
-  tileSwap: 'halfBudget',
-  slidingPuzzle: 'halfBudget',
-  wordSearch: 'inTime',
+  trueFalse: 'binary',
+  memory: 'binary',
+  matchPairs: 'binary',
+  sequenceOrder: 'binary',
+  hangman: 'binary',
+  wordCompletion: 'binary',
+  tileSwap: 'binary',
+  slidingPuzzle: 'binary',
+  wordSearch: 'binary',
   moralDilemma: 'always',
 }
 
-export const cleanRuleOf = (type: string | null | undefined): CleanRule => CLEAN_SUCCESS[type ?? 'multipleChoice'] ?? 'single'
+export const cleanRuleOf = (type: string | null | undefined): CleanRule => CLEAN_SUCCESS[type ?? 'multipleChoice'] ?? 'binary'
 
 /* בחירה מרובה ומבחן סיכום מקבלים ניסיון שני. נכון/לא נכון — לא, גם אם הגיע בלי type מפורש */
 export function hasSecondTry(type: string | null | undefined, isTrueFalseChoice = false): boolean {
@@ -46,15 +45,11 @@ export interface ChallengeOutcome {
   solved: boolean
   /* secondTry: באיזה ניסיון הצליח (1/2) */
   solvedOnAttempt?: number
-  /* firstSubmit: כמה הגשות שגויות היו לפני ההצלחה. halfBudget: כמה טעויות היו */
-  mistakes?: number
-  /* halfBudget: כמה טעויות מותרות */
-  allowed?: number
   /* finalQuiz: לכל שאלה — באיזה ניסיון הצליח (1/2), או 0 אם לא הצליח */
   quizAttempts?: number[]
 }
 
-/* הנקודות של אתגר אחד: 0, 0.5 או 1 (במבחן סיכום — ממוצע השאלות) */
+/* הנקודות של אתגר אחד: 0 או 1; בבחירה מרובה גם 0.5 (נכון בניסיון השני), ובמבחן סיכום ממוצע השאלות */
 export function challengePoints(o: ChallengeOutcome): number {
   const rule = cleanRuleOf(o.type)
   if (rule === 'always') return POINTS.clean
@@ -64,15 +59,8 @@ export function challengePoints(o: ChallengeOutcome): number {
     return sum / o.quizAttempts.length
   }
   if (!o.solved) return POINTS.none
-  switch (rule) {
-    case 'secondTry': return (o.solvedOnAttempt ?? 1) <= 1 ? POINTS.clean : POINTS.afterMistake
-    case 'firstSubmit': return (o.mistakes ?? 0) === 0 ? POINTS.clean : POINTS.afterMistake
-    case 'halfBudget': {
-      const allowed = Math.max(0, o.allowed ?? 0)
-      return (o.mistakes ?? 0) <= allowed / 2 ? POINTS.clean : POINTS.afterMistake
-    }
-    default: return POINTS.clean
-  }
+  if (rule === 'secondTry') return (o.solvedOnAttempt ?? 1) <= 1 ? POINTS.clean : POINTS.afterMistake
+  return POINTS.clean
 }
 
 /* מספר הגבישים כמספר רציף (0..5) — הגבישים מתמלאים ברצף, מלמטה למעלה */

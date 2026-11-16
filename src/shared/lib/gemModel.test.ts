@@ -25,28 +25,25 @@ describe('נקודות לאתגר', () => {
     expect(challengePoints({ type: 'trueFalse', solved: true })).toBe(1)
     expect(challengePoints({ type: 'trueFalse', solved: false })).toBe(0)
   })
-  it.each(['memory', 'matchPairs', 'hangman', 'wordCompletion', 'tileSwap'])('%s: עד מחצית מהטעויות המותרות 1, יותר 0.5, כישלון 0', (type) => {
-    expect(challengePoints({ type, solved: true, mistakes: 0, allowed: 6 })).toBe(1)
-    expect(challengePoints({ type, solved: true, mistakes: 3, allowed: 6 })).toBe(1)
-    expect(challengePoints({ type, solved: true, mistakes: 4, allowed: 6 })).toBe(0.5)
-    expect(challengePoints({ type, solved: false, mistakes: 6, allowed: 6 })).toBe(0)
+  it.each(['memory', 'matchPairs', 'hangman', 'wordCompletion', 'tileSwap', 'slidingPuzzle', 'sequenceOrder', 'wordSearch'])('%s: בינארי — הצליח 1, לא הצליח 0, בלי חצי נקודה', (type) => {
+    expect(cleanRuleOf(type)).toBe('binary')
+    expect(challengePoints({ type, solved: true })).toBe(1)
+    expect(challengePoints({ type, solved: false })).toBe(0)
+    /* גם אם מישהו מעביר "ניסיון שני": באתגר-משחק אין חצי נקודה */
+    expect(challengePoints({ type, solved: true, solvedOnAttempt: 2 })).toBe(1)
   })
-  it('סידור רצף: הגשה ראשונה 1, מאוחרת 0.5', () => {
-    expect(challengePoints({ type: 'sequenceOrder', solved: true, mistakes: 0 })).toBe(1)
-    expect(challengePoints({ type: 'sequenceOrder', solved: true, mistakes: 2 })).toBe(0.5)
-  })
-  it('תפזורת: הצלחה בזמן 1, הזמן נגמר 0', () => {
-    expect(challengePoints({ type: 'wordSearch', solved: true })).toBe(1)
-    expect(challengePoints({ type: 'wordSearch', solved: false })).toBe(0)
+  it('חצי נקודה קיימת רק בבחירה מרובה ובמבחן סיכום', () => {
+    const partial = Object.entries(CLEAN_SUCCESS).filter(([, rule]) => rule === 'secondTry').map(([t]) => t).sort()
+    expect(partial).toEqual(['finalQuiz', 'multipleChoice'])
   })
   it('דילמה מוסרית: תמיד 1', () => {
     expect(challengePoints({ type: 'moralDilemma', solved: false })).toBe(1)
   })
-  it('יש הגדרה מפורשת לכל סוג אתגר, וסוג לא מוכר הוא ניסיון אחד', () => {
+  it('יש הגדרה מפורשת לכל סוג אתגר, וסוג לא מוכר הוא בינארי', () => {
     for (const t of ['multipleChoice', 'trueFalse', 'finalQuiz', 'memory', 'sequenceOrder', 'hangman', 'wordCompletion', 'tileSwap', 'wordSearch', 'moralDilemma']) {
       expect(CLEAN_SUCCESS[t], t).toBeDefined()
     }
-    expect(cleanRuleOf('somethingNew')).toBe('single')
+    expect(cleanRuleOf('somethingNew')).toBe('binary')
   })
 })
 
