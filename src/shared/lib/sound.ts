@@ -2,14 +2,14 @@ import { useSyncExternalStore } from 'react'
 
 /* ── מערכת סאונד מרכזית ל-HoloAcademy ─────────────────────────────────────────
    Web Audio API: כל ניגון = BufferSource חדש → סאונדים קצרים (click/good) נשמעים
-   ברצף מהיר בלי לחתוך זה את זה. סאונדים ארוכים (win/fusion/portal/wormhole) — אם
+   ברצף מהיר בלי לחתוך זה את זה. סאונדים ארוכים (win/fusion/wormhole) — אם
    מופעלים שוב לפני שנגמרו, ה-source הקודם נעצר (איפוס). preload פעם אחת.
    Autoplay: ה-AudioContext נוצר suspended ומתעורר (resume) ב-user-gesture הראשון.
    mute/volume נשמרים ב-localStorage. כשל טעינה (404)/קובץ חסר → **fallback סינתטי**
    (osc/noise ב-Web Audio) כך ששום צליל לא "נעלם". 'hover' הוא סינתטי-בלבד (ללא קובץ).
    ─────────────────────────────────────────────────────────────────────────── */
 
-export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'portal' | 'wormhole' | 'type' | 'hover' | 'reveal' | 'welcome'
+export type SoundName = 'click' | 'good' | 'win' | 'error' | 'fusion' | 'wormhole' | 'type' | 'hover' | 'reveal' | 'welcome'
 
 /* 'hover'/'reveal' ללא קובץ → תמיד סינתזה. Partial כי לא לכל שם יש קובץ. */
 const FILES: Partial<Record<SoundName, string>> = {
@@ -18,13 +18,12 @@ const FILES: Partial<Record<SoundName, string>> = {
   win: '/sounds/crystal_win.mp3',
   error: '/sounds/digital_error.mp3',
   fusion: '/sounds/3fusion.mp3',
-  portal: '/sounds/portal_neon.wav',
   wormhole: '/sounds/wormhole.mp3',
   type: '/sounds/type.wav',
 }
 
 /* ארוכים — ניגון יחיד שמתאפס אם מופעל שוב לפני שנגמר */
-const LONG = new Set<SoundName>(['win', 'fusion', 'portal', 'wormhole'])
+const LONG = new Set<SoundName>(['win', 'fusion', 'wormhole'])
 
 const MUTED_KEY = 'holo_sound_muted'
 const VOLUME_KEY = 'holo_sound_volume'
@@ -170,7 +169,6 @@ function synth(name: SoundName) {
     case 'good': beep(660, 0.12, 'sine', 0.32, 880); break
     case 'win': beep(523, 0.14, 'triangle', 0.32); beep(784, 0.2, 'triangle', 0.28, 988); break
     case 'fusion': beep(300, 0.4, 'triangle', 0.3, 1200); noise(0.3, 0.12); break
-    case 'portal': beep(180, 0.5, 'sine', 0.32, 900); noise(0.4, 0.14); break
     /* פיצוץ הספלאש — בום תת-נמוך קומפקטי + הדף רעש קצר */
     /* צליל כניסה — עליית טרצה חמה + נצנוץ עליון עדין (קבלת פנים, לא פנפרה) */
     case 'welcome': beep(587, 0.4, 'triangle', 0.22, 880); beep(880, 0.55, 'sine', 0.1, 1175); break

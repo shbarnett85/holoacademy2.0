@@ -171,6 +171,39 @@ function chime(freq: number, dur: number, vol = 0.4, when = 0): void {
 function sparkle(freqs: readonly number[], when = 0, gap = 0.055, vol = 0.2): void {
   freqs.forEach((f, i) => chime(f, 0.22, vol, when + i * gap))
 }
+/* רשרוש: רעש לבן דרך מסנן שהתדר שלו נע (נייר שמתהפך, משב קצר). peakAt: איפה לאורך הצליל העוצמה בשיאה */
+let noiseBuf: AudioBuffer | null = null
+let noiseCtx: AudioContext | null = null
+function swish(dur: number, from: number, to: number, vol = 1, when = 0, q = 0.9, peakAt = 0.35): void {
+  const a = audioOut()
+  if (!a) return
+  try {
+    if (noiseCtx !== a.ac || !noiseBuf) {
+      noiseCtx = a.ac
+      noiseBuf = a.ac.createBuffer(1, a.ac.sampleRate, a.ac.sampleRate)
+      const d = noiseBuf.getChannelData(0)
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    }
+    const t = a.ac.currentTime + when
+    const s = a.ac.createBufferSource()
+    const f = a.ac.createBiquadFilter()
+    const g = a.ac.createGain()
+    s.buffer = noiseBuf
+    s.loop = true
+    f.type = 'bandpass'
+    f.Q.value = q
+    f.frequency.setValueAtTime(from, t)
+    f.frequency.exponentialRampToValueAtTime(to, t + dur)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + dur * peakAt)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    s.connect(f)
+    f.connect(g)
+    g.connect(a.out)
+    s.start(t)
+    s.stop(t + dur + 0.03)
+  } catch { /* צליל לעולם לא מפיל את המשחק */ }
+}
 /* הצלילים שמחים יותר (לבקשת המשתמש): הצלחות הן שלושה צלילים עולים במז'ור עם נצנוץ, והסיום הוא תרועה קצרה.
    הטעות נשארת רכה ועמומה (כלל 2), ושום צליל לא מתנגן בזמן קריאה (כלל 1) */
 export const sounds = {
@@ -183,6 +216,19 @@ export const sounds = {
     chime(f * 1.26, 0.2, 0.42, 0.085)
     chime(f * 1.5, 0.36, 0.42, 0.17)
     tone(f * 3, 0.2, 'sine', 0.12, 0.27)
+  },
+  /* מעבר בין עמודים: דף שמתהפך — רשרוש קצר שעולה (בחזרה לעמוד קודם: יורד), רפרוף קטן ונחיתה רכה. שליש שנייה.
+     החליף את קובץ ה"פורטל" (1.3 שניות, וחזק פי כמה משאר הצלילים); שקט יותר מצליל של תשובה נכונה, כי הוא מתנגן בכל עמוד */
+  page(dir: 'forward' | 'back' = 'forward'): void {
+    const fwd = dir === 'forward'
+    swish(0.2, fwd ? 1300 : 4200, fwd ? 4200 : 1300, 1.3, 0, 0.8, 0.4)
+    swish(0.11, fwd ? 3200 : 1800, fwd ? 1800 : 3200, 0.6, 0.19, 1.1, 0.3)
+    tone(170, 0.07, 'sine', 0.22, 0.27, 110)
+  },
+  /* הצלילה לפורטל, מהפתיחה לעמוד הראשון: משב אוויר רך שעולה לאורך הצלילה, עם זמזום נמוך ועולה מתחתיו. במקום קובץ ה"פורטל" */
+  dive(): void {
+    swish(0.8, 280, 2400, 1.5, 0, 0.7, 0.62)
+    tone(130, 0.75, 'sine', 0.2, 0, 390)
   },
   drop(): void { tone(1568, 0.14, 'sine', 0.3) },
   gem(): void { sparkle([2093, 2637, 3136], 0, 0.055, 0.26) },
@@ -517,6 +563,8 @@ if (isBrowser) {
     confetti,
     party,
     cannons,
+    page: sounds.page,
+    dive: sounds.dive,
     flyGem,
     setMood,
   }

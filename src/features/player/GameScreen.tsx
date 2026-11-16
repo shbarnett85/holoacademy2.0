@@ -698,6 +698,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             dir={engine.transitionDir}
             wormhole={engine.transitionType === 'wormhole'}
             dimmed={onStage || choicesOnStage}
+            fromLab={!!labExit}
             /* הטקסט לא מחכה לתמונה: הדפדוף של עמודת הטקסט מתוזמן כאן (pageTurn), והתמונה מסיימת את המעבר שלה בעמודה שלה */
             onComplete={noop}
           />

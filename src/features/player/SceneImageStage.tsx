@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { playSound } from '../../shared/lib/sound'
-import { feelLevel, KEN_BURNS_SECONDS, prefersReducedMotion } from './gameFeel/engine'
+import { feelLevel, KEN_BURNS_SECONDS, prefersReducedMotion, sounds } from './gameFeel/engine'
 import { planSceneSwap, sceneSwapMs, type SceneSwapKind } from './sceneSwap'
 
 /* ── תמונת הסצנה והמעבר בין תמונות ──────────────────────────────────────────────
@@ -73,7 +72,7 @@ function waitForImage(src: string | undefined): Promise<void> {
   return Promise.race([decoded, new Promise<void>((r) => window.setTimeout(r, IMAGE_WAIT_MS))]).then(() => undefined)
 }
 
-export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, dimmed, onComplete }: {
+export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, dimmed, fromLab = false, onComplete }: {
   sceneId: string
   src?: string
   /* עולה בכל מעבר (engine.transitionKey) */
@@ -83,6 +82,8 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
   wormhole: boolean
   /* האתגר עדיין פתוח על התמונה: התמונה היוצאת שומרת על ההכהיה, כדי שלא תבהיק לרגע לפני הסריקה */
   dimmed: boolean
+  /* המעבר הזה הוא היציאה מהמעבדה (צלילה לפורטל): צליל הצלילה במקום צליל הדפדוף */
+  fromLab?: boolean
   onComplete: () => void
 }) {
   const keys = useRef(1)
@@ -96,6 +97,10 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
   const dimmedRef = useRef(dimmed)
   const wasDimmed = useRef(false)
   useEffect(() => { wasDimmed.current = dimmedRef.current; dimmedRef.current = dimmed }, [dimmed])
+  const dirRef = useRef(dir)
+  const fromLabRef = useRef(fromLab)
+  useEffect(() => { dirRef.current = dir; fromLabRef.current = fromLab })
+  const pageSound = () => { if (fromLabRef.current) sounds.dive(); else sounds.page(dirRef.current) }
   const currentRef = useRef(current)
   useEffect(() => { currentRef.current = current }, [current])
 
@@ -105,13 +110,15 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
       if (!wormhole && trigger > 1) { const t = window.setTimeout(() => onCompleteRef.current(), 0); return () => window.clearTimeout(t) }
       return
     }
+    const newPage = currentRef.current.sceneId !== sceneId
     const next: Layer = { key: keys.current++, sceneId, src }
     const kind = planSceneSwap({ wormhole, reduced: prefersReducedMotion(), level: feelLevel(), sameImage: currentRef.current.src === src })
     if (kind === 'cut') {
       setCurrent(next)
       setRun(null)
       if (wormhole) return
-      if (currentRef.current.src !== src) playSound('portal')
+      /* צליל הדפדוף מתנגן בכל מעבר עמוד, גם כשהתמונה לא התחלפה (ולא כשרק התמונה של אותו עמוד התחלפה) */
+      if (newPage) pageSound()
       const t = window.setTimeout(() => onCompleteRef.current(), 0)
       return () => window.clearTimeout(t)
     }
@@ -131,7 +138,7 @@ export default function SceneImageStage({ sceneId, src, trigger, dir, wormhole, 
     void waitForImage(src).then(() => {
       if (cancelled) return
       const ms = sceneSwapMs(feelLevel())
-      playSound('portal')
+      if (newPage) pageSound()
       setOutDim(wasDimmed.current || dimmedRef.current)
       setRun({ layer: next, kind, ms })
       timers.push(window.setTimeout(finish, ms + 40))
