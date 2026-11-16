@@ -68,7 +68,8 @@ export default function App() {
       )}
       <ErrorBoundary>
       <Suspense fallback={<Loader />}>
-        <div className={splashDone ? 'holo-screen-fade' : undefined}>
+        {/* בלי דהייה אחרי הספלאש: הספלאש נפתח כמו פורטל וחושף את העמוד שכבר מרונדר מתחתיו */}
+        <div>
         <Routes>
           <Route path="/"                element={<Home />} />
           <Route path="/class/:urlCode"  element={<ClassEntry />} />

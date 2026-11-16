@@ -1,12 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import { GemDefs, GemIcon } from '../../shared/ui/Gem'
 import { legacySubjectToCode, subjectVisual } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
+import LabStage from '../player/lab/LabStage'
+import { OPENING_STAGE, labCover } from '../player/lab/labComposition'
+import { useGameFeel } from '../player/gameFeel/engine'
 
 /* שיעור בחלון הראווה — המדף "התנסו עכשיו" ללא הרשמה */
 interface ShowcaseQuest {
@@ -196,13 +198,6 @@ function Bookshelf({ quests }: { quests: ShowcaseQuest[] }) {
   )
 }
 
-interface ModeCard {
-  id: 'student' | 'teacher'
-  label: string
-  sub: string
-  icon: React.ReactNode
-}
-
 /* שלושת השלבים: אדם מתאר → המכונה בונה → משחקים יחד. צבע התג של כל שלב לפי תפקידי הצבע
    (אנושיות / המכונה / משטח), והמספר כתוב בתוכו, כך שהצבע לא נושא משמעות לבד. */
 const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text: string; fill: string }[] = [
@@ -211,11 +206,21 @@ const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text
   { n: '3', icon: 'chart', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.', fill: 'var(--color-surface)' },
 ]
 
-/* מסך הבית — "דלפק הספרייה": מימין הכניסה (לוגו ושתי דלתות: תלמידים ומורים), משמאל מדף
-   השיעורים להתנסות, ומתחת שלושת השלבים ורצועת היתרונות. הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה →
-   /class/:code; מורה → /staff/login; ספר במדף → /play/:id. */
+/* כמה זמן שיעור אחד מוצג בפורטל לפני שהוא מתחלף */
+const PORTAL_ROTATE_MS = 7000
+/* רשת ביטחון לצלילה: האנימציה לא חייבת להסתיים (לשונית מוסתרת), והניווט לא יכול להיתקע */
+const DIVE_FALLBACK_MS = 1700
+/* איפה הבועה של ד"ר הולו, בקואורדינטות של תמונת הספרייה: מעל הראש שלו */
+const BUBBLE_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
+
+/* מסך הבית — "הספרייה ההולוגרפית": המסך הראשון הוא הבמה של פתיחת שיעור (LabStage) במסך מלא. הפורטל מציג שיעור התנסות
+   כהולוגרמה (מתחלף כל כמה שניות; לחיצה עליו או על "שחקו עכשיו" צוללת לתוכו ופותחת את השיעור), ד"ר הולו מקבל את הפנים,
+   ומימין חלון צף עם הסימן ושתי הכניסות. בגלילה למטה: מדף שיעורי ההתנסות, שלושת השלבים ורצועת היתרונות.
+   הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה → /class/:code; מורה → /staff/login; שיעור התנסות → /play/:id. */
 export default function Home() {
   const navigate = useNavigate()
+  const feel = useGameFeel()
+  const moving = !feel.reduced && feel.level !== 'gentle'
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [shake, setShake] = useState(false)
@@ -228,9 +233,44 @@ export default function Home() {
       .catch(() => setShowcase([]))
   }, [])
 
-  function startDemo() {
-    navigate('/play/leonardo')
+  /* השיעור שבפורטל: מתחלף מעצמו, ונעצר בריחוף ובפוקוס על השורה שמתחת לפורטל, בתנועה מופחתת ובזמן הצלילה */
+  const [cur, setCur] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [leaving, setLeaving] = useState<'dive' | undefined>(undefined)
+  const n = showcase.length
+  const featured: ShowcaseQuest | undefined = n ? showcase[cur % n] : undefined
+  useEffect(() => {
+    if (n < 2 || paused || leaving || reduceMotion) return
+    const t = window.setInterval(() => setCur((c) => (c + 1) % n), PORTAL_ROTATE_MS)
+    return () => window.clearInterval(t)
+  }, [n, paused, leaving])
+  const step = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
+
+  /* כניסה לשיעור ההתנסות: צלילה לפורטל ואז ניווט. בלי תנועה (תנועה מופחתת, עוצמה עדינה): ניווט מיד */
+  const target = useRef<string | null>(null)
+  const go = () => { const to = target.current; target.current = null; if (to) navigate(to) }
+  function play() {
+    if (target.current) return
+    if (featured) trackFunnel('showcase_click', featured.id)
+    target.current = featured ? `/play/${featured.id}` : '/play/leonardo'
+    if (!moving) { go(); return }
+    setLeaving('dive')
+    window.setTimeout(go, DIVE_FALLBACK_MS)
   }
+
+  /* הבועה של ד"ר הולו יושבת בקואורדינטות של תמונת הספרייה, ולכן נשארת מעל הראש שלו בכל גודל מסך */
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [bubble, setBubble] = useState<{ left: number; top: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const measure = () => { const c = labCover(el.clientWidth, el.clientHeight, OPENING_STAGE); setBubble({ left: c.x + BUBBLE_AT.x * c.scale, top: c.y + BUBBLE_AT.y * c.scale }) }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   /* ‏Escape סוגר את מודאל קוד-הכיתה — אותה התנהגות כמו כל חלונות הכניסה */
   useEffect(() => {
@@ -246,95 +286,108 @@ export default function Home() {
     navigate(`/class/${code}`)
   }
 
-  const cards: ModeCard[] = [
-    {
-      id: 'teacher',
-      label: 'מצב מורה',
-      sub: 'צרו שיעורים, נהלו כיתות ועקבו אחר התקדמות',
-      icon: (
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-        </svg>
-      ),
-    },
-    {
-      id: 'student',
-      label: 'מצב תלמיד/ה',
-      sub: 'היכנסו לשיעורים, פתרו אתגרים ואספו רסיסי ידע',
-      icon: (
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-        </svg>
-      ),
-    },
-  ]
-
-  function selectCard(id: 'student' | 'teacher') {
-    if (id === 'student') setShowCodeModal(true)
-    else navigate('/staff/login')
-  }
+  const featuredCode = featured ? legacySubjectToCode(featured.subject) : null
 
   return (
-    <HoloBackdrop>
-      <div className="home3">
+    <div dir="rtl" className="home4">
+      <GemDefs />
 
-        {/* ── הדלפק: לוגו ושתי הכניסות ── */}
-        <section className="home3-login" style={{ ...panelStudent, textAlign: 'center' }}>
-          <GemDefs />
-          <HomeMark />
-          <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
-          <p style={{ margin: '8px 0 0', fontSize: 'var(--fs-tagline)', fontWeight: 700, letterSpacing: '.06em', color: 'var(--color-machine-deep)' }}>ממד חדש של למידה!</p>
-
-          {/* שתי הכניסות — זו לצד זו. כרטיס לחיץ = כפתור; המבטא של כניסת המורה במשפחת האנושיות */}
-          <div className="home3-doors">
-            {cards.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => selectCard(c.id)}
-                className="holo-button"
-                style={{
-                  padding: 'clamp(12px, 1.6vh, 20px) 12px 14px', borderRadius: 16,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
-                  fontFamily: 'var(--font-display)', fontWeight: 400, minWidth: 0,
-                }}
-              >
-                <div>{c.icon}</div>
-                <div style={{ fontSize: 'var(--fs-mode-title)', fontWeight: 800 }}>{c.label}</div>
-                <div style={{ fontSize: 'var(--fs-mode-sub)', color: 'var(--color-muted)', lineHeight: 1.5 }}>{c.sub}</div>
-                <div style={{
-                  marginTop: 'auto', padding: '6px 26px', borderRadius: 9, fontSize: 'var(--fs-btn)', fontWeight: 700,
-                  background: c.id === 'teacher' ? 'var(--color-human-soft)' : 'var(--color-surface)',
-                  color: 'var(--color-ink)', border: '2px solid var(--color-ink)',
-                }}>כניסה</div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── המדף: שיעורים להתנסות ── */}
-        <section className="home3-shelf">
-          {showcase.length > 0 ? (
-            <Bookshelf quests={showcase} />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <div style={{ textAlign: 'center', fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 10 }}>התנסו עכשיו</div>
-              <button
-                onClick={startDemo}
-                className="holo-button"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '13px 24px', borderRadius: 14,
-                  fontFamily: 'var(--font-display)', fontSize: 14, fontWeight: 700,
-                }}
-              >
-                <BrandIcon name="playGem" size={18} />
-                שיעור דמו — לאונרדו דה וינצ׳י
-              </button>
+      {/* ── המסך הראשון: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
+      <section className="home4-hero" data-home-hero data-leaving={leaving}>
+        <div ref={stageRef} className="home4-stage">
+          <LabStage
+            state="opening"
+            portalSrc={featured?.thumbUrl ?? undefined}
+            mood="neutral"
+            leaving={leaving}
+            onDiveEnd={go}
+            onPortalClick={play}
+            portalLabel={featured ? `שחקו עכשיו: ${featured.title}` : 'שחקו בשיעור ההתנסות'}
+          />
+          {bubble && (
+            <div className="home4-bubble home4-fade" data-home-bubble style={{ left: bubble.left, top: bubble.top }}>
+              ברוכים הבאים לספרייה ההולוגרפית! הפורטל פתוח.
             </div>
           )}
-        </section>
+          <div
+            className="home4-now home4-fade" data-home-now
+            onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+            onFocusCapture={() => setPaused(true)} onBlurCapture={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) }}
+          >
+            {featured && (
+              <div className="home4-now-row">
+                {n > 1 && (
+                  <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow">
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
+                <div className="home4-now-card" aria-live="polite">
+                  <span className="home4-now-title">{featured.title}</span>
+                  {featured.subject && <SubjectTag code={featuredCode} size="sm" />}
+                </div>
+                {n > 1 && (
+                  <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow">
+                    <span aria-hidden="true">←</span>
+                  </button>
+                )}
+              </div>
+            )}
+            <button onClick={play} className="holo-button home4-play" data-home-play>
+              <BrandIcon name="playGem" size={22} />
+              <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
+            </button>
+          </div>
+        </div>
 
-        {/* ── איך זה עובד: שלושה שלבים ברצף ── */}
-        <section className="home3-steps">
+        {/* החלון הצף: הסימן ושתי הכניסות */}
+        <div className="home4-panel home4-fade" data-home-panel style={panelStudent}>
+          <HomeMark />
+          <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
+          <p className="home4-tagline">ממד חדש של למידה!</p>
+          <p className="home4-lead">שיעורים אינטראקטיביים בהדמיה: המורה מתאר את החומר, וד״ר הולו בונה ממנו הרפתקה.</p>
+          <div className="home4-doors">
+            <button onClick={() => navigate('/staff/login')} className="holo-button home4-door home4-door--teacher" data-home-door="teacher">
+              <span className="home4-door-icon" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+                </svg>
+              </span>
+              <span className="home4-door-text">
+                <span className="home4-door-title">כניסת מורים</span>
+                <span className="home4-door-sub">יצירת שיעורים, כיתות והתקדמות</span>
+              </span>
+              <span className="home4-door-arrow" aria-hidden="true">←</span>
+            </button>
+            <button onClick={() => setShowCodeModal(true)} className="holo-button home4-door" data-home-door="student">
+              <span className="home4-door-icon" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
+              <span className="home4-door-text">
+                <span className="home4-door-title">כניסת תלמידים</span>
+                <span className="home4-door-sub">עם קוד הכיתה מהמורה</span>
+              </span>
+              <span className="home4-door-arrow" aria-hidden="true">←</span>
+            </button>
+          </div>
+          <button className="holo-link" onClick={() => document.getElementById('home-how')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
+            style={{ alignSelf: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
+            איך זה עובד? ↓
+          </button>
+        </div>
+      </section>
+
+      {/* ── בגלילה למטה: מדף, שלבים ורצועה ── */}
+      <div className="home4-more">
+        {showcase.length > 0 && (
+          <section>
+            <Bookshelf quests={showcase} />
+          </section>
+        )}
+
+        {/* איך זה עובד: שלושה שלבים ברצף */}
+        <section id="home-how" className="home4-steps">
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <SectionHead
               icon={<BrandIcon name="compass" size={22} style={{ color: 'var(--color-ink)' }} />}
@@ -364,8 +417,8 @@ export default function Home() {
           </ol>
         </section>
 
-        {/* ── רצועת היתרונות + זכויות ── */}
-        <footer className="home3-strip" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
+        {/* רצועת היתרונות + זכויות */}
+        <footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
             {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
               <span key={c} style={{ ...infoChip, fontSize: 'var(--fs-chip)', fontWeight: 600, padding: '4px 12px', borderRadius: 9, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
@@ -382,7 +435,7 @@ export default function Home() {
       {/* מודאל קוד כיתה */}
       {showCodeModal && (
         <div
-          className="absolute inset-0 flex items-center justify-center"
+          className="fixed inset-0 flex items-center justify-center"
           style={{ zIndex: 100, ...modalBackdrop }}
           onClick={() => { setShowCodeModal(false); setClassCode('') }}
         >
@@ -427,6 +480,6 @@ export default function Home() {
           </div>
         </div>
       )}
-    </HoloBackdrop>
+    </div>
   )
 }
