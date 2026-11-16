@@ -357,6 +357,7 @@ export default function PuzzleModal({ puzzle, imageUrl, onSolve, onClose, onCont
       ref={panelRef}
       className="holo-panel w-full text-center mx-auto"
       data-puzzle-panel
+      data-puzzle-type={type}
       data-final-challenge={isFinalChallenge ? 'true' : undefined}
       data-solution-view={result && keepsChallenge ? 'true' : undefined}
       style={{

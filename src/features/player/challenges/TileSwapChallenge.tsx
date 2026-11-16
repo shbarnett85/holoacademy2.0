@@ -135,7 +135,7 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
   const remaining = maxBadSwaps - badSwaps
 
   return (
-    <div className="mt-4">
+    <div className="mt-4" data-board-root>
       <style>{`
         /* הקווים בין האריחים הם הרקע (דיו) שנראה דרך הרווחים. אריח לחיץ בלי תמונה: המתכון של כפתור */
         .tileswap-grid { background: var(--color-ink); border: var(--border-student); }
@@ -192,12 +192,13 @@ export default function TileSwapChallenge({ puzzle, imageUrl, onResult, tel }: P
           בלי זה הקונטיינר יורש rtl מהמערכת והתמונה הפתורה מתהפכת אופקית. */}
       <div
         dir="ltr"
+        data-board="tile"
         className={`tileswap-grid mx-auto ${done === 'win' ? 'solved' : ''}`}
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${n}, 1fr)`,
           gap: '3px',
-          width: 'min(78vw, 300px, max(190px, calc(100dvh - 518px)))', /* הלוח מתכווץ כדי שלא תהיה גלילה בפאנל */
+          width: 'var(--tile-board, min(78vw, 300px, max(190px, calc(100dvh - 518px))))', /* על הבמה: כמעט כל חלון התמונה (--tile-board ב-index.css); אחרת הלוח מתכווץ כדי שלא תהיה גלילה בפאנל */
           aspectRatio: '1 / 1',
           borderRadius: '0.6rem',
           overflow: 'hidden',

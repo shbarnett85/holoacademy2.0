@@ -235,9 +235,9 @@ html.holo-playing { font-size: 144%; }
    גם את עמוד הסיכום, שתוכנו גבוה מה-viewport: עם justify-center על גובה קבוע
    בלי גלילה, הסיכום נחתך משני הקצוות ולא ניתן היה להגיע אליו. */
 .holo-playing .holo-scene-root { height: 100dvh; }
-/* רוחב הדף בעמודי השיעור: רבע מהמסך (לבקשת המשתמש; היה שליש), ולא פחות מ-240px (טלפון לרוחב).
+/* רוחב הדף בעמודי השיעור: 28% מהמסך (לבקשת המשתמש: רבע ועוד כמה אחוזים, יחד עם גופן קטן יותר לטקסט העמוד), ולא פחות מ-240px (טלפון לרוחב).
    --lab-page-w: רוחב החלון הצף במסכי הפתיחה והסיכום — ברווח שבין טבעת הפורטל לקצה המסך (הטבעת כ-19.3vw או 34.3vh לכל צד) */
-:root { --page-w: max(25vw, 240px); --lab-page-w: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); }
+:root { --page-w: max(28vw, 240px); --lab-page-w: calc(50vw - max(20.1vw, 35.7vh) - 1.5rem - 4px); }
 /* במשחק המסך לא גולל: פס גלילה רק אם באמת יש מה לגלול, כדי שלא יישאר פס ריק לצד התמונה */
 html.holo-playing body { overflow-y: auto; }
 .holo-playing .scene-fade { min-height: 0; }
@@ -290,6 +290,25 @@ html.holo-playing body { overflow-y: auto; }
 /* ── אזור הטקסט: גובה קבוע, **בלי גלילה לעולם** ──
    כלל "אורך טקסט לתלמיד" (CLAUDE.md): טקסט שלא נכנס בגובה התיבה לא גולל — הוא מתחלק לעמודים
    (useScenePages) עם "המשך ›". הגופן לא מוקטן. overflow:hidden רק כרשת ביטחון ויזואלית. */
+/* טקסט העמוד: 1rem (היה text-lg = 1.125rem). לבקשת המשתמש, כדי שבדף הצר ייכנסו בעמוד אחד אותן מילים כמו קודם.
+   מדידת אורך הטקסט (sceneTextMetrics) קוראת את הגודל מה-DOM */
+.holo-text-area p.text-lg { font-size: 1rem; }
+/* השטח של חלון התמונה (לאתגרים שממלאים אותו): רוחב המסך פחות הדף, וגובה המסך פחות הפס העליון */
+.holo-scene-band { --stage-w: calc(100vw - var(--page-w)); --stage-h: calc(100dvh - var(--hud-h, 4rem)); }
+.holo-scene-band--lab { --stage-w: calc(100vw - var(--lab-page-w) - 3.5rem); }
+/* פאזל ומשחק הזיכרון ממלאים כמעט את כל חלון התמונה (לבקשת המשתמש): הלוח בצד אחד בכל הגובה, ולצידו עמודה צרה עם
+   התג, ההוראה, המד, כפתור הוויתור ופס התוצאה (בצד של הדף). הרכיבים רק מסומנים (data-board-root / data-board); הלוגיקה לא נגעה */
+.holo-stage { --board-side: 12.5rem; --board-h: calc(var(--stage-h) - 4.6rem); --tile-board: max(150px, min(calc(var(--stage-w) - var(--board-side) - 5rem), var(--board-h))); --memory-board-w: calc(var(--stage-w) - var(--board-side) - 5rem); --memory-board-h: var(--board-h); }
+.holo-stage [data-puzzle-panel]:is([data-puzzle-type=tileSwap], [data-puzzle-type=slidingPuzzle], [data-puzzle-type=memory]) {
+  display: grid; grid-template-columns: var(--board-side) auto; grid-template-rows: 1fr repeat(9, auto) 1fr; column-gap: 1rem; align-items: center; justify-items: center;
+  width: auto; padding: 0.8rem 1rem; max-height: calc(var(--stage-h) - 1.2rem) !important; overflow: hidden !important;
+}
+.holo-stage [data-puzzle-panel]:is([data-puzzle-type=tileSwap], [data-puzzle-type=slidingPuzzle], [data-puzzle-type=memory])::before { content: ''; grid-column: 1; grid-row: 1; }
+.holo-stage [data-puzzle-panel]:is([data-puzzle-type=tileSwap], [data-puzzle-type=slidingPuzzle], [data-puzzle-type=memory]) > *,
+.holo-stage [data-puzzle-panel] [data-board-root] > * { grid-column: 1; min-width: 0; max-width: 100%; margin-inline: 0; }
+.holo-stage [data-puzzle-panel] [data-board-root] { display: contents; }
+.holo-stage [data-puzzle-panel] [data-board-root] > [data-board] { grid-column: 2; grid-row: 1 / -1; max-width: none; }
+.holo-stage [data-puzzle-panel] [data-board-root] > [data-board][data-board=memory] { display: grid; place-items: center; }
 .holo-side-panel > .holo-text-area {
   flex: 1 1 auto;
   min-height: 0;

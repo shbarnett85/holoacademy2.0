@@ -40,8 +40,9 @@ function buildDeck(pairs: { a: string; b: string }[]): Card[] {
    הקלפים והשטח הפנוי), והטקסט מתאים את עצמו לקלף — פונט אחיד לכל הלוח,
    שנבחר לפי הטקסט הארוך ביותר. כך ההיפוך לא משנה שום מידה והלוח לא קופץ. */
 const GAP = 6
-const BOARD_MAX_W = 576 /* ‎36rem — לא נותנים ללוח להשתולל על מסך רחב */
-const CARD_MAX_H = 120
+const BOARD_MAX_W = 576 /* ‎36rem — מחוץ לבמה לא נותנים ללוח להשתולל על מסך רחב. על הבמה: --memory-board-w (כמעט כל חלון התמונה) */
+const CARD_MAX_H = 420 /* הקלפים ממלאים את הגובה הפנוי */
+const MAX_FONT = 34 /* בקלף גדול הטקסט גדל איתו */
 const RESERVE_BELOW = 124 /* כפתור הוויתור + ריפוד הפאנל והבמה מתחת ללוח */
 const BASE_FONT = 15
 const MIN_FONT = 10 /* מתחת לזה לא יורדים — עדיף חיתוך עם … מקלף שגדל */
@@ -49,10 +50,10 @@ const MIN_FONT = 10 /* מתחת לזה לא יורדים — עדיף חיתוך
 /* הפונט הגדול ביותר שבו **כל** הטקסטים נכנסים לקלף (מדידת canvas, גלישת
    מילים חמדנית). לא נמצא גם במינימום → מחזירים את המינימום, וה-line-clamp
    שעל הקלף חותך עם אליפסיס במקום להרחיב. */
-function fitFontSize(texts: string[], innerW: number, innerH: number, family: string): number {
+function fitFontSize(texts: string[], innerW: number, innerH: number, family: string, maxFont = BASE_FONT): number {
   const ctx = document.createElement('canvas').getContext('2d')
   if (!ctx || innerW <= 0 || innerH <= 0) return MIN_FONT
-  for (let f = BASE_FONT; f >= MIN_FONT; f -= 0.5) {
+  for (let f = maxFont; f >= MIN_FONT; f -= 0.5) {
     ctx.font = `600 ${f}px ${family}`
     const lineH = f * 1.25
     const space = ctx.measureText(' ').width
@@ -134,7 +135,9 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
     if (!el) return
     const measure = () => {
       const w = el.clientWidth
-      const h = Math.max(150, window.innerHeight - el.getBoundingClientRect().top - RESERVE_BELOW)
+      /* על הבמה גובה הלוח נקבע ב-CSS (--memory-board-h: כמעט כל חלון התמונה); אחרת: הגובה שנותר עד תחתית המסך */
+      const fixed = getComputedStyle(el).getPropertyValue('--memory-board-h').trim()
+      const h = fixed ? Math.max(120, el.clientHeight) : Math.max(150, window.innerHeight - el.getBoundingClientRect().top - RESERVE_BELOW)
       setBox((p) => (p && Math.abs(p.w - w) < 2 && Math.abs(p.h - h) < 2 ? p : { w, h }))
     }
     measure()
@@ -148,7 +151,7 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
   /* ── הרשת: ריבוע, או המלבן הקרוב ביותר לריבוע (memoryGrid). המידות קבועות:
      הן לא תלויות בתוכן ולא משתנות בהיפוך. ── */
   const layout = useMemo(() => {
-    const w = Math.min(box?.w ?? 480, BOARD_MAX_W)
+    const w = box?.w ?? 480 /* רוחב העטיפה, שכבר מוגבל ב-CSS */
     const h = box?.h ?? 320
     const { cols, rows } = memoryGrid(deck.length, w, h)
     const cardW = Math.floor((w - GAP * (cols - 1)) / cols)
@@ -159,12 +162,12 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
   /* פונט אחיד לכל הלוח — נקבע פעם אחת לפי הטקסט הארוך ביותר במידות הקלף */
   const font = useMemo(() => {
     const family = wrapRef.current ? getComputedStyle(wrapRef.current).fontFamily : 'Rubik, sans-serif'
-    const size = fitFontSize(deck.map((c) => c.text), layout.cardW - 12, layout.cardH - 8, family)
+    const size = fitFontSize(deck.map((c) => c.text), layout.cardW - 12, layout.cardH - 8, family, Math.max(BASE_FONT, Math.min(MAX_FONT, Math.round(layout.cardH * 0.22))))
     return { size, clampLines: Math.max(1, Math.floor((layout.cardH - 8) / (size * 1.25))) }
   }, [deck, layout])
 
   return (
-    <div className="mt-4">
+    <div className="mt-4" data-board-root>
       <style>{`
         /* הקלפים מתהפכים בתלת-ממד, וזוג שנמצא קופץ */
         .mem-card { perspective: 700px; }
@@ -193,7 +196,7 @@ export default function MemoryChallenge({ puzzle, onResult, tel }: Props) {
       </p>
 
       {/* רוחב מפורש: הפאנל על הבמה מתכווץ לתוכן, ולפני שהלוח מצויר התוכן הוא רק הכותרת — הלוח נמדד צר מדי ונשאר צר */}
-      <div ref={wrapRef} style={{ width: `min(${BOARD_MAX_W}px, 52vw)`, maxWidth: '100%', marginInline: 'auto' }}>
+      <div ref={wrapRef} data-board="memory" style={{ width: `var(--memory-board-w, min(${BOARD_MAX_W}px, 52vw))`, height: 'var(--memory-board-h, auto)', maxWidth: '100%', marginInline: 'auto' }}>
         {box && (
           <div
             className="mx-auto"
