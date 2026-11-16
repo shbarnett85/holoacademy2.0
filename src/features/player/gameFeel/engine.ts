@@ -74,8 +74,9 @@ export function averageFps(frameTimes: readonly number[]): number {
   return span > 0 ? ((frameTimes.length - 1) * 1000) / span : Infinity
 }
 export function shouldLowerLevel(fps: number): boolean { return fps < LOW_FPS }
-/* פריים טיפוסי (חציון) מעל זה: הדפדפן כמעט לא מצייר — חלון מכוסה, ממוזער או לא בפוקוס — ולא מחשב חלש (מחשב חלש מצייר 20–35 בשנייה) */
-export const THROTTLED_FRAME_MS = 100
+/* פריים טיפוסי (חציון) מעל זה: הדפדפן כמעט לא מצייר — חלון מכוסה, ממוזער או לא בפוקוס מצייר בערך פעם בשנייה — ולא מחשב חלש.
+   מחשב חלש מאוד עדיין מצייר כמה פריימים בשנייה (עד 500ms לפריים), והוא כן יורד לעדין */
+export const THROTTLED_FRAME_MS = 500
 /* כמה פעמים מודדים שוב אחרי מדידה שלא הכריעה, ובאיזה מרווח */
 export const PROBE_RETRIES = 3
 export const PROBE_RETRY_MS = 2500
@@ -160,27 +161,56 @@ function tone(freq: number, dur: number, type: OscillatorType = 'sine', vol = 0.
     o.stop(t + dur + 0.03)
   } catch { /* צליל לעולם לא מפיל את המשחק */ }
 }
+/* פעמון: יסוד ועוד שני עליונים, התקפה מהירה ודעיכה — צליל בהיר ו"שמח" (כמו קסילופון), במקום סינוס חשוף */
+function chime(freq: number, dur: number, vol = 0.4, when = 0): void {
+  tone(freq, dur, 'sine', vol, when)
+  tone(freq * 2, dur * 0.6, 'sine', vol * 0.28, when)
+  tone(freq * 3, dur * 0.35, 'triangle', vol * 0.1, when)
+}
+/* ריצת נצנוץ עולה: כמה פעמונים גבוהים וקצרים */
+function sparkle(freqs: readonly number[], when = 0, gap = 0.055, vol = 0.2): void {
+  freqs.forEach((f, i) => chime(f, 0.22, vol, when + i * gap))
+}
+/* הצלילים שמחים יותר (לבקשת המשתמש): הצלחות הן שלושה צלילים עולים במז'ור עם נצנוץ, והסיום הוא תרועה קצרה.
+   הטעות נשארת רכה ועמומה (כלל 2), ושום צליל לא מתנגן בזמן קריאה (כלל 1) */
 export const sounds = {
-  /* צעד-ביניים באתגר: זוג שנמצא, אות נכונה, אריח במקום */
-  step(): void { tone(880, 0.1, 'sine', 0.3) },
+  /* צעד-ביניים באתגר: זוג שנמצא, אות נכונה, אריח במקום. "בלופ" קטן שעולה */
+  step(): void { tone(660, 0.1, 'sine', 0.3, 0, 990); tone(1320, 0.08, 'sine', 0.1, 0.05) },
+  /* תשובה נכונה: שלושה צלילים עולים (יסוד, טרצה, קווינטה) ונצנוץ בסוף. ברצף הצלחות הגובה עולה */
   correct(n: number): void {
     const f = cfg().ladder ? LADDER[Math.min(Math.max(n - 1, 0), LADDER.length - 1)] : 659.25
-    tone(f, 0.16, 'sine', 0.55)
-    tone(f * 1.5, 0.24, 'sine', 0.3, 0.07)
+    chime(f, 0.2, 0.5)
+    chime(f * 1.26, 0.2, 0.42, 0.085)
+    chime(f * 1.5, 0.36, 0.42, 0.17)
+    tone(f * 3, 0.2, 'sine', 0.12, 0.27)
   },
   drop(): void { tone(1568, 0.14, 'sine', 0.3) },
-  gem(): void { tone(2093, 0.24, 'sine', 0.42); tone(3136, 0.15, 'sine', 0.18, 0.03) },
+  gem(): void { sparkle([2093, 2637, 3136], 0, 0.055, 0.26) },
   /* טעות: צליל עמום ויורד. לא זמזם */
   wrong(): void { tone(200, 0.17, 'sine', 0.5, 0, 128) },
-  streak(): void { [784, 988, 1175].forEach((f, i) => tone(f, 0.12, 'triangle', 0.3, i * 0.065)) },
+  streak(): void { [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.13, 'triangle', 0.3, i * 0.06)) },
   big(): void { tone(110, 0.6, 'triangle', 0.35, 0, 220); tone(330, 0.4, 'sine', 0.18, 0.3) },
-  chain(i: number): void { tone(LADDER[Math.min(i, LADDER.length - 1)], 0.12, 'sine', 0.3) },
-  gate(): void { tone(330, 0.22, 'triangle', 0.3); tone(494, 0.3, 'sine', 0.26, 0.16); tone(659.25, 0.4, 'sine', 0.22, 0.32) },
+  chain(i: number): void { chime(LADDER[Math.min(i, LADDER.length - 1)], 0.14, 0.3) },
+  gate(): void { chime(392, 0.22, 0.3); chime(523.25, 0.26, 0.28, 0.13); chime(659.25, 0.3, 0.26, 0.26); chime(783.99, 0.45, 0.26, 0.39) },
+  /* גביש שקופץ למקומו במסך הסיום: כל גביש גבוה מהקודם */
+  pop(i: number): void {
+    const f = LADDER[Math.min(Math.max(i, 0), LADDER.length - 1)]
+    chime(f * 1.5, 0.2, 0.3)
+    tone(f * 3, 0.12, 'sine', 0.08, 0.04)
+  },
+  /* סוף הפרק. סיפור פתוח: שני צלילים רכים ועולים (מזמין לנסות שוב). סיפור שנסגר: תרועה — ארבעה צלילים עולים, אקורד ונצנוץ.
+     חמישה גבישים: אותה תרועה, ואחריה משפט שני גבוה יותר ונצנוץ ארוך */
   end(kind: 'open' | 'closed' | 'radiant'): void {
-    if (kind === 'open') { tone(523.25, 0.35, 'sine', 0.35); tone(587.33, 0.45, 'sine', 0.3, 0.18); return }
-    ;[523.25, 659.25, 783.99].forEach((f, i) => tone(f, 0.9, 'sine', 0.32, i * 0.035))
-    if (kind === 'radiant') [1046.5, 1318.5, 1568, 2093].forEach((f, i) => tone(f, 0.5, 'sine', 0.16, 0.3 + i * 0.09))
-    else if (cfg().stinger) tone(1046.5, 0.7, 'sine', 0.22, 0.25)
+    if (kind === 'open') { chime(523.25, 0.4, 0.3); chime(659.25, 0.55, 0.26, 0.2); return }
+    ;[392, 523.25, 659.25, 783.99].forEach((f, i) => chime(f, 0.2, 0.36, i * 0.11))
+    ;[523.25, 659.25, 783.99, 1046.5].forEach((f) => chime(f, 1.1, 0.24, 0.5))
+    sparkle([1568, 2093, 2637], 0.72)
+    if (kind === 'radiant') {
+      /* אחרי שחמשת הגבישים קפצו למקומם (מסך הסיום: 1.25 עד 2.4 שניות) */
+      ;[659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => chime(f, 0.2, 0.3, 2.6 + i * 0.1))
+      ;[783.99, 1046.5, 1318.5, 1568].forEach((f) => chime(f, 1.3, 0.2, 3.05))
+      sparkle([2093, 2637, 3136, 3520, 4186], 3.25, 0.07)
+    }
   },
 }
 function vibrate(ms: number): void {
@@ -188,7 +218,7 @@ function vibrate(ms: number): void {
 }
 
 /* ── חלקיקים: canvas אחד על כל המסך ── */
-interface Part { x: number; y: number; vx: number; vy: number; g: number; drag?: number; life: number; max: number; size: number; color: string; shape: 'dot' | 'shard' | 'rect'; rot: number; vr: number }
+interface Part { x: number; y: number; vx: number; vy: number; g: number; drag?: number; life: number; max: number; size: number; color: string; shape: 'dot' | 'shard' | 'rect' | 'star' | 'square'; rot: number; vr: number }
 /* הצבעים נקראים מהטוקנים בזמן ריצה (canvas לא מכיר var()). נשמרים אחרי הקריאה המוצלחת הראשונה */
 function palette(tokens: readonly `--${string}`[]): () => string[] {
   let cached: string[] | null = null
@@ -202,7 +232,9 @@ function palette(tokens: readonly `--${string}`[]): () => string[] {
 /* שברי גביש ושובל המעוף: צבעי הקריסטל */
 const partColors = palette(['--color-holo', '--color-crystal-full-bottom', '--color-holo', '--color-human', '--color-crystal-empty'])
 /* קונפטי של סיפור שנסגר */
-const confettiColors = palette(['--color-holo', '--color-human', '--color-machine-deep', '--color-human-soft', '--color-machine', '--color-crystal-full-bottom'])
+/* קונפטי: פלטה עליזה יותר — תכלת, כתום, סגול, צהוב, ורוד וירוק (צבעים קיימים מהטוקנים, בלי ערך חדש) */
+const confettiColors = palette(['--color-holo', '--color-human', '--color-machine-deep', '--subject-math', '--subject-literature', '--color-correct', '--color-crystal-full-bottom', '--color-machine'])
+const CONFETTI_SHAPES = ['rect', 'star', 'square', 'shard'] as const
 let canvas: HTMLCanvasElement | null = null
 let ctx: CanvasRenderingContext2D | null = null
 let parts: Part[] = []
@@ -259,6 +291,8 @@ function tick(now: number): void {
     } else {
       c.save(); c.translate(p.x, p.y); c.rotate(p.rot)
       if (p.shape === 'shard') { c.beginPath(); c.moveTo(0, -p.size); c.lineTo(p.size * 0.6, 0); c.lineTo(0, p.size); c.lineTo(-p.size * 0.6, 0); c.closePath(); c.fill() }
+      else if (p.shape === 'star') { c.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? p.size * 0.45 : p.size; const a = (k * Math.PI) / 5 - Math.PI / 2; c.lineTo(Math.cos(a) * r, Math.sin(a) * r) } c.closePath(); c.fill() }
+      else if (p.shape === 'square') c.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
       else c.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
       c.restore()
     }
@@ -289,7 +323,34 @@ export function confetti(n: number): void {
   for (let i = 0; i < n; i++) {
     addPart({
       x: Math.random() * W, y: -12 - Math.random() * H * 0.45, vx: (Math.random() - 0.5) * 1.6, vy: 1.4 + Math.random() * 2.4, g: 0.025, drag: 0.995,
-      life: 0, max: 190 + Math.random() * 90, size: 4 + Math.random() * 4, color: CCOL[i % CCOL.length], shape: Math.random() < 0.5 ? 'shard' : 'rect', rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.25,
+      life: 0, max: 190 + Math.random() * 90, size: 4 + Math.random() * 4, color: CCOL[i % CCOL.length], shape: CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.25,
+    })
+  }
+}
+/* פיצוץ חגיגי קטן מנקודה (תשובה נכונה): קונפטי צבעוני שנזרק למעלה ולצדדים ונופל */
+export function party(x: number, y: number, n: number): void {
+  if (prefersReducedMotion() || n <= 0 || !ensureCanvas()) return
+  const CCOL = confettiColors()
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.5
+    const sp = 3 + Math.random() * 6
+    addPart({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5, g: 0.2, drag: 0.975,
+      life: 0, max: 46 + Math.random() * 30, size: 4 + Math.random() * 4, color: CCOL[i % CCOL.length], shape: CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.5,
+    })
+  }
+}
+/* שני "תותחי קונפטי" מהפינות התחתונות של המסך, פנימה ולמעלה (סוף הפרק) */
+export function cannons(n: number): void {
+  if (prefersReducedMotion() || n <= 0 || !ensureCanvas()) return
+  const CCOL = confettiColors()
+  for (let i = 0; i < n; i++) {
+    const left = i % 2 === 0
+    const a = (left ? -Math.PI / 3 : (-2 * Math.PI) / 3) + (Math.random() - 0.5) * 0.7
+    const sp = 9 + Math.random() * 11
+    addPart({
+      x: left ? -6 : W + 6, y: H * (0.78 + Math.random() * 0.2), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 0.17, drag: 0.985,
+      life: 0, max: 130 + Math.random() * 80, size: 5 + Math.random() * 5, color: CCOL[i % CCOL.length], shape: CONFETTI_SHAPES[i % CONFETTI_SHAPES.length], rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4,
     })
   }
 }
@@ -425,6 +486,12 @@ export function feelCorrect(opts: { from?: Element | null; gain: number; clean: 
   set({ streak })
   sounds.correct(opts.clean ? streak : 1)
   setMood('happy')
+  /* פיצוץ קונפטי קטן מהמקום שבו נענתה התשובה */
+  const origin = opts.from ?? document.querySelector('[data-puzzle-panel]')
+  if (origin && cfg().particles && !prefersReducedMotion()) {
+    const r = origin.getBoundingClientRect()
+    party(r.left + r.width / 2, r.top + Math.min(r.height / 2, 120), Math.round(cfg().particles * (opts.clean ? 1.6 : 0.8)))
+  }
   if (opts.gain > 0) flyGem(opts.from ?? null, opts.gain)
   if (cfg().streak && opts.clean && streak >= STREAK_MIN) {
     window.dispatchEvent(new CustomEvent(STREAK_EVENT, { detail: { streak } }))
@@ -448,6 +515,8 @@ if (isBrowser) {
     level: () => state.level,
     setLevel: setFeelLevel,
     confetti,
+    party,
+    cannons,
     flyGem,
     setMood,
   }
