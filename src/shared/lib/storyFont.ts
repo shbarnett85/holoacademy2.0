@@ -4,10 +4,13 @@
    לשינוי הסף: משנים את המספר כאן בלבד. */
 export const STORY_FONT_MIN_LEVEL = 8
 
+/* כבוי לבקשת המשתמש: טקסט העמוד באותו גופן כמו שאר האתר. להחזרה: true */
+export const STORY_FONT_ENABLED: boolean = false
+
 export const STORY_FONT_FAMILY = 'Frank Ruhl Libre'
 
 export function usesStoryFont(level: number | null | undefined): boolean {
-  if (level == null) return false
+  if (!STORY_FONT_ENABLED || level == null) return false
   const n = Number(level)
   return Number.isFinite(n) && n >= STORY_FONT_MIN_LEVEL
 }

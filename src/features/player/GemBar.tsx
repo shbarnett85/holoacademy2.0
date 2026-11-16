@@ -1,9 +1,10 @@
-/* פס הגבישים: חמישה שקעים שמתמלאים ברצף, מלמטה למעלה, והמונה מציג גבישים שלמים בלבד (שום שבר לא מוצג לתלמיד).
+/* פס הגבישים: חמישה שקעים שמתמלאים ברצף, מלמטה למעלה. בלי מונה מספרי לידם (הוסר לבקשת המשתמש): מספר הגבישים השלמים נמצא
+   בתווית לקוראי מסך וב-data-gem-counter (לבדיקות).
    המילוי מתחיל כשהגביש המעופף מגיע (GEM_ARRIVED), ולא ברגע התשובה. בתנועה מופחתת הגבישים מתמלאים מיד.
    רשת ביטחון: התקדמות שלא לוותה במעוף מסונכרנת אחרי רגע, כך שהמונה לעולם לא נשאר מאחור. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GEM_TOTAL, gemFill } from '../../shared/lib/gemModel'
-import { GemIcon, GemSocket } from '../../shared/ui/Gem'
+import { GemSocket } from '../../shared/ui/Gem'
 import { gemTier } from '../../shared/lib/gemTier'
 import { cfg, GEM_ARRIVED, gemCompleted, prefersReducedMotion } from './gameFeel/engine'
 import { HUD_TEXT } from './gameFeel/text'
@@ -16,7 +17,6 @@ export function GemBar({ value }: { value: number }) {
   const targetRef = useRef(value)
   const rafRef = useRef(0)
   const socketRefs = useRef<(HTMLSpanElement | null)[]>([])
-  const counterRef = useRef<HTMLDivElement | null>(null)
   targetRef.current = value
 
   const paint = useCallback((v: number) => {
@@ -31,10 +31,6 @@ export function GemBar({ value }: { value: number }) {
     /* רגע ההשלמה: קפיצה קטנה של הקריסטל (בלי זוהר; זוהר יש רק מ-3 קריסטלים, לפי מצב השורה) */
     if (cfg().glow && socket && typeof socket.animate === 'function') {
       socket.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.28)', offset: 0.3 }, { transform: 'scale(1)' }], { duration: 850, easing: 'ease-out' })
-    }
-    const counter = counterRef.current
-    if (cfg().holo && counter && typeof counter.animate === 'function') {
-      counter.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)', offset: 0.4 }, { transform: 'scale(1)' }], { duration: 350, easing: 'ease-out' })
     }
   }, [])
 
@@ -89,7 +85,7 @@ export function GemBar({ value }: { value: number }) {
   const targetIdx = Math.min(GEM_TOTAL - 1, whole)
 
   return (
-    <div className="flex items-center holo-hud-gems" style={{ gap: 'var(--hud-slot-gap, 0.5rem)' }} data-gem-bar>
+    <div className="flex items-center holo-hud-gems" style={{ gap: 'var(--hud-slot-gap, 0.5rem)' }} data-gem-bar data-gem-counter={whole}>
       <div className="flex items-center" style={{ gap: 3 }} dir="ltr" role="img" aria-label={HUD_TEXT.barLabel(whole)}>
         {Array.from({ length: GEM_TOTAL }).map((_, i) => (
           <span
@@ -102,15 +98,6 @@ export function GemBar({ value }: { value: number }) {
             <GemSocket fill={gemFill(display, i)} size="var(--hud-gem, 1.9rem)" tier={gemTier(whole)} animated={false} />
           </span>
         ))}
-      </div>
-      <div
-        ref={counterRef}
-        data-gem-counter={whole}
-        className="flex items-center"
-        style={{ gap: 5, padding: '2px 9px 2px 7px', borderRadius: 999, background: 'var(--color-surface)', color: 'var(--color-ink)', border: '2px solid var(--color-ink)', fontFamily: 'var(--font-display)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
-      >
-        <GemIcon size={18} />
-        <span aria-hidden="true">{whole}</span>
       </div>
     </div>
   )

@@ -532,8 +532,6 @@ html.holo-playing body { overflow-y: auto; }
      הפאנל מצטמצם לרצועה צדדית והבמה מקבלת את רוב הרוחב. שניהם ממלאים את
      מלוא הגובה הפנוי בין הסרגלים, ומה שגולש נגלל בתוך האלמנט עצמו — כך אף
      אתגר לא נדחף מתחת ל-HUD. */
-  /* אין מקום לסמל הספר: הכותרת קודמת לו */
-  .holo-hud-top .holo-hud-mark { display: none; }
   .holo-side-panel { padding: 0.5rem 0.75rem max(0.4rem, env(safe-area-inset-bottom)); padding-inline-start: max(0.75rem, env(safe-area-inset-right)); }
 
   /* בחירה מרובה במרכז על גובה ~390px: רשימה אנכית של 4 תשובות בעברית לא
@@ -691,16 +689,11 @@ body {
 /* ══ ה-HUD שבראש מסך המשחק: כמו הסרגל העליון של המורה — רקע "המכונה" (סגול), קו דיו, כותרת בדיו;
    שם ואווטאר באפרסק; כפתורים בתכלת; פס ההתקדמות בכתום. על הסגול רק דיו עובר ניגודיות כטקסט ══ */
 .holo-hud-top { background: var(--color-machine); color: var(--color-ink); border-bottom: var(--border-student); }
-.holo-hud-top .holo-hud-title > h1 { color: var(--color-ink); }
-.holo-hud-mark {
-  flex-shrink: 0; display: grid; place-items: center; width: 2.1rem; height: 2.1rem; border-radius: 10px;
-  background: var(--color-surface); color: var(--color-ink); border: 2px solid var(--color-ink);
-}
-.holo-hud-mark > svg { width: 62%; height: 62%; }
+/* כותרת העמוד בלבן (לבקשת המשתמש). הניגודיות מול הסגול נמוכה מ-4.5:1, ולכן הכותרת גדולה וכבדה; "עמוד N מתוך M" נשאר בדיו */
+.holo-hud-top .holo-hud-title > h1 { color: var(--color-surface); }
 .holo-hud-exit { display: inline-flex; align-items: center; gap: .35rem; white-space: nowrap; }
 .holo-hud-exit > svg { width: 1em; height: 1em; transform: rotate(180deg); flex-shrink: 0; }
-/* טלפון לאורך: אין מקום לסמל */
-@media (max-width: 480px) { .holo-hud-mark { display: none; } }
+
 .holo-hud-name {
   display: inline-flex; align-items: center; gap: .4rem; flex-shrink: 0; min-width: 0; max-width: 11rem;
   padding: .12rem .6rem .12rem .15rem; border-radius: 999px;

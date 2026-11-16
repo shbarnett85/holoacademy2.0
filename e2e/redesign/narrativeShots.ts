@@ -132,7 +132,7 @@ async function pages(browser: Browser): Promise<void> {
         })
         console.log(`   רמה ${level}, ${dev}: גופן ${m.font} ${m.size}/${m.lh}, חלקים ${m.parts}, HUD "${m.hud}"`)
         check(m.over <= 0, `רמה ${level}, ${dev}: הטקסט לא גולש מהתיבה`)
-        check(level >= 8 ? /Frank Ruhl/.test(m.font) : !/Frank Ruhl/.test(m.font), `רמה ${level}, ${dev}: הגופן לפי הסף`)
+        check(!/Frank Ruhl/.test(m.font), `רמה ${level}, ${dev}: טקסט העמוד בגופן של שאר האתר (${m.font})`)
         check(/^עמוד \d+ מתוך \d+$/.test(m.hud), `רמה ${level}, ${dev}: ב-HUD "עמוד N מתוך M"`)
         check(!/סצנ/.test(await visibleText(page)), `רמה ${level}, ${dev}: אין "סצנה"`)
         await ctx.close()
