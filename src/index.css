@@ -639,16 +639,20 @@ body {
 .holo-button.is-correct:disabled, .holo-button.is-correct[aria-disabled="true"] { background: var(--color-correct); color: var(--color-surface); }
 .holo-button.is-wrong:disabled, .holo-button.is-wrong[aria-disabled="true"] { background: var(--color-wrong); color: var(--color-surface); }
 .holo-button.is-selected:disabled, .holo-button.is-selected[aria-disabled="true"] { background: var(--color-ink); color: var(--color-surface); }
-/* ריחוף (לבקשת המשתמש: ויזואלי, בלי צליל): הכפתור מתרומם מעט והצל הקשיח גדל. רק במכשיר עם עכבר; לחיצה גוברת.
-   הכלל שאחרי הלחיצה באותה ספציפיות, ולכן :active נשאר לחוץ */
+/* ריחוף (לבקשת המשתמש: ויזואלי, בלי צליל): הכפתור "נדלק" — שכבת הדגשה שקופה מעל צבע המילוי שלו, בלי לשנות אותו.
+   בלי הזזה ובלי צל גדול יותר: כפתור שמתרומם נחתך בראש של אזור גלילה (כך נחתכו שורות האתגרים באולפן היצירה).
+   רק במכשיר עם עכבר; לחיצה גוברת. ההדגשה תמיד מגדילה את הניגודיות של הטקסט:
+   כפתור רגיל (טקסט דיו) מתבהר; נבחר/נכון/שגוי (טקסט לבן על כהה) מתבהר רק מעט;
+   כפתור מקצוע מקבל שכבה בצבע ההפוך לצבע הטקסט שלו (--btn-ink): טקסט דיו — מתבהר, טקסט לבן — מתכהה */
+.holo-button { --btn-wash: color-mix(in srgb, var(--color-surface) 55%, transparent); }
+.holo-button.is-selected, .holo-button[aria-pressed="true"], .holo-button[aria-selected="true"],
+.holo-button.is-correct, .holo-button.is-wrong { --btn-wash: color-mix(in srgb, var(--color-surface) 20%, transparent); }
+/* redesign-allow: שכבת הדגשה בצבע ההפוך לצבע הטקסט, מחושבת מהטוקן */
+.holo-button--subject { --btn-wash: rgb(from var(--btn-ink) calc(255 - r) calc(255 - g) calc(255 - b) / 0.24); }
+.holo-button--subject.is-selected, .holo-button--subject[aria-pressed="true"] { --btn-wash: color-mix(in srgb, var(--color-surface) 20%, transparent); }
 @media (hover: hover) {
   .holo-button:hover:not(:disabled):not([aria-disabled="true"]):not(:active):not(.is-pressed) {
-    transform: translate(-2px, -2px);
-    box-shadow: 5px 5px 0 var(--color-ink);
-  }
-  .holo-button--sm:hover:not(:disabled):not([aria-disabled="true"]):not(:active):not(.is-pressed) {
-    transform: translate(-1px, -1px);
-    box-shadow: 3px 3px 0 var(--color-ink);
+    background-image: linear-gradient(var(--btn-wash), var(--btn-wash)); /* redesign-allow: שכבה בצבע אחיד, לא מעבר צבע */
   }
   .holo-link:hover { text-decoration-thickness: 3px; }
 }
