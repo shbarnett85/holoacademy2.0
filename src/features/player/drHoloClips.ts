@@ -10,8 +10,10 @@ export const HOLO_CLIP_START_TIMEOUT_MS = 5000
 /* יחס הרוחב לגובה של הנכסים (896×706) */
 export const HOLO_ASPECT = 896 / 706
 
-/* איזו אנימציה לכל מצב רוח. כרגע יש אנימציה אחת ("ברוכים הבאים"), ולכן כל מצבי הרוח משתמשים בה. אנימציה חדשה = שורה כאן */
-const ANIMATION_OF: Partial<Record<HoloMood, string>> = {}
+/* איזו אנימציה לכל מצב רוח. מצב רוח בלי אנימציה משלו משתמש ב"ברוכים הבאים". אנימציה חדשה = שורה כאן.
+   · welcome — ברוכים הבאים (ברירת המחדל)
+   · worried — מודאג: למצב "מפוחד", וגם ל"כועס" (מדריך מודאג, לא כועס) */
+const ANIMATION_OF: Partial<Record<HoloMood, string>> = { scared: 'worried', angry: 'worried' }
 const animationOf = (mood: HoloMood): string => ANIMATION_OF[mood] ?? 'welcome'
 
 export function holoClipFor(mood: HoloMood): string {
