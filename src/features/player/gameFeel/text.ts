@@ -42,6 +42,14 @@ export const PORTAL_TEXT = {
   playNew: 'שחקו עכשיו',
   playContinue: 'המשיכו לקרוא',
   playAgain: 'שחקו שוב',
+  /* הסימון שליד הפורטל (וגם ברשימה שבתחתית): שלושה מצבים, תמיד עם סמל ומילה */
+  statusDone: 'הושלם',
+  statusDoneLate: 'הושלם · באיחור',
+  statusPaused: 'הופסק באמצע',
+  statusPausedAt: (page: number): string => `הופסק באמצע · ${BOOK_TEXT.pageShort(page)}`,
+  statusNotDone: 'לא הושלם',
+  /* נוסף מאז הביקור הקודם */
+  freshMark: '✦ חדש',
   /* מה ד"ר הולו אומר, לפי מצב השיעור שבפורטל */
   bubbleNew: 'שיעור חדש מחכה לכם בפורטל!',
   bubbleReading: 'אתם באמצע השיעור הזה. ממשיכים?',

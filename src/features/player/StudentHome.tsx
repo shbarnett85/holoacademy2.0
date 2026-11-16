@@ -86,11 +86,28 @@ function LoadingDots() {
   )
 }
 
-/* מצב השיעור אצל התלמיד/ה, במילים: חדש · בקריאה (עם העמוד, כשהשרת יודע) · הושלם */
-function lessonStateText(q: AssignedQuest, fresh: boolean): string {
-  if (q.sessionStatus === 'completed') return q.late ? SHELF_TEXT.doneLate : SHELF_TEXT.done
-  if (q.sessionStatus === 'in_progress') return q.bookmarkPage ? SHELF_TEXT.readingAt(q.bookmarkPage) : SHELF_TEXT.reading
-  return fresh ? SHELF_TEXT.freshMark : SHELF_TEXT.fresh
+/* מצב השיעור אצל התלמיד/ה: הושלם · הופסק באמצע (עם העמוד, כשהשרת יודע) · לא הושלם */
+type LessonStatus = 'done' | 'paused' | 'notDone'
+const statusOf = (q: AssignedQuest): LessonStatus => (q.sessionStatus === 'completed' ? 'done' : q.sessionStatus === 'in_progress' ? 'paused' : 'notDone')
+function statusText(q: AssignedQuest): string {
+  const st = statusOf(q)
+  if (st === 'done') return q.late ? PORTAL_TEXT.statusDoneLate : PORTAL_TEXT.statusDone
+  if (st === 'paused') return q.bookmarkPage ? PORTAL_TEXT.statusPausedAt(q.bookmarkPage) : PORTAL_TEXT.statusPaused
+  return PORTAL_TEXT.statusNotDone
+}
+
+/* הסמל של המצב: עיגול בצבע עם סימן בתוכו (וי / שני פסים של השהיה / עיגול ריק). הצבע אף פעם לא לבד: לידו תמיד המילה */
+function StatusIcon({ status, size = 26 }: { status: LessonStatus; size?: number }) {
+  const fill = status === 'done' ? 'var(--color-correct)' : status === 'paused' ? 'var(--color-human)' : 'var(--color-surface)'
+  const mark = status === 'done' ? 'var(--color-surface)' : 'var(--color-ink)'
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flexShrink: 0, display: 'block' }}>
+      <circle cx="12" cy="12" r="10.5" style={{ fill, stroke: 'var(--color-ink)', strokeWidth: 2 }} />
+      {status === 'done' && <path d="M7 12.4l3.4 3.4L17.2 9" fill="none" style={{ stroke: mark, strokeWidth: 2.8, strokeLinecap: 'round', strokeLinejoin: 'round' }} />}
+      {status === 'paused' && <path d="M9.4 7.8v8.4M14.6 7.8v8.4" fill="none" style={{ stroke: mark, strokeWidth: 2.8, strokeLinecap: 'round' }} />}
+      {status === 'notDone' && <circle cx="12" cy="12" r="4.6" fill="none" style={{ stroke: mark, strokeWidth: 2, strokeDasharray: '2.4 2.4' }} />}
+    </svg>
+  )
 }
 const gemsOf = (q: AssignedQuest): number => q.gems ?? q.crystals ?? 0
 
@@ -119,14 +136,15 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
   { key: 'all',         label: 'הכל'        },
   { key: 'new',         label: '✦ נוספו לאחרונה' },
-  { key: 'not_started', label: 'חדשים'      },
-  { key: 'in_progress', label: 'בקריאה'     },
-  { key: 'completed',   label: '✓ הושלמו'   },
+  { key: 'not_started', label: 'לא הושלמו'      },
+  { key: 'in_progress', label: 'הופסקו באמצע'   },
+  { key: 'completed',   label: 'הושלמו'         },
 ]
 
 /* הבית של התלמיד — "הספרייה ההולוגרפית": אותה במה של עמוד הפתיחה (PortalHero). התלמיד/ה נכנס/ת ומולו/ה הפורטל עם
    השיעור האחרון שהתקבל; החצים שמתחת לפורטל מדפדפים בין השיעורים, והכפתור (או לחיצה על הפורטל) צולל פנימה ופותח את השיעור.
-   בחלון שמימין: השלום, שם השיעור שבפורטל והמצב שלו (חדש / בקריאה / הושלם עם הגבישים, מועד ההגשה, המורה).
+   על ראש הטבעת של הפורטל: סימון המצב של השיעור (הושלם / הופסק באמצע / לא הושלם), עם סמל ומילה.
+   בחלון שמימין: השלום, שם השיעור שבפורטל, הגבישים (אם הושלם), מועד ההגשה והמורה.
    בתחתית העמוד: חיפוש, סינון ומיון, ורשימת השיעורים — בחירה ברשימה מביאה את השיעור אל הפורטל. מתחתיה "המסע שלי".
    הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
 export default function StudentHome() {
@@ -293,6 +311,12 @@ export default function StudentHome() {
         leaving={leaving}
         onDiveEnd={onDiveEnd}
         bubble={bubble}
+        badge={current ? (
+          <span className="shome-status" data-portal-state={statusOf(current)}>
+            <StatusIcon status={statusOf(current)} />
+            <span>{statusText(current)}</span>
+          </span>
+        ) : undefined}
         corner={<>
           <button className="holo-button holo-button--sm" onClick={toggleMuted} aria-label={muted ? PORTAL_TEXT.unmute : PORTAL_TEXT.mute} aria-pressed={muted}
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46, padding: 0 }}>
@@ -350,7 +374,7 @@ export default function StudentHome() {
             <div className="shome-lesson" data-portal-lesson={current.id}>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
                 <SubjectTag code={current.subjectCode} size="sm" />
-                <span data-portal-state style={{ ...TAG, ...(reading ? { background: 'var(--color-human-soft)' } : null) }}>{lessonStateText(current, freshIds.has(current.id))}</span>
+                {freshIds.has(current.id) && !current.sessionStatus && <span style={TAG}>{PORTAL_TEXT.freshMark}</span>}
                 {current.isReview && <span style={TAG}>{SHELF_TEXT.review}</span>}
               </div>
               <h2 className="shome-lesson-title" data-lesson-title>{current.title}</h2>
@@ -445,8 +469,9 @@ export default function StudentHome() {
                           <span className="shome-result-title">{q.title}</span>
                           <span className="shome-result-meta">
                             <SubjectTag code={q.subjectCode} size="sm" ring={false} />
-                            <span>{on ? PORTAL_TEXT.inPortal : lessonStateText(q, freshIds.has(q.id))}</span>
-                            {qDone && !on && <GemRow gems={gemsOf(q)} size={15} />}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><StatusIcon status={statusOf(q)} size={18} />{statusText(q)}</span>
+                            {qDone && <GemRow gems={gemsOf(q)} size={15} />}
+                            {on && <span style={{ fontWeight: 800 }}>· {PORTAL_TEXT.inPortal}</span>}
                           </span>
                         </span>
                       </button>

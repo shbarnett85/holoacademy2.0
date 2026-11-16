@@ -233,6 +233,9 @@
 
 /* ── הבית של התלמיד (features/player/StudentHome.tsx): השיעור שבפורטל, והרשימה שבתחתית העמוד ── */
 .home4-corner { position: absolute; z-index: 2; top: 14px; inset-inline-end: 14px; display: flex; gap: 10px; align-items: center; }
+/* הסימון על ראש הטבעת של הפורטל (מצב השיעור): לוחית לבנה עם סמל צבעוני ומילה */
+.home4-badge { position: absolute; z-index: 1; transform: translate(-50%, -50%); pointer-events: none; }
+.shome-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px 6px 12px; border-radius: 999px; background: var(--color-surface); border: var(--border-student); box-shadow: var(--shadow-button); font-size: clamp(17px, 1.4vw, 22px); font-weight: 800; line-height: 1.2; white-space: nowrap; }
 .shome-lesson { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.2vh, 10px); padding: clamp(10px, 1.8vh, 16px) 12px; border-radius: 14px; background: var(--color-machine-tint); border: 2px solid var(--color-ink); }
 .shome-lesson-title { margin: 0; font-size: clamp(20px, 1.7vw, 27px); font-weight: 900; line-height: 1.25; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 /* הרשימה: שורה לכל שיעור (תמונה קטנה, שם, מקצוע ומצב). בחירה מביאה את השיעור אל הפורטל */
