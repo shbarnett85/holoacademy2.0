@@ -3,8 +3,8 @@
    · splash: פריימים של הספלאש לאורך הזמן (האנימציות מושהות ומקודמות ידנית), כולל הפתיחה אל העמוד.
    · home: המסך הראשון בכמה גדלי מסך, אחרי גלילה, במסך צר ובתנועה מופחתת; ובדיקות: הכניסות והכפתור "שחקו עכשיו"
      בתוך המסך הראשון, החלון לא מכסה את הפורטל, והווידאו של הרקע ושל ד"ר הולו מתנגנים.
-   · student: הבית של התלמיד (אותה במה, עם /api מדומה): הפורטל מציג את השיעור האחרון שהתקבל, החצים מדפדפים,
-     הרשימה שבתחתית מביאה שיעור אל הפורטל, החיפוש מסנן, והכפתור צולל לשיעור.
+   · student: הבית של התלמיד (אותה במה, עם /api מדומה): פס עליון עם השלום והסיכום, הפורטל מציג את השיעור האחרון
+     שהתקבל ועליו המצב כטקסט הולוגרפי, מתחתיו שם השיעור והחצים, ובחלון הצד רשימת השיעורים עם חיפוש וסינון.
    · guest: כניסת אורחים (תלמיד אורח) מחלון קוד הכיתה: שיעורי ההתנסות בפורטל, הודעה שההתקדמות לא נשמרת,
      שום בקשה לשרת שכותבת משהו (אין /api/sessions ואין /api/auth), ויציאה שמנקה את מצב האורח.
    הרצה:  npx tsx e2e/redesign/homeShots.ts --out reports/redesign/stages/home [--only splash,home,student,guest]
@@ -158,40 +158,67 @@ async function student(browser: Browser): Promise<void> {
   }
   const lessonTitle = (page: Page) => page.locator('[data-portal-lesson] [data-lesson-title]').innerText()
 
-  for (const [w, h] of [[1366, 768], [1366, 620]] as const) {
+  for (const [w, h] of [[1366, 768], [1366, 620], [1920, 1080]] as const) {
     const page = await openStudent(w, h)
     await shot(page, `student-${w}x${h}`)
     const g = await page.evaluate(() => {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
-      return { panel: r('[data-portal-panel]'), play: r('[data-portal-play]'), vh: innerHeight, vw: innerWidth }
+      const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
+      const list = document.querySelector('[data-lesson-list]')
+      return {
+        top: r('[data-portal-top]'), panel: r('[data-portal-panel]'), play: r('[data-portal-play]'), under: r('[data-portal-under]'), caption: r('[data-portal-caption]'), stage: r('.home4-stage'),
+        portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, rows: [...document.querySelectorAll('[data-result]')].filter((e) => { const b = e.getBoundingClientRect(), l = list!.getBoundingClientRect(); return b.top >= l.top - 1 && b.bottom <= l.bottom + 1 }).length,
+        vh: innerHeight, vw: innerWidth, pageScroll: document.body.scrollHeight > document.body.clientHeight + 1 && document.querySelector('[data-portal-hero]')!.getBoundingClientRect().bottom > innerHeight + 1,
+      }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
-    check(inside(g.panel) && inside(g.play), `${w}×${h}: החלון והכפתור במסך הראשון`)
+    check(inside(g.top) && inside(g.panel) && inside(g.play), `${w}×${h}: הפס העליון, החלון והכפתור במסך הראשון`)
+    check(!!g.top && !!g.stage && Math.abs(g.stage.t - g.top.b) < 1.5, `${w}×${h}: הבמה מתחילה מתחת לפס העליון`)
+    check(!!g.panel && !!g.portal && g.panel.l >= g.portal.r - 1, `${w}×${h}: רשימת השיעורים לא מכסה את הפורטל`)
+    check(!!g.caption && !!g.portal && g.caption.l >= g.portal.l && g.caption.r <= g.portal.r && g.caption.t >= g.portal.t && g.caption.b <= g.portal.b, `${w}×${h}: המצב מוקרן בתוך הפורטל`)
+    check(!!g.caption && !!g.under && g.caption.b <= g.under.t + 1, `${w}×${h}: הטקסט שעל הפורטל לא מוסתר על ידי השורה שמתחתיו`)
+    check(g.rows >= 3, `${w}×${h}: ברשימה נראות לפחות שלוש שורות בלי גלילה (${g.rows})`)
     await page.context().close()
   }
 
   const page = await openStudent(1366, 768)
-  check(await lessonTitle(page) === titles[0], `בכניסה: בפורטל השיעור האחרון שהתקבל (${await lessonTitle(page)})`)
-  check((await page.locator('[data-portal-position]').innerText()).includes('1 מתוך 6'), 'מתחת לפורטל: "שיעור 1 מתוך 6"')
+  check(await lessonTitle(page) === titles[0], `בכניסה: בפורטל השיעור האחרון שהתקבל, והשם שלו מתחת לפורטל (${await lessonTitle(page)})`)
+  check((await page.locator('[data-portal-position]').textContent() ?? '').includes('1 מתוך 6'), 'לקוראי מסך: "שיעור 1 מתוך 6" והמצב')
   check(!/סצנ/.test(await page.evaluate(() => document.body.innerText)), 'אין "סצנה" בעמוד')
-  await page.locator('[data-portal-next]').click(); await page.waitForTimeout(500)
+  /* הפס העליון: השלום והסיכום */
+  const hello = await page.locator('[data-portal-hello]').innerText()
+  check(/(בוקר טוב|צהריים טובים|ערב טוב|לילה טוב)/.test(hello) && hello.includes('נועה לוי'), `הפס העליון: שלום לפי השעה, עם השם (${hello.replace(/\s+/g, ' ')})`)
+  const stat = async (k: string) => (await page.locator(`[data-stat=${k}]`).innerText()).replace(/\s+/g, ' ')
+  check((await stat('gems')).includes('4') && (await stat('done')).includes('1 מתוך 6') && (await stat('paused')).includes('1'), `הסיכום: ${await stat('gems')} | ${await stat('done')} | ${await stat('paused')}`)
+  check(await page.locator('[data-portal-state=notDone]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('לא הושלם'), 'שיעור שלא הותחל: על הפורטל "לא הושלם"')
+  check(await page.locator('.shome-status').count() === 0 && await page.evaluate(() => getComputedStyle(document.querySelector('[data-portal-caption] .pcap')!).backgroundColor === 'rgba(0, 0, 0, 0)'), 'המצב הוא שכבת טקסט, בלי תיבה')
+  await page.locator('[data-portal-next]').click(); await page.waitForTimeout(700)
   check(await lessonTitle(page) === titles[1], `החץ מדפדף לשיעור הבא (${await lessonTitle(page)})`)
-  check((await page.locator('[data-portal-state]').innerText()).includes('עמוד 3'), 'שיעור בקריאה: "בקריאה, עמוד 3"')
-  await shot(page, 'student-reading')
+  check(await page.locator('[data-portal-state=paused]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('עמוד 3'), 'שיעור שהופסק: על הפורטל "הופסק באמצע" והעמוד')
+  check(await page.locator('[data-result][aria-pressed=true]').getAttribute('data-result') === 'q1', 'השורה של השיעור שבפורטל מסומנת ברשימה')
+  await shot(page, 'student-paused')
   await page.locator('[data-portal-prev]').click(); await page.locator('[data-portal-prev]').click(); await page.waitForTimeout(500)
   check(await lessonTitle(page) === titles[5], `החץ אחורה מהראשון מגיע לאחרון (${await lessonTitle(page)})`)
+  check(await page.evaluate(() => { const l = document.querySelector('[data-lesson-list]')!.getBoundingClientRect(); const r = document.querySelector('[data-result][aria-pressed=true]')!.getBoundingClientRect(); return r.top >= l.top - 1 && r.bottom <= l.bottom + 1 }), 'הרשימה נגללת אל השורה של השיעור שבפורטל')
 
-  /* הרשימה שבתחתית: חיפוש ובחירה */
-  await page.locator('#lesson-finder').scrollIntoViewIfNeeded(); await page.waitForTimeout(700)
-  await shot(page, 'student-finder')
+  /* הרשימה שבחלון הצד: חיפוש, סינון ובחירה */
   check(await page.locator('[data-result]').count() === 6, 'ברשימה שש שורות, אחת לכל שיעור')
-  await page.locator('[data-lesson-finder] input').fill('שורש'); await page.waitForTimeout(400)
+  await page.locator('[data-filter=status]').selectOption('in_progress'); await page.waitForTimeout(400)
+  check(await page.locator('[data-result]').count() === 1 && await lessonTitle(page) === titles[1], 'סינון לפי מצב: רק השיעור שהופסק, והוא בפורטל')
+  await page.locator('[data-filter=status]').selectOption('all')
+  await page.locator('[data-lesson-search]').fill('שורש'); await page.waitForTimeout(400)
   check(await page.locator('[data-result]').count() === 1, 'החיפוש מסנן את הרשימה')
-  await page.locator('[data-result]').first().click(); await page.waitForTimeout(1200)
+  await page.locator('[data-lesson-search]').fill(''); await page.waitForTimeout(300)
+  await page.locator('[data-result=q3]').click(); await page.waitForTimeout(1200)
   check(await lessonTitle(page) === titles[3], `בחירה ברשימה מביאה את השיעור אל הפורטל (${await lessonTitle(page)})`)
-  check(await page.evaluate(() => document.querySelector('[data-portal-hero]')!.getBoundingClientRect().top > -5), 'אחרי הבחירה העמוד חוזר למעלה, אל הפורטל')
-  check(await page.locator('[data-portal-lesson] [role=img]').count() === 1, 'שיעור שהושלם: הגבישים מוצגים')
+  check(await page.locator('[data-portal-state=done]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('4 גבישים מתוך 5'), 'שיעור שהושלם: על הפורטל "הושלם" והגבישים')
+  check(await page.locator('[data-result][aria-pressed=true] [role=img]').count() === 1, 'שיעור שהושלם: הגבישים מוצגים גם בשורה שלו')
   await shot(page, 'student-done')
+  await page.locator('[data-lesson-search]').fill('אין שיעור כזה'); await page.waitForTimeout(400)
+  check(await page.locator('[data-portal-nomatch]').count() === 1 && await page.locator('[data-portal-caption]').count() === 0, 'חיפוש בלי תוצאות: הודעה בחלון, והפורטל ריק')
+  await shot(page, 'student-nomatch')
+  await page.locator('[data-portal-nomatch] button').click(); await page.waitForTimeout(400)
+  await page.locator('[data-result=q3]').click(); await page.waitForTimeout(600)
 
   /* כניסה לשיעור: צלילה לפורטל */
   await page.locator('[data-portal-play]').click()
@@ -199,17 +226,27 @@ async function student(browser: Browser): Promise<void> {
   check(/\/play\/q3/.test(page.url()), `הכפתור צולל לפורטל ופותח את השיעור (${new URL(page.url()).pathname})`)
   await page.context().close()
 
+  /* גלילה למטה: המסע שלי */
+  const jr = await openStudent(1366, 768)
+  await jr.locator('#my-journey').scrollIntoViewIfNeeded(); await jr.waitForTimeout(700)
+  await shot(jr, 'student-journey')
+  check(await jr.locator('[data-my-journey]').count() === 1, 'בגלילה למטה: המסע שלי')
+  await jr.context().close()
+
   /* בלי שיעורים */
   const empty = await openStudent(1366, 768, [])
   await shot(empty, 'student-empty')
-  check(await empty.locator('[data-portal-empty]').count() === 1 && await empty.locator('[data-lesson-finder]').count() === 0, 'בלי שיעורים: הודעה בחלון, בלי רשימה')
+  check(await empty.locator('[data-portal-empty]').count() === 1 && await empty.locator('[data-lesson-list]').count() === 0 && await empty.locator('[data-portal-stats]').count() === 0, 'בלי שיעורים: הודעה בחלון, בלי רשימה ובלי סיכום')
   await empty.context().close()
 
-  /* טלפון לאורך */
-  const ph = await openStudent(390, 800)
-  await ph.screenshot({ path: path.join(OUT, 'student-phone.png') }); console.log('  shot', 'student-phone')
-  check(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'טלפון: בלי גלילה לרוחב')
-  await ph.context().close()
+  /* טאבלט 4:3 וטלפון לאורך: הבמה למעלה והרשימה מתחתיה */
+  for (const [name, w, h] of [['tablet-4x3', 1024, 768], ['phone', 390, 800]] as const) {
+    const ph = await openStudent(w, h)
+    await ph.screenshot({ path: path.join(OUT, `student-${name}.png`) }); console.log('  shot', `student-${name}`)
+    check(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1), `${name}: בלי גלילה לרוחב`)
+    check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const u = document.querySelector('[data-portal-under]')?.getBoundingClientRect(); return !!c && !!u && c.bottom <= u.top + 1 }), `${name}: הטקסט שעל הפורטל מעל השורה שמתחתיו`)
+    await ph.context().close()
+  }
 }
 
 async function guest(browser: Browser): Promise<void> {
@@ -240,7 +277,7 @@ async function guest(browser: Browser): Promise<void> {
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-portal-lesson]', { timeout: 15000 })
   await page.waitForTimeout(1500)
-  check((await page.locator('[data-portal-state]').innerText()).includes('הושלם') && await page.locator('[data-portal-lesson] [role=img]').count() === 1, 'שיעור שהאורח סיים: "הושלם" והגבישים (מהלשונית בלבד)')
+  check(await page.locator('[data-portal-state=done]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('4 גבישים') && (await page.locator('[data-stat=gems]').innerText()).includes('4'), 'שיעור שהאורח סיים: "הושלם" והגבישים, על הפורטל ובסיכום (מהלשונית בלבד)')
   await page.locator('[data-portal-play]').click()
   await page.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
   check(/\/play\//.test(page.url()), 'האורח נכנס לשיעור דרך הפורטל')

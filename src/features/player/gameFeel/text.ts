@@ -32,9 +32,18 @@ export const SHELF_TEXT = {
   count: (shown: number, total: number): string => `${shown}${shown !== total ? `/${total}` : ''} שיעורים`,
 } as const
 
-/* הבית של התלמיד: הפורטל מציג שיעור אחד (ברירת המחדל: האחרון שהתקבל), החצים מדפדפים, ולמטה חיפוש ובחירה */
+/* הבית של התלמיד: פס עליון עם השלום והסיכום, הפורטל מציג שיעור אחד (ברירת המחדל: האחרון שהתקבל), החצים מדפדפים,
+   ובחלון הצד רשימת השיעורים עם חיפוש וסינון */
 export const PORTAL_TEXT = {
-  hello: 'שלום,',
+  /* השלום שבפס העליון, לפי השעה */
+  greeting: (hour: number): string => (hour >= 5 && hour < 12 ? 'בוקר טוב' : hour >= 12 && hour < 17 ? 'צהריים טובים' : hour >= 17 && hour < 21 ? 'ערב טוב' : 'לילה טוב'),
+  /* הסיכום שבפס העליון: תווית ומספר, כך שהמשפט נכון בכל מספר */
+  statGems: 'גבישים שנאספו:',
+  statDone: 'שיעורים שהושלמו:',
+  statOf: (n: number, total: number): string => `${n} מתוך ${total}`,
+  statPaused: 'הופסקו באמצע:',
+  statFresh: 'חדשים:',
+  statsLabel: 'הסיכום שלכם',
   position: (i: number, n: number): string => `שיעור ${i} מתוך ${n}`,
   prev: 'השיעור הקודם',
   next: 'השיעור הבא',
@@ -42,11 +51,15 @@ export const PORTAL_TEXT = {
   playNew: 'שחקו עכשיו',
   playContinue: 'המשיכו לקרוא',
   playAgain: 'שחקו שוב',
-  /* הסימון שליד הפורטל (וגם ברשימה שבתחתית): שלושה מצבים, תמיד עם סמל ומילה */
+  /* הסימון שעל הפורטל (וגם ברשימה שבחלון הצד): שלושה מצבים, תמיד עם סמל ומילה */
   statusDone: 'הושלם',
   statusDoneLate: 'הושלם · באיחור',
   statusPaused: 'הופסק באמצע',
   statusPausedAt: (page: number): string => `הופסק באמצע · ${BOOK_TEXT.pageShort(page)}`,
+  /* השורה הקטנה שמתחת למצב, בטקסט שעל הפורטל */
+  captionLate: 'באיחור',
+  captionGems: (n: number): string => `${gemsWord(n)} מתוך 5`,
+  captionFresh: 'חדש',
   statusNotDone: 'לא הושלם',
   /* נוסף מאז הביקור הקודם */
   freshMark: '✦ חדש',
@@ -56,9 +69,17 @@ export const PORTAL_TEXT = {
   bubbleDone: 'את השיעור הזה כבר סיימתם. אפשר לשחק שוב.',
   bubbleEmpty: 'הפורטל מחכה לשיעור הראשון שלכם.',
   fromTeacher: (name: string): string => `מאת ${name}`,
-  findLink: 'חיפוש שיעור ↓',
-  findTitle: 'מחפשים שיעור מסוים?',
-  findSub: 'בחרו שיעור מהרשימה, והוא יופיע בפורטל.',
+  /* חלון הצד: רשימת השיעורים */
+  listTitle: 'השיעורים שלי',
+  listCount: (shown: number, total: number): string => (shown === total ? `${total}` : `${shown} מתוך ${total}`),
+  journeyLink: 'המסע שלי ↓',
+  filterStatus: 'סינון לפי מצב',
+  filterSubject: 'סינון לפי מקצוע',
+  filterTeacher: 'סינון לפי מורה',
+  sortLabel: 'סדר הרשימה',
+  allStatuses: 'כל המצבים',
+  allSubjects: 'כל המקצועות',
+  allTeachers: 'כל המורים',
   searchPlaceholder: 'חיפוש לפי שם שיעור…',
   clear: '✕ ניקוי הסינון',
   noMatch: 'לא נמצאו שיעורים שמתאימים לסינון',

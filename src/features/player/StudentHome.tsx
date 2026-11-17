@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
@@ -11,12 +11,13 @@ import { gemTier } from '../../shared/lib/gemTier'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { enterGuestStudent, guestProgress, isGuestStudent, leaveGuestStudent } from '../../shared/lib/guestStudent'
-import { GemDefs, GemSocket } from '../../shared/ui/Gem'
+import { GemDefs, GemIcon, GemSocket } from '../../shared/ui/Gem'
 import { MyJourney } from './Journey'
 import PortalHero from './lab/PortalHero'
+import type { PortalCaptionData } from './lab/PortalCaption'
 import { usePortalDive } from './lab/usePortalDive'
 import { BOOK_TEXT, PORTAL_TEXT, SHELF_TEXT } from './gameFeel/text'
-import { fieldStyle, infoChip, nameChip, panelStudent } from '../../styles/ui'
+import { fieldStyle, panelStudent } from '../../styles/ui'
 
 
 type SortKey = 'newest' | 'oldest' | 'alpha' | 'alpha-desc' | 'score-high' | 'score-low'
@@ -53,22 +54,6 @@ interface AssignedQuest {
   isReview?: boolean
   /* הסימנייה: העמוד שבו נעצרה הקריאה (רק לשיעור בקריאה, כשהשרת יודע) */
   bookmarkPage?: number | null
-}
-
-/* ── chip לשורת סינון: כפתור בחירה; הנבחר ברקע דיו ── */
-function Chip({ label, active, onClick }: {
-  label: string; active: boolean; onClick: () => void
-}) {
-  return (
-    <button
-      className={`holo-button holo-button--sm${active ? ' is-selected' : ''}`}
-      onClick={onClick}
-      style={{
-        padding: '5px 12px', borderRadius: 8, fontSize: 14, fontWeight: 600,
-        fontFamily: 'var(--font-display)', whiteSpace: 'nowrap',
-      }}
-    >{label}</button>
-  )
 }
 
 /* ── loading ── */
@@ -120,8 +105,6 @@ function GemRow({ gems, size = 22 }: { gems: number; size?: number }) {
   )
 }
 
-const TAG = { ...infoChip, borderRadius: 7, padding: '1px 9px', fontSize: 14, fontWeight: 800, lineHeight: 1.4, whiteSpace: 'nowrap' as const }
-
 /* ══════════════════════════════════════════════════ */
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
@@ -133,20 +116,21 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'score-low',  label: 'ציון נמוך → גבוה' },
 ]
 
-const STATUS_CHIPS: { key: StatusFilter; label: string }[] = [
-  { key: 'all',         label: 'הכל'        },
+const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
+  { key: 'all',         label: PORTAL_TEXT.allStatuses },
   { key: 'new',         label: '✦ נוספו לאחרונה' },
   { key: 'not_started', label: 'לא הושלמו'      },
   { key: 'in_progress', label: 'הופסקו באמצע'   },
   { key: 'completed',   label: 'הושלמו'         },
 ]
 
-/* הבית של התלמיד — "הספרייה ההולוגרפית": אותה במה של עמוד הפתיחה (PortalHero). התלמיד/ה נכנס/ת ומולו/ה הפורטל עם
-   השיעור האחרון שהתקבל; החצים שמתחת לפורטל מדפדפים בין השיעורים, והכפתור (או לחיצה על הפורטל) צולל פנימה ופותח את השיעור.
-   על ראש הטבעת של הפורטל: סימון המצב של השיעור (הושלם / הופסק באמצע / לא הושלם), עם סמל ומילה.
-   בחלון שמימין: השלום, שם השיעור שבפורטל, הגבישים (אם הושלם), מועד ההגשה והמורה.
-   בתחתית העמוד: חיפוש, סינון ומיון, ורשימת השיעורים — בחירה ברשימה מביאה את השיעור אל הפורטל. מתחתיה "המסע שלי".
-   הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
+/* הבית של התלמיד — "הספרייה ההולוגרפית": אותה במה של עמוד הפתיחה (PortalHero), בארבעה אזורים:
+   · הפס העליון: השלום לפי השעה ("בוקר טוב, נועה") והסיכום — כמה גבישים נאספו עד היום, כמה שיעורים הושלמו,
+     כמה הופסקו באמצע וכמה חדשים; בקצה: השתקה ויציאה.
+   · הפורטל: השיעור האחרון שהתקבל. עליו, כשכבת טקסט הולוגרפית, המצב של השיעור (הושלם / הופסק באמצע / לא הושלם).
+   · מתחת לפורטל, כמו בעמוד הפתיחה: שם השיעור והמקצוע, חצים שמדפדפים בין השיעורים, וכפתור הכניסה (או לחיצה על הפורטל).
+   · חלון הצד: רשימת השיעורים, עם חיפוש, סינון ומיון. בחירה ברשימה מביאה את השיעור אל הפורטל.
+   בגלילה למטה: "המסע שלי". הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
 export default function StudentHome() {
   const { isLoggedIn, logout } = useAuth()
   /* תלמיד אורח: בלי טוקן. הספרייה שלו היא שיעורי ההתנסות, ושום דבר לא נשמר בשרת (shared/lib/guestStudent.ts) */
@@ -161,6 +145,9 @@ export default function StudentHome() {
   const [loading, setLoading] = useState(true)
   const [dbgError, setDbgError] = useState<string | null>(null)
   const [lastLogin, setLastLogin] = useState<string | null>(null)
+  /* השעה בכניסה, לשלום שבפס העליון */
+  const [hour] = useState(() => new Date().getHours())
+  const listRef = useRef<HTMLUListElement>(null)
 
   /* מסננים */
   const [search, setSearch]           = useState('')
@@ -265,6 +252,33 @@ export default function StudentHome() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quests, search, statusFilter, subjectFilter, teacherFilter, sort, lastLogin])
 
+  /* הסיכום שבפס העליון: מכל השיעורים, בלי קשר לסינון. הגבישים: של המשחק הטוב ביותר בכל שיעור שהושלם */
+  const stats = useMemo(() => {
+    const doneList = quests.filter((q) => q.sessionStatus === 'completed')
+    return {
+      gems: doneList.reduce((sum, q) => sum + gemsOf(q), 0),
+      done: doneList.length,
+      paused: quests.filter((q) => q.sessionStatus === 'in_progress').length,
+      fresh: quests.filter((q) => freshIds.has(q.id) && !q.sessionStatus).length,
+    }
+  }, [quests, freshIds])
+
+  /* השיעור שבפורטל, והמקום שלו ברשימה (המסוננת) */
+  const n = displayed.length
+  const idx = Math.max(0, displayed.findIndex((q) => q.id === curId))
+  const current: AssignedQuest | undefined = n ? displayed[idx] : undefined
+  const currentId = current?.id
+
+  /* דפדוף בחצים: השורה של השיעור שבפורטל נשארת בתוך האזור הנגלל של הרשימה (רק כשהרשימה נגללת בתוך החלון) */
+  useEffect(() => {
+    const list = listRef.current
+    const row = list?.querySelector<HTMLElement>('[aria-pressed="true"]')
+    if (!list || !row || list.scrollHeight <= list.clientHeight + 1) return
+    const lr = list.getBoundingClientRect(), rr = row.getBoundingClientRect()
+    if (rr.top < lr.top) list.scrollTop -= lr.top - rr.top + 6
+    else if (rr.bottom > lr.bottom) list.scrollTop += rr.bottom - lr.bottom + 8
+  }, [currentId])
+
   const hasFilters = search || statusFilter !== 'all' || subjectFilter !== 'all' || teacherFilter !== 'all'
   const clearFilters = () => { setSearch(''); setStatus('all'); setSubject('all'); setTeacher('all') }
 
@@ -284,21 +298,28 @@ export default function StudentHome() {
     )
   }
 
-  /* השיעור שבפורטל, והמקום שלו ברשימה (המסוננת) */
-  const n = displayed.length
-  const idx = Math.max(0, displayed.findIndex((q) => q.id === curId))
-  const current: AssignedQuest | undefined = n ? displayed[idx] : undefined
   const step = (dir: 1 | -1) => { if (n) setCurId(displayed[(idx + dir + n) % n].id) }
   const done = current?.sessionStatus === 'completed'
   const reading = current?.sessionStatus === 'in_progress'
   const play = () => { if (current && !leaving) dive(`/play/${current.id}`) }
-  /* בחירה ברשימה שבתחתית: השיעור עובר לפורטל, והעמוד חוזר למעלה */
+  /* בחירה ברשימה: השיעור עובר לפורטל. במסך צר, שבו הרשימה מתחת לבמה, העמוד חוזר למעלה */
   const choose = (id: string) => {
     setCurId(id)
     document.querySelector('[data-portal-hero]')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   }
   const due = current?.dueAt && !done ? (current.state === 'ended' ? SHELF_TEXT.duePassed(formatIsraelDate(current.dueAt)) : SHELF_TEXT.dueBy(formatIsraelDate(current.dueAt))) : null
   const bubble = loading ? undefined : !current ? (quests.length ? undefined : PORTAL_TEXT.bubbleEmpty) : done ? PORTAL_TEXT.bubbleDone : reading ? PORTAL_TEXT.bubbleReading : guest ? PORTAL_TEXT.guestBubble : PORTAL_TEXT.bubbleNew
+  const playLabel = done ? PORTAL_TEXT.playAgain : reading ? PORTAL_TEXT.playContinue : PORTAL_TEXT.playNew
+  /* הטקסט ההולוגרפי שעל הפורטל: המצב, ומתחתיו שורה קטנה (הגבישים / העמוד שבו הקריאה נעצרה / "חדש") */
+  const caption: PortalCaptionData | undefined = !current ? undefined
+    : done ? { tone: 'done', title: PORTAL_TEXT.statusDone, sub: [PORTAL_TEXT.captionGems(gemsOf(current)), current.late ? PORTAL_TEXT.captionLate : ''].filter(Boolean).join(' · ') }
+    : reading ? { tone: 'paused', title: PORTAL_TEXT.statusPaused, sub: current.bookmarkPage ? BOOK_TEXT.pageShort(current.bookmarkPage) : undefined }
+    : { tone: 'notDone', title: PORTAL_TEXT.statusNotDone, sub: freshIds.has(current.id) ? PORTAL_TEXT.captionFresh : undefined }
+  const select = (label: string, value: string, onChange: (v: string) => void, options: { key: string; label: string }[], name: string) => (
+    <select className="holo-button holo-button--sm" aria-label={label} data-filter={name} value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+    </select>
+  )
 
   return (
     <div dir="rtl" className="home4" data-student-home data-guest={guest ? '' : undefined}>
@@ -306,46 +327,69 @@ export default function StudentHome() {
 
       <PortalHero
         portalSrc={current?.thumbUrl ?? current?.entryImageUrl ?? undefined}
-        portalLabel={current ? `${done ? PORTAL_TEXT.playAgain : reading ? PORTAL_TEXT.playContinue : PORTAL_TEXT.playNew}: ${current.title}` : undefined}
+        portalLabel={current ? `${playLabel}: ${current.title}` : undefined}
         onPortalClick={current ? play : undefined}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
         bubble={bubble}
-        badge={current ? (
-          <span className="shome-status" data-portal-state={statusOf(current)}>
-            <StatusIcon status={statusOf(current)} />
-            <span>{statusText(current)}</span>
-          </span>
-        ) : undefined}
-        corner={<>
-          <button className="holo-button holo-button--sm" onClick={toggleMuted} aria-label={muted ? PORTAL_TEXT.unmute : PORTAL_TEXT.mute} aria-pressed={muted}
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46, padding: 0 }}>
-            <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={24} />
-          </button>
-          <button className="holo-button holo-button--sm" onClick={() => { leaveGuestStudent(); logout(); navigate('/') }}
-            style={{ minHeight: 46, padding: '0 18px', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
-            {PORTAL_TEXT.exit}
-          </button>
-        </>}
+        caption={caption}
+        captionKey={current ? `${current.id}:${statusOf(current)}` : undefined}
+        captionProps={current ? { 'data-portal-state': statusOf(current) } : undefined}
+        top={
+          <div className="shome-bar">
+            <h1 className="shome-hello" data-portal-hello>
+              <span>{PORTAL_TEXT.greeting(hour)}{name ? ',' : ''}</span>
+              {name && <span className="shome-hello-name">{name}</span>}
+            </h1>
+            {!loading && quests.length > 0 && (
+              <ul className="shome-stats" aria-label={PORTAL_TEXT.statsLabel} data-portal-stats>
+                <li className="shome-stat" data-stat="gems"><GemIcon size={22} /><span>{PORTAL_TEXT.statGems}</span><b>{stats.gems}</b></li>
+                <li className="shome-stat" data-stat="done"><StatusIcon status="done" size={22} /><span>{PORTAL_TEXT.statDone}</span><b>{PORTAL_TEXT.statOf(stats.done, quests.length)}</b></li>
+                {stats.paused > 0 && <li className="shome-stat" data-stat="paused"><StatusIcon status="paused" size={22} /><span>{PORTAL_TEXT.statPaused}</span><b>{stats.paused}</b></li>}
+                {stats.fresh > 0 && <li className="shome-stat" data-stat="fresh"><span aria-hidden="true">✦</span><span>{PORTAL_TEXT.statFresh}</span><b>{stats.fresh}</b></li>}
+              </ul>
+            )}
+            <div className="shome-bar-actions">
+              <button className="holo-button holo-button--sm" onClick={toggleMuted} aria-label={muted ? PORTAL_TEXT.unmute : PORTAL_TEXT.mute} aria-pressed={muted}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46, padding: 0 }}>
+                <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={24} />
+              </button>
+              <button className="holo-button holo-button--sm" onClick={() => { leaveGuestStudent(); logout(); navigate('/') }}
+                style={{ minHeight: 46, padding: '0 18px', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+                {PORTAL_TEXT.exit}
+              </button>
+            </div>
+          </div>
+        }
         under={current ? <>
           <div className="home4-now-row">
             {n > 1 && <button onClick={() => step(-1)} aria-label={PORTAL_TEXT.prev} className="holo-button holo-button--sm home4-arrow" data-portal-prev><span aria-hidden="true">→</span></button>}
-            <div className="home4-now-card" aria-live="polite" data-portal-position>
-              <span className="home4-now-title">{PORTAL_TEXT.position(idx + 1, n)}</span>
+            <div className="home4-now-card" aria-live="polite" data-portal-lesson={current.id}>
+              <span className="home4-now-title" data-lesson-title>{current.title}</span>
+              <SubjectTag code={current.subjectCode} size="sm" />
+              {/* לקוראי מסך: המקום ברשימה והמצב (על המסך המצב מוקרן על הפורטל) */}
+              <span className="sr-only" data-portal-position>{PORTAL_TEXT.position(idx + 1, n)} · {statusText(current)}</span>
             </div>
             {n > 1 && <button onClick={() => step(1)} aria-label={PORTAL_TEXT.next} className="holo-button holo-button--sm home4-arrow" data-portal-next><span aria-hidden="true">←</span></button>}
           </div>
           <button onClick={play} className="holo-button home4-play" data-portal-play>
             <BrandIcon name="playGem" size={22} />
-            <span>{done ? PORTAL_TEXT.playAgain : reading ? PORTAL_TEXT.playContinue : PORTAL_TEXT.playNew}</span>
+            <span>{playLabel}</span>
           </button>
         </> : undefined}
+        panelClass="shome-panel"
         panel={<>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>
-            {PORTAL_TEXT.hello} {name && <span style={{ ...nameChip, display: 'inline-block', padding: '0 12px', borderRadius: 999 }}>{name}</span>} 👋
+          <div className="shome-panel-head">
+            <h2 className="shome-panel-title">{PORTAL_TEXT.listTitle}</h2>
+            {quests.length > 0 && <span className="shome-panel-count" data-list-count>{PORTAL_TEXT.listCount(displayed.length, quests.length)}</span>}
+            {quests.length > 0 && (
+              <button className="holo-link" onClick={() => document.getElementById('my-journey')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                style={{ marginInlineStart: 'auto', minHeight: 30, fontSize: 15, fontWeight: 600 }}>
+                {PORTAL_TEXT.journeyLink}
+              </button>
+            )}
           </div>
-          <h1 className="home4-tagline" style={{ fontWeight: 900 }}>{BOOK_TEXT.libraryTitle}</h1>
-          {guest && <p data-guest-note style={{ margin: 0, fontSize: 15, color: 'var(--color-muted)', lineHeight: 1.4 }}>{PORTAL_TEXT.guestNote}</p>}
+          {guest && <p data-guest-note style={{ margin: 0, fontSize: 14, color: 'var(--color-muted)', lineHeight: 1.4 }}>{PORTAL_TEXT.guestNote}</p>}
 
           {loading && <LoadingDots />}
 
@@ -355,124 +399,60 @@ export default function StudentHome() {
 
           {/* אין שיעורים בכלל */}
           {!loading && !dbgError && quests.length === 0 && (
-            <div data-portal-empty>
+            <div data-portal-empty style={{ textAlign: 'center', padding: '10px 0' }}>
               <p style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{PORTAL_TEXT.none}</p>
               <p style={{ margin: '4px 0 0', fontSize: 15, color: 'var(--color-muted)' }}>{PORTAL_TEXT.noneSub}</p>
             </div>
           )}
 
-          {/* יש שיעורים, אבל הסינון לא משאיר אף אחד */}
-          {!loading && quests.length > 0 && !current && (
-            <div data-portal-nomatch style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <p style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{PORTAL_TEXT.noMatch}</p>
-              <button className="holo-button holo-button--sm" onClick={clearFilters} style={{ fontSize: 15, fontWeight: 700, padding: '6px 16px' }}>{PORTAL_TEXT.clear}</button>
+          {!loading && quests.length > 0 && <>
+            {/* חיפוש */}
+            <div className="shome-search">
+              <span aria-hidden="true">🔍</span>
+              <input type="text" placeholder={PORTAL_TEXT.searchPlaceholder} aria-label={PORTAL_TEXT.searchPlaceholder} value={search} onChange={(e) => setSearch(e.target.value)} style={fieldStyle} data-lesson-search />
             </div>
-          )}
 
-          {/* השיעור שבפורטל */}
-          {current && (
-            <div className="shome-lesson" data-portal-lesson={current.id}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
-                <SubjectTag code={current.subjectCode} size="sm" />
-                {freshIds.has(current.id) && !current.sessionStatus && <span style={TAG}>{PORTAL_TEXT.freshMark}</span>}
-                {current.isReview && <span style={TAG}>{SHELF_TEXT.review}</span>}
+            {/* סינון ומיון: מצב, מקצוע ומורה (רק כשיש יותר מאחד), וסדר הרשימה */}
+            <div className="shome-filters">
+              {select(PORTAL_TEXT.filterStatus, statusFilter, (v) => setStatus(v as StatusFilter), STATUS_OPTIONS, 'status')}
+              {subjects.length > 1 && select(PORTAL_TEXT.filterSubject, subjectFilter, setSubject, [{ key: 'all', label: PORTAL_TEXT.allSubjects }, ...subjects.map((x) => ({ key: x, label: x }))], 'subject')}
+              {teachers.length > 1 && select(PORTAL_TEXT.filterTeacher, teacherFilter, setTeacher, [{ key: 'all', label: PORTAL_TEXT.allTeachers }, ...teachers.map((x) => ({ key: x, label: x }))], 'teacher')}
+              {select(PORTAL_TEXT.sortLabel, sort, (v) => setSort(v as SortKey), SORT_OPTIONS, 'sort')}
+              {hasFilters && displayed.length > 0 && <button className="holo-button holo-button--sm shome-clear" onClick={clearFilters}>{PORTAL_TEXT.clear}</button>}
+            </div>
+
+            {/* הסינון לא משאיר אף שיעור */}
+            {displayed.length === 0 && (
+              <div data-portal-nomatch style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+                <p className="shome-panel-msg" style={{ fontWeight: 700 }}>{PORTAL_TEXT.noMatch}</p>
+                <button className="holo-button holo-button--sm" onClick={clearFilters} style={{ fontSize: 15, fontWeight: 700, padding: '6px 16px' }}>{PORTAL_TEXT.clear}</button>
               </div>
-              <h2 className="shome-lesson-title" data-lesson-title>{current.title}</h2>
-              {done && <GemRow gems={gemsOf(current)} />}
-              {due && <div data-portal-due style={{ fontSize: 16, fontWeight: 700, color: current.state === 'ended' ? 'var(--color-human-deep)' : 'var(--color-ink)' }}>{due}</div>}
-              {current.teacherName && <div style={{ fontSize: 15, color: 'var(--color-muted)' }}>{PORTAL_TEXT.fromTeacher(current.teacherName)}</div>}
-            </div>
-          )}
+            )}
 
-          {quests.length > 1 && (
-            <button className="holo-link" onClick={() => document.getElementById('lesson-finder')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              style={{ alignSelf: 'center', minHeight: 30, fontSize: 16, fontWeight: 600 }}>
-              {PORTAL_TEXT.findLink}
-            </button>
-          )}
-        </>}
-      />
-
-      {/* ── בתחתית העמוד: חיפוש ובחירה של שיעור, ו"המסע שלי" ── */}
-      {!loading && quests.length > 0 && (
-        <div className="home4-more">
-          <section id="lesson-finder" data-lesson-finder style={{ ...panelStudent, borderRadius: 18, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', lineHeight: 1.25 }}>{PORTAL_TEXT.findTitle}</h2>
-              <div style={{ fontSize: 'var(--fs-side-sub)', color: 'var(--color-muted)', marginTop: 2 }}>{PORTAL_TEXT.findSub}</div>
-            </div>
-
-            {/* שורה 1: חיפוש + מיון */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 240px', position: 'relative' }}>
-                <span aria-hidden="true" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 16, pointerEvents: 'none' }}>🔍</span>
-                <input
-                  type="text"
-                  placeholder={PORTAL_TEXT.searchPlaceholder}
-                  aria-label={PORTAL_TEXT.searchPlaceholder}
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ ...fieldStyle, width: '100%', boxSizing: 'border-box', padding: '10px 40px 10px 12px', fontFamily: 'var(--font-display)', fontSize: 16, outline: 'none' }}
-                  onFocus={(e) => { e.currentTarget.style.outline = '3px solid var(--color-machine-deep)'; e.currentTarget.style.outlineOffset = '2px' }}
-                  onBlur={(e) => { e.currentTarget.style.outline = 'none' }}
-                />
-              </div>
-              <select className="holo-button holo-button--sm" value={sort} onChange={(e) => setSort(e.target.value as SortKey)}
-                style={{ padding: '10px 12px', borderRadius: 10, fontFamily: 'var(--font-display)', fontSize: 15, flexShrink: 0 }}>
-                {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-            </div>
-
-            {/* שורה 2: צ'יפי סטטוס + מקצוע + מורה */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              {STATUS_CHIPS.map(c => (
-                <Chip key={c.key} label={c.label} active={statusFilter === c.key}
-                  onClick={() => setStatus(statusFilter === c.key ? 'all' : c.key)} />
-              ))}
-              {(subjects.length > 0 || teachers.length > 0) && (
-                <div style={{ width: 1, height: 20, background: 'var(--color-line-strong)', margin: '0 2px' }} />
-              )}
-              {subjects.map(s => (
-                <Chip key={s} label={s} active={subjectFilter === s}
-                  onClick={() => setSubject(subjectFilter === s ? 'all' : s)} />
-              ))}
-              {teachers.map(t => (
-                <Chip key={t} label={`👤 ${t}`} active={teacherFilter === t}
-                  onClick={() => setTeacher(teacherFilter === t ? 'all' : t)} />
-              ))}
-              {hasFilters && (
-                <button className="holo-button holo-button--sm" onClick={clearFilters}
-                  style={{ padding: '5px 12px', borderRadius: 8, fontSize: 14, fontWeight: 600, fontFamily: 'var(--font-display)', marginRight: 'auto' }}>
-                  {PORTAL_TEXT.clear}
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
-              <span style={{ fontSize: 15, fontWeight: 600 }}>{SHELF_TEXT.count(displayed.length, quests.length)}</span>
-            </div>
-
-            {displayed.length === 0 && <p style={{ margin: 0, textAlign: 'center', fontSize: 16 }}>{PORTAL_TEXT.noMatch}</p>}
-
-            {/* הרשימה: בחירה מביאה את השיעור אל הפורטל */}
+            {/* הרשימה: בחירה מביאה את השיעור אל הפורטל. השורה של השיעור שבפורטל מציגה גם את מועד ההגשה ואת המורה */}
             {displayed.length > 0 && (
-              <ul className="shome-results">
+              <ul className="shome-results" ref={listRef} data-lesson-list>
                 {displayed.map((q) => {
                   const on = q.id === current?.id
                   const qDone = q.sessionStatus === 'completed'
+                  const more = on ? [
+                    freshIds.has(q.id) && !q.sessionStatus ? PORTAL_TEXT.freshMark : '',
+                    q.isReview ? SHELF_TEXT.review : '',
+                    due ?? '',
+                    q.teacherName ? PORTAL_TEXT.fromTeacher(q.teacherName) : '',
+                  ].filter(Boolean) : []
                   return (
                     <li key={q.id}>
-                      <button className={`holo-button holo-button--sm shome-result${on ? ' is-selected' : ''}`} aria-pressed={on} data-result={q.id} onClick={() => choose(q.id)}>
-                        <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} mode="dark" width={76} height={57} radius={8} frame={2} tag="none" alt="" />
+                      <button className="holo-button holo-button--sm shome-result" aria-pressed={on} data-result={q.id} onClick={() => choose(q.id)}>
+                        <LessonThumb url={q.thumbUrl} subjectCode={q.subjectCode} mode="dark" width={68} height={51} radius={8} frame={2} tag="none" alt="" />
                         <span className="shome-result-text">
                           <span className="shome-result-title">{q.title}</span>
                           <span className="shome-result-meta">
                             <SubjectTag code={q.subjectCode} size="sm" ring={false} />
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><StatusIcon status={statusOf(q)} size={18} />{statusText(q)}</span>
+                            <span className="shome-result-status"><StatusIcon status={statusOf(q)} size={18} />{statusText(q)}</span>
                             {qDone && <GemRow gems={gemsOf(q)} size={15} />}
-                            {on && <span style={{ fontWeight: 800 }}>· {PORTAL_TEXT.inPortal}</span>}
                           </span>
+                          {more.length > 0 && <span className="shome-result-meta" data-result-more style={{ fontWeight: 400 }}>{more.join(' · ')}</span>}
                         </span>
                       </button>
                     </li>
@@ -480,9 +460,13 @@ export default function StudentHome() {
                 })}
               </ul>
             )}
-          </section>
+          </>}
+        </>}
+      />
 
-          {/* המסע שלי: טאב לכל מקצוע */}
+      {/* ── בגלילה למטה: "המסע שלי", טאב לכל מקצוע ── */}
+      {!loading && quests.length > 0 && (
+        <div className="home4-more" id="my-journey">
           <MyJourney
             lessons={quests.map((q) => ({ id: q.id, title: q.title, subjectCode: q.subjectCode ?? null, assignedAt: q.assignedAt, gems: q.sessionStatus === 'completed' ? (q.gems ?? q.crystals ?? 0) : null, classClosed: q.classClosed, inProgress: q.sessionStatus === 'in_progress' }))}
             onOpen={(id) => navigate(`/play/${id}`)}
