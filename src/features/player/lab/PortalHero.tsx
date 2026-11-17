@@ -15,12 +15,10 @@ import { OPENING_STAGE, labCover } from './labComposition'
 
 /* איפה הבועה של ד"ר הולו, בקואורדינטות של תמונת הספרייה: מעל הראש שלו */
 const BUBBLE_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
-/* הטקסט שעל הפורטל: באמצע הרוחב, בשליש התחתון של הפתח (מתחת לנושא התמונה). כשהשורה שמתחת לפורטל מכסה את
-   המקום הזה (מסך צר, שבו הבמה נמוכה), הטקסט עולה לשליש העליון */
+/* הטקסט שעל הפורטל: באמצע הרוחב, בשליש העליון של הפתח (לבקשת המשתמש) */
 const PORTAL = OPENING_STAGE.portal.box
 const CAPTION_X = PORTAL.x + PORTAL.width / 2
-const CAPTION_LOW = PORTAL.y + PORTAL.height * 0.76
-const CAPTION_HIGH = PORTAL.y + PORTAL.height * 0.27
+const CAPTION_Y = PORTAL.y + PORTAL.height * 0.27
 /* גודל האות בקואורדינטות של התמונה, והמינימום על המסך */
 const CAPTION_FONT = 31
 const CAPTION_FONT_MIN = 17
@@ -45,10 +43,8 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
   top?: ReactNode
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
-  const underRef = useRef<HTMLDivElement>(null)
   const [bubbleAt, setBubbleAt] = useState<{ left: number; top: number } | null>(null)
   const [captionAt, setCaptionAt] = useState<CSSProperties | null>(null)
-  const hasUnder = !!under
   useLayoutEffect(() => {
     const el = stageRef.current
     if (!el) return
@@ -56,18 +52,15 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
       const c = labCover(el.clientWidth, el.clientHeight, OPENING_STAGE)
       setBubbleAt({ left: c.x + BUBBLE_AT.x * c.scale, top: c.y + BUBBLE_AT.y * c.scale })
       const fontSize = Math.max(CAPTION_FONT_MIN, CAPTION_FONT * c.scale)
-      const low = c.y + CAPTION_LOW * c.scale
-      const underTop = underRef.current ? underRef.current.offsetTop : Infinity
-      const y = low + fontSize * 1.5 > underTop ? c.y + CAPTION_HIGH * c.scale : low
-      setCaptionAt({ left: c.x + CAPTION_X * c.scale, top: Math.max(fontSize * 1.6, y), fontSize })
+      /* לא עולה מעל קצה הבמה, גם כשהמסך נמוך והפורטל נחתך מלמעלה */
+      setCaptionAt({ left: c.x + CAPTION_X * c.scale, top: Math.max(fontSize * 1.6, c.y + CAPTION_Y * c.scale), fontSize })
     }
     measure()
     if (typeof ResizeObserver === 'undefined') return
     const ro = new ResizeObserver(measure)
     ro.observe(el)
-    if (underRef.current) ro.observe(underRef.current)
     return () => ro.disconnect()
-  }, [hasUnder])
+  }, [])
 
   return (
     <section className="home4-hero" data-portal-hero data-leaving={leaving}>
@@ -81,7 +74,7 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
               <PortalCaption key={captionKey} {...caption} />
             </div>
           )}
-          {under && <div ref={underRef} className="home4-now home4-fade" data-portal-under {...underProps}>{under}</div>}
+          {under && <div className="home4-now home4-fade" data-portal-under {...underProps}>{under}</div>}
         </div>
         <div className={`home4-panel home4-fade${panelClass ? ` ${panelClass}` : ''}`} data-portal-panel style={panelStudent}>{panel}</div>
       </div>
