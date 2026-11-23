@@ -21,6 +21,8 @@ export default defineConfig({
     },
   },
   server: {
+    /* תיקיות עבודה שאינן קוד: קובץ נעול בהן (למשל PDF שתוכנה אחרת כותבת) מפיל את שרת הפיתוח */
+    watch: { ignored: ['**/tmp/**', '**/reports/**', '**/pinokio_agent/**', '**/e2e/**/out/**'] },
     proxy: {
       /* כל בקשת /api מופנית לשרת ה-Express.
          timeout של 10 דקות — יצירת הדמיה גדולה יכולה להימשך זמן רב,
