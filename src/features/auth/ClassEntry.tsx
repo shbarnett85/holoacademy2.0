@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PinScreen from './PinScreen'
-import EntryShell from '../../shared/ui/EntryShell'
+import EntryShell, { EntryLogo } from '../../shared/ui/EntryShell'
 import { panelStudent } from '../../styles/ui'
 
 /* שוליים סביב החלון: מקום לצל הקשיח (6px ימינה ולמטה) בתוך המסגרת הגוללת של EntryShell */
@@ -85,11 +85,13 @@ export default function ClassEntry() {
   return (
     <EntryShell onClose={() => navigate('/')}>
       <div
+        className="entry-panel"
         style={{
           ...panelStudent, borderRadius: 20, margin: PANEL_MARGIN, padding: '32px 36px',
           width: 380, maxHeight: '78vh', display: 'flex', flexDirection: 'column',
         }}
       >
+        <EntryLogo />
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--color-muted)', marginBottom: 10 }}>
           ◇ {info.school.name} · כיתה {info.class.name}
         </div>

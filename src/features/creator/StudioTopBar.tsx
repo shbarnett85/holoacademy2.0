@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
 import BrandIcon from '../../shared/ui/BrandIcon'
+import BrandLogo from '../../shared/ui/BrandLogo'
 import { checkNavGuard } from '../../shared/lib/navGuard'
 import { useSoundSettings } from '../../shared/lib/sound'
 import { withGuestLens } from '../teacherUi/guestLens'
@@ -73,8 +74,9 @@ export default function StudioTopBar({ active }: { active: TabId }) {
       background: 'var(--color-machine)', color: 'var(--color-ink)', borderBottom: 'var(--border-staff)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 12, background: 'var(--color-surface)', border: 'var(--border-staff)', color: 'var(--color-ink)' }}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+        {/* האייקון של הלוגו באריח לבן (הלוגו לא מוצג ישר על הפס הסגול); השוליים של האריח הם השטח הנקי שלו */}
+        <span aria-hidden="true" data-brand-tile style={{ display: 'grid', placeItems: 'center', width: 44, height: 44, flex: 'none', borderRadius: 12, background: 'var(--color-surface)', border: 'var(--border-staff)' }}>
+          <BrandLogo variant="mark" height={26} clear={false} />
         </span>
         <div>
           <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-ink)' }}>{TITLES[active]}</div>

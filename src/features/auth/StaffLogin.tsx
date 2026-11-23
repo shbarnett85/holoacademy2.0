@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { apiJson, ApiError } from '../../shared/lib/api'
 import { setSession, type StaffSession } from '../../shared/lib/staffSession'
-import EntryShell from '../../shared/ui/EntryShell'
+import EntryShell, { EntryLogo } from '../../shared/ui/EntryShell'
 import WelcomeBurst from '../../shared/ui/WelcomeBurst'
-import { fieldStyle as fieldBase, nameChip, panelStaff } from '../../styles/ui'
+import { fieldStyle as fieldBase, panelStaff } from '../../styles/ui'
 
 interface LoginResponse {
   session: { access_token: string; refresh_token: string; expires_at?: number }
@@ -104,17 +104,14 @@ export default function StaffLogin() {
   return (
     <EntryShell onClose={() => navigate('/')}>
       <div
+        className="entry-panel"
         style={{
           /* השוליים: מקום לצל הקשיח (3px ימינה ולמטה) ולפינות, בתוך המסגרת הגוללת של EntryShell */
           ...panelStaff, margin: '4px 7px 7px 4px', padding: '40px 44px', width: 400, textAlign: 'center',
           animation: shake ? 'shake .4s ease' : 'none',
         }}
       >
-        <div style={{ width: 56, height: 56, borderRadius: 16, ...nameChip, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: 'var(--color-ink)' }}>
-            <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-          </svg>
-        </div>
+        <EntryLogo />
         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>מורים ומנהלים</div>
         <div style={{ fontSize: 13.5, color: 'var(--color-muted)', marginBottom: 28 }}>אימייל וסיסמה</div>
 

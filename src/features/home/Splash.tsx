@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { GemDefs, GemIcon } from '../../shared/ui/Gem'
+import BrandLogo from '../../shared/ui/BrandLogo'
 
 type Phase = 'in' | 'open' | 'out'
 
-/* הזמנים: הגביש והשם נבנים (עד ~1.9 שניות), רגע של עמידה, ואז המסך נפתח כמו פורטל */
+/* הזמנים: הלוגו והשם נבנים (עד ~1.9 שניות), רגע של עמידה, ואז המסך נפתח כמו פורטל */
 const OPEN_AT_MS = 2500
 const IRIS_MS = 780
 const REDUCED_HOLD_MS = 1300
 const REDUCED_FADE_MS = 320
 
-/* הצורה של הגביש (אותה צורה כמו ב-Gem.tsx), לצל הקשיח שמאחוריו */
-const GEM_OUTLINE = 'M66 40 L134 40 L170 82 L118 160 L82 160 L30 82 Z'
-
-/* נצנוצים שנזרקים מהגביש כשהוא נוחת: כיוון, מרחק, גודל, צבע (מהטוקנים) וצורה. קבועים, כדי שהרגע ייראה אותו דבר בכל כניסה */
+/* נצנוצים שנזרקים מהלוגו כשהוא נוחת: כיוון, מרחק, גודל, צבע (מהטוקנים) וצורה. קבועים, כדי שהרגע ייראה אותו דבר בכל כניסה */
 const SPARK_COLORS = ['var(--color-holo)', 'var(--color-human)', 'var(--color-surface)', 'var(--color-machine)', 'var(--subject-math)', 'var(--color-human-soft)']
 const SPARKS = Array.from({ length: 14 }, (_, i) => {
   const angle = (i / 14) * Math.PI * 2 + (i % 2 ? 0.22 : -0.1)
@@ -26,8 +23,8 @@ const SPARKS = Array.from({ length: 14 }, (_, i) => {
 
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-/* ספלאש פתיחה, פעם אחת לכל לשונית (App.tsx). הגביש של המשחק קופץ למקומו עם נצנוצים, האותיות של HOLO נוחתות אחת אחת,
-   ואז המסך נפתח כמו פורטל: עיגול שגדל מהגביש וחושף את העמוד שמתחת (שכבר מרונדר).
+/* ספלאש פתיחה, פעם אחת לכל לשונית (App.tsx). הלוגו המלא קופץ למקומו עם נצנוצים, האותיות של HOLO נוחתות אחת אחת,
+   ואז המסך נפתח כמו פורטל: עיגול שגדל מהלוגו וחושף את העמוד שמתחת (שכבר מרונדר).
    onDone נקרא פעם אחת, בסיום או בלחיצה. הכול ב-CSS (index.css, .splash…): בלי canvas ובלי לולאת ציור, ולכן קל גם למחשב חלש.
    תנועה מופחתת: הסימן מוצג בלי תנועה, ואז המסך נמוג. */
 export default function Splash({ onDone }: { onDone: () => void }) {
@@ -62,13 +59,11 @@ export default function Splash({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="splash" data-splash data-phase={phase} onClick={skip} onTouchStart={skip}>
-      <GemDefs />
       <div className="splash-disc" aria-hidden="true" />
       <div className="splash-ring" aria-hidden="true" />
       <div className="splash-body">
         <div className="splash-gem" aria-hidden="true">
-          <svg className="splash-gem-shadow" viewBox="24 34 152 132"><path d={GEM_OUTLINE} /></svg>
-          <GemIcon size={168} />
+          <BrandLogo height="var(--splash-logo-h)" />
           {SPARKS.map((p, i) => (
             <span key={i} className="splash-spark" style={{
               ['--dx' as string]: `${p.dx}px`, ['--dy' as string]: `${p.dy}px`, ['--s' as string]: `${p.size}px`,

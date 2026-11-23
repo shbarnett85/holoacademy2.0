@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
-import EntryShell from '../../shared/ui/EntryShell'
+import EntryShell, { EntryLogo } from '../../shared/ui/EntryShell'
 import { fieldStyle, panelStaff } from '../../styles/ui'
 
 /* ── שחזור סיסמה ─────────────────────────────────────────────────────────────
@@ -45,7 +45,8 @@ export function ForgotPassword() {
 
   return (
     <EntryShell onClose={() => navigate('/staff/login')}>
-      <div style={panelStyle}>
+      <div className="entry-panel" style={panelStyle}>
+        <EntryLogo />
         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>שחזור סיסמה</div>
         {sent ? (
           <>
@@ -107,7 +108,8 @@ export function ResetPassword() {
 
   return (
     <EntryShell onClose={() => navigate('/staff/login')}>
-      <div style={panelStyle}>
+      <div className="entry-panel" style={panelStyle}>
+        <EntryLogo />
         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>סיסמה חדשה</div>
         {!accessToken ? (
           <>

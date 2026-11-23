@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
-import { GemDefs, GemIcon } from '../../shared/ui/Gem'
+import { GemDefs } from '../../shared/ui/Gem'
+import BrandLogo from '../../shared/ui/BrandLogo'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 import { enterGuestStudent } from '../../shared/lib/guestStudent'
@@ -21,15 +22,14 @@ interface ShowcaseQuest {
   thumbUrl: string | null
 }
 
-/* סימן הבית: הקריסטל בשפה החזותית החדשה (אותו קריסטל של המשחק, מקובץ הטוקנים) ומתחתיו שם המותג באותיות בדיו.
-   זה סימן זמני שמצויר בקוד: קובצי הלוגו עצמם לא נערכו ולא מוצגים כאן, כי שניהם בפלטה הישנה
-   (הדיוקן עם הכיתוב הלבן נועד לרקע כהה, והקריסטל במעבר ציאן-מג'נטה). כשיגיע לוגו חדש, מחליפים רק את הרכיב הזה. */
+/* סימן הבית: הלוגו המלא (holoacademy-logo.svg, כמו שהוא) ומתחתיו שם המותג באותיות בדיו, כי בלוגו עצמו אין אותיות.
+   הגובה מ---logo-h (index.css), והשטח הנקי סביב הלוגו הוא הריפוד של BrandLogo. */
 function HomeMark() {
   return (
-    <div data-home-mark style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-      <GemIcon size={84} style={{ width: 'var(--logo-w, 84px)', height: 'auto' }} />
-      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'var(--fs-wordmark, 46px)', lineHeight: 1, letterSpacing: '.04em', color: 'var(--color-ink)', marginTop: 6 }}>HOLO</div>
-      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'calc(var(--fs-wordmark, 46px) * .3)', lineHeight: 1, letterSpacing: '.52em', marginInlineEnd: '-.52em', color: 'var(--color-machine-deep)' }}>ACADEMY</div>
+    <div data-home-mark style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <BrandLogo height="var(--logo-h, 96px)" />
+      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 'var(--fs-wordmark, 46px)', lineHeight: 1, letterSpacing: '.04em', color: 'var(--color-ink)' }}>HOLO</div>
+      <div aria-hidden="true" dir="ltr" style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 'calc(var(--fs-wordmark, 46px) * .3)', lineHeight: 1, letterSpacing: '.52em', marginInlineEnd: '-.52em', marginTop: 4, color: 'var(--color-machine-deep)' }}>ACADEMY</div>
     </div>
   )
 }
@@ -243,17 +243,14 @@ export default function Home() {
           onClick={() => { setShowCodeModal(false); setClassCode('') }}
         >
           <div
+            className="entry-panel"
             onClick={(e) => e.stopPropagation()}
             style={{
               ...panelStudent, borderRadius: 20, padding: '40px 44px', width: 380, textAlign: 'center',
               animation: shake ? 'holo-shake .4s ease' : 'none',
             }}
           >
-            <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--color-machine-tint)', border: '2px solid var(--color-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 22px' }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ stroke: 'var(--color-ink)' }}>
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            </div>
+            <div className="entry-logo" data-entry-logo><BrandLogo height="var(--entry-logo-h)" /></div>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 8 }}>קוד כיתה</div>
             <div style={{ fontSize: 14, color: 'var(--color-muted)', marginBottom: 28, lineHeight: 1.6 }}>מה קוד הכיתה שקיבלתם מהמורה?</div>
             <input

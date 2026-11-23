@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { panelStudent } from '../../styles/ui'
+import { EntryLogo } from '../../shared/ui/EntryShell'
 
 /* שוליים סביב החלון: מקום לצל הקשיח (6px ימינה ולמטה) בתוך המסגרת הגוללת של EntryShell */
 const PANEL_MARGIN = '2px 8px 8px 2px'
@@ -54,11 +55,13 @@ export default function PinScreen({ student, onBack, onSuccess }: Props) {
   return (
       <div
         dir="rtl"
+        className="entry-panel"
         style={{
           ...panelStudent, borderRadius: 20, margin: PANEL_MARGIN, padding: '40px 44px', width: 360, textAlign: 'center',
           animation: shake ? 'shake .4s ease' : 'none',
         }}
       >
+        <EntryLogo />
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-machine-deep)', marginBottom: 6 }}>שלום {student.name}!</div>
         <div style={{ fontSize: 14, color: 'var(--color-muted)', marginBottom: 28, lineHeight: 1.6 }}>מה הקוד הסודי שלכם?</div>
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../shared/hooks/useAuth'
 import HoloBackdrop from '../../shared/ui/HoloBackdrop'
 import BrandIcon from '../../shared/ui/BrandIcon'
+import BrandLogo from '../../shared/ui/BrandLogo'
 import LessonThumb from '../../shared/ui/LessonThumb'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
@@ -337,6 +338,7 @@ export default function StudentHome() {
         captionProps={current ? { 'data-portal-state': statusOf(current) } : undefined}
         top={
           <div className="shome-bar">
+            <span className="shome-brand" aria-hidden="true" data-brand-tile><BrandLogo variant="mark" height={26} clear={false} /></span>
             <h1 className="shome-hello" data-portal-hello>
               <span>{PORTAL_TEXT.greeting(hour)}{name ? ',' : ''}</span>
               {name && <span className="shome-hello-name">{name}</span>}

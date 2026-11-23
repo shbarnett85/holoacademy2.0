@@ -1,5 +1,12 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import Home from '../../features/home'
+import BrandLogo from './BrandLogo'
+
+/* הלוגו המלא בראש כל חלון כניסה (החלון לבן). הריפוד שלו הוא השטח הנקי.
+   במסך נמוך (index.css, .entry-logo / .entry-panel) הלוגו קטן יותר והריפוד של החלון מצטמצם, כדי שהחלון לא יתארך */
+export function EntryLogo() {
+  return <div className="entry-logo" data-entry-logo><BrandLogo height="var(--entry-logo-h)" /></div>
+}
 
 /* ── קליפת מסכי הכניסה ────────────────────────────────────────────────────────
    כל חלונות הכניסה (מי את/ה?, PIN, מורים ומנהלים, הרשמה, ברוכים הבאים) מוצגים

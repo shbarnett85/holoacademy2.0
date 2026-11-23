@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { apiJson } from '../../shared/lib/api'
-import EntryShell from '../../shared/ui/EntryShell'
+import EntryShell, { EntryLogo } from '../../shared/ui/EntryShell'
+import BrandLogo from '../../shared/ui/BrandLogo'
 import { fieldStyle } from '../../styles/ui'
 
 interface School { id: string; name: string }
@@ -85,7 +86,8 @@ export default function StaffSignup() {
     return (
       <EntryShell onClose={() => navigate('/staff/login')}>
         <div className="flex flex-col items-center justify-center p-2 gap-6">
-          <div className="holo-panel holo-panel--staff w-full max-w-sm text-center">
+          <div className="holo-panel holo-panel--staff entry-panel w-full max-w-sm text-center">
+            <EntryLogo />
             <div style={{ fontSize: '2.4rem' }}>📧</div>
             <h1 className="holo-text-glow font-black mt-2" style={{ fontSize: '1.6rem' }}>בדקו את תיבת המייל</h1>
             <p className="mt-3 text-sm" style={{ lineHeight: 1.8 }}>
@@ -114,10 +116,14 @@ export default function StaffSignup() {
     <EntryShell onClose={() => navigate('/staff/login')}>
     <div className="flex flex-col items-center justify-center p-2 gap-6">
       {/* הכותרת בתוך המשטח הלבן (ולא מעליו, על המסך שמאחורי החלון), כדי שתישאר קריאה */}
-      <div className="holo-panel holo-panel--staff w-full max-w-sm">
-      <div className="text-center mb-4">
-        <h1 className="holo-text-glow font-black" style={{ fontSize: '2.2rem' }}>הרשמת צוות</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>מורה או מנהל חדש</p>
+      <div className="holo-panel holo-panel--staff entry-panel w-full max-w-sm">
+      {/* הטופס ארוך, ולכן הלוגו לצד הכותרת ולא מעליה: כך הוא לא מאריך את החלון */}
+      <div className="mb-4" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, marginTop: -8 }}>
+        <BrandLogo height={56} />
+        <div>
+          <h1 className="holo-text-glow font-black" style={{ fontSize: '2.2rem' }}>הרשמת צוות</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-muted)' }}>מורה או מנהל חדש</p>
+        </div>
       </div>
         <label className="block mb-1 text-sm" style={{ color: 'var(--color-muted)' }}>שם מלא</label>
         <input value={name} onChange={(e) => setName(e.target.value)} className="mb-4" style={inputStyle} />
