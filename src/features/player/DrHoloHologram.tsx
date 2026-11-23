@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import DrHoloEmblem from '../../shared/ui/DrHoloEmblem'
 import { useGameFeel, whenFpsProbeDone, type HoloMood } from './gameFeel/engine'
-import { HOLO_ASPECT, HOLO_CLIP_START_TIMEOUT_MS, holoClipFor, holoStillFor } from './drHoloClips'
+import { HOLO_ASPECT, HOLO_CLIP_START_TIMEOUT_MS, holoClipFor, holoStillFor, type HoloAnimation } from './drHoloClips'
 
 /* גודל העותקים של הגליץ' (חצי מהנכס: הם מוצגים לרגע קצר ומוסטים) */
 const GLITCH_W = 448
@@ -87,8 +87,10 @@ const CSS = `
 }
 `
 
-export default function DrHoloHologram({ mood, build = false, height, className = '', video = false, still = false, human = false }: {
+export default function DrHoloHologram({ mood, animation, build = false, height, className = '', video = false, still = false, human = false }: {
   mood?: HoloMood
+  /* אנימציה מסוימת במקום זו של מצב הרוח (למשל idle, כשהוא ממתין ולא מדבר) */
+  animation?: HoloAnimation
   build?: boolean
   /* גובה הדמות (CSS). בלי ערך: ממלאה את גובה ההורה */
   height?: string
@@ -116,14 +118,14 @@ export default function DrHoloHologram({ mood, build = false, height, className 
 
   const animateBuild = build && !built && feel.level !== 'gentle' && !feel.reduced
   /* armed: עוצמת הכיתה נקבעת ב-effect של ההורה, ובמעבר ראשון עוד לא ידועה. לא טוענים וידאו לפני שיודעים */
-  const clip = armed && probeDone && video && !still && !clipFailed && feel.level !== 'gentle' && !feel.reduced ? holoClipFor(current) : null
+  const clip = armed && probeDone && video && !still && !clipFailed && feel.level !== 'gentle' && !feel.reduced ? holoClipFor(current, animation) : null
   const fallbackFloat = armed && probeDone && video && !clip && !feel.reduced
   const humanOn = human && (feel.reduced || (armed && !animateBuild))
   const live = !feel.reading && !feel.reduced && !animateBuild
   const effects = !feel.reduced && !animateBuild && feel.level !== 'gentle' && !imageFailed
   const glitch = effects && !humanOn
   const showingVideo = !!clip && playingClip === clip
-  const stillSrc = holoStillFor(current)
+  const stillSrc = holoStillFor(current, animation)
 
   /* בפריים הבא: ה-effect של ההורה (שמתחיל את המדידה) רץ אחרי זה של הילד */
   useEffect(() => {

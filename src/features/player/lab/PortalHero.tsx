@@ -67,7 +67,8 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
       {top && <header className="home4-top" data-portal-top>{top}</header>}
       <div className="home4-body">
         <div ref={stageRef} className="home4-stage">
-          <LabStage state="opening" portalSrc={portalSrc} mood="neutral" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} portalLabel={portalLabel} />
+          {/* ד"ר הולו ממתין ליד הפורטל ולא מדבר: לופ העמידה המחויך (לבקשת המשתמש), ולא "ברוכים הבאים" */}
+          <LabStage state="opening" portalSrc={portalSrc} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} portalLabel={portalLabel} />
           {bubble && bubbleAt && <div className="home4-bubble home4-fade" data-portal-bubble style={bubbleAt}>{bubble}</div>}
           {caption && captionAt && (
             <div className="home4-caption home4-fade" aria-hidden="true" data-portal-caption {...captionProps} style={captionAt}>

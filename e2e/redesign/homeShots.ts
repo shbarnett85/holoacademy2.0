@@ -85,6 +85,7 @@ async function home(browser: Browser): Promise<void> {
     check(!!g.panel && !!g.portal && g.panel.l >= g.portal.r - 1, `${w}×${h}: החלון לא מכסה את הפורטל`)
     check(!!g.now && !!g.panel && g.now.r <= g.panel.l + 1, `${w}×${h}: שורת השיעור לא נכנסת מתחת לחלון`)
     check(g.vids.length >= 2 && g.vids.every((v) => v.playing), `${w}×${h}: הרקע וד"ר הולו מתנגנים (${g.vids.map((v) => v.src).join(', ')})`)
+    check(g.vids.some((v) => v.src === 'idle.mp4') && !g.vids.some((v) => v.src === 'welcome.mp4'), `${w}×${h}: ד"ר הולו בלופ העמידה המחויך (idle), ולא ב"ברוכים הבאים"`)
     check(g.canvas === 1, `${w}×${h}: הפורטל מציג הולוגרמה חיה`)
     await page.context().close()
   }
@@ -182,6 +183,9 @@ async function student(browser: Browser): Promise<void> {
   }
 
   const page = await openStudent(1366, 768)
+  /* ד"ר הולו ממתין ליד הפורטל בלופ העמידה המחויך (הווידאו מתחיל אחרי מדידת הקצב) */
+  const idleOn = await page.waitForFunction(() => [...document.querySelectorAll('video')].some((v) => v.currentSrc.endsWith('/dr-holo/v2/idle.mp4') && !v.paused && v.readyState >= 2), undefined, { timeout: 12000 }).then(() => true, () => false)
+  check(idleOn && await page.evaluate(() => ![...document.querySelectorAll('video')].some((v) => v.currentSrc.endsWith('welcome.mp4'))), 'ד"ר הולו בלופ העמידה המחויך (idle), ולא ב"ברוכים הבאים"')
   check(await lessonTitle(page) === titles[0], `בכניסה: בפורטל השיעור האחרון שהתקבל, והשם שלו מתחת לפורטל (${await lessonTitle(page)})`)
   check((await page.locator('[data-portal-position]').textContent() ?? '').includes('1 מתוך 6'), 'לקוראי מסך: "שיעור 1 מתוך 6" והמצב')
   check(!/סצנ/.test(await page.evaluate(() => document.body.innerText)), 'אין "סצנה" בעמוד')

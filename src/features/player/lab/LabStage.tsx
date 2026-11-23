@@ -13,7 +13,7 @@
    העולם הוא stacking context שכולל את המעבדה, ולכן המיזוג של ההולוגרמה עם המעבדה עובד. */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import DrHoloHologram from '../DrHoloHologram'
-import { HOLO_ASPECT } from '../drHoloClips'
+import { HOLO_ASPECT, type HoloAnimation } from '../drHoloClips'
 import { useGameFeel, type HoloMood } from '../gameFeel/engine'
 import PortalHologram, { PORTAL_GOLD_MS } from './PortalHologram'
 import { cameraCss, cameraInsidePortal, cameraRest, hologramGeometry, labCover, portalClipPath, portalPoints, stageFor, type StageComposition } from './labComposition'
@@ -144,10 +144,12 @@ function useAverageColor(src?: string): string {
   return color
 }
 
-export default function LabStage({ state, portalSrc, mood, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, portalLabel }: {
+export default function LabStage({ state, portalSrc, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, portalLabel }: {
   state: 'opening' | 'closed' | 'open'
   portalSrc?: string
   mood: HoloMood
+  /* אנימציה מסוימת של ד"ר הולו במקום זו של מצב הרוח */
+  holoAnimation?: HoloAnimation
   human?: boolean
   /* יציאה מהפתיחה: dive = צלילה לפורטל, reveal = דהייה אל הסצנה הראשונה */
   leaving?: 'dive' | 'reveal'
@@ -267,7 +269,7 @@ export default function LabStage({ state, portalSrc, mood, human = false, leavin
           </div>
           <div className="lab-holo" data-lab-holo style={{ left: comp.holo.centerX - holoWidth / 2, top: comp.holo.top }}>
             {/* האנימציה מתנגנת גם מעל רקע וידאו: הנכס החדש קטן (896×706, H.264) ושני הסרטונים יחד נשארים מעל סף הקצב */}
-            <DrHoloHologram mood={mood} build video human={human} height={`${comp.holo.height}px`} />
+            <DrHoloHologram mood={mood} animation={holoAnimation} build video human={human} height={`${comp.holo.height}px`} />
           </div>
           </div>
         </div>
