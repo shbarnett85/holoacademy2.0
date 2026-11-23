@@ -77,7 +77,7 @@ async function home(browser: Browser): Promise<void> {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const vids = [...document.querySelectorAll('video')].map((v) => ({ playing: !v.paused && v.readyState >= 2, src: v.currentSrc.split('/').pop() }))
-      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
+      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), card: r('[data-home-lesson] .home4-now-card'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
     check(inside(g.panel), `${w}×${h}: חלון הכניסות כולו במסך הראשון`)
@@ -89,16 +89,57 @@ async function home(browser: Browser): Promise<void> {
     check(g.canvas === 1, `${w}×${h}: הפורטל מציג הולוגרמה חיה`)
     /* "שחקו עכשיו" באותה שורה, משמאל לשם השיעור ולחצים */
     check(!!g.play && !!g.lesson && g.play.r <= g.lesson.l + 1 && g.play.t < g.lesson.b && g.play.b > g.lesson.t, `${w}×${h}: "שחקו עכשיו" משמאל לשם השיעור, באותה שורה`)
+    {
+      /* שם השיעור ממורכז מתחת לפורטל, והקו התחתון של המסגרת שלו בגובה הקו התחתון של החלון; "שחקו עכשיו" על אותו קו, מעל ד"ר הולו */
+      const mid = (b: { l: number; r: number }) => (b.l + b.r) / 2
+      const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.holoBox
+      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל (${ok ? (mid(g.card!) - mid(g.portal!)).toFixed(1) : '?'})`)
+      check(ok && Math.abs(g.card!.b - g.panel!.b) <= 1 && g.card!.t >= g.portal!.b - 1, `${w}×${h}: הקו התחתון של שם השיעור בגובה הקו התחתון של החלון (${ok ? (g.card!.b - g.panel!.b).toFixed(1) : '?'}), מתחת לפתח הפורטל`)
+      check(ok && Math.abs(g.play!.b - g.card!.b) <= 1 && Math.abs(mid(g.play!) - mid(g.holoBox!)) <= 3, `${w}×${h}: "שחקו עכשיו" על אותו קו, מעל ד"ר הולו`)
+    }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
     {
-      /* תמונת מראה של הלוגו: אותו גובה, ואותו מרחק מאמצע המסך לצד השני */
+      /* מעל הראש של ד"ר הולו (לרוחב), ובגובה של הלוגו */
       const cx = (b: { l: number; r: number }) => (b.l + b.r) / 2, cy = (b: { t: number; b: number }) => (b.t + b.b) / 2
-      const dx = g.where && g.logo ? Math.abs(cx(g.where) - (g.vw - cx(g.logo))) : 99, dy = g.where && g.logo ? Math.abs(cy(g.where) - cy(g.logo)) : 99
-      check(dx <= 2 && dy <= 2, `${w}×${h}: "איפה אני?" במקום שהוא תמונת המראה של הלוגו (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
+      const dx = g.where && g.holoBox ? Math.abs(cx(g.where) - cx(g.holoBox)) : 99, dy = g.where && g.logo ? Math.abs(cy(g.where) - cy(g.logo)) : 99
+      check(dx <= 3 && dy <= 2, `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו ובגובה של הלוגו (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
+      check(!!g.where && !!g.holoBox && g.where.b <= g.holoBox.t + 40, `${w}×${h}: הכפתור מעל הדמות ולא עליה`)
     }
     check(g.how === 'איך זה עובד?', `${w}×${h}: "איך זה עובד?" בלי חץ (${g.how})`)
     await page.context().close()
+  }
+
+  /* מעבר בין שיעורים בפורטל: קו אור חושף את התמונה הבאה (בלי חיתוך ובלי רגע ריק), ושם השיעור מחליק */
+  {
+    const tp = await open(browser, 1366, 768)
+    await tp.waitForSelector('[data-lab-hologram=on]', { timeout: 20000 }); await tp.waitForTimeout(1500)
+    await tp.hover('[data-home-lesson]')
+    const rects = () => tp.evaluate(() => ['[data-home-lesson] .home4-now-card', '[data-home-play]', '.home4-arrow'].map((s) => { const b = document.querySelector(s)!.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(',') }).join(' | '))
+    const before = await rects()
+    const title0 = await tp.locator('.home4-now-title').innerText()
+    /* מעקב אחרי ההולוגרמה לאורך המעבר: היא לא נכבית אפילו לרגע */
+    await tp.evaluate(() => { const w = window as unknown as { __holoOff: number; __phases: string[] }; w.__holoOff = 0; w.__phases = []; const c = document.querySelector('[data-lab-hologram]')!; new MutationObserver(() => { if (c.getAttribute('data-lab-hologram') !== 'on') w.__holoOff++ }).observe(c, { attributes: true }); const sw = document.querySelector('.swap-slide')!; new MutationObserver(() => { const p = sw.getAttribute('data-phase'); if (p) w.__phases.push(p) }).observe(sw, { attributes: true }) })
+    await tp.locator('button[aria-label="השיעור הבא"]').click()
+    const swapOn = await tp.waitForSelector('[data-lab-hologram][data-portal-swap=forward]', { timeout: 3000 }).then(() => true, () => false)
+    check(swapOn, 'החלפת שיעור: מעבר סריקה בפורטל, קדימה')
+    await tp.waitForTimeout(380); await shot(tp, 'home-portal-swap')
+    const swapOff = await tp.waitForFunction(() => !document.querySelector('[data-lab-hologram]')?.hasAttribute('data-portal-swap'), undefined, { timeout: 3000 }).then(() => true, () => false)
+    const seen = await tp.evaluate(() => { const w = window as unknown as { __holoOff: number; __phases: string[] }; return { off: w.__holoOff, phases: w.__phases.join(',') } })
+    check(swapOff && seen.off === 0, `המעבר מסתיים, וההולוגרמה לא נכבית באמצע (${seen.off})`)
+    check(seen.phases.startsWith('out') && seen.phases.includes('in'), `שם השיעור מחליק החוצה ואז פנימה (${seen.phases})`)
+    check(await tp.locator('.home4-now-title').innerText() !== title0, 'אחרי המעבר מוצג שם השיעור הבא')
+    check(await rects() === before, 'הכרטיס, החצים והכפתור לא זזים כשהשם מתחלף')
+    await tp.locator('button[aria-label="השיעור הקודם"]').click()
+    check(await tp.waitForSelector('[data-lab-hologram][data-portal-swap=back]', { timeout: 3000 }).then(() => true, () => false), 'חזרה לשיעור הקודם: המעבר בכיוון ההפוך')
+    await tp.context().close()
+    /* תנועה מופחתת: ההחלפה מיידית */
+    const rp = await open(browser, 1366, 768, { reduced: true })
+    await rp.waitForSelector('[data-home-lesson]'); await rp.waitForTimeout(1500)
+    const t0 = await rp.locator('.home4-now-title').innerText()
+    await rp.locator('button[aria-label="השיעור הבא"]').click(); await rp.waitForTimeout(80)
+    check(await rp.locator('.home4-now-title').innerText() !== t0 && await rp.locator('[data-lab-hologram]').count() === 0, 'תנועה מופחתת: השם והתמונה מתחלפים מיד, בלי מעבר')
+    await rp.context().close()
   }
 
   /* "איפה אני?": חלון הסבר על הספרייה, על ד"ר הולו ועל המערכת */

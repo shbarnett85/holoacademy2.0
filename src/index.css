@@ -193,9 +193,9 @@
 .home4-bubble::after { content: ''; position: absolute; top: 100%; left: 50%; width: 16px; height: 16px; margin: -9px 0 0 -8px; background: var(--color-surface); border-right: var(--border-student); border-bottom: var(--border-student); transform: rotate(45deg); }
 @keyframes home4-bubble-in { from { opacity: 0; transform: translate(-50%, -100%) scale(.7); } to { opacity: 1; transform: translate(-50%, -100%); } }
 
-/* כפתור בצד שמאל של הבמה, מול אלמנט בחלון שמימין (תמונת מראה שלו; בעמוד הפתיחה: "איפה אני?" מול הלוגו). המרכז שלו בנקודה שנמדדה */
-.home4-mirror-action { position: absolute; z-index: 1; transform: translate(-50%, -50%); animation: home4-mirror-in .5s cubic-bezier(.2, 1.4, .4, 1) 1.1s both; }
-@keyframes home4-mirror-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } to { opacity: 1; transform: translate(-50%, -50%); } }
+/* כפתור מעל הראש של ד"ר הולו, בגובה של אלמנט בחלון שמימין (בעמוד הפתיחה: "איפה אני?" בגובה של הלוגו). המרכז שלו בנקודה שנמדדה */
+.home4-holo-action { position: absolute; z-index: 1; transform: translate(-50%, -50%); animation: home4-action-in .5s cubic-bezier(.2, 1.4, .4, 1) 1.1s both; }
+@keyframes home4-action-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.7); } to { opacity: 1; transform: translate(-50%, -50%); } }
 .home4-where.holo-button { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 8px 18px; border-radius: 999px; white-space: nowrap; font-family: var(--font-display); font-size: clamp(16px, 1.2vw, 19px); font-weight: 800; }
 .home4-where-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--color-surface); border: 2px solid var(--color-ink); font-size: 17px; font-weight: 900; line-height: 1; }
 /* חלון "איפה אני?" (features/home/WhereAmI.tsx) */
@@ -220,18 +220,28 @@
 }
 @keyframes home4-now-in { from { opacity: 0; transform: translateX(-50%) translateY(14px); } to { opacity: 1; transform: translateX(-50%); } }
 .home4-now-row { display: flex; align-items: center; gap: 8px; max-width: 100%; }
-.home4-now-card { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 14px; background: var(--color-surface); border: var(--border-student); box-shadow: var(--shadow-button); }
+/* שם השיעור מתחלף בהחלקה (shared/ui/SwapSlide): היוצא מחליק ונמוג, ואז הנכנס מחליק פנימה. --swap-dir: 1 קדימה, -1 אחורה */
+.swap-slide { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+.swap-slide[data-phase=out] { animation: swap-slide-out .11s ease-in both; }
+.swap-slide[data-phase=in] { animation: swap-slide-in .16s ease-out both; }
+@keyframes swap-slide-out { to { opacity: 0; transform: translateX(calc(var(--swap-dir, 1) * 12px)); } }
+@keyframes swap-slide-in { from { opacity: 0; transform: translateX(calc(var(--swap-dir, 1) * -12px)); } }
+/* רוחב וגובה קבועים (מקום לשתי שורות של שם): כשהשם מתחלף הכרטיס, החצים והכפתור לא זזים */
+.home4-now-card { --now-fs: clamp(16px, 1.25vw, 20px); min-width: 0; width: clamp(230px, 25vw, 420px); max-width: 100%; min-height: calc(2 * 1.25 * var(--now-fs) + 20px); box-sizing: border-box; justify-content: center; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 14px; background: var(--color-surface); border: var(--border-student); box-shadow: var(--shadow-button); }
 /* שם השיעור: עד שתי שורות, כדי ששם ארוך לא ייחתך */
-.home4-now-title { min-width: 0; font-size: clamp(16px, 1.25vw, 20px); font-weight: 800; line-height: 1.25; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.home4-now-title { min-width: 0; font-size: var(--now-fs); font-weight: 800; line-height: 1.25; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .home4-arrow.holo-button { flex-shrink: 0; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; line-height: 1; }
 .home4-play.holo-button { display: inline-flex; align-items: center; gap: 10px; padding: 10px 26px; border-radius: 16px; font-family: var(--font-display); font-size: clamp(18px, 1.45vw, 23px); font-weight: 800; background: var(--color-human-soft); }
 .home4-play small { font-size: .68em; font-weight: 600; }
-/* עמוד הפתיחה (data-layout=row): כפתור המשחק באותה שורה, משמאל לשם השיעור ולחצים (לבקשת המשתמש).
-   השורה רחבה יותר מקודם, ולכן היא נשענת מעט על השרוול של ד"ר הולו, ולא מגיעה אל החלון שמימין */
-.home4-now[data-layout=row] { flex-direction: row; align-items: center; justify-content: center; gap: 10px; max-width: calc(100vw - 2 * (var(--lab-page-w) + 2rem)); }
+/* עמוד הפתיחה (data-layout=row), לבקשת המשתמש: שם השיעור (עם החצים) ממורכז מתחת לפורטל, והקו התחתון של המסגרת שלו
+   בגובה הקו התחתון של החלון שמימין. "שחקו עכשיו" על אותו קו, מעל ד"ר הולו. נקודות הייחוס (--portal-x, --holo-x,
+   --panel-bottom) נמדדות ב-PortalHero */
+.home4-now[data-layout=row] { left: var(--portal-x, 50%); top: var(--panel-bottom, auto); bottom: auto; transform: translate(-50%, -100%); flex-direction: row; align-items: flex-end; justify-content: center; max-width: calc(100vw - 2 * (var(--lab-page-w) + 2rem)); animation-name: home4-row-in; }
+@keyframes home4-row-in { from { opacity: 0; transform: translate(-50%, calc(-100% + 14px)); } to { opacity: 1; transform: translate(-50%, -100%); } }
 .home4-now[data-layout=row] .home4-now-row { flex: 0 1 auto; min-width: 0; }
-.home4-now[data-layout=row] .home4-now-card { flex-wrap: wrap; justify-content: center; row-gap: 3px; }
-.home4-now[data-layout=row] .home4-play.holo-button { flex: none; white-space: nowrap; padding: 10px 20px; }
+/* המקום של הכפתור: יחסית לשורה (שממורכזת על הפורטל), מוזז אל אמצע ד"ר הולו. הקו התחתון שלו הוא הקו התחתון של השורה */
+.home4-now[data-layout=row] .home4-play-slot { position: absolute; bottom: 0; left: calc(var(--holo-x) - var(--portal-x) + 50%); transform: translateX(-50%); }
+.home4-now[data-layout=row] .home4-play.holo-button { white-space: nowrap; padding: 10px 22px; }
 @media (max-width: 1599px) { .home4-now[data-layout=row] .home4-play small { display: none; } }
 
 /* מתחת למסך הראשון: מדף, שלבים ורצועה */
@@ -247,10 +257,12 @@
   .home4-stage { position: relative; inset: auto; height: min(50vh, 78vw); min-height: 300px; border-bottom: var(--border-student); }
   .home4-panel { position: relative; inset: auto; top: auto; transform: none; width: min(460px, calc(100% - 28px)); max-height: none; margin: -22px auto 22px; animation: none; }
   .home4-now { max-width: calc(100% - 20px); bottom: 34px; }
-  .home4-now[data-layout=row] { max-width: calc(100% - 20px); flex-wrap: wrap; row-gap: 8px; }
+  /* החלון מתחת לבמה: אין קו להתיישר אליו. השורה במרכז תחתית הבמה, והכפתור מתחת לשם השיעור */
+  .home4-now[data-layout=row] { left: 50%; top: auto; bottom: 34px; transform: translateX(-50%); max-width: calc(100% - 20px); flex-direction: column; align-items: center; gap: 8px; animation-name: home4-now-in; }
+  .home4-now[data-layout=row] .home4-play-slot { position: static; transform: none; }
   .home4-bubble { display: none; }
-  /* החלון מתחת לבמה ולא לצידה, ולכן אין מול מה לשקף: הכפתור בפינת הבמה */
-  .home4-mirror-action { left: 10px !important; top: 10px !important; transform: none; animation: none; }
+  /* החלון מתחת לבמה ולא לצידה, ולכן אין גובה להתיישר אליו: הכפתור בפינת הבמה */
+  .home4-holo-action { left: 10px !important; top: 10px !important; transform: none; animation: none; }
 }
 /* במסך בינוני (טאבלט): שתי הכניסות זו לצד זו, כדי ששתיהן ייכנסו במסך הראשון */
 @media (min-width: 600px) and (max-width: 1099px), (min-width: 600px) and (max-aspect-ratio: 7/5) {
@@ -271,7 +283,7 @@
   .home4-where.holo-button { min-height: 44px; padding: 6px 14px; font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .home4-panel, .home4-bubble, .home4-mirror-action, .home4-now { animation: none; }
+  .home4-panel, .home4-bubble, .home4-holo-action, .home4-now { animation: none; }
 }
 
 /* ── הבית של התלמיד (features/player/StudentHome.tsx): פס הסיכום העליון, רשימת השיעורים בחלון הצד, והטקסט שעל הפורטל ── */

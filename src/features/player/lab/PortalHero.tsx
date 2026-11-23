@@ -4,12 +4,12 @@
    · panel   — החלון הלבן הצף מימין, ברווח שבין טבעת הפורטל לקצה המסך (במסך צר: מתחת לבמה)
    · under   — מתחת לפורטל: איזה שיעור מוצג בו, חצים להחלפה וכפתור הכניסה לשיעור
    · bubble  — בועת דיבור מעל הראש של ד"ר הולו (בקואורדינטות של תמונת הספרייה, ולכן נשארת במקום בכל גודל מסך)
-   · mirrorAction — כפתור בצד שמאל של הבמה, במקום שהוא תמונת המראה של אלמנט בחלון שמימין (mirrorOf, בורר CSS):
-               אותו גובה, ואותו מרחק מאמצע המסך לצד השני. בעמוד הפתיחה: "איפה אני?" מול הלוגו (לבקשת המשתמש)
+   · holoAction — כפתור מעל הראש של ד"ר הולו: לרוחב באמצע הדמות (בקואורדינטות של תמונת הספרייה), ובגובה של אלמנט
+               בחלון שמימין (levelWith, בורר CSS). בעמוד הפתיחה: "איפה אני?" בגובה של הלוגו (לבקשת המשתמש)
    · caption — שכבת טקסט הולוגרפית על הפורטל עצמו (אצל התלמיד: מצב השיעור), גם היא בקואורדינטות של תמונת הספרייה
    הבמה היא position: fixed, ולכן .home4-stage עם transform: היא ממלאת רק את האזור שלה, והעמוד נגלל הלאה.
    הסגנון: index.css (.home4-*); הטקסט ההולוגרפי: PortalCaption. */
-import { useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react'
 import { panelStudent } from '../../../styles/ui'
 import LabStage from './LabStage'
 import PortalCaption, { type PortalCaptionData } from './PortalCaption'
@@ -25,18 +25,22 @@ const CAPTION_Y = PORTAL.y + PORTAL.height * 0.27
 const CAPTION_FONT = 31
 const CAPTION_FONT_MIN = 17
 
-export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leaving, onDiveEnd, bubble, mirrorAction, mirrorOf, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
+export default function PortalHero({ portalSrc, portalDir, portalNext, portalLabel, onPortalClick, leaving, onDiveEnd, bubble, holoAction, levelWith, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
   /* התמונה שבפורטל; בלי ערך הפורטל ריק */
   portalSrc?: string
+  /* כיוון המעבר כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה */
+  portalDir?: 1 | -1
+  /* תמונות שעשויות להגיע לפורטל בלחיצה הבאה: נטענות מראש, כדי שהמעבר יתחיל מיד ולא יחכה לרשת */
+  portalNext?: (string | null | undefined)[]
   /* השם של הלחיצה על הפורטל, לקוראי מסך ולמקלדת */
   portalLabel?: string
   onPortalClick?: () => void
   leaving?: 'dive'
   onDiveEnd?: () => void
   bubble?: ReactNode
-  mirrorAction?: ReactNode
-  /* בורר של אלמנט בתוך החלון; הכפתור מוצב מולו */
-  mirrorOf?: string
+  holoAction?: ReactNode
+  /* בורר של אלמנט בתוך החלון; הכפתור מוצב בגובה שלו */
+  levelWith?: string
   caption?: PortalCaptionData
   /* כשהמפתח מתחלף (שיעור אחר בפורטל) הטקסט נדלק מחדש */
   captionKey?: string
@@ -47,9 +51,14 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
   panelClass?: string
   top?: ReactNode
 }) {
+  const nextKey = (portalNext ?? []).filter(Boolean).join('|')
+  useEffect(() => {
+    /* באותה צורת בקשה כמו ההולוגרמה (crossOrigin), כדי שהדפדפן ישתמש באותו עותק */
+    for (const src of nextKey ? nextKey.split('|') : []) { const img = new Image(); img.crossOrigin = 'anonymous'; img.src = src }
+  }, [nextKey])
   const stageRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [mirrorAt, setMirrorAt] = useState<{ left: number; top: number } | null>(null)
+  const [actionAt, setActionAt] = useState<{ left: number; top: number } | null>(null)
   const [bubbleAt, setBubbleAt] = useState<{ left: number; top: number } | null>(null)
   const [captionAt, setCaptionAt] = useState<CSSProperties | null>(null)
   useLayoutEffect(() => {
@@ -61,12 +70,18 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
       const fontSize = Math.max(CAPTION_FONT_MIN, CAPTION_FONT * c.scale)
       /* לא עולה מעל קצה הבמה, גם כשהמסך נמוך והפורטל נחתך מלמעלה */
       setCaptionAt({ left: c.x + CAPTION_X * c.scale, top: Math.max(fontSize * 1.6, c.y + CAPTION_Y * c.scale), fontSize })
-      /* תמונת מראה: המרכז של האלמנט שבחלון, משוקף סביב אמצע הבמה */
-      const target = mirrorOf ? panelRef.current?.querySelector(mirrorOf) : null
+      /* נקודות ייחוס לסגנון (index.css): אמצע הפורטל, אמצע ד"ר הולו, והקו התחתון של החלון שמימין.
+         בעמוד הפתיחה שם השיעור ממורכז מתחת לפורטל ונשען על הקו הזה, ו"שחקו עכשיו" על אותו קו מעל ד"ר הולו */
+      el.style.setProperty('--portal-x', `${c.x + CAPTION_X * c.scale}px`)
+      el.style.setProperty('--holo-x', `${c.x + BUBBLE_AT.x * c.scale}px`)
+      const panelBox = panelRef.current?.getBoundingClientRect()
+      if (panelBox) el.style.setProperty('--panel-bottom', `${panelBox.bottom - el.getBoundingClientRect().top}px`)
+      /* הכפתור שמעל ד"ר הולו: לרוחב באמצע הדמות, ובגובה המרכז של האלמנט שבחלון */
+      const target = levelWith ? panelRef.current?.querySelector(levelWith) : null
       if (target) {
         const t = target.getBoundingClientRect(), s = el.getBoundingClientRect()
-        setMirrorAt({ left: s.width - (t.left + t.width / 2 - s.left), top: t.top + t.height / 2 - s.top })
-      } else setMirrorAt(null)
+        setActionAt({ left: c.x + BUBBLE_AT.x * c.scale, top: t.top + t.height / 2 - s.top })
+      } else setActionAt(null)
     }
     measure()
     /* החלון נכנס באנימציה (הזזה והגדלה), והגופנים משנים את הגובה שלו: מודדים שוב כשהוא במקומו */
@@ -79,7 +94,7 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
     ro?.observe(el)
     if (panel) ro?.observe(panel)
     return () => { live = false; ro?.disconnect(); panel?.removeEventListener('animationend', measure); window.clearTimeout(settle) }
-  }, [mirrorOf])
+  }, [levelWith])
 
   return (
     <section className="home4-hero" data-portal-hero data-leaving={leaving}>
@@ -87,9 +102,9 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
       <div className="home4-body">
         <div ref={stageRef} className="home4-stage">
           {/* ד"ר הולו ממתין ליד הפורטל ולא מדבר: לופ העמידה המחויך (לבקשת המשתמש), ולא "ברוכים הבאים" */}
-          <LabStage state="opening" portalSrc={portalSrc} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} portalLabel={portalLabel} />
+          <LabStage state="opening" portalSrc={portalSrc} portalDir={portalDir} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} portalLabel={portalLabel} />
           {bubble && bubbleAt && <div className="home4-bubble home4-fade" data-portal-bubble style={bubbleAt}>{bubble}</div>}
-          {mirrorAction && mirrorAt && <div className="home4-mirror-action home4-fade" data-portal-mirror-action style={mirrorAt}>{mirrorAction}</div>}
+          {holoAction && actionAt && <div className="home4-holo-action home4-fade" data-portal-holo-action style={actionAt}>{holoAction}</div>}
           {caption && captionAt && (
             <div className="home4-caption home4-fade" aria-hidden="true" data-portal-caption {...captionProps} style={captionAt}>
               <PortalCaption key={captionKey} {...caption} />

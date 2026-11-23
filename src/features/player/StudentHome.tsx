@@ -6,6 +6,7 @@ import BrandIcon from '../../shared/ui/BrandIcon'
 import BrandLogo from '../../shared/ui/BrandLogo'
 import LessonThumb from '../../shared/ui/LessonThumb'
 import SubjectTag from '../../shared/ui/SubjectTag'
+import SwapSlide from '../../shared/ui/SwapSlide'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { gemTier } from '../../shared/lib/gemTier'
@@ -158,6 +159,8 @@ export default function StudentHome() {
   const [sort, setSort]               = useState<SortKey>('newest')
   /* השיעור שבפורטל. בלי בחירה (או כשהבחירה לא ברשימה המסוננת): הראשון ברשימה, כלומר האחרון שהתקבל */
   const [curId, setCurId]             = useState<string | null>(null)
+  /* הכיוון של ההחלפה האחרונה בפורטל: קדימה או אחורה ברשימה. קובע את כיוון המעבר בפורטל ובשם השיעור */
+  const [dir, setDir]                 = useState<1 | -1>(1)
 
   useEffect(() => {
     const prev = localStorage.getItem('holo_last_login')
@@ -299,12 +302,13 @@ export default function StudentHome() {
     )
   }
 
-  const step = (dir: 1 | -1) => { if (n) setCurId(displayed[(idx + dir + n) % n].id) }
+  const step = (d: 1 | -1) => { if (n) { setDir(d); setCurId(displayed[(idx + d + n) % n].id) } }
   const done = current?.sessionStatus === 'completed'
   const reading = current?.sessionStatus === 'in_progress'
   const play = () => { if (current && !leaving) dive(`/play/${current.id}`) }
   /* בחירה ברשימה: השיעור עובר לפורטל. במסך צר, שבו הרשימה מתחת לבמה, העמוד חוזר למעלה */
   const choose = (id: string) => {
+    setDir(displayed.findIndex((q) => q.id === id) < idx ? -1 : 1)
     setCurId(id)
     document.querySelector('[data-portal-hero]')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   }
@@ -327,6 +331,8 @@ export default function StudentHome() {
 
       <PortalHero
         portalSrc={current?.thumbUrl ?? current?.entryImageUrl ?? undefined}
+        portalDir={dir}
+        portalNext={n > 1 ? [displayed[(idx + 1) % n], displayed[(idx - 1 + n) % n]].map((q) => q.thumbUrl ?? q.entryImageUrl) : undefined}
         portalLabel={current ? `${playLabel}: ${current.title}` : undefined}
         onPortalClick={current ? play : undefined}
         leaving={leaving}
@@ -366,8 +372,10 @@ export default function StudentHome() {
           <div className="home4-now-row">
             {n > 1 && <button onClick={() => step(-1)} aria-label={PORTAL_TEXT.prev} className="holo-button holo-button--sm home4-arrow" data-portal-prev><span aria-hidden="true">→</span></button>}
             <div className="home4-now-card" aria-live="polite" data-portal-lesson={current.id}>
-              <span className="home4-now-title" data-lesson-title>{current.title}</span>
-              <SubjectTag code={current.subjectCode} size="sm" />
+              <SwapSlide swapKey={current.id} dir={dir}>
+                <span className="home4-now-title" data-lesson-title>{current.title}</span>
+                <SubjectTag code={current.subjectCode} size="sm" />
+              </SwapSlide>
               {/* לקוראי מסך: המקום ברשימה והמצב (על המסך המצב מוקרן על הפורטל) */}
               <span className="sr-only" data-portal-position>{PORTAL_TEXT.position(idx + 1, n)} · {statusText(current)}</span>
             </div>

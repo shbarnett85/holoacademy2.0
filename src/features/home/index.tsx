@@ -4,6 +4,7 @@ import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import BrandLogo from '../../shared/ui/BrandLogo'
+import SwapSlide from '../../shared/ui/SwapSlide'
 import WhereAmI from './WhereAmI'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
@@ -98,7 +99,9 @@ export default function Home() {
     const t = window.setInterval(() => setCur((c) => (c + 1) % n), PORTAL_ROTATE_MS)
     return () => window.clearInterval(t)
   }, [n, paused, showWhere, leaving])
-  const step = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
+  /* הכיוון של ההחלפה האחרונה: קובע את כיוון המעבר בפורטל ובשם השיעור. החלפה אוטומטית היא תמיד קדימה */
+  const [dir, setDir] = useState<1 | -1>(1)
+  const step = (d: 1 | -1) => { setDir(d); setCur((c) => (c + d + n) % n) }
 
   function play() {
     if (leaving) return
@@ -126,12 +129,14 @@ export default function Home() {
       {/* ── המסך הראשון: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
       <PortalHero
         portalSrc={featured?.thumbUrl ?? undefined}
+        portalDir={dir}
+        portalNext={showcase.map((q) => q.thumbUrl)}
         portalLabel={featured ? `שחקו עכשיו: ${featured.title}` : 'שחקו בשיעור ההתנסות'}
         onPortalClick={play}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
-        mirrorOf="[data-home-mark] img"
-        mirrorAction={
+        levelWith="[data-home-mark] img"
+        holoAction={
           <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog">
             <span className="home4-where-mark" aria-hidden="true">?</span>
             <span>איפה אני?</span>
@@ -147,16 +152,21 @@ export default function Home() {
             <div className="home4-now-row" data-home-lesson>
               {n > 1 && <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">→</span></button>}
               <div className="home4-now-card" aria-live="polite">
-                <span className="home4-now-title">{featured.title}</span>
-                {featured.subject && <SubjectTag code={legacySubjectToCode(featured.subject)} size="sm" />}
+                <SwapSlide swapKey={featured.id} dir={dir}>
+                  <span className="home4-now-title">{featured.title}</span>
+                  {featured.subject && <SubjectTag code={legacySubjectToCode(featured.subject)} size="sm" />}
+                </SwapSlide>
               </div>
               {n > 1 && <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">←</span></button>}
             </div>
           )}
-          <button onClick={play} className="holo-button home4-play" data-home-play>
-            <BrandIcon name="playGem" size={22} />
-            <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
-          </button>
+          {/* באותו קו של שם השיעור, מעל ד"ר הולו (index.css: .home4-play-slot) */}
+          <div className="home4-play-slot">
+            <button onClick={play} className="holo-button home4-play" data-home-play>
+              <BrandIcon name="playGem" size={22} />
+              <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
+            </button>
+          </div>
         </>}
         panel={<>
           <HomeMark />

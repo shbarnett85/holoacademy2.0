@@ -34,6 +34,9 @@ const CSS = `
 .lab-glow--wall { left: 420px; top: 60px; width: 1720px; height: 1240px; background: radial-gradient(closest-side, var(--lab-tint), transparent 100%); opacity: .3; }
 .lab-portal { position: absolute; overflow: hidden; background: #020409; }
 .lab-portal__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* תמונה חדשה בפורטל (הגרסה הקבועה בלבד): דהייה מעל הקודמת */
+.lab-portal:not([data-holo-live]) > .lab-portal__img--in { animation: lab-portal-img-in .32s ease-out both; }
+@keyframes lab-portal-img-in { from { opacity: 0; } to { opacity: 1; } }
 .lab-hologram { position: absolute; display: block; mix-blend-mode: screen; pointer-events: none; transition: opacity .5s linear; }
 /* המראה ההולוגרפי הקבוע (בלי תנועה / בלי WebGL): גוון בצבע הפורטל, קווי סריקה ושפה זוהרת מעל התמונה. כשההולוגרמה החיה מוכנה, הם נמוגים */
 .lab-portal > * { transition: opacity .5s linear; }
@@ -144,9 +147,24 @@ function useAverageColor(src?: string): string {
   return color
 }
 
-export default function LabStage({ state, portalSrc, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, portalLabel }: {
+/* התמונה של הפורטל בגרסה הקבועה (עוצמה עדינה, או בלי WebGL): כשהיא מתחלפת, החדשה נמוגה פנימה מעל הקודמת.
+   כשההולוגרמה החיה מוצגת השכבה הזאת מוסתרת, והמעבר שם הוא קו הסריקה (PortalHologram) */
+function PortalImage({ src }: { src: string }) {
+  const [pair, setPair] = useState<{ cur: string; prev: string | null }>({ cur: src, prev: null })
+  if (pair.cur !== src) setPair({ cur: src, prev: pair.cur })
+  return (
+    <>
+      {pair.prev && <img className="lab-portal__img" src={pair.prev} alt="" draggable={false} />}
+      <img key={pair.cur} className="lab-portal__img lab-portal__img--in" src={pair.cur} alt="" draggable={false} onAnimationEnd={() => setPair((p) => ({ cur: p.cur, prev: null }))} />
+    </>
+  )
+}
+
+export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, portalLabel }: {
   state: 'opening' | 'closed' | 'open'
   portalSrc?: string
+  /* כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה (כיוון קו האור של המעבר) */
+  portalDir?: 1 | -1
   mood: HoloMood
   /* אנימציה מסוימת של ד"ר הולו במקום זו של מצב הרוח */
   holoAnimation?: HoloAnimation
@@ -251,13 +269,13 @@ export default function LabStage({ state, portalSrc, mood, holoAnimation, human 
             {geo && <PortalGlow comp={comp} tone="cyan" />}
             {geo && state === 'closed' && <PortalGlow comp={comp} tone="gold" />}
             <div className="lab-portal" data-holo-live={holoLive && portalSrc ? '' : undefined} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }}>
-              {portalSrc && <img className="lab-portal__img" src={portalSrc} alt="" draggable={false} />}
+              {portalSrc && <PortalImage src={portalSrc} />}
               {portalSrc && geo && <PortalStaticLook comp={comp} tone="cyan" />}
               {portalSrc && geo && state === 'closed' && <PortalStaticLook comp={comp} tone="gold" />}
               {portalSrc && geo && <span className="lab-portal__scan" />}
             </div>
             {portalSrc && moving && geo && (
-              <PortalHologram src={portalSrc} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
+              <PortalHologram src={portalSrc} swapDir={portalDir} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
             )}
             {onPortalClick && armed && !leaving && (
               <button type="button" className="lab-portal-hit" data-lab-portal-hit aria-label={portalLabel} onClick={onPortalClick} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
