@@ -43,10 +43,13 @@
   --color-correct: #1E8457;        /* הוכהה מ-#1F8A5B כדי שטקסט לבן עליו יעבור 4.5:1 */
   --color-wrong: #D7263D;
 
-  /* ── קריסטלים: צבעי הפעימה והמילוי המלא ── */
+  /* ── קריסטלים: המעבר התכול (פחות מ-5 מלאים), צבע הפעימה והמעבר של 5 מלאים. המעברים אלכסוניים, מהפינה השמאלית העליונה לימנית התחתונה ── */
+  --color-crystal-cyan-top: #FFFFFF;
+  --color-crystal-cyan-mid: #8FD0F7;   /* ב-55% */
+  --color-crystal-cyan-bottom: #3AB0F2;
   --color-crystal-pulse: #FFE2CF;      /* הקריסטל מתבהר לכתום-לבן בפעימה (3 ומעלה) */
   --color-crystal-full-top: #FFFFFF;   /* מעבר המילוי של 5 קריסטלים מלאים */
-  --color-crystal-full-mid: #FFD2BA;
+  --color-crystal-full-mid: #FFD2BA;   /* ב-55% */
   --color-crystal-full-bottom: #FF9A6E;
 
   /* ── מקצועות: למסגרות קטנות ולתגיות בלבד. אין צבע מקצוע בתכלת ── */

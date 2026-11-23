@@ -19,7 +19,6 @@ import { GateUnlock, StreakBadge } from './FeelBits'
 import { useGameEngine, type GameData, type EngineInitialState, type GameAnalytics } from './useGameEngine'
 import type { LiveApi } from './usePlaySession'
 import DigitalEntrance from '../../shared/components/DigitalEntrance'
-import { GemDefs } from '../../shared/ui/Gem'
 import { GEM_TOTAL, effectLevelOf } from '../../shared/lib/gemModel'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { initSound } from '../../shared/lib/sound'
@@ -509,7 +508,6 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
     <div className="min-h-dvh holo-scene-root flex flex-col">
       {/* מסך הטעינה נשאר מעל הסצנה עד הפריים הלבן המלא — ראו entered למעלה */}
       {!entered && <LoadingQuest overlay />}
-      <GemDefs />
       <StreakBadge />
       <style>{`
         @keyframes gate-shake {

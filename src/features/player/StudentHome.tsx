@@ -12,7 +12,7 @@ import { gemTier } from '../../shared/lib/gemTier'
 import { formatIsraelDate } from '../../shared/lib/lessonState'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { enterGuestStudent, guestProgress, isGuestStudent, leaveGuestStudent } from '../../shared/lib/guestStudent'
-import { GemDefs, GemIcon, GemSocket } from '../../shared/ui/Gem'
+import { Gem } from '../../shared/ui/Gem'
 import { MyJourney } from './Journey'
 import PortalHero from './lab/PortalHero'
 import type { PortalCaptionData } from './lab/PortalCaption'
@@ -101,7 +101,7 @@ const gemsOf = (q: AssignedQuest): number => q.gems ?? q.crystals ?? 0
 function GemRow({ gems, size = 22 }: { gems: number; size?: number }) {
   return (
     <span dir="ltr" role="img" aria-label={SHELF_TEXT.gems(gems)} style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
-      {Array.from({ length: GEM_TOTAL }).map((_, i) => <GemSocket key={i} fill={i < gems ? 1 : 0} size={size} tier={gemTier(gems)} animated={false} />)}
+      {Array.from({ length: GEM_TOTAL }).map((_, i) => <Gem key={i} fill={i < gems ? 1 : 0} size={size} tier={gemTier(gems)} animated={false} />)}
     </span>
   )
 }
@@ -324,7 +324,6 @@ export default function StudentHome() {
 
   return (
     <div dir="rtl" className="home4" data-student-home data-guest={guest ? '' : undefined}>
-      <GemDefs />
 
       <PortalHero
         portalSrc={current?.thumbUrl ?? current?.entryImageUrl ?? undefined}
@@ -345,7 +344,7 @@ export default function StudentHome() {
             </h1>
             {!loading && quests.length > 0 && (
               <ul className="shome-stats" aria-label={PORTAL_TEXT.statsLabel} data-portal-stats>
-                <li className="shome-stat" data-stat="gems"><GemIcon size={22} /><span>{PORTAL_TEXT.statGems}</span><b>{stats.gems}</b></li>
+                <li className="shome-stat" data-stat="gems"><Gem size={22} /><span>{PORTAL_TEXT.statGems}</span><b>{stats.gems}</b></li>
                 <li className="shome-stat" data-stat="done"><StatusIcon status="done" size={22} /><span>{PORTAL_TEXT.statDone}</span><b>{PORTAL_TEXT.statOf(stats.done, quests.length)}</b></li>
                 {stats.paused > 0 && <li className="shome-stat" data-stat="paused"><StatusIcon status="paused" size={22} /><span>{PORTAL_TEXT.statPaused}</span><b>{stats.paused}</b></li>}
                 {stats.fresh > 0 && <li className="shome-stat" data-stat="fresh"><span aria-hidden="true">✦</span><span>{PORTAL_TEXT.statFresh}</span><b>{stats.fresh}</b></li>}

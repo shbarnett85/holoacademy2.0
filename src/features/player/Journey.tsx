@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { buildJourney, type JourneyLesson, type JourneyStation } from '../../shared/lib/gemModel'
 import { subjectVisual, subjectName, UNCLASSIFIED_LABEL } from '../../shared/lib/subjects'
-import { GemIcon } from '../../shared/ui/Gem'
+import { Gem } from '../../shared/ui/Gem'
 import { panelStudent, progressFill, progressTrack } from '../../styles/ui'
 import { JOURNEY_TEXT } from './gameFeel/text'
 
@@ -27,7 +27,7 @@ function Station({ s, onOpen }: { s: JourneyStation; onOpen?: (id: string) => vo
           border: s.state === 'open' ? '2px dashed var(--color-muted)' : `${s.state === 'now' ? 3 : 2}px solid var(--color-ink)`,
         }}
       >
-        {done && <GemIcon size={18} />}
+        {done && <Gem size={18} />}
       </span>
       <span style={{ fontSize: 13, lineHeight: 1.25, textAlign: 'center', color: s.state === 'open' ? 'var(--color-muted)' : 'var(--color-ink)', textDecoration: clickable ? 'underline' : 'none', textUnderlineOffset: 3, overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.title}</span>
       <span style={{ fontSize: 12, color: s.state === 'open' ? 'var(--color-muted)' : 'var(--color-ink)', fontWeight: 600 }}>{label}</span>

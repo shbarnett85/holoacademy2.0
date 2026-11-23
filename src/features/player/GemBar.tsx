@@ -4,7 +4,7 @@
    רשת ביטחון: התקדמות שלא לוותה במעוף מסונכרנת אחרי רגע, כך שהמונה לעולם לא נשאר מאחור. */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GEM_TOTAL, gemFill } from '../../shared/lib/gemModel'
-import { GemSocket } from '../../shared/ui/Gem'
+import { Gem } from '../../shared/ui/Gem'
 import { gemTier } from '../../shared/lib/gemTier'
 import { cfg, GEM_ARRIVED, gemCompleted, prefersReducedMotion } from './gameFeel/engine'
 import { HUD_TEXT } from './gameFeel/text'
@@ -95,7 +95,7 @@ export function GemBar({ value }: { value: number }) {
             style={{ display: 'block' }}
           >
             {/* ב-HUD הקריסטלים לא פועמים: בזמן קריאה שום דבר לא זז. מצב השורה (3 ומעלה, 5) נראה בזוהר קבוע */}
-            <GemSocket fill={gemFill(display, i)} size="var(--hud-gem, 1.9rem)" tier={gemTier(whole)} animated={false} />
+            <Gem fill={gemFill(display, i)} size="var(--hud-gem, 1.9rem)" tier={gemTier(whole)} animated={false} />
           </span>
         ))}
       </div>

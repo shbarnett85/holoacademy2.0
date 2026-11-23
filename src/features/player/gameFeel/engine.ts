@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from 'react'
 import { getAudioContext, isMuted } from '../../../shared/lib/sound'
 import { DEFAULT_EFFECT_LEVEL, type EffectLevel } from '../../../shared/lib/gemModel'
+import { GEM_VIEW_H, GEM_VIEW_W, gemSvgMarkup } from '../../../shared/lib/gemShape'
 import { tokenRgba, tokenValue } from '../../../styles/tokens'
 
 export interface LevelConfig {
@@ -452,7 +453,8 @@ function arrive(): void {
   window.dispatchEvent(new Event(GEM_ARRIVED))
 }
 
-const GEM_SVG = '<svg viewBox="0 0 152 132" aria-hidden="true" style="width:100%;height:100%;display:block;overflow:visible"><use href="#holo-gem"/></svg>'
+/* הגביש שעף: קריסטל תכול מלא, באותה צורה כמו ברכיב Gem */
+const GEM_SVG = gemSvgMarkup()
 
 /* מעוף הגביש מהתשובה אל השקע שמתמלא. לא חוסם: המשחק ממשיך בלעדיו */
 export function flyGem(from: Element | null, gain: number): void {
@@ -467,7 +469,7 @@ export function flyGem(from: Element | null, gain: number): void {
   const ex = b.left + b.width / 2
   const ey = b.top + b.height / 2
   const w = Math.max(18, b.width)
-  const h = (w * 132) / 152
+  const h = (w * GEM_VIEW_H) / GEM_VIEW_W
   const endScale = gain >= 1 ? 1 : 0.65
   const el = document.createElement('div')
   el.setAttribute('data-gem-flyer', '')

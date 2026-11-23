@@ -4,7 +4,7 @@
    גבישי הכיתה נטענים אחרי שהמשחק נשמר. במשחק בלי session (מקרן, מבקר) אין גבישי כיתה ואין מסע. */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { GEM_TOTAL, gemFill, gemsValue, storyState, wholeGems, type JourneyLesson } from '../../shared/lib/gemModel'
-import { GemDefs, GemSocket } from '../../shared/ui/Gem'
+import { Gem } from '../../shared/ui/Gem'
 import { gemTier } from '../../shared/lib/gemTier'
 import { labMoodsOf } from '../../shared/lib/holoMoods'
 import { usesStoryFont } from '../../shared/lib/storyFont'
@@ -115,7 +115,6 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
 
   return (
     <div data-end-screen={state} className="relative" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'clamp(12px, 2.5vh, 24px)', overflow: 'auto' }}>
-      <GemDefs />
       <style>{`
         @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
         .holo-summary-whiteout { position: fixed; inset: 0; z-index: 81; pointer-events: none;
@@ -176,7 +175,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
             <div data-end-gems className={state === 'radiant' ? 'end-gems-radiant' : ''} dir="ltr" style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               {Array.from({ length: GEM_TOTAL }).map((_, i) => (
                 <span key={i} className={popIn ? 'end-gem-pop' : ''} style={{ animationDelay: `${(GEM_POP_START_MS + i * GEM_POP_STEP_MS) / 1000}s`, display: 'block' }}>
-                  <GemSocket fill={gemFill(value, i)} size="clamp(34px, 8vh, 58px)" tier={gemTier(whole)} />
+                  <Gem fill={gemFill(value, i)} size="clamp(34px, 8vh, 58px)" tier={gemTier(whole)} />
                 </span>
               ))}
             </div>

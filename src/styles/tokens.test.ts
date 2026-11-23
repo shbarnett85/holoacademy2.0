@@ -10,6 +10,8 @@ describe('קובץ הטוקנים — ערכי הפלטה כפי שהוגדרו'
     ['--color-machine-bg', '#e6defa'], ['--color-machine', '#b9a2e8'], ['--color-machine-deep', '#6a3fb5'], ['--color-machine-tint', '#f1ebfc'],
     ['--color-crystal-empty', '#9a80d4'], ['--color-holo', '#3ab0f2'], ['--color-holo-deep', '#052a55'], ['--color-action', '#b3e4ff'], ['--color-action-pressed', '#8fd0f7'],
     ['--color-human', '#ff7a45'], ['--color-human-soft', '#ffd2ba'], ['--color-human-tint', '#fff1e8'], ['--color-human-deep', '#8a3a16'],
+    ['--color-crystal-cyan-top', '#ffffff'], ['--color-crystal-cyan-mid', '#8fd0f7'], ['--color-crystal-cyan-bottom', '#3ab0f2'],
+    ['--color-crystal-pulse', '#ffe2cf'], ['--color-crystal-full-top', '#ffffff'], ['--color-crystal-full-mid', '#ffd2ba'], ['--color-crystal-full-bottom', '#ff9a6e'],
     ['--color-ink', '#1e1830'], ['--color-surface', '#ffffff'], ['--color-muted', '#4f4866'], ['--color-wrong', '#d7263d'],
     ['--subject-math', '#e9b949'], ['--subject-arabic', '#1f6f6a'], ['--subject-french', '#2a3f7a'], ['--subject-other', '#9a9a9a'],
   ])('%s = %s', (name, hex) => {
@@ -25,7 +27,7 @@ describe('קובץ הטוקנים — ערכי הפלטה כפי שהוגדרו'
    לא לטקסט, לא לכפתורים ולא למסגרות של הממשק (אלה בדיו). הלוגו עצמו הוא קובץ, ולא עובר דרך הטוקן */
 describe('holo-deep רק בקו המתאר של הקריסטל', () => {
   const RAW = import.meta.glob(['/src/**/*.ts', '/src/**/*.tsx', '/src/**/*.css'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-  const ALLOWED = new Set(['/src/styles/tokens.css', '/src/styles/tokens.ts', '/src/styles/tokens.test.ts', '/src/shared/ui/Gem.tsx'])
+  const ALLOWED = new Set(['/src/styles/tokens.css', '/src/styles/tokens.ts', '/src/styles/tokens.test.ts', '/src/shared/ui/Gem.tsx', '/src/shared/lib/gemShape.ts', '/src/shared/lib/gemShape.test.ts'])
   it('הטוקן לא מופיע מחוץ לקובץ הטוקנים ולרכיב הקריסטל', () => {
     expect(Object.keys(RAW).length).toBeGreaterThan(150)
     const users = Object.entries(RAW).filter(([, text]) => text.includes('color-holo-deep')).map(([f]) => f).filter((f) => !ALLOWED.has(f))
@@ -34,7 +36,9 @@ describe('holo-deep רק בקו המתאר של הקריסטל', () => {
   it('ברכיב הקריסטל הוא משמש רק כצבע קו (stroke)', () => {
     /* שורות קוד בלבד: בלי הערות */
     const lines = (RAW['/src/shared/ui/Gem.tsx'] ?? '').split(/\r?\n/).filter((l) => l.includes('color-holo-deep') && !/^\s*(\/\*|\*|\/\/|·)/.test(l))
-    for (const l of lines) expect(l, l).toMatch(/stroke/i)
+    const shape = (RAW['/src/shared/lib/gemShape.ts'] ?? '').split(/\r?\n/).filter((l) => l.includes('color-holo-deep'))
+    expect(lines.length).toBeGreaterThan(0)
+    for (const l of [...lines, ...shape]) expect(l, l).toMatch(/stroke/i)
   })
 })
 

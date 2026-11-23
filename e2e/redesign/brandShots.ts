@@ -205,8 +205,189 @@ async function logo(browser: Browser): Promise<void> {
   }
 }
 
+/* ── הקריסטלים ─────────────────────────────────────────────────────────── */
+
+const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768"><rect width="1024" height="768" fill="#9ccbe6"/><circle cx="300" cy="240" r="120" fill="#ffd166"/><path d="M0 560 Q260 470 520 560 T1024 540 V768 H0Z" fill="#3a86c8"/></svg>'
+const IMG = `data:image/svg+xml;utf8,${encodeURIComponent(SVG)}`
+const QID = '00000000-0000-4000-8000-0000000000bc'
+const TF = { type: 'trueFalse', question: 'הנילוס עובר במצרים.', difficulty: 5, choices: [{ id: 't', text: 'נכון', isCorrect: true }, { id: 'f', text: 'לא נכון', isCorrect: false }], explanationCorrect: 'נכון, הנילוס עובר במצרים.', explanationIncorrect: 'התשובה הנכונה היא נכון.' }
+const lesson = (n: number) => ({
+  id: QID, title: 'מסע אל המעיין', subject: 'history', subject_code: 'history',
+  game_data: {
+    scenes: [
+      { id: 's0', title: 'המעבדה', narrative: 'ברוכים הבאים. היום יוצאים למסע אל המעיין.', imageUrl: IMG, imagePrompt: 'x', nextSceneId: 's1' },
+      ...Array.from({ length: n }, (_, i) => ({ id: `s${i + 1}`, title: `הגשר ${i + 1}`, narrative: 'הנהר זורם בשקט בין השדות. על הגדה עומדת סירה קטנה.', imageUrl: IMG, imagePrompt: 'x', puzzle: TF, nextSceneId: i + 1 < n ? `s${i + 2}` : null })),
+    ],
+    entrySceneId: 's0', readingScale: 10, holoMoods: { opening: 'רגיל', closed: 'שמח', open: 'עצוב' },
+    endingGood: { title: 'המעיין נמצא', narrative: 'בזכותכם המים חזרו אל השדות.', imageUrl: IMG },
+    endingBad: { title: 'הסיפור עוד פתוח', narrative: 'חסרות עוד תובנות כדי למצוא את המעיין.', imageUrl: IMG },
+  },
+})
+const STUDENT_JWT = `x.${Buffer.from(JSON.stringify({ userId: 'stu-demo', role: 'student', classId: 'c1', exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64')}.y`
+const STUDENT = `sessionStorage.setItem('holo_token','${STUDENT_JWT}'); sessionStorage.setItem('holo_student_name','נועה לוי');`
+
+async function openGame(ctx: BrowserContext, n: number): Promise<Page> {
+  const page = await ctx.newPage()
+  await page.route('**/api/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }))
+  await page.route(`**/api/quests/${QID}`, (r) => r.fulfill({ json: { quest: lesson(n) } }))
+  await page.route('**/api/sessions/start', (r) => r.fulfill({ json: { sessionId: 'sess-1', resumed: false, currentSceneId: null, inventory: [], visitedScenes: [], crystals: 0, effectsLevel: 'medium', isReplay: false } }))
+  await page.route('**/api/sessions/*/complete', (r) => r.fulfill({ json: { ok: true, profileUpdated: true } }))
+  await page.route('**/api/sessions/class-gems/**', (r) => r.fulfill({ json: { available: false } }))
+  await page.route('**/api/sessions/assigned', (r) => r.fulfill({ json: { quests: [] } }))
+  await page.goto(`${DEFAULT_BASE}/play/${QID}`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('.holo-text-area', { timeout: 30000 })
+  return page
+}
+const startBtn = (page: Page) => page.getByRole('button', { name: /פתרו את האתגר/ })
+async function next(page: Page): Promise<void> {
+  for (let i = 0; i < 24; i++) {
+    if (await page.locator('[data-end-screen]').count()) return
+    if (await startBtn(page).isVisible().catch(() => false)) return
+    const b = page.locator('button:visible:not([disabled])', { hasText: /המשך|סיום|לסיכום/ }).last()
+    if (await b.isVisible().catch(() => false)) await b.click({ timeout: 2000 }).catch(() => undefined)
+    await page.waitForTimeout(450)
+  }
+}
+async function answer(page: Page, right: boolean): Promise<void> {
+  await startBtn(page).click({ timeout: 12000 })
+  await page.waitForSelector('.holo-stage', { timeout: 10000 }); await page.waitForTimeout(950)
+  await page.locator('.holo-stage button', { hasText: right ? /^\s*נכון\s*$/ : /לא נכון/ }).first().click()
+  await page.waitForTimeout(1500)
+}
+
+/* מצב הקריסטלים בשורה: החלק המלא והמצב של כל אחד, והאם הצורה והקו הם של הקובץ */
+const gemsOf = (page: Page, scope: string) => page.evaluate((sel) => [...document.querySelectorAll<SVGSVGElement>(`${sel} svg.gem`)].map((g) => {
+  const outline = [...g.querySelectorAll('path')].pop()!
+  const cs = getComputedStyle(outline)
+  return {
+    fill: Number(g.dataset.gemFill), tier: g.dataset.gemTier ?? '', viewBox: g.getAttribute('viewBox'), d: outline.getAttribute('d'),
+    stroke: cs.stroke, strokeWidth: cs.strokeWidth, join: cs.strokeLinejoin, paths: g.querySelectorAll('path').length, w: g.getBoundingClientRect().width,
+    glowAnim: (() => { const e = g.querySelector('.gem__glow'); return e ? getComputedStyle(e).animationDuration + '|' + getComputedStyle(e).animationName + '|' + getComputedStyle(e).opacity : '' })(),
+    flashAnim: (() => { const e = g.querySelector('.gem__flash'); return e ? getComputedStyle(e).animationDuration + '|' + getComputedStyle(e).animationName + '|' + getComputedStyle(e).opacity : '' })(),
+    pulseAnim: (() => { const e = g.querySelector('.gem__pulse'); return e ? getComputedStyle(e).animationDuration + '|' + getComputedStyle(e).animationName : '' })(),
+  }
+}), scope)
+
+/* הצבע הממוצע של גוף הקריסטל בצילום (החלק המרכזי שלו), כדי למדוד כמה שני מצבים שונים זה מזה */
+async function meanColor(page: Page, png: Buffer): Promise<[number, number, number]> {
+  return page.evaluate(async (b64) => {
+    const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode()
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
+    const g = c.getContext('2d')!; g.drawImage(img, 0, 0)
+    const x0 = Math.round(img.width * 0.3), y0 = Math.round(img.height * 0.2), w = Math.round(img.width * 0.4), h = Math.round(img.height * 0.4)
+    const d = g.getImageData(x0, y0, w, h).data
+    let r = 0, gg = 0, b = 0
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2] }
+    const n = d.length / 4
+    return [Math.round(r / n), Math.round(gg / n), Math.round(b / n)] as [number, number, number]
+  }, png.toString('base64'))
+}
+
+const SHAPE = { viewBox: '0 0 48 44', d: 'M13.4 1.5 H34.6 L46.5 17.6 L24 41 L1.5 17.6 Z', stroke: 'rgb(5, 42, 85)' }
+
+async function crystals(browser: Browser): Promise<void> {
+  console.log('== crystals ==')
+  const hudClip = async (page: Page) => { const b = (await page.locator('[data-gem-bar]').boundingBox())!; return { x: Math.max(0, b.x - 26), y: Math.max(0, b.y - 22), width: b.width + 52, height: b.height + 44 } }
+  const firstGem: Record<string, Buffer> = {}
+
+  /* ה-HUD עם 2.5 קריסטלים: שני אתגרים, אחד הצליח */
+  {
+    const ctx = await ctxOf(browser, 1366, 768, STUDENT, false, 2)
+    const page = await openGame(ctx, 2)
+    await next(page)
+    const empty = await gemsOf(page, '[data-gem-bar]')
+    check(empty.length === 5 && empty.every((g) => g.fill === 0 && g.tier === 'base'), 'HUD בתחילת שיעור: חמישה מקומות ריקים')
+    await answer(page, true); await page.waitForTimeout(1600)
+    const g = await gemsOf(page, '[data-gem-bar]')
+    check(g.map((x) => x.fill).join(',') === '100,100,50,0,0', `HUD עם 2.5 קריסטלים: שניים מלאים, אחד חצי ושניים ריקים (${g.map((x) => x.fill).join(',')})`)
+    check(g.every((x) => x.tier === 'base' && !x.glowAnim && !x.flashAnim), 'פחות מ-3 שלמים: בלי זוהר ובלי הבזקים')
+    check(g.every((x) => x.viewBox === SHAPE.viewBox && x.d === SHAPE.d), 'הצורה היא הצללית של holoacademy-crystal.svg')
+    check(g.every((x) => x.stroke === SHAPE.stroke && Math.abs(parseFloat(x.strokeWidth) - 2.5) < 0.01 && x.join === 'round'), `קו המתאר: holo-deep, עובי 2.5, פינות מעוגלות, בכל המצבים (${g[0].stroke}, ${g[0].strokeWidth})`)
+    check(g.every((x) => x.paths <= 3), 'בלי קווים פנימיים: רק מילוי וקו מתאר')
+    await shot(page, 'crystals-hud-2.5-page')
+    await shot(page, 'crystals-hud-2.5', await hudClip(page))
+    firstGem.cyan = await page.locator('[data-gem-bar] svg.gem').first().screenshot()
+    await ctx.close()
+  }
+
+  /* מסך הסיום עם 2, 3 ו-5 קריסטלים, וה-HUD באותם מצבים */
+  for (const gems of [2, 3, 5] as const) {
+    const ctx = await ctxOf(browser, 1366, 768, STUDENT, false, 2)
+    const page = await openGame(ctx, 5)
+    await next(page)
+    for (let i = 0; i < 5; i++) {
+      await answer(page, i < gems)
+      if (i === 4) {
+        const hud = await gemsOf(page, '[data-gem-bar]')
+        const tier = gems === 5 ? 'full' : gems >= 3 ? 'warm' : 'base'
+        check(hud.filter((x) => x.fill === 100).length === gems && hud.filter((x) => x.fill === 100).every((x) => x.tier === tier), `HUD עם ${gems} קריסטלים: המצב ${tier}`)
+        check(hud.every((x) => !x.glowAnim.includes('gem-beat') && !x.flashAnim.includes('gem-beat') && !x.pulseAnim.includes('gem-beat')), `HUD עם ${gems}: בלי פעימות (בזמן קריאה שום דבר לא זז)`)
+        await page.waitForTimeout(900)
+        await shot(page, `crystals-hud-${gems}`, await hudClip(page))
+        firstGem[tier] = await page.locator('[data-gem-bar] svg.gem').first().screenshot()
+      }
+      await next(page)
+    }
+    await page.waitForSelector('[data-end-screen]', { timeout: 25000 }); await page.waitForTimeout(3400)
+    const end = await gemsOf(page, '[data-end-gems]')
+    check(end.filter((x) => x.fill === 100).length === gems && end.filter((x) => x.fill === 0).length === 5 - gems, `מסך הסיום: ${gems} קריסטלים מלאים`)
+    const lit = end.filter((x) => x.fill === 100)
+    if (gems === 2) check(lit.every((x) => x.tier === 'base' && !x.glowAnim), 'מסך הסיום עם 2: בלי זוהר ובלי הבזקים')
+    if (gems === 3) check(lit.every((x) => x.tier === 'warm' && x.glowAnim.startsWith('1.6s|gem-beat') && x.pulseAnim.startsWith('1.6s|gem-beat')), `מסך הסיום עם 3: פעימה כל 1.6 שניות, בזוהר ובקריסטל (${lit[0]?.glowAnim})`)
+    if (gems === 5) check(lit.every((x) => x.tier === 'full' && x.flashAnim.startsWith('1.2s|gem-beat') && !x.glowAnim.includes('gem-beat') && Number(x.glowAnim.split('|')[2]) > 0.9), `מסך הסיום עם 5: זוהר קבוע והבזק כל 1.2 שניות (${lit[0]?.flashAnim})`)
+    check(end.every((x) => x.stroke === SHAPE.stroke && x.d === SHAPE.d), `מסך הסיום עם ${gems}: אותה צורה ואותו קו בכל הקריסטלים`)
+    await shot(page, `crystals-end-${gems}`)
+    const eb = (await page.locator('[data-end-gems]').boundingBox())!
+    /* מנוחה: בין פעימה לפעימה */
+    await page.evaluate(() => { for (const a of document.getAnimations()) { if ((a as CSSAnimation).animationName === 'gem-beat') { a.pause(); a.currentTime = 0 } } })
+    await page.waitForTimeout(120)
+    await shot(page, `crystals-end-${gems}-row`, { x: eb.x - 40, y: eb.y - 34, width: eb.width + 80, height: eb.height + 68 })
+    /* רגע ההבזק (כשליש מהמחזור), כדי לראות את הפעימה בצילום */
+    if (gems >= 3) {
+      /* שיא הפעימה: האנימציות נעצרות ב-30% מהמחזור, הרגע שבו הזוהר וההבהרה מלאים */
+      await page.evaluate(() => { for (const a of document.getAnimations()) { if ((a as CSSAnimation).animationName !== 'gem-beat') continue; a.pause(); a.currentTime = 0.3 * Number(a.effect!.getComputedTiming().duration) } })
+      await page.waitForTimeout(120)
+      await shot(page, `crystals-end-${gems}-row-peak`, { x: eb.x - 40, y: eb.y - 34, width: eb.width + 80, height: eb.height + 68 })
+    }
+    await ctx.close()
+  }
+
+  /* קריסטל תכול מול 5 מלאים, בגודל של ה-HUD */
+  {
+    const ctx = await ctxOf(browser, 400, 300)
+    const page = await ctx.newPage()
+    await page.goto('about:blank')
+    const cyan = await meanColor(page, firstGem.cyan), warm = await meanColor(page, firstGem.warm), full = await meanColor(page, firstGem.full)
+    const dist = (a: number[], b: number[]) => Math.round(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]))
+    check(dist(cyan, full) >= 60, `בגודל של ה-HUD: קריסטל תכול (rgb ${cyan}) וקריסטל של 5 מלאים (rgb ${full}) שונים בבירור (מרחק ${dist(cyan, full)})`)
+    check(dist(cyan, warm) <= 25, `בגודל של ה-HUD: 3 ומעלה באותו מילוי תכול (מרחק ${dist(cyan, warm)}); ההבדל הוא בזוהר`)
+    /* לוח השוואה מוגדל */
+    const cell = (label: string, png: Buffer) => `<figure style="margin:0;text-align:center"><div style="background:#B9A2E8;padding:26px;border-radius:12px"><img src="data:image/png;base64,${png.toString('base64')}" style="height:120px;image-rendering:auto;display:block"></div><figcaption style="margin-top:8px">${label}</figcaption></figure>`
+    await page.setViewportSize({ width: 760, height: 260 })
+    await page.setContent(`<body dir="rtl" style="margin:0;padding:20px;font:15px Arial,sans-serif;background:#fff"><div style="display:flex;gap:22px;justify-content:center" dir="ltr">${cell('פחות מ-3: תכול', firstGem.cyan)}${cell('3 ומעלה: תכול עם זוהר כתום', firstGem.warm)}${cell('5 מלאים: אפרסק עם זוהר', firstGem.full)}</div></body>`)
+    await shot(page, 'crystals-hud-compare')
+    await ctx.close()
+  }
+
+  /* תנועה מופחתת: בלי פעימות, עם זוהר קבוע שמבדיל בין המצבים */
+  for (const gems of [3, 5] as const) {
+    const ctx = await ctxOf(browser, 1366, 768, STUDENT, true)
+    const page = await openGame(ctx, gems === 5 ? 2 : 5)
+    await next(page)
+    const total = gems === 5 ? 2 : 5
+    for (let i = 0; i < total; i++) { await answer(page, gems === 5 || i < 3); await next(page) }
+    await page.waitForSelector('[data-end-screen]', { timeout: 25000 }); await page.waitForTimeout(1500)
+    const lit = (await gemsOf(page, '[data-end-gems]')).filter((x) => x.fill === 100)
+    check(lit.length === gems && lit.every((x) => !x.glowAnim.includes('gem-beat') && !x.flashAnim.includes('gem-beat') && !x.pulseAnim.includes('gem-beat')), `תנועה מופחתת, ${gems} קריסטלים: בלי פעימות`)
+    check(lit.every((x) => Number(x.glowAnim.split('|')[2]) > 0.3), `תנועה מופחתת, ${gems} קריסטלים: זוהר קבוע (${lit[0]?.glowAnim.split('|')[2]})`)
+    await shot(page, `crystals-end-${gems}-reduced-motion`)
+    await ctx.close()
+  }
+}
+
 const browser = await chromium.launch({ executablePath: findChrome(), headless: true, args: ['--autoplay-policy=no-user-gesture-required'] })
 if (ONLY.includes('logo')) await logo(browser)
+if (ONLY.includes('crystals')) await crystals(browser)
 await browser.close()
 console.log(failed ? `\n${failed} בדיקות נכשלו` : '\nהכול עבר')
 process.exit(failed ? 1 : 0)

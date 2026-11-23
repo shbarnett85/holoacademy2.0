@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
-import { GemDefs } from '../../shared/ui/Gem'
 import BrandLogo from '../../shared/ui/BrandLogo'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
@@ -120,7 +119,6 @@ export default function Home() {
 
   return (
     <div dir="rtl" className="home4">
-      <GemDefs />
 
       {/* ── המסך הראשון: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
       <PortalHero

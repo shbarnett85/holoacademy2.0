@@ -9,6 +9,7 @@ export type ColorToken =
   | 'color-holo' | 'color-holo-deep' | 'color-action' | 'color-action-pressed'
   | 'color-human' | 'color-human-soft' | 'color-human-tint' | 'color-human-deep'
   | 'color-ink' | 'color-surface' | 'color-muted' | 'color-correct' | 'color-wrong'
+  | 'color-crystal-cyan-top' | 'color-crystal-cyan-mid' | 'color-crystal-cyan-bottom'
   | 'color-crystal-pulse' | 'color-crystal-full-top' | 'color-crystal-full-mid' | 'color-crystal-full-bottom'
   | 'color-line' | 'color-line-strong' | 'color-ink-wash' | 'color-scrim' | 'color-correct-tint' | 'color-wrong-tint' | 'color-correct-text' | 'color-wrong-text' | 'color-disabled'
 
