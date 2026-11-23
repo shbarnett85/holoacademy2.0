@@ -14,12 +14,21 @@ export const HOLO_ASPECT = 896 / 706
    · welcome — ברוכים הבאים: ידיים פתוחות ודיבור (ברירת המחדל)
    · worried — מודאג: למצב "מפוחד", וגם ל"כועס" (מדריך מודאג, לא כועס)
    · sad     — עצוב: מבט למטה ובחזרה אל הצופה, בפה סגור (אכזבה קלה שמזמינה לנסות שוב): לסיכום של סיפור שנשאר פתוח
+   · thinking    — חושב: יד על הזקן, מבט למעלה ובחזרה אל הצופה
+   · happy       — שמח: יד על החזה, חיוך בפה סגור והנהון קטן
+   · celebrating — חוגג: אגודל למעלה והנהון מאשר
+   · amused      — משועשע: ידיים מאחורי הגב וצחוק שקט בכתפיים
+   · surprised   — מופתע: יד על מסגרת המשקפיים, גבות מורמות מעט
+     (בחמש האלה תנוחת הידיים שונה בכל אחת, לבקשת המשתמש: בעמידה ובעצוב האצבעות צמודות מול המותן)
    · idle    — עמידה מחויכת עם מעט תנועה (חיוך בפה סגור, אצבעות צמודות, נשימה ומצמוץ): כשד"ר הולו ממתין ולא מדבר.
                לא קשורה למצב רוח: המסך מבקש אותה במפורש (עמוד הפתיחה והבית של התלמיד, PortalHero) */
-export type HoloAnimation = 'welcome' | 'worried' | 'idle' | 'sad'
+export type HoloAnimation = 'welcome' | 'worried' | 'idle' | 'sad' | 'thinking' | 'happy' | 'celebrating' | 'amused' | 'surprised'
 
 /* איזו אנימציה לכל מצב רוח. מצב רוח בלי אנימציה משלו משתמש ב"ברוכים הבאים". אנימציה חדשה למצב רוח = שורה כאן */
-const ANIMATION_OF: Partial<Record<HoloMood, HoloAnimation>> = { scared: 'worried', angry: 'worried', sad: 'sad' }
+const ANIMATION_OF: Partial<Record<HoloMood, HoloAnimation>> = {
+  scared: 'worried', angry: 'worried', sad: 'sad',
+  thinking: 'thinking', happy: 'happy', celebrating: 'celebrating', amused: 'amused', surprised: 'surprised',
+}
 /* animation: אנימציה שהמסך ביקש במפורש; גוברת על מצב הרוח */
 const animationOf = (mood: HoloMood, animation?: HoloAnimation): HoloAnimation => animation ?? ANIMATION_OF[mood] ?? 'welcome'
 

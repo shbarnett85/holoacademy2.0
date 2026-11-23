@@ -267,6 +267,8 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     /* גם הסיכום על רקע וידאו (ספריית השרתים), והאנימציה של ד"ר הולו מתנגנת מעליו */
     check((await holoClips(page)) === 1 && (await moodOf(page)) === c.clip, `${c.name}: רקע וידאו, והאנימציה של ד"ר הולו מתנגנת (${await moodOf(page)})`)
     if (c.state === 'open') check((await clipOf(page)) === '/dr-holo/v2/sad.mp4', `${c.name}: סיפור פתוח מציג את האנימציה העצובה (${await clipOf(page)})`)
+    /* סיפור שנסגר: האנימציה של מצב הרוח שהשיעור בחר ("חוגג" בשיעור החדש, "שמח" כברירת מחדל בשיעור הישן) */
+    else check((await clipOf(page)) === `/dr-holo/v2/${c.clip}.mp4`, `${c.name}: סיפור שנסגר מציג את האנימציה של מצב הרוח (${await clipOf(page)})`)
     check(await page.locator('[data-lab-hologram=on]').count() === 1, `${c.name}: הפורטל הולוגרמה חיה`)
     const gold = await page.locator('[data-lab-stage]').getAttribute('data-portal-gold')
     check((gold !== null) === (c.portal === 'closed'), `${c.name}: צבע הפורטל ${gold !== null ? 'כתום-זהוב' : 'תכלת'}`)
@@ -360,7 +362,7 @@ async function modes(browser: Browser): Promise<void> {
     const r = await page.evaluate(async (moods) => Promise.all(moods.map(async (m) => {
       const [v, i] = await Promise.all([fetch(`/dr-holo/v2/${m}.mp4`, { method: 'HEAD' }), fetch(`/dr-holo/v2/${m}.webp`, { method: 'HEAD' })])
       return { m, ok: v.ok && (v.headers.get('content-type') ?? '').includes('video') && i.ok && (i.headers.get('content-type') ?? '').includes('image') }
-    })), ['welcome'])
+    })), ['welcome', 'worried', 'idle', 'sad', 'thinking', 'happy', 'celebrating', 'amused', 'surprised'])
     for (const x of r) check(x.ok, `אנימציה ותמונה: ${x.m}`)
     await page.close(); await ctx.close()
   }
