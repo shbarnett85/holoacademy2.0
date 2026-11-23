@@ -77,7 +77,7 @@ async function home(browser: Browser): Promise<void> {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const vids = [...document.querySelectorAll('video')].map((v) => ({ playing: !v.paused && v.readyState >= 2, src: v.currentSrc.split('/').pop() }))
-      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), where: r('[data-home-where]'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
+      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
     check(inside(g.panel), `${w}×${h}: חלון הכניסות כולו במסך הראשון`)
@@ -91,6 +91,12 @@ async function home(browser: Browser): Promise<void> {
     check(!!g.play && !!g.lesson && g.play.r <= g.lesson.l + 1 && g.play.t < g.lesson.b && g.play.b > g.lesson.t, `${w}×${h}: "שחקו עכשיו" משמאל לשם השיעור, באותה שורה`)
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
+    {
+      /* תמונת מראה של הלוגו: אותו גובה, ואותו מרחק מאמצע המסך לצד השני */
+      const cx = (b: { l: number; r: number }) => (b.l + b.r) / 2, cy = (b: { t: number; b: number }) => (b.t + b.b) / 2
+      const dx = g.where && g.logo ? Math.abs(cx(g.where) - (g.vw - cx(g.logo))) : 99, dy = g.where && g.logo ? Math.abs(cy(g.where) - cy(g.logo)) : 99
+      check(dx <= 2 && dy <= 2, `${w}×${h}: "איפה אני?" במקום שהוא תמונת המראה של הלוגו (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
+    }
     check(g.how === 'איך זה עובד?', `${w}×${h}: "איך זה עובד?" בלי חץ (${g.how})`)
     await page.context().close()
   }

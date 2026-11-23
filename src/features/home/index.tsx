@@ -130,7 +130,8 @@ export default function Home() {
         onPortalClick={play}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
-        holoAction={
+        mirrorOf="[data-home-mark] img"
+        mirrorAction={
           <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog">
             <span className="home4-where-mark" aria-hidden="true">?</span>
             <span>איפה אני?</span>
