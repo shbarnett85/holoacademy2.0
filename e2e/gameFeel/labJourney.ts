@@ -266,6 +266,7 @@ async function summaries(browser: Browser, kind: 'new' | 'old'): Promise<void> {
     check(later === 1 && after === 1, `${c.name}: נסיגה, ואז הרקע עומד במקום (${later.toFixed(4)})`)
     /* גם הסיכום על רקע וידאו (ספריית השרתים), והאנימציה של ד"ר הולו מתנגנת מעליו */
     check((await holoClips(page)) === 1 && (await moodOf(page)) === c.clip, `${c.name}: רקע וידאו, והאנימציה של ד"ר הולו מתנגנת (${await moodOf(page)})`)
+    if (c.state === 'open') check((await clipOf(page)) === '/dr-holo/v2/sad.mp4', `${c.name}: סיפור פתוח מציג את האנימציה העצובה (${await clipOf(page)})`)
     check(await page.locator('[data-lab-hologram=on]').count() === 1, `${c.name}: הפורטל הולוגרמה חיה`)
     const gold = await page.locator('[data-lab-stage]').getAttribute('data-portal-gold')
     check((gold !== null) === (c.portal === 'closed'), `${c.name}: צבע הפורטל ${gold !== null ? 'כתום-זהוב' : 'תכלת'}`)
