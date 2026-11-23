@@ -59,7 +59,7 @@ function SectionHead({ icon, title, sub }: { icon: React.ReactNode; title: React
    (אנושיות / המכונה / משטח), והמספר כתוב בתוכו, כך שהצבע לא נושא משמעות לבד. */
 const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text: string; fill: string }[] = [
   { n: '1', icon: 'doc', title: 'מתארים חומר לימוד', text: 'המורה כותב במשפט-שניים מה ללמד — כל מקצוע, כל שכבה.', fill: 'var(--color-human-soft)' },
-  { n: '2', icon: 'crystal', title: 'ד״ר הולו בונה הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.', fill: 'var(--color-machine)' },
+  { n: '2', icon: 'crystal', title: 'ד״ר הולו יוצר הרפתקה', text: 'סצנות, אתגרים ותמונות מותאמים לגיל ולרמת הקריאה — תוך דקות.', fill: 'var(--color-machine)' },
   { n: '3', icon: 'chart', title: 'משחקים — והמורה רואה', text: 'כניסה בקוד כיתה, קושי אישי לכל תלמיד, ותובנות בזמן אמת.', fill: 'var(--color-surface)' },
 ]
 
@@ -161,7 +161,7 @@ export default function Home() {
           <HomeMark />
           <h1 style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clipPath: 'inset(50%)', margin: 0 }}>HoloAcademy</h1>
           <p className="home4-tagline">ממד חדש של למידה!</p>
-          <p className="home4-lead">שיעורים אינטראקטיביים בהדמיה: המורה מתאר את החומר, וד״ר הולו בונה ממנו הרפתקה.</p>
+          <p className="home4-lead">שיעורים אינטראקטיביים בהדמיה: המורה מתאר את החומר, וד״ר הולו יוצר ממנו הרפתקה.</p>
           <div className="home4-doors">
             <button onClick={() => navigate('/staff/login')} className="holo-button home4-door home4-door--teacher" data-home-door="teacher">
               <span className="home4-door-icon" aria-hidden="true">

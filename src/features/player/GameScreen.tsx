@@ -414,7 +414,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
             <div className="text-start" style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--color-human-tint)', border: '2px solid var(--color-human-deep)', color: 'var(--color-ink)', width: '100%' }}>
               <div style={{ fontWeight: 800, fontSize: 14.5, color: 'var(--color-human-deep)' }}>מורים — דמיינו הרפתקה כזו על החומר שלכם 🚀</div>
               <div style={{ fontSize: 12.5, marginTop: 4, lineHeight: 1.6 }}>
-                מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו בונה שיעור שלם — סצנות, אתגרים ותמונות — תוך דקות.
+                מתארים את חומר הלימוד במשפט-שניים, וד״ר הולו יוצר שיעור שלם — סצנות, אתגרים ותמונות — תוך דקות.
               </div>
               <button className="holo-button" style={{ marginTop: 10, fontSize: 13.5 }} onClick={() => { trackFunnel('cta_create'); navigate('/staff/login') }}>
                 צרו שיעור משלכם — חינם ✨
