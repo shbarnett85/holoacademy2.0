@@ -8,7 +8,7 @@
 - **פריסה** רק כשהעיצוב החדש דורש (למשל מקום לצל קשיח). לא מזיזים אלמנטים, לא משנים גדלי גופן, ריפוד או רוחב בלי סיבה.
 - **שמות מחלקות ו-`data-*`**: נשארים בדיוק (בדיקות e2e נשענות עליהם): `.holo-panel`, `.holo-button`, `.holo-stage`, `.holo-text-area`, `.holo-side-panel`, `.holo-answers`, `.holo-text-glow`, `[data-end-screen]`, `[data-gem-counter]`, `[data-lesson-card]` וכו'.
 - **גופנים**: לא נוגעים (`--font-display`, `--font-mono`, Heebo, גדלים).
-- **קבצים אסורים**: קבצי לוגו ו-favicon ב-`public/`, `public/dr-holo/**`, `public/lab/**`, `src/features/player/lab/**`, `src/features/player/DrHoloHologram.tsx`, `src/features/player/drHoloClips.ts`, `src/features/deck/**`, כל `server/**` (כולל הפרומפטים ו-`{DR_HOLO}`).
+- **קבצים אסורים**: שלושת קובצי הלוגו ב-`public/` (`holoacademy-logo.svg`, `holoacademy-mark.svg`, `holoacademy-crystal.svg`: מוצגים כמו שהם, רק הגודל משתנה; קובצי ה-favicon ותמונת השיתוף נוצרים מהם ב-`scripts/genBrandAssets.ts`), `public/dr-holo/**`, `public/lab/**`, `src/features/player/lab/**`, `src/features/player/DrHoloHologram.tsx`, `src/features/player/drHoloClips.ts`, `src/features/deck/**`, כל `server/**` (כולל הפרומפטים ו-`{DR_HOLO}`).
 - אין סיסמאות, טוקנים או מפתחות בקוד.
 
 ## הטוקנים
