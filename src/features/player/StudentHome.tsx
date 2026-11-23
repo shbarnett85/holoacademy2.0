@@ -16,6 +16,7 @@ import { enterGuestStudent, guestProgress, isGuestStudent, leaveGuestStudent } f
 import { Gem } from '../../shared/ui/Gem'
 import { MyJourney } from './Journey'
 import PortalHero from './lab/PortalHero'
+import WhereAmI from '../home/WhereAmI'
 import type { PortalCaptionData } from './lab/PortalCaption'
 import { usePortalDive } from './lab/usePortalDive'
 import { BOOK_TEXT, PORTAL_TEXT, SHELF_TEXT } from './gameFeel/text'
@@ -130,7 +131,8 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
    · הפס העליון: השלום לפי השעה ("בוקר טוב, נועה") והסיכום — כמה גבישים נאספו עד היום, כמה שיעורים הושלמו,
      כמה הופסקו באמצע וכמה חדשים; בקצה: השתקה ויציאה.
    · הפורטל: השיעור האחרון שהתקבל. עליו, כשכבת טקסט הולוגרפית, המצב של השיעור (הושלם / הופסק באמצע / לא הושלם).
-   · מתחת לפורטל, כמו בעמוד הפתיחה: שם השיעור והמקצוע, חצים שמדפדפים בין השיעורים, וכפתור הכניסה (או לחיצה על הפורטל).
+   · מתחת לפורטל, כמו בעמוד הפתיחה: שם השיעור והמקצוע עם חצים שמדפדפים בין השיעורים, ממורכזים מתחת לפורטל על הקו התחתון
+     של החלון; כפתור הכניסה על אותו קו, מעל ד"ר הולו (או לחיצה על הפורטל). מעל הראש של ד"ר הולו: "איפה אני?".
    · חלון הצד: רשימת השיעורים, עם חיפוש, סינון ומיון. בחירה ברשימה מביאה את השיעור אל הפורטל.
    בגלילה למטה: "המסע שלי". הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
 export default function StudentHome() {
@@ -161,6 +163,7 @@ export default function StudentHome() {
   const [curId, setCurId]             = useState<string | null>(null)
   /* הכיוון של ההחלפה האחרונה בפורטל: קדימה או אחורה ברשימה. קובע את כיוון המעבר בפורטל ובשם השיעור */
   const [dir, setDir]                 = useState<1 | -1>(1)
+  const [showWhere, setShowWhere]     = useState(false)
 
   useEffect(() => {
     const prev = localStorage.getItem('holo_last_login')
@@ -313,7 +316,6 @@ export default function StudentHome() {
     document.querySelector('[data-portal-hero]')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   }
   const due = current?.dueAt && !done ? (current.state === 'ended' ? SHELF_TEXT.duePassed(formatIsraelDate(current.dueAt)) : SHELF_TEXT.dueBy(formatIsraelDate(current.dueAt))) : null
-  const bubble = loading ? undefined : !current ? (quests.length ? undefined : PORTAL_TEXT.bubbleEmpty) : done ? PORTAL_TEXT.bubbleDone : reading ? PORTAL_TEXT.bubbleReading : guest ? PORTAL_TEXT.guestBubble : PORTAL_TEXT.bubbleNew
   const playLabel = done ? PORTAL_TEXT.playAgain : reading ? PORTAL_TEXT.playContinue : PORTAL_TEXT.playNew
   /* הטקסט ההולוגרפי שעל הפורטל: המצב, ומתחתיו שורה קטנה (הגבישים / העמוד שבו הקריאה נעצרה / "חדש") */
   const caption: PortalCaptionData | undefined = !current ? undefined
@@ -337,7 +339,13 @@ export default function StudentHome() {
         onPortalClick={current ? play : undefined}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
-        bubble={bubble}
+        holoAction={
+          <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog">
+            <span className="home4-where-mark" aria-hidden="true">?</span>
+            <span>{PORTAL_TEXT.whereAmI}</span>
+          </button>
+        }
+        underProps={{ 'data-layout': 'row' }}
         caption={caption}
         captionKey={current ? `${current.id}:${statusOf(current)}` : undefined}
         captionProps={current ? { 'data-portal-state': statusOf(current) } : undefined}
@@ -381,10 +389,12 @@ export default function StudentHome() {
             </div>
             {n > 1 && <button onClick={() => step(1)} aria-label={PORTAL_TEXT.next} className="holo-button holo-button--sm home4-arrow" data-portal-next><span aria-hidden="true">←</span></button>}
           </div>
-          <button onClick={play} className="holo-button home4-play" data-portal-play>
-            <BrandIcon name="playGem" size={22} />
-            <span>{playLabel}</span>
-          </button>
+          <div className="home4-play-slot">
+            <button onClick={play} className="holo-button home4-play" data-portal-play>
+              <BrandIcon name="playGem" size={22} />
+              <span>{playLabel}</span>
+            </button>
+          </div>
         </> : undefined}
         panelClass="shome-panel"
         panel={<>
@@ -472,6 +482,8 @@ export default function StudentHome() {
           </>}
         </>}
       />
+
+      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} onPlay={current ? () => { setShowWhere(false); play() } : undefined} playLabel={playLabel} />}
 
       {/* ── בגלילה למטה: "המסע שלי", טאב לכל מקצוע ── */}
       {!loading && quests.length > 0 && (

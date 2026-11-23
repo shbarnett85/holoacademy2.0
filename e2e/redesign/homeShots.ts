@@ -250,6 +250,7 @@ async function student(browser: Browser): Promise<void> {
       const list = document.querySelector('[data-lesson-list]')
       return {
         top: r('[data-portal-top]'), panel: r('[data-portal-panel]'), play: r('[data-portal-play]'), under: r('[data-portal-under]'), caption: r('[data-portal-caption]'), stage: r('.home4-stage'),
+        card: r('[data-portal-lesson]'), where: r('[data-home-where]'), holoBox: r('[data-lab-holo]'), bubble: !!document.querySelector('[data-portal-bubble]'),
         portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, rows: [...document.querySelectorAll('[data-result]')].filter((e) => { const b = e.getBoundingClientRect(), l = list!.getBoundingClientRect(); return b.top >= l.top - 1 && b.bottom <= l.bottom + 1 }).length,
         vh: innerHeight, vw: innerWidth, pageScroll: document.body.scrollHeight > document.body.clientHeight + 1 && document.querySelector('[data-portal-hero]')!.getBoundingClientRect().bottom > innerHeight + 1,
       }
@@ -261,6 +262,16 @@ async function student(browser: Browser): Promise<void> {
     check(!!g.caption && !!g.portal && g.caption.l >= g.portal.l && g.caption.r <= g.portal.r && g.caption.t >= g.portal.t && g.caption.b <= g.portal.b, `${w}×${h}: המצב מוקרן בתוך הפורטל`)
     check(!!g.caption && !!g.under && g.caption.b <= g.under.t + 1, `${w}×${h}: הטקסט שעל הפורטל לא מוסתר על ידי השורה שמתחתיו`)
     check(g.rows >= 3, `${w}×${h}: ברשימה נראות לפחות שלוש שורות בלי גלילה (${g.rows})`)
+    {
+      /* אותו סידור כמו בעמוד הפתיחה (לבקשת המשתמש): הכול על הצלעות של מלבן אחד, בלי בועת דיבור */
+      const mid = (b: { l: number; r: number }) => (b.l + b.r) / 2
+      const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.where && !!g.holoBox
+      check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
+      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2 && Math.abs(g.card!.b - g.panel!.b) <= 1, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל, על הקו התחתון של החלון`)
+      check(ok && Math.abs(g.play!.b - g.panel!.b) <= 1 && Math.abs(g.play!.l - g.where!.l) <= 1, `${w}×${h}: כפתור הכניסה על אותו קו, ומתחיל על הצלע השמאלית כמו "איפה אני?"`)
+      check(ok && Math.abs(g.where!.t - g.panel!.t) <= 1 && Math.abs(mid(g.where!) - mid(g.holoBox!)) <= 3 && inside(g.where), `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו, על הקו העליון של החלון`)
+      check(ok && g.play!.r <= g.card!.l && g.where!.r <= g.portal!.l + 1, `${w}×${h}: הכפתורים לא על הפורטל ולא על שם השיעור`)
+    }
     await page.context().close()
   }
 
@@ -278,6 +289,12 @@ async function student(browser: Browser): Promise<void> {
   check((await stat('gems')).includes('4') && (await stat('done')).includes('1 מתוך 6') && (await stat('paused')).includes('1'), `הסיכום: ${await stat('gems')} | ${await stat('done')} | ${await stat('paused')}`)
   check(await page.locator('[data-portal-state=notDone]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('לא הושלם'), 'שיעור שלא הותחל: על הפורטל "לא הושלם"')
   check(await page.locator('.shome-status').count() === 0 && await page.evaluate(() => getComputedStyle(document.querySelector('[data-portal-caption] .pcap')!).backgroundColor === 'rgba(0, 0, 0, 0)'), 'המצב הוא שכבת טקסט, בלי תיבה')
+  /* "איפה אני?": אותו חלון הסבר, והכפתור שבו לפי מצב השיעור */
+  await page.locator('[data-home-where]').click()
+  check(await page.locator('[data-where-am-i] [data-where-part]').count() === 3 && (await page.locator('[data-where-play]').innerText()).trim() === (await page.locator('[data-portal-play]').innerText()).trim(), 'חלון "איפה אני?": שלושה חלקים, והכפתור כמו כפתור הכניסה לשיעור')
+  await shot(page, 'student-where')
+  await page.keyboard.press('Escape')
+  check(await page.locator('[data-where-am-i]').count() === 0, 'Escape סוגר את החלון')
   await page.locator('[data-portal-next]').click(); await page.waitForTimeout(700)
   check(await lessonTitle(page) === titles[1], `החץ מדפדף לשיעור הבא (${await lessonTitle(page)})`)
   check(await page.locator('[data-portal-state=paused]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('עמוד 3'), 'שיעור שהופסק: על הפורטל "הופסק באמצע" והעמוד')

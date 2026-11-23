@@ -1,5 +1,5 @@
 /* "איפה אני?": חלון הסבר קצר למי שהגיע לעמוד הפתיחה ולא מכיר את המקום. שלושה חלקים: הספרייה ההולוגרפית, ד"ר הולו והמערכת.
-   נפתח מהכפתור שמעל ד"ר הולו (במקום בועת הדיבור שהייתה שם). Escape, לחיצה מחוץ לחלון או "סגירה" סוגרים אותו. */
+   נפתח מהכפתור שמעל ד"ר הולו (במקום בועת הדיבור שהייתה שם), בעמוד הפתיחה ובבית של התלמיד. Escape, לחיצה מחוץ לחלון או "סגירה" סוגרים אותו. */
 import { useEffect, useRef, type ReactNode } from 'react'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import BrandLogo from '../../shared/ui/BrandLogo'
@@ -20,7 +20,12 @@ const PARTS: { id: string; icon: ReactNode; title: string; text: string }[] = [
   },
 ]
 
-export default function WhereAmI({ onClose, onPlay }: { onClose: () => void; onPlay: () => void }) {
+export default function WhereAmI({ onClose, onPlay, playLabel = 'שחקו עכשיו' }: {
+  onClose: () => void
+  /* הכניסה לשיעור שבפורטל; בלי ערך (אין שיעור בפורטל) הכפתור לא מוצג */
+  onPlay?: () => void
+  playLabel?: string
+}) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -60,10 +65,12 @@ export default function WhereAmI({ onClose, onPlay }: { onClose: () => void; onP
           ))}
         </ul>
         <div className="where-actions">
-          <button className="holo-button where-play" onClick={onPlay} data-where-play>
-            <BrandIcon name="playGem" size={20} />
-            <span>שחקו עכשיו</span>
-          </button>
+          {onPlay && (
+            <button className="holo-button where-play" onClick={onPlay} data-where-play>
+              <BrandIcon name="playGem" size={20} />
+              <span>{playLabel}</span>
+            </button>
+          )}
           <button ref={closeRef} className="holo-button" onClick={onClose} data-where-close>סגירה</button>
         </div>
       </div>
