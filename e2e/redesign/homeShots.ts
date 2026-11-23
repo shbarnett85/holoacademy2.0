@@ -95,15 +95,17 @@ async function home(browser: Browser): Promise<void> {
       const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.holoBox
       check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל (${ok ? (mid(g.card!) - mid(g.portal!)).toFixed(1) : '?'})`)
       check(ok && Math.abs(g.card!.b - g.panel!.b) <= 1 && g.card!.t >= g.portal!.b - 1, `${w}×${h}: הקו התחתון של שם השיעור בגובה הקו התחתון של החלון (${ok ? (g.card!.b - g.panel!.b).toFixed(1) : '?'}), מתחת לפתח הפורטל`)
-      check(ok && Math.abs(g.play!.b - g.card!.b) <= 1 && Math.abs(mid(g.play!) - mid(g.holoBox!)) <= 3, `${w}×${h}: "שחקו עכשיו" על אותו קו, מעל ד"ר הולו`)
+      check(ok && Math.abs(g.play!.b - g.card!.b) <= 1 && g.play!.l < mid(g.holoBox!) && g.play!.r > mid(g.holoBox!), `${w}×${h}: "שחקו עכשיו" על אותו קו, מעל ד"ר הולו`)
     }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
     {
-      /* מעל הראש של ד"ר הולו (לרוחב), ובגובה של הלוגו */
-      const cx = (b: { l: number; r: number }) => (b.l + b.r) / 2, cy = (b: { t: number; b: number }) => (b.t + b.b) / 2
-      const dx = g.where && g.holoBox ? Math.abs(cx(g.where) - cx(g.holoBox)) : 99, dy = g.where && g.logo ? Math.abs(cy(g.where) - cy(g.logo)) : 99
-      check(dx <= 3 && dy <= 2, `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו ובגובה של הלוגו (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
+      /* המסגרת: כל הממשק על הצלעות של מלבן אחד. למעלה, למטה ומימין: הקצוות של החלון; משמאל: הקצה השמאלי של "איפה אני?" */
+      const cx = (b: { l: number; r: number }) => (b.l + b.r) / 2
+      const dx = g.where && g.holoBox ? Math.abs(cx(g.where) - cx(g.holoBox)) : 99, dy = g.where && g.panel ? Math.abs(g.where.t - g.panel.t) : 99
+      check(dx <= 3 && dy <= 1, `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו, והקצה העליון שלו על הקו העליון של החלון (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
+      const dl = g.where && g.play ? Math.abs(g.play.l - g.where.l) : 99
+      check(dl <= 1, `${w}×${h}: "שחקו עכשיו" מתחיל על הצלע השמאלית של המסגרת, כמו "איפה אני?" (סטייה ${dl.toFixed(1)} פיקסלים)`)
       check(!!g.where && !!g.holoBox && g.where.b <= g.holoBox.t + 40, `${w}×${h}: הכפתור מעל הדמות ולא עליה`)
     }
     check(g.how === 'איך זה עובד?', `${w}×${h}: "איך זה עובד?" בלי חץ (${g.how})`)
