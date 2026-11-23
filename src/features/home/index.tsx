@@ -4,6 +4,7 @@ import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import BrandLogo from '../../shared/ui/BrandLogo'
+import WhereAmI from './WhereAmI'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 import { enterGuestStudent } from '../../shared/lib/guestStudent'
@@ -75,6 +76,7 @@ export default function Home() {
   const { leaving, dive, onDiveEnd } = usePortalDive()
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
+  const [showWhere, setShowWhere] = useState(false)
   const [shake, setShake] = useState(false)
   const [showcase, setShowcase] = useState<ShowcaseQuest[]>(showcaseMemo ?? [])
   useEffect(() => {
@@ -91,10 +93,11 @@ export default function Home() {
   const n = showcase.length
   const featured: ShowcaseQuest | undefined = n ? showcase[cur % n] : undefined
   useEffect(() => {
-    if (n < 2 || paused || leaving || reduceMotion) return
+    /* גם כשחלון "איפה אני?" פתוח: השיעור שבפורטל לא מתחלף מאחוריו */
+    if (n < 2 || paused || showWhere || leaving || reduceMotion) return
     const t = window.setInterval(() => setCur((c) => (c + 1) % n), PORTAL_ROTATE_MS)
     return () => window.clearInterval(t)
-  }, [n, paused, leaving])
+  }, [n, paused, showWhere, leaving])
   const step = (dir: 1 | -1) => setCur((c) => (c + dir + n) % n)
 
   function play() {
@@ -127,14 +130,20 @@ export default function Home() {
         onPortalClick={play}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
-        bubble="ברוכים הבאים לספרייה ההולוגרפית! הפורטל פתוח."
+        holoAction={
+          <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog">
+            <span className="home4-where-mark" aria-hidden="true">?</span>
+            <span>איפה אני?</span>
+          </button>
+        }
         underProps={{
+          'data-layout': 'row',
           onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false),
           onFocusCapture: () => setPaused(true), onBlurCapture: (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) },
         }}
         under={<>
           {featured && (
-            <div className="home4-now-row">
+            <div className="home4-now-row" data-home-lesson>
               {n > 1 && <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">→</span></button>}
               <div className="home4-now-card" aria-live="polite">
                 <span className="home4-now-title">{featured.title}</span>
@@ -181,7 +190,7 @@ export default function Home() {
           </div>
           <button className="holo-link" onClick={() => document.getElementById('home-how')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
             style={{ alignSelf: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
-            איך זה עובד? ↓
+            איך זה עובד?
           </button>
         </>}
       />
@@ -232,6 +241,8 @@ export default function Home() {
           </div>
         </footer>
       </div>
+
+      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} onPlay={() => { setShowWhere(false); play() }} />}
 
       {/* מודאל קוד כיתה */}
       {showCodeModal && (

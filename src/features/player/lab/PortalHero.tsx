@@ -4,6 +4,7 @@
    · panel   — החלון הלבן הצף מימין, ברווח שבין טבעת הפורטל לקצה המסך (במסך צר: מתחת לבמה)
    · under   — מתחת לפורטל: איזה שיעור מוצג בו, חצים להחלפה וכפתור הכניסה לשיעור
    · bubble  — בועת דיבור מעל הראש של ד"ר הולו (בקואורדינטות של תמונת הספרייה, ולכן נשארת במקום בכל גודל מסך)
+   · holoAction — כפתור מעל הראש של ד"ר הולו, באותו מקום של הבועה (בעמוד הפתיחה: "איפה אני?"). אחד מהשניים, לא שניהם
    · caption — שכבת טקסט הולוגרפית על הפורטל עצמו (אצל התלמיד: מצב השיעור), גם היא בקואורדינטות של תמונת הספרייה
    הבמה היא position: fixed, ולכן .home4-stage עם transform: היא ממלאת רק את האזור שלה, והעמוד נגלל הלאה.
    הסגנון: index.css (.home4-*); הטקסט ההולוגרפי: PortalCaption. */
@@ -23,7 +24,7 @@ const CAPTION_Y = PORTAL.y + PORTAL.height * 0.27
 const CAPTION_FONT = 31
 const CAPTION_FONT_MIN = 17
 
-export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leaving, onDiveEnd, bubble, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
+export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leaving, onDiveEnd, bubble, holoAction, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
   /* התמונה שבפורטל; בלי ערך הפורטל ריק */
   portalSrc?: string
   /* השם של הלחיצה על הפורטל, לקוראי מסך ולמקלדת */
@@ -32,12 +33,13 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
   leaving?: 'dive'
   onDiveEnd?: () => void
   bubble?: ReactNode
+  holoAction?: ReactNode
   caption?: PortalCaptionData
   /* כשהמפתח מתחלף (שיעור אחר בפורטל) הטקסט נדלק מחדש */
   captionKey?: string
   captionProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined>
   under?: ReactNode
-  underProps?: HTMLAttributes<HTMLDivElement>
+  underProps?: HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined>
   panel: ReactNode
   panelClass?: string
   top?: ReactNode
@@ -70,6 +72,7 @@ export default function PortalHero({ portalSrc, portalLabel, onPortalClick, leav
           {/* ד"ר הולו ממתין ליד הפורטל ולא מדבר: לופ העמידה המחויך (לבקשת המשתמש), ולא "ברוכים הבאים" */}
           <LabStage state="opening" portalSrc={portalSrc} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} portalLabel={portalLabel} />
           {bubble && bubbleAt && <div className="home4-bubble home4-fade" data-portal-bubble style={bubbleAt}>{bubble}</div>}
+          {holoAction && bubbleAt && <div className="home4-holo-action home4-fade" data-portal-holo-action style={bubbleAt}>{holoAction}</div>}
           {caption && captionAt && (
             <div className="home4-caption home4-fade" aria-hidden="true" data-portal-caption {...captionProps} style={captionAt}>
               <PortalCaption key={captionKey} {...caption} />

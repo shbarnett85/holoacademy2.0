@@ -77,7 +77,7 @@ async function home(browser: Browser): Promise<void> {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const vids = [...document.querySelectorAll('video')].map((v) => ({ playing: !v.paused && v.readyState >= 2, src: v.currentSrc.split('/').pop() }))
-      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
+      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), where: r('[data-home-where]'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
     check(inside(g.panel), `${w}×${h}: חלון הכניסות כולו במסך הראשון`)
@@ -87,7 +87,40 @@ async function home(browser: Browser): Promise<void> {
     check(g.vids.length >= 2 && g.vids.every((v) => v.playing), `${w}×${h}: הרקע וד"ר הולו מתנגנים (${g.vids.map((v) => v.src).join(', ')})`)
     check(g.vids.some((v) => v.src === 'idle.mp4') && !g.vids.some((v) => v.src === 'welcome.mp4'), `${w}×${h}: ד"ר הולו בלופ העמידה המחויך (idle), ולא ב"ברוכים הבאים"`)
     check(g.canvas === 1, `${w}×${h}: הפורטל מציג הולוגרמה חיה`)
+    /* "שחקו עכשיו" באותה שורה, משמאל לשם השיעור ולחצים */
+    check(!!g.play && !!g.lesson && g.play.r <= g.lesson.l + 1 && g.play.t < g.lesson.b && g.play.b > g.lesson.t, `${w}×${h}: "שחקו עכשיו" משמאל לשם השיעור, באותה שורה`)
+    check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
+    check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
+    check(g.how === 'איך זה עובד?', `${w}×${h}: "איך זה עובד?" בלי חץ (${g.how})`)
     await page.context().close()
+  }
+
+  /* "איפה אני?": חלון הסבר על הספרייה, על ד"ר הולו ועל המערכת */
+  for (const [w, h] of [[1366, 768], [1366, 620], [390, 800]] as const) {
+    const wp = await open(browser, w, h)
+    await wp.waitForSelector('[data-home-where]'); await wp.waitForTimeout(2600)
+    if (w === 390) check(await wp.evaluate(() => { const b = document.querySelector('[data-home-where]')!.getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 }), `${w}×${h}: הכפתור "איפה אני?" כולו בתוך המסך`)
+    await wp.locator('[data-home-where]').click(); await wp.waitForSelector('[data-where-am-i]'); await wp.waitForTimeout(400)
+    await shot(wp, `home-where-${w}x${h}`)
+    const d = await wp.evaluate(() => {
+      const e = document.querySelector<HTMLElement>('[data-where-am-i]')!; const b = e.getBoundingClientRect()
+      return { fits: b.top >= 0 && b.bottom <= innerHeight + 0.5 && b.left >= 0 && b.right <= innerWidth + 0.5, parts: [...e.querySelectorAll('[data-where-part]')].map((x) => (x as HTMLElement).dataset.wherePart), text: e.innerText, focus: document.activeElement === e.querySelector('[data-where-close]') }
+    })
+    check(d.fits, `${w}×${h}: חלון "איפה אני?" כולו במסך`)
+    check(d.parts.join(',') === 'library,holo,system' && d.text.includes('הספרייה ההולוגרפית') && d.text.includes('ד״ר הולו') && d.text.includes('HoloAcademy'), `${w}×${h}: שלושה חלקים: הספרייה, ד"ר הולו והמערכת`)
+    if (w === 1366 && h === 768) {
+      check(d.focus, 'החלון נפתח עם הפוקוס על "סגירה"')
+      await wp.keyboard.press('Escape'); await wp.waitForTimeout(300)
+      check(await wp.locator('[data-where-am-i]').count() === 0, 'Escape סוגר את החלון')
+      await wp.locator('[data-home-where]').click(); await wp.waitForSelector('[data-where-am-i]')
+      await wp.locator('[data-where-close]').click(); await wp.waitForTimeout(300)
+      check(await wp.locator('[data-where-am-i]').count() === 0, '"סגירה" סוגר את החלון')
+      await wp.locator('[data-home-where]').click(); await wp.waitForSelector('[data-where-am-i]')
+      await wp.locator('[data-where-play]').click()
+      await wp.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
+      check(/\/play\//.test(wp.url()), '"שחקו עכשיו" בחלון: צלילה לפורטל ואז השיעור נפתח')
+    }
+    await wp.context().close()
   }
 
   /* גלילה למטה: המדף והשלבים */
