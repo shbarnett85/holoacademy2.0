@@ -8,7 +8,7 @@ const c = (fg: string, bg: string): number => contrastRatio(T[fg], T[bg])
 describe('קובץ הטוקנים — ערכי הפלטה כפי שהוגדרו', () => {
   it.each([
     ['--color-machine-bg', '#e6defa'], ['--color-machine', '#b9a2e8'], ['--color-machine-deep', '#6a3fb5'], ['--color-machine-tint', '#f1ebfc'],
-    ['--color-crystal-empty', '#9a80d4'], ['--color-holo', '#3ab0f2'], ['--color-action', '#b3e4ff'], ['--color-action-pressed', '#8fd0f7'],
+    ['--color-crystal-empty', '#9a80d4'], ['--color-holo', '#3ab0f2'], ['--color-holo-deep', '#052a55'], ['--color-action', '#b3e4ff'], ['--color-action-pressed', '#8fd0f7'],
     ['--color-human', '#ff7a45'], ['--color-human-soft', '#ffd2ba'], ['--color-human-tint', '#fff1e8'], ['--color-human-deep', '#8a3a16'],
     ['--color-ink', '#1e1830'], ['--color-surface', '#ffffff'], ['--color-muted', '#4f4866'], ['--color-wrong', '#d7263d'],
     ['--subject-math', '#e9b949'], ['--subject-arabic', '#1f6f6a'], ['--subject-french', '#2a3f7a'], ['--subject-other', '#9a9a9a'],
@@ -18,6 +18,23 @@ describe('קובץ הטוקנים — ערכי הפלטה כפי שהוגדרו'
 
   it('אין שחור טהור בפלטה', () => {
     expect(Object.values(T)).not.toContain('#000000')
+  })
+})
+
+/* --color-holo-deep הוא הכחול הכהה של קווי הלוגו. בקוד הוא משמש רק לקו המתאר של הקריסטל:
+   לא לטקסט, לא לכפתורים ולא למסגרות של הממשק (אלה בדיו). הלוגו עצמו הוא קובץ, ולא עובר דרך הטוקן */
+describe('holo-deep רק בקו המתאר של הקריסטל', () => {
+  const RAW = import.meta.glob(['/src/**/*.ts', '/src/**/*.tsx', '/src/**/*.css'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+  const ALLOWED = new Set(['/src/styles/tokens.css', '/src/styles/tokens.ts', '/src/styles/tokens.test.ts', '/src/shared/ui/Gem.tsx'])
+  it('הטוקן לא מופיע מחוץ לקובץ הטוקנים ולרכיב הקריסטל', () => {
+    expect(Object.keys(RAW).length).toBeGreaterThan(150)
+    const users = Object.entries(RAW).filter(([, text]) => text.includes('color-holo-deep')).map(([f]) => f).filter((f) => !ALLOWED.has(f))
+    expect(users).toEqual([])
+  })
+  it('ברכיב הקריסטל הוא משמש רק כצבע קו (stroke)', () => {
+    /* שורות קוד בלבד: בלי הערות */
+    const lines = (RAW['/src/shared/ui/Gem.tsx'] ?? '').split(/\r?\n/).filter((l) => l.includes('color-holo-deep') && !/^\s*(\/\*|\*|\/\/|·)/.test(l))
+    for (const l of lines) expect(l, l).toMatch(/stroke/i)
   })
 })
 

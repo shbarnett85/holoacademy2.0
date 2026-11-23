@@ -6,7 +6,7 @@
    · `tokenRgb('--color-holo')`   → [r, g, b] בטווח 0 עד 255. */
 export type ColorToken =
   | 'color-machine-bg' | 'color-machine' | 'color-machine-deep' | 'color-machine-tint' | 'color-crystal-empty'
-  | 'color-holo' | 'color-action' | 'color-action-pressed'
+  | 'color-holo' | 'color-holo-deep' | 'color-action' | 'color-action-pressed'
   | 'color-human' | 'color-human-soft' | 'color-human-tint' | 'color-human-deep'
   | 'color-ink' | 'color-surface' | 'color-muted' | 'color-correct' | 'color-wrong'
   | 'color-crystal-pulse' | 'color-crystal-full-top' | 'color-crystal-full-mid' | 'color-crystal-full-bottom'
