@@ -20,12 +20,8 @@ const PARTS: { id: string; icon: ReactNode; title: string; text: string }[] = [
   },
 ]
 
-export default function WhereAmI({ onClose, onPlay, playLabel = 'שחקו עכשיו' }: {
-  onClose: () => void
-  /* הכניסה לשיעור שבפורטל; בלי ערך (אין שיעור בפורטל) הכפתור לא מוצג */
-  onPlay?: () => void
-  playLabel?: string
-}) {
+/* בחלון רק "סגירה": הכפתור שנכנס לשיעור הוסר לבקשת המשתמש (נכנסים בקונסולה או בלחיצה על הפורטל) */
+export default function WhereAmI({ onClose }: { onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -65,12 +61,6 @@ export default function WhereAmI({ onClose, onPlay, playLabel = 'שחקו עכש
           ))}
         </ul>
         <div className="where-actions">
-          {onPlay && (
-            <button className="holo-button where-play" onClick={onPlay} data-where-play>
-              <BrandIcon name="playGem" size={20} />
-              <span>{playLabel}</span>
-            </button>
-          )}
           <button ref={closeRef} className="holo-button" onClick={onClose} data-where-close>סגירה</button>
         </div>
       </div>

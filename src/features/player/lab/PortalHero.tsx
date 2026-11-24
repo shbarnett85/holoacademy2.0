@@ -75,6 +75,10 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
   const [actionAt, setActionAt] = useState<{ left: number; top: number } | null>(null)
   const [captionAt, setCaptionAt] = useState<CSSProperties | null>(null)
   const [focalY, setFocalY] = useState(OPENING_STAGE.focal.y)
+  /* הפורטל והכפתור שנכנס אליו ("שגר אותי!" בקונסולה) נדלקים יחד (לבקשת המשתמש): העכבר או הפוקוס על אחד מדליק גם את השני */
+  const [portalHot, setPortalHot] = useState(false)
+  const [launchHot, setLaunchHot] = useState(false)
+  const onLaunch = (e: { target: EventTarget }, over: boolean) => { if ((e.target as Element).closest?.('[data-portal-launch]')) setLaunchHot(over) }
   const hasUnder = !!under
   useLayoutEffect(() => {
     const el = stageRef.current
@@ -135,16 +139,16 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
     <section className="home4-hero" data-portal-hero data-leaving={leaving}>
       {top && <header className="home4-top" data-portal-top>{top}</header>}
       <div className="home4-body">
-        <div ref={stageRef} className="home4-stage">
+        <div ref={stageRef} className="home4-stage" data-portal-hot={portalHot ? '' : undefined}>
           {/* ד"ר הולו ממתין ליד הפורטל ולא מדבר: לופ העמידה המחויך (לבקשת המשתמש), ולא "ברוכים הבאים" */}
-          <LabStage state="opening" portalSrc={portalSrc} portalDir={portalDir} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} onPortalHover={onPortalHover} portalLabel={portalLabel} focalY={focalY} />
+          <LabStage state="opening" portalSrc={portalSrc} portalDir={portalDir} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} onPortalHover={(over) => { setPortalHot(over); onPortalHover?.(over) }} portalLit={launchHot} portalLabel={portalLabel} focalY={focalY} />
           {holoAction && actionAt && <div className="home4-holo-action home4-fade" data-portal-holo-action style={actionAt}>{holoAction}</div>}
           {caption && captionAt && (
             <div className="home4-caption home4-fade" aria-hidden="true" data-portal-caption {...captionProps} style={captionAt}>
               <PortalCaption key={captionKey} {...caption} />
             </div>
           )}
-          {under && <div ref={underRef} className="home4-now home4-fade" data-portal-under {...underProps}>{under}</div>}
+          {under && <div ref={underRef} className="home4-now home4-fade" data-portal-under {...underProps} onMouseOver={(e) => onLaunch(e, true)} onMouseOut={(e) => onLaunch(e, false)} onFocus={(e) => onLaunch(e, true)} onBlur={(e) => onLaunch(e, false)}>{under}</div>}
         </div>
         <div ref={panelRef} className={`home4-panel home4-fade${panelClass ? ` ${panelClass}` : ''}`} data-portal-panel style={panelStudent}>{panel}</div>
       </div>

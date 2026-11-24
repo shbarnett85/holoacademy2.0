@@ -59,7 +59,7 @@ const CSS = `
 .lab-portal .lab-pglow > .lab-portal__light { inset: 0; }
 /* אזור הלחיצה בצורת הפתח: מחוץ למסכה הלחיצה עוברת הלאה. הרים נדלק כסימן שאפשר ללחוץ */
 .lab-portal-hit { position: absolute; padding: 0; border: 0; background: transparent; cursor: pointer; pointer-events: auto; outline: none; }
-.lab-portal-hit:hover + .lab-rim .lab-rim__base, .lab-portal-hit:focus-visible + .lab-rim .lab-rim__base { opacity: 1; stroke-width: 12; }
+.lab-portal-hit:hover + .lab-rim .lab-rim__base, .lab-portal-hit:focus-visible + .lab-rim .lab-rim__base, .lab-portal-hit[data-lit] + .lab-rim .lab-rim__base { opacity: 1; stroke-width: 12; }
 .lab-rim { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .lab-rim polygon { fill: none; stroke-linejoin: round; }
 .lab-rim__base { stroke: #5AB8FF; stroke-width: 7; opacity: .75; filter: drop-shadow(0 0 12px #5AB8FF); }
@@ -71,7 +71,7 @@ const CSS = `
 .lab-stage[data-lab-tone=light] .lab-glow, .lab-stage[data-lab-tone=light] .lab-rim__swirl { display: none; }
 .lab-stage[data-lab-tone=light] .lab-portal { background: transparent; }
 .lab-stage[data-lab-tone=light] .lab-rim__base { stroke: var(--color-surface); stroke-width: 5; opacity: 0; filter: none; }
-.lab-stage[data-lab-tone=light] .lab-portal-hit:hover + .lab-rim .lab-rim__base, .lab-stage[data-lab-tone=light] .lab-portal-hit:focus-visible + .lab-rim .lab-rim__base { opacity: 1; stroke-width: 7; }
+.lab-stage[data-lab-tone=light] .lab-portal-hit:hover + .lab-rim .lab-rim__base, .lab-stage[data-lab-tone=light] .lab-portal-hit:focus-visible + .lab-rim .lab-rim__base, .lab-stage[data-lab-tone=light] .lab-portal-hit[data-lit] + .lab-rim .lab-rim__base { opacity: 1; stroke-width: 7; }
 /* פורטל לא יציב: הבהוב קל, לא יותר מפעמיים בשנייה. על כל שכבה בנפרד ולא על העוטף, כי שקיפות על העוטף הייתה מבודדת את המיזוג (screen) מהרקע */
 .lab-stage[data-portal=open] :is(.lab-portal, .lab-hologram, .lab-pglow--cyan > *) { animation: lab-portal-unstable 5.5s steps(1, end) infinite; }
 @keyframes lab-portal-unstable { 0%, 100% { opacity: 1; } 18% { opacity: .84; } 22% { opacity: 1; } 47% { opacity: .9; } 53% { opacity: .78; } 58% { opacity: 1; } 81% { opacity: .88; } 86% { opacity: 1; } }
@@ -160,7 +160,7 @@ function PortalImage({ src }: { src: string }) {
   )
 }
 
-export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, onPortalHover, portalLabel, focalY }: {
+export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, onPortalHover, portalLit, portalLabel, focalY }: {
   state: 'opening' | 'closed' | 'open'
   portalSrc?: string
   /* כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה (כיוון קו האור של המעבר) */
@@ -176,6 +176,8 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
   onPortalClick?: () => void
   /* העכבר או הפוקוס על הפורטל (עמוד הפתיחה: השיעור שבפורטל לא מתחלף מתחת ליד) */
   onPortalHover?: (over: boolean) => void
+  /* הטבעת של הפורטל דולקת כאילו העכבר עליו (כשהעכבר על הכפתור שנכנס אליו, בקונסולה שלפניו) */
+  portalLit?: boolean
   /* השם של הפעולה לקוראי מסך ולמקלדת */
   portalLabel?: string
   /* מוקד אנכי אחר לחיתוך התמונה (PortalHero): אותה קומפוזיציה, והעולם כולו זז למעלה או למטה */
@@ -283,7 +285,7 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
               <PortalHologram src={portalSrc} swapDir={portalDir} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
             )}
             {onPortalClick && armed && !leaving && (
-              <button type="button" className="lab-portal-hit" data-lab-portal-hit aria-label={portalLabel} onClick={onPortalClick} onMouseEnter={() => onPortalHover?.(true)} onMouseLeave={() => onPortalHover?.(false)} onFocus={() => onPortalHover?.(true)} onBlur={() => onPortalHover?.(false)} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
+              <button type="button" className="lab-portal-hit" data-lab-portal-hit data-lit={portalLit ? '' : undefined} aria-label={portalLabel} onClick={onPortalClick} onMouseEnter={() => onPortalHover?.(true)} onMouseLeave={() => onPortalHover?.(false)} onFocus={() => onPortalHover?.(true)} onBlur={() => onPortalHover?.(false)} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
             )}
             <svg className="lab-rim" viewBox={`0 0 ${comp.width} ${comp.height}`} aria-hidden="true">
               <polygon className="lab-rim__base" points={portalPoints(comp)} />

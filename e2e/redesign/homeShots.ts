@@ -225,9 +225,7 @@ async function home(browser: Browser): Promise<void> {
       await wp.locator('[data-where-close]').click(); await wp.waitForTimeout(300)
       check(await wp.locator('[data-where-am-i]').count() === 0, '"סגירה" סוגר את החלון')
       await wp.locator('[data-home-where]').click(); await wp.waitForSelector('[data-where-am-i]')
-      await wp.locator('[data-where-play]').click()
-      await wp.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
-      check(/\/play\//.test(wp.url()), '"שחקו עכשיו" בחלון: צלילה לפורטל ואז השיעור נפתח')
+      check(await wp.locator('[data-where-am-i] button').count() === 1, 'בחלון רק הכפתור "סגירה" (בלי כפתור כניסה לשיעור)')
     }
     await wp.context().close()
   }
@@ -383,9 +381,9 @@ async function student(browser: Browser): Promise<void> {
   check((await stat('gems')).includes('4') && (await stat('done')).includes('1 מתוך 6') && (await stat('paused')).includes('1'), `הסיכום: ${await stat('gems')} | ${await stat('done')} | ${await stat('paused')}`)
   check(await page.locator('[data-portal-state=notDone]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('לא הושלם'), 'שיעור שלא הותחל: על הפורטל "לא הושלם"')
   check(await page.locator('.shome-status').count() === 0 && await page.evaluate(() => getComputedStyle(document.querySelector('[data-portal-caption] .pcap')!).backgroundColor === 'rgba(0, 0, 0, 0)'), 'המצב הוא שכבת טקסט, בלי תיבה')
-  /* "איפה אני?": אותו חלון הסבר, והכפתור שבו לפי מצב השיעור */
+  /* "איפה אני?": אותו חלון הסבר */
   await page.locator('[data-home-where]').click()
-  check(await page.locator('[data-where-am-i] [data-where-part]').count() === 3 && (await page.locator('[data-lab-portal-hit]').getAttribute('aria-label') ?? '').startsWith((await page.locator('[data-where-play]').innerText()).trim() + ':'), 'חלון "איפה אני?": שלושה חלקים, והכפתור שבו לפי מצב השיעור, כמו השם של הלחיצה על הפורטל')
+  check(await page.locator('[data-where-am-i] [data-where-part]').count() === 3 && await page.locator('[data-where-am-i] button').count() === 1, 'חלון "איפה אני?": שלושה חלקים, ורק הכפתור "סגירה"')
   await shot(page, 'student-where')
   await page.keyboard.press('Escape')
   check(await page.locator('[data-where-am-i]').count() === 0, 'Escape סוגר את החלון')

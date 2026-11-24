@@ -18,8 +18,8 @@ export const CONSOLE_ASPECT = 1.87
 export const CONSOLE_DECK_PART = 0.57
 const AT = {
   field: { left: 24.59, top: 23.17, width: 50.82, height: 17.61 },
-  left: { left: 9.61, top: 22.81, width: 12.45, height: 16.31 },
-  right: { left: 77.81, top: 22.81, width: 13.46, height: 16.43 },
+  left: { left: 12.2, top: 23.9, width: 9.5, height: 14.8 },
+  right: { left: 78.0, top: 23.9, width: 9.7, height: 14.8 },
   launch: { left: 36.03, top: 5.44, width: 27.56, height: 13.36 },
 }
 const box = (b: { left: number; top: number; width: number; height: number }) => `left: ${b.left}%; top: ${b.top}%; width: ${b.width}%; height: ${b.height}%;`
@@ -37,15 +37,17 @@ const CSS = `
 .pcon__launch-text { font-size: 4.1cqw; font-weight: 900; line-height: 1; letter-spacing: .02em; white-space: nowrap; color: rgb(255 255 255);
   text-shadow: 0 0 .12em rgb(255 255 255 / .9), 0 0 .38em rgb(255 110 220 / .95), 0 0 .9em rgb(255 110 220 / .6); }
 .pcon__launch::after, .pcon__key::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0; transition: opacity .15s ease; pointer-events: none; }
-.pcon__launch::after { box-shadow: 0 0 2.2cqw .5cqw rgb(255 150 60 / .75), inset 0 0 1.8cqw rgb(255 170 90 / .5); }
+.pcon__launch::after { box-shadow: 0 0 1.1cqw .1cqw rgb(255 150 60 / .8), inset 0 0 1.8cqw rgb(255 170 90 / .55); }
 
 /* המקשים שבצדדים */
 .pcon__key { border-radius: 22%; }
 .pcon__key--prev { ${box(AT.right)} }
 .pcon__key--next { ${box(AT.left)} }
-.pcon__key::after { box-shadow: 0 0 1.8cqw .4cqw rgb(70 180 255 / .8), inset 0 0 1.6cqw rgb(120 205 255 / .55); }
+.pcon__key::after { box-shadow: 0 0 .9cqw .1cqw rgb(70 180 255 / .85), inset 0 0 1.6cqw rgb(120 205 255 / .55); }
 @media (hover: hover) { .pcon__launch:hover::after, .pcon__key:hover::after { opacity: 1; } }
 .pcon__launch:focus-visible::after, .pcon__key:focus-visible::after { opacity: 1; }
+/* העכבר על הפורטל: גם הכפתור שנכנס אליו נדלק (PortalHero מסמן את הבמה) */
+[data-portal-hot] .pcon__launch::after { opacity: 1; }
 .pcon__launch:active, .pcon__key:active { filter: brightness(1.25); }
 .pcon__launch:active .pcon__launch-text { transform: translateY(.25cqw); }
 

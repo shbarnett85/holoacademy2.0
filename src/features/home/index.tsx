@@ -217,7 +217,7 @@ export default function Home() {
         </ol>
       </section>
 
-      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} onPlay={() => { setShowWhere(false); play() }} />}
+      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} />}
 
       {/* מודאל קוד כיתה */}
       {showCodeModal && (

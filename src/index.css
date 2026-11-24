@@ -199,7 +199,6 @@
 .where-part-text { margin: 0; font-size: 16px; line-height: 1.5; }
 .where-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 12px; margin-top: 4px; }
 .where-actions .holo-button { min-height: 46px; padding: 8px 22px; font-family: var(--font-display); font-size: 17px; font-weight: 800; }
-.where-play.holo-button { display: inline-flex; align-items: center; gap: 8px; background: var(--color-human-soft); }
 
 /* הקונסולה שלפני הפורטל (player/lab/PortalConsole: שם השיעור, מקשי הדפדוף והכפתור "שגר אותי!"), ממורכזת על הפורטל.
    נקודות הייחוס (--portal-x, --under-top, --stage-h) נמדדות ב-PortalHero, בקואורדינטות של תמונת הספרייה: הקצה העליון של

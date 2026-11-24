@@ -470,7 +470,7 @@ export default function StudentHome() {
         </>}
       />
 
-      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} onPlay={current ? () => { setShowWhere(false); play() } : undefined} playLabel={playLabel} />}
+      {showWhere && <WhereAmI onClose={() => setShowWhere(false)} />}
 
       {/* ── בגלילה למטה: "המסע שלי", טאב לכל מקצוע ── */}
       {!loading && quests.length > 0 && (
