@@ -30,10 +30,13 @@ describe('מחרוזות ממשק התלמיד — לשון רבים', () => {
     expect(FILES.length).toBeGreaterThan(15)
     expect(FILES.reduce((n, f) => n + hebrewStrings(readFileSync(f, 'utf8')).length, 0)).toBeGreaterThan(120)
   })
+  /* חריג אחד, בדיוק המחרוזת הזאת: שם הכפתור שהמשתמש ביקש מעל ד"ר הולו. "אני" בלי פועל או תואר, ולכן אין בו מין */
+  const APPROVED = new Set(['איפה אני?'])
   it('אפס הפרות', () => {
     const bad: string[] = []
     for (const f of FILES) {
       for (const s of hebrewStrings(readFileSync(f, 'utf8'))) {
+        if (APPROVED.has(s)) continue
         for (const v of scanStudentText(s, true)) bad.push(`${path.relative(SRC, f)}: "${s.slice(0, 60)}" → ${v.kind} (${v.match})`)
       }
     }
@@ -43,6 +46,8 @@ describe('מחרוזות ממשק התלמיד — לשון רבים', () => {
     for (const old of ['אני מוותר/ת 🏳️', 'בחר/י את השם שלך', 'פתרת את האתגר', 'מה הקוד הסודי שלך?', 'השער נעול! חסר לך: מפתח']) {
       expect(scanStudentText(old, true).length, old).toBeGreaterThan(0)
     }
+    /* החריג הוא למחרוזת המדויקת בלבד: משפט אחר בגוף ראשון עדיין נתפס */
+    expect(scanStudentText('איפה אני נמצא?', true).length).toBeGreaterThan(0)
   })
 })
 
