@@ -340,9 +340,8 @@ export default function StudentHome() {
         leaving={leaving}
         onDiveEnd={onDiveEnd}
         holoAction={
-          <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog">
-            <span className="home4-where-mark" aria-hidden="true">?</span>
-            <span>{PORTAL_TEXT.whereAmI}</span>
+          <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog" aria-label={PORTAL_TEXT.whereAmI} title={PORTAL_TEXT.whereAmI}>
+            <span aria-hidden="true">?</span>
           </button>
         }
         caption={caption}
