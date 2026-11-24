@@ -29,6 +29,8 @@ interface Props {
   title: string
   subtitle?: ReactNode
   scenes: Scene[]
+  /* תמונת העטיפה של השיעור, כפי שנשמרה; מה שנוצר במסך הזה מוצג מיד (state מקומי) */
+  cover?: { imagePrompt?: string; imageUrl?: string }
   endingGood?: EndingScene
   endingBad?: EndingScene
   /* אזהרות מבנה והצגת ה-Hub — קיימים רק מיד אחרי יצירה */
@@ -93,6 +95,34 @@ const labelStyle: React.CSSProperties = { display: 'block', marginBottom: '0.4re
 const closeBtn: React.CSSProperties = { width: 36, height: 36, padding: 0, display: 'grid', placeItems: 'center', flexShrink: 0, fontSize: '1rem' }
 
 /* כרטיס מסך סיום — הסיפור נסגר / הסיפור נשאר פתוח */
+/* המזהה של תמונת העטיפה בנתיבי התמונות של השרת (היא אינה סצנה) */
+const COVER_ID = '__cover__'
+
+/* תמונת העטיפה של השיעור: התמונה שמייצגת אותו מחוץ לשיעור (הפורטל של מסך בחירת השיעורים, כרטיס השיעור ברשימות).
+   נוצרת יחד עם שאר התמונות; כאן רואים אותה ואפשר ליצור אותה מחדש */
+function CoverCard({ url, busy, disabled, onCreate }: { url?: string; busy: boolean; disabled: boolean; onCreate: () => void }) {
+  return (
+    <div data-cover-card style={{ ...panelStaff, width: '100%', maxWidth: 920, margin: '0 auto', display: 'flex', gap: 18, padding: '16px 18px', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ width: 240, maxWidth: '100%', aspectRatio: '16 / 9', flexShrink: 0, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--color-ink)', background: 'var(--color-machine-tint)', display: 'grid', placeItems: 'center' }}>
+        {url
+          ? <img src={url} alt="תמונת העטיפה של השיעור" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: busy ? 0.45 : 1 }} />
+          : <span style={{ fontSize: 14, color: 'var(--color-muted)', padding: 10, textAlign: 'center' }}>{busy ? 'התמונה נוצרת…' : 'עוד אין תמונת עטיפה'}</span>}
+      </div>
+      <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--color-ink)' }}>תמונת העטיפה של השיעור</h3>
+        <p style={{ margin: '0 0 12px', fontSize: 16, lineHeight: 1.55, color: 'var(--color-ink)' }}>
+          התמונה שמייצגת את השיעור. התלמידים רואים אותה בפורטל, לפני שהם נכנסים לשיעור, והיא מופיעה בכרטיס השיעור בספרייה.
+          {!url && !busy && ' היא נוצרת יחד עם שאר התמונות של השיעור.'}
+        </p>
+        <button className="holo-button holo-button--staff holo-button--sm" onClick={onCreate} disabled={busy || disabled} data-cover-create
+          style={{ minHeight: 44, padding: '0 18px', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+          {busy ? 'התמונה נוצרת…' : url ? 'יצירת תמונת עטיפה חדשה' : 'יצירת תמונת עטיפה'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function EndingCard({ which, ending, onEdit }: {
   which: 'good' | 'bad'; ending: EndingScene
   onEdit: () => void
@@ -191,10 +221,13 @@ function EndingEditModal({ questId, which, ending, onClose, onSaved }: {
 
 /* סביבת עבודה משותפת על הדמיה — כרטיסי סצנות, יצירה/עריכת תמונות, עריכת סצנה.
    זהה לחלון שלאחר יצירה (QuestPreview) ולמצב טיוטה מהספרייה (QuestView). */
-export default function QuestWorkspace({ questId, title, subtitle, scenes, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions, onTitleSave, objectives, readingScale }: Props) {
+export default function QuestWorkspace({ questId, title, subtitle, scenes, cover, endingGood, endingBad, warnings = [], hub, patchScene, patchEnding, actions, onTitleSave, objectives, readingScale }: Props) {
   const [imgProgress, setImgProgress] = useState<ImageProgress | null>(null)
   const [imgWarnings, setImgWarnings] = useState<string[]>([])
   const [regeneratingSceneId, setRegeneratingSceneId] = useState<string | null>(null)
+  /* תמונת עטיפה שנוצרה במסך הזה (מוצגת מיד, לפני שהשיעור נטען מחדש) */
+  const [newCover, setNewCover] = useState<string | null>(null)
+  const coverUrl = newCover ?? cover?.imageUrl
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null)
   const [editingEnding, setEditingEnding] = useState<'good' | 'bad' | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -281,6 +314,7 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
         throw new Error(body?.error ?? 'יצירת התמונה נכשלה')
       }
       const { imageUrl } = await res.json()
+      if (sceneId === COVER_ID) { setNewCover(bustCache(imageUrl)); flashToast('תמונת העטיפה נוצרה ✓'); return }
       /* תמונות סיום מזוהות לפי ה-sceneId הסינתטי — הן לא ב-scenes[], ולכן patchScene לא
          ימצא אותן; מנתבים אותן ל-patchEnding (אחרת תמונת הסיום לא מתעדכנת בתצוגה). */
       patchScene(sceneId, { imageUrl: bustCache(imageUrl) })
@@ -322,7 +356,9 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           const ev = JSON.parse(line.slice(6))
 
           if (ev.imageUrl) {
-            if (ev.kind === 'scene') {
+            if (ev.kind === 'cover') {
+              setNewCover(bustCache(ev.imageUrl))
+            } else if (ev.kind === 'scene') {
               patchScene(ev.sceneId, { imageUrl: bustCache(ev.imageUrl) })
             } else {
               const scene = scenes.find((s) => s.id === ev.sceneId)
@@ -444,6 +480,8 @@ export default function QuestWorkspace({ questId, title, subtitle, scenes, endin
           </ul>
         </div>
       )}
+
+      <CoverCard url={coverUrl} busy={regeneratingSceneId === COVER_ID} disabled={!!regeneratingSceneId || !!imgProgress?.running} onCreate={() => regenerateImage(COVER_ID)} />
 
       <SceneCards
         scenes={scenes}

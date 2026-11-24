@@ -14,7 +14,7 @@ interface QuestDetails {
   title: string
   created_at: string
   status: string
-  game_data: { scenes: Scene[]; endingGood?: EndingScene; endingBad?: EndingScene; objectives?: { id: string; text: string }[]; readingScale?: number } | null
+  game_data: { scenes: Scene[]; cover?: { imagePrompt?: string; imageUrl?: string }; endingGood?: EndingScene; endingBad?: EndingScene; objectives?: { id: string; text: string }[]; readingScale?: number } | null
 }
 
 /* מצב טיוטה מהספרייה — אותה סביבת עבודה כמו החלון שאחרי יצירה (QuestWorkspace) */
@@ -137,6 +137,7 @@ export default function QuestView() {
       title={quest.title}
       subtitle={`${new Date(quest.created_at).toLocaleDateString('he-IL')} · ${scenes.length} סצנות · ${statusLabel}`}
       scenes={scenes}
+      cover={quest.game_data?.cover}
       endingGood={endingGood}
       endingBad={endingBad}
       patchScene={patchScene}

@@ -101,6 +101,8 @@ export interface GeneratedQuest {
     isHistorical?: boolean
     /* יעדי הלמידה של ההדמיה — האתגרים מתויגים בהם דרך puzzle.objectiveId */
     objectives?: { id: string; text: string }[]
+    /* תמונת העטיפה של השיעור: נוצרת עם שאר התמונות (server/src/lib/lessonCover.ts) */
+    cover?: { imagePrompt?: string; imageUrl?: string }
     endingGood?: { title: string; narrative: string; drHoloDialog?: string; imagePrompt?: string; imageUrl?: string; drHoloExpression?: string }
     endingBad?: { title: string; narrative: string; drHoloDialog?: string; imagePrompt?: string; imageUrl?: string; drHoloExpression?: string }
     /* מטא בדיקת עובדות אסינכרונית — נכתב ברקע אחרי היצירה */

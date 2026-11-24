@@ -118,6 +118,7 @@ export default function QuestPreview() {
         </>
       }
       scenes={scenes}
+      cover={result.game_data?.cover}
       endingGood={endingGood}
       endingBad={endingBad}
       warnings={[...correctedNote, ...shownWarnings]}
