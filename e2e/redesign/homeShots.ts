@@ -36,7 +36,7 @@ async function open(browser: Browser, w: number, h: number, opts: { splash?: boo
 const STEP_LINE = OPENING_STAGE.stepLine!
 const stepOnScreen = (p: Page): Promise<number> => p.evaluate(([line, h]) => { const w = document.querySelector('.lab-world')!.getBoundingClientRect(); return w.top + line * w.height / h }, [STEP_LINE, OPENING_STAGE.height])
 
-/* הקונסולה שלפני הפורטל: עומדת על הרצפה, ממורכזת על הפורטל, הקצה העליון שלה לא מתחת למדרגה השנייה, והיא מסתירה
+/* הקונסולה שלפני הפורטל: בתחתית הבמה, ממורכזת על הפורטל, והיא מסתירה
    לכל היותר 30% מגובה הפתח. החלק התחתון שלה מוסתר (לבקשת המשתמש): במסך רחב מאחורי הבאנר שמתחת לבמה, ובמסך צר
    (deckOnly) מאחורי החלון. המשטח עם המקשים (57% העליונים) תמיד כולו בבמה */
 const OPENING_COVER_MAX = 0.3
@@ -47,7 +47,8 @@ function consolePlaced(name: string, con: Box | null, portal: Box | null, bottom
   const over = ok ? portal!.b - con!.t : 0
   const bottom = ok ? con!.t + DECK_PART * (con!.b - con!.t) : 0
   check(ok && Math.abs((con!.l + con!.r) / 2 - (portal!.l + portal!.r) / 2) <= 2, `${name}: הקונסולה ממורכזת על הפורטל`)
-  check(ok && con!.t <= step + 1.5 && over <= OPENING_COVER_MAX * (portal!.b - portal!.t) + 1, `${name}: הקונסולה לפני הפורטל: לא מתחת למדרגה השנייה, ומסתירה לכל היותר 30% מהפתח (${ok ? over.toFixed(0) : '?'} מתוך ${ok ? (portal!.b - portal!.t).toFixed(0) : '?'} פיקסלים)`)
+  void step
+  check(ok && over <= OPENING_COVER_MAX * (portal!.b - portal!.t) + 1, `${name}: הקונסולה מסתירה לכל היותר 30% מהפתח (${ok ? over.toFixed(0) : '?'} מתוך ${ok ? (portal!.b - portal!.t).toFixed(0) : '?'} פיקסלים)`)
   check(ok && bottom <= bottomLimit + 1 && con!.b > bottomLimit, `${name}: המשטח של הקונסולה בתוך הבמה, והחלק התחתון שלה מוסתר ${deckOnly ? 'מאחורי החלון' : 'מאחורי הבאנר'} (${ok ? (bottomLimit - bottom).toFixed(0) : '?'} פיקסלים מהקצה)`)
   check(launch === 'שגר אותי!', `${name}: על הקונסולה הכפתור "שגר אותי!" (${launch})`)
 }
@@ -135,7 +136,7 @@ async function home(browser: Browser): Promise<void> {
       /* הקונסולה (לבקשת המשתמש, במקום כרטיס שם השיעור): חפץ בחדר, לפני הפורטל */
       consolePlaced(`${w}×${h}`, g.con, g.portal, g.stage?.b ?? 0, step, g.launch)
       check(!!g.card && !!g.con && g.card.l >= g.con.l && g.card.r <= g.con.r && g.card.t >= g.con.t && g.card.b <= g.con.b, `${w}×${h}: שם השיעור בתוך הקונסולה`)
-      check(!!g.card && !!g.door && (Math.abs((g.card.t + g.card.b) / 2 - (g.door.t + g.door.b) / 2) <= 2 || g.con!.t + DECK_PART * (g.con!.b - g.con!.t) >= g.stage!.b - 2), `${w}×${h}: השדה הלבן בגובה של הכפתור "כניסת תלמידים" (${g.card && g.door ? ((g.card.t + g.card.b) / 2 - (g.door.t + g.door.b) / 2).toFixed(1) : '?'})`)
+      check(!!g.con && !!g.stage && Math.abs(g.con.t + DECK_PART * (g.con.b - g.con.t) - g.stage.b) <= 2, `${w}×${h}: הקצה התחתון של המשטח על הקצה התחתון של הבמה, והעמוד מוסתר`)
     }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)

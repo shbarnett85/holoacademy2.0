@@ -22,8 +22,6 @@ const AT = {
   right: { left: 77.81, top: 22.81, width: 13.46, height: 16.43 },
   launch: { left: 36.03, top: 5.44, width: 27.56, height: 13.36 },
 }
-/* אמצע השדה הלבן, כחלק מגובה התמונה: לפיו הקונסולה ממוקמת לגובה (PortalHero) */
-export const CONSOLE_FIELD_CENTER = (AT.field.top + AT.field.height / 2) / 100
 const box = (b: { left: number; top: number; width: number; height: number }) => `left: ${b.left}%; top: ${b.top}%; width: ${b.width}%; height: ${b.height}%;`
 /* שם ארוך מזה מוצג בשתי שורות ובאות קטנה יותר */
 const LONG_TITLE = 22
