@@ -44,18 +44,6 @@ const reduceMotion =
     /* override ל-QA — מדמה reduced-motion בלי לשנות הגדרת מערכת */
     new URLSearchParams(window.location.search).has('reduce-motion'))
 
-function SectionHead({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub: string }) {
-  return (
-    <div>
-      <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--fs-side-title)', fontWeight: 800, color: 'var(--color-machine-deep)', lineHeight: 1.25 }}>
-        <span aria-hidden="true" style={{ display: 'inline-flex' }}>{icon}</span>
-        <span>{title}</span>
-      </h2>
-      <div style={{ fontSize: 'var(--fs-side-sub)', color: 'var(--color-muted)', marginTop: 2, lineHeight: 1.4 }}>{sub}</div>
-    </div>
-  )
-}
-
 /* שלושת השלבים: אדם מתאר → המכונה בונה → משחקים יחד. צבע התג של כל שלב לפי תפקידי הצבע
    (אנושיות / המכונה / משטח), והמספר כתוב בתוכו, כך שהצבע לא נושא משמעות לבד. */
 const STEPS: { n: string; icon: 'doc' | 'crystal' | 'chart'; title: string; text: string; fill: string }[] = [
@@ -69,7 +57,9 @@ const PORTAL_ROTATE_MS = 7000
 
 /* מסך הבית — "הספרייה ההולוגרפית": המסך הראשון הוא הבמה של פתיחת שיעור במסך מלא (PortalHero). הפורטל מציג שיעור התנסות
    כהולוגרמה (מתחלף כל כמה שניות; לחיצה עליו או על "שחקו עכשיו" צוללת לתוכו ופותחת את השיעור), ד"ר הולו מקבל את הפנים,
-   ומימין חלון צף עם הסימן ושתי הכניסות. בגלילה למטה: שלושת השלבים ורצועת היתרונות.
+   ומימין חלון צף עם הסימן ושתי הכניסות.
+   הכול במסך אחד, בלי גלילה (לבקשת המשתמש, לפי המוקאפ שלו): פס עליון דק עם היתרונות והתקציר, הבמה, ומתחתיה באנר עם
+   שלושת השלבים. במסך צר או נמוך מדי העמוד נגלל כמו קודם: הבמה, החלון, השלבים, ובסוף היתרונות (index.css: .home4-fit).
    שיעורי ההתנסות מוצגים רק בפורטל (היה גם מדף מתחתיו; הוסר לבקשת המשתמש, כי הוא הציג את אותם שיעורים פעם שנייה).
    הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה → /class/:code; מורה → /staff/login; שיעור התנסות → /play/:id. */
 export default function Home() {
@@ -124,9 +114,22 @@ export default function Home() {
   }
 
   return (
-    <div dir="rtl" className="home4">
+    <div dir="rtl" className="home4 home4-fit" data-home-fit>
 
-      {/* ── המסך הראשון: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
+      {/* ── פס עליון דק: היתרונות, והתקציר לרשויות ולבתי ספר (במסך צר: בסוף העמוד) ── */}
+      <div className="home4-strip" data-home-strip>
+        <span className="home4-strip-brand" dir="ltr">© 2026 HoloAcademy</span>
+        <ul className="home4-strip-chips">
+          {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
+            <li key={c} style={infoChip} className="home4-strip-chip"><BrandIcon name="check" size={11} /> {c}</li>
+          ))}
+        </ul>
+        <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" className="holo-link home4-strip-link">
+          <BrandIcon name="brief" size={14} style={{ marginLeft: 5 }} />תקציר לרשויות ובתי ספר
+        </a>
+      </div>
+
+      {/* ── הבמה: הספרייה, הפורטל, ד"ר הולו והכניסות ── */}
       <PortalHero
         portalSrc={featured?.thumbUrl ?? undefined}
         portalDir={dir}
@@ -198,59 +201,35 @@ export default function Home() {
               <span className="home4-door-arrow" aria-hidden="true">←</span>
             </button>
           </div>
-          <button className="holo-link" onClick={() => document.getElementById('home-how')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
+          {/* רק כשהשלבים מתחת למסך הראשון (מסך צר או נמוך); במסך רגיל הם כבר מוצגים מתחת לבמה */}
+          <button className="holo-link home4-how-link" onClick={() => document.getElementById('home-how')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })}
             style={{ alignSelf: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
             איך זה עובד?
           </button>
         </>}
       />
 
-      {/* ── בגלילה למטה: שלושת השלבים ורצועת היתרונות ── */}
-      <div className="home4-more">
-        <section id="home-how" className="home4-steps">
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <SectionHead
-              icon={<BrandIcon name="compass" size={22} style={{ color: 'var(--color-ink)' }} />}
-              title="איך זה עובד?"
-              sub="שיעורים אינטראקטיביים בהדמיה — לכל מקצוע, שכבה ורמה"
-            />
-            <a href="/files/holoacademy-brief.pdf" target="_blank" rel="noopener" className="holo-link" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 30, fontSize: 'var(--fs-chip)', fontWeight: 600 }}>
-              <BrandIcon name="brief" size={14} style={{ marginLeft: 5 }} />תקציר לרשויות ובתי ספר
-            </a>
-          </div>
-          <ol className="home3-step-row">
-            {STEPS.map((s, i) => (
-              <li key={s.n} className="home3-step">
-                <div style={{ ...panelStudent, borderRadius: 16, boxShadow: 'var(--shadow-button)', flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'right' }}>
-                  <span aria-hidden="true" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', background: s.fill, border: '2px solid var(--color-ink)', fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 900, color: 'var(--color-ink)' }}>{s.n}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 'var(--fs-step-title)', fontWeight: 800, color: 'var(--color-ink)', lineHeight: 1.3 }}>
-                      <BrandIcon name={s.icon} size={17} style={{ color: 'var(--color-ink)', flexShrink: 0 }} />
-                      <span>{s.title}</span>
-                    </div>
-                    <div style={{ fontSize: 'var(--fs-body)', color: 'var(--color-muted)', lineHeight: 1.5, marginTop: 3 }}>{s.text}</div>
+      {/* ── הבאנר התחתון: שלושת השלבים ── */}
+      <section id="home-how" className="home4-band" data-home-band>
+        <h2 className="home4-band-title">שיעורי הרפתקה אינטראקטיביים — בכל מקצוע, שכבה ורמה</h2>
+        <ol className="home3-step-row">
+          {STEPS.map((s, i) => (
+            <li key={s.n} className="home3-step">
+              <div className="home3-step-card" style={panelStudent}>
+                <span aria-hidden="true" className="home3-step-num" style={{ background: s.fill }}>{s.n}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="home3-step-title">
+                    <BrandIcon name={s.icon} size={17} style={{ color: 'var(--color-ink)', flexShrink: 0 }} />
+                    <span>{s.title}</span>
                   </div>
+                  <div className="home3-step-text">{s.text}</div>
                 </div>
-                {i < STEPS.length - 1 && <span className="home3-step-arrow" aria-hidden="true">←</span>}
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* רצועת היתרונות + זכויות */}
-        <footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-            {['עברית מלאה, RTL', 'התאמת קושי אישית', 'בדיקת עובדות ובטיחות תוכן', 'ללא התקנה — עובד בדפדפן'].map((c) => (
-              <span key={c} style={{ ...infoChip, fontSize: 'var(--fs-chip)', fontWeight: 600, padding: '4px 12px', borderRadius: 9, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                <BrandIcon name="check" size={11} /> {c}
-              </span>
-            ))}
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-foot)', letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--color-muted)', textAlign: 'center' }}>
-            © 2026 HoloAcademy
-          </div>
-        </footer>
-      </div>
+              </div>
+              {i < STEPS.length - 1 && <span className="home3-step-arrow" aria-hidden="true">←</span>}
+            </li>
+          ))}
+        </ol>
+      </section>
 
       {showWhere && <WhereAmI onClose={() => setShowWhere(false)} onPlay={() => { setShowWhere(false); play() }} />}
 

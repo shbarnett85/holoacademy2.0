@@ -1,7 +1,7 @@
 /* ──────────────────────────────────────────────────────────────────────────
    צילומי עמוד הפתיחה והספלאש. כלי בדיקה בלבד: קריאה בלבד (שיעורי ההתנסות מהשרת המקומי), בלי כתיבה ל-DB.
    · splash: פריימים של הספלאש לאורך הזמן (האנימציות מושהות ומקודמות ידנית), כולל הפתיחה אל העמוד.
-   · home: המסך הראשון בכמה גדלי מסך, אחרי גלילה, במסך צר ובתנועה מופחתת; ובדיקות: הכניסות והכפתור "שחקו עכשיו"
+   · home: העמוד במסך אחד בכמה גדלי מסך (פס עליון, במה, באנר השלבים, בלי גלילה), במסך צר ובתנועה מופחתת; ובדיקות: הכניסות והכפתור "שחקו עכשיו"
      בתוך המסך הראשון, החלון לא מכסה את הפורטל, והווידאו של הרקע ושל ד"ר הולו מתנגנים.
    · student: הבית של התלמיד (אותה במה, עם /api מדומה): פס עליון עם השלום והסיכום, הפורטל מציג את השיעור האחרון
      שהתקבל ועליו המצב כטקסט הולוגרפי, מתחתיו שם השיעור והחצים, ובחלון הצד רשימת השיעורים עם חיפוש וסינון.
@@ -88,7 +88,7 @@ async function splash(browser: Browser): Promise<void> {
 
 async function home(browser: Browser): Promise<void> {
   console.log('== home ==')
-  for (const [w, h] of [[1366, 768], [1366, 620], [1920, 1080], [1280, 800]] as const) {
+  for (const [w, h] of [[1366, 768], [1366, 620], [1920, 1080], [1280, 800], [1536, 730], [1280, 600], [1100, 620]] as const) {
     const page = await open(browser, w, h)
     await page.waitForSelector('[data-portal-panel]', { timeout: 30000 })
     await page.waitForTimeout(4500)
@@ -114,7 +114,9 @@ async function home(browser: Browser): Promise<void> {
       const mid = (b: { l: number; r: number }) => (b.l + b.r) / 2
       const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.holoBox
       check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל (${ok ? (mid(g.card!) - mid(g.portal!)).toFixed(1) : '?'})`)
-      check(ok && Math.abs(g.card!.b - g.panel!.b) <= 1 && g.card!.t >= g.portal!.b - 1, `${w}×${h}: הקו התחתון של שם השיעור בגובה הקו התחתון של החלון (${ok ? (g.card!.b - g.panel!.b).toFixed(1) : '?'}), מתחת לפתח הפורטל`)
+      /* בבמה נמוכה שם השיעור עולה מעט על השפה התחתונה של הפתח (עד עשירית מהגובה שלו), ולא יותר */
+      const lip = ok ? Math.max(0, g.portal!.b - g.card!.t) / (g.portal!.b - g.portal!.t) : 1
+      check(ok && Math.abs(g.card!.b - g.panel!.b) <= 1 && lip <= 0.1, `${w}×${h}: הקו התחתון של שם השיעור בגובה הקו התחתון של החלון (${ok ? (g.card!.b - g.panel!.b).toFixed(1) : '?'}), מתחת לפתח הפורטל (מכסה ${(lip * 100).toFixed(0)}% ממנו)`)
       check(ok && Math.abs(g.play!.b - g.card!.b) <= 1 && g.play!.l < mid(g.holoBox!) && g.play!.r > mid(g.holoBox!), `${w}×${h}: "שחקו עכשיו" על אותו קו, מעל ד"ר הולו`)
     }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
@@ -128,7 +130,28 @@ async function home(browser: Browser): Promise<void> {
       check(dl <= 1, `${w}×${h}: "שחקו עכשיו" מתחיל על הצלע השמאלית של המסגרת, כמו "איפה אני?" (סטייה ${dl.toFixed(1)} פיקסלים)`)
       check(!!g.where && !!g.holoBox && g.where.b <= g.holoBox.t + 40, `${w}×${h}: הכפתור מעל הדמות ולא עליה`)
     }
-    check(g.how === 'איך זה עובד?', `${w}×${h}: "איך זה עובד?" בלי חץ (${g.how})`)
+    {
+      /* הכול במסך אחד, בלי גלילה (לבקשת המשתמש, לפי המוקאפ שלו): פס עליון, הבמה, ובאנר השלבים */
+      const f = await page.evaluate(() => {
+        const r = (sel: string) => { const e = document.querySelector(sel); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
+        const p = document.querySelector<HTMLElement>('[data-portal-panel]')!
+        const shown = [...p.children].filter((c) => getComputedStyle(c).display !== 'none' && getComputedStyle(c).position !== 'absolute')
+        const steps = [...document.querySelectorAll('[data-home-band] .home3-step-card')].map((e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } })
+        return {
+          scroll: Math.max(document.body.scrollHeight - document.body.clientHeight, document.documentElement.scrollHeight - innerHeight), strip: r('[data-home-strip]'), stage: r('.home4-stage'), band: r('[data-home-band]'),
+          title: document.querySelector('[data-home-band] h2')?.textContent?.trim() ?? '', steps, chips: document.querySelectorAll('[data-home-strip] li').length, brief: r('[data-home-strip] a'),
+          panelCut: p.scrollHeight - p.clientHeight, lastIn: shown.length ? shown[shown.length - 1].getBoundingClientRect().bottom <= p.getBoundingClientRect().bottom - 4 : false,
+          howShown: !!document.querySelector('.home4-how-link') && getComputedStyle(document.querySelector('.home4-how-link')!).display !== 'none',
+        }
+      })
+      check(f.scroll <= 0, `${w}×${h}: העמוד כולו במסך אחד, בלי גלילה (${f.scroll})`)
+      check(!!f.strip && !!f.stage && !!f.band && f.strip.t === 0 && f.strip.b <= f.stage.t + 1 && f.stage.b <= f.band.t + 4 && f.band.b <= g.vh + 0.5, `${w}×${h}: פס עליון, הבמה, ומתחתיה באנר השלבים`)
+      check(f.chips === 4 && inside(f.brief) && !!f.strip && !!f.brief && f.brief.b <= f.strip.b, `${w}×${h}: בפס העליון ארבעת היתרונות והתקציר לרשויות ולבתי ספר`)
+      check(f.title === 'שיעורי הרפתקה אינטראקטיביים — בכל מקצוע, שכבה ורמה', `${w}×${h}: כותרת הבאנר (${f.title})`)
+      check(f.steps.length === 3 && f.steps.every((b) => inside(b)) && f.steps.every((b) => Math.abs(b.t - f.steps[0].t) <= 1), `${w}×${h}: שלושת השלבים בשורה אחת, כולם במסך`)
+      check(f.panelCut <= 0 && f.lastIn, `${w}×${h}: שום דבר בחלון הכניסות לא נחתך (${f.panelCut})`)
+      check(!f.howShown, `${w}×${h}: בלי הקישור "איך זה עובד?" (השלבים כבר מוצגים)`)
+    }
     await page.context().close()
   }
 
@@ -192,13 +215,22 @@ async function home(browser: Browser): Promise<void> {
     await wp.context().close()
   }
 
-  /* גלילה למטה: המדף והשלבים */
-  const sc = await open(browser, 1366, 768)
+  /* מסך צר: העמוד נגלל. "איך זה עובד?" מוצג בחלון וגולל אל השלבים, והיתרונות בסוף העמוד */
+  const sc = await open(browser, 390, 800)
   await sc.waitForSelector('[data-portal-panel]')
   await sc.waitForTimeout(2500)
-  await sc.locator('#home-how').scrollIntoViewIfNeeded()
-  await sc.waitForTimeout(600)
+  check((await sc.locator('.home4-how-link').innerText()).trim() === 'איך זה עובד?', 'מסך צר: הקישור "איך זה עובד?" מוצג בחלון, בלי חץ')
+  await sc.locator('.home4-how-link').click()
+  await sc.waitForTimeout(900)
   await shot(sc, 'home-more')
+  check(await sc.evaluate(() => { const b = document.querySelector('[data-home-band] h2')!.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight }), 'מסך צר: הקישור גולל אל השלבים')
+  check(await sc.evaluate(() => { const band = document.querySelector('[data-home-band]')!.getBoundingClientRect(); const strip = document.querySelector('[data-home-strip]')!.getBoundingClientRect(); const hero = document.querySelector('[data-portal-hero]')!.getBoundingClientRect(); return hero.bottom <= band.top + 1 && band.bottom <= strip.top + 1 }), 'מסך צר: הסדר הוא הבמה והחלון, השלבים, ובסוף היתרונות')
+  /* חלון נמוך מדי למסך אחד: העמוד נגלל, ושום דבר לא נחתך */
+  const low = await open(browser, 1366, 520)
+  await low.waitForSelector('[data-portal-panel]')
+  await low.waitForTimeout(2500)
+  check(await low.evaluate(() => { const p = document.querySelector<HTMLElement>('[data-portal-panel]')!; return p.scrollHeight <= p.clientHeight && document.body.scrollHeight > document.body.clientHeight }), 'חלון נמוך מדי (1366×520): העמוד נגלל, והחלון לא נחתך')
+  await low.context().close()
   await sc.context().close()
 
   /* מסך צר (טלפון לאורך) ומסך 4:3: הבמה למעלה והחלון מתחתיה */

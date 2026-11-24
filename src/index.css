@@ -236,16 +236,63 @@
 .home4-now[data-layout=row] .home4-play.holo-button { white-space: nowrap; padding: 10px 22px; }
 @media (max-width: 1599px) { .home4-now[data-layout=row] .home4-play small { display: none; } }
 
-/* מתחת למסך הראשון: מדף, שלבים ורצועה */
+/* ── עמוד הפתיחה במסך אחד (.home4-fit; לבקשת המשתמש, לפי המוקאפ שלו): פס עליון דק, הבמה, ובאנר השלבים מתחתיה.
+   הבמה ממלאת את מה שנשאר בין הפס לבאנר. מסך נמוך מדי (מתחת ל-min-height): העמוד נגלל, ושום דבר לא נחתך ── */
+.home4-fit { display: flex; flex-direction: column; height: 100dvh; min-height: 600px; }
+.home4-fit .home4-hero { flex: 1 1 0; height: auto; min-height: 0; }
+/* הגובה של הבמה ידוע (לא תלוי בתוכן), ולכן מה שבחלון יכול להימדד ביחס אליו (cqh) ולא ביחס לגובה המסך */
+.home4-fit .home4-body { container-type: size; }
+.home4-fit .home4-panel {
+  --logo-h: min(clamp(48px, 6.4vw, 116px), 13.5cqh); --fs-wordmark: min(clamp(26px, 3.4vw, 56px), 8.4cqh);
+  max-height: calc(100% - 1.5rem); padding-block: clamp(8px, 2.6cqh, 28px); gap: clamp(5px, 1.7cqh, 16px);
+}
+.home4-fit .home4-door.holo-button { padding-block: clamp(6px, 1.7cqh, 14px); }
+.home4-fit .home4-doors { gap: clamp(8px, 2cqh, 12px); }
+/* במה נמוכה (חלון דפדפן נמוך): החלון מצטופף */
+@container (max-height: 500px) {
+  .home4-fit .home4-panel { --logo-h: min(clamp(48px, 6.4vw, 116px), 12cqh); }
+  .home4-fit .home4-tagline { font-size: min(var(--fs-tagline), 5cqh); }
+  .home4-fit .home4-lead { line-height: 1.35; }
+  .home4-fit .home4-door-icon { width: 36px; height: 36px; border-radius: 10px; }
+  .home4-fit .home4-door-icon svg { width: 22px; height: 22px; }
+  .home4-fit .home4-door-title { font-size: min(var(--fs-door), 4.2cqh); }
+  .home4-fit .home4-door-sub { line-height: 1.25; }
+}
+.home4-how-link { display: none; }
+/* הפס העליון */
+.home4-strip { flex: 0 0 auto; position: relative; z-index: 3; box-sizing: border-box; min-height: 38px; padding: 4px clamp(12px, 1.6vw, 26px); display: flex; align-items: center; justify-content: space-between; gap: 14px; background: var(--color-machine-bg); border-bottom: var(--border-student); }
+.home4-strip-brand { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-foot); letter-spacing: .18em; text-transform: uppercase; color: var(--color-muted); white-space: nowrap; }
+.home4-strip-chips { list-style: none; margin: 0; padding: 0; min-width: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 8px; }
+.home4-strip-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: 9px; font-size: var(--fs-chip); font-weight: 600; white-space: nowrap; }
+.home4-strip-link { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 28px; font-size: var(--fs-chip); font-weight: 600; white-space: nowrap; }
+/* הבאנר התחתון: כותרת ושלושת השלבים */
+.home4-band { flex: 0 0 auto; box-sizing: border-box; width: 100%; padding: clamp(6px, 1.2vh, 14px) clamp(18px, 6vw, 110px) clamp(10px, 1.8vh, 20px); display: flex; flex-direction: column; align-items: stretch; gap: clamp(5px, 1vh, 12px); }
+.home4-band-title { margin: 0; text-align: center; font-size: clamp(17px, 1.5vw, 25px); font-weight: 800; color: var(--color-machine-deep); line-height: 1.25; text-wrap: balance; }
+.home3-step-card { flex: 1; min-width: 0; box-sizing: border-box; display: flex; align-items: flex-start; gap: 12px; padding: clamp(6px, 1.2vh, 12px) 14px; border-radius: 16px; box-shadow: var(--shadow-button); text-align: right; }
+.home3-step-num { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--color-ink); font-family: var(--font-display); font-size: 20px; font-weight: 900; color: var(--color-ink); }
+.home3-step-title { display: flex; align-items: center; gap: 7px; font-size: var(--fs-step-title); font-weight: 800; color: var(--color-ink); line-height: 1.3; }
+.home3-step-text { margin-top: 2px; font-size: var(--fs-body); color: var(--color-muted); line-height: 1.45; }
+
+/* מתחת למסך הראשון של הבית של התלמיד: המסע */
 .home4-more { width: min(1240px, 100%); margin: 0 auto; box-sizing: border-box; padding: clamp(26px, 5vh, 54px) clamp(18px, 3vw, 44px) 22px; display: flex; flex-direction: column; gap: clamp(26px, 5vh, 48px); }
-.home4-steps { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .home3-step-row { list-style: none; margin: 0; padding: 0; display: flex; align-items: stretch; gap: 10px; }
-.home3-step { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 10px; }
-.home3-step-arrow { flex-shrink: 0; font-size: 26px; font-weight: 900; color: var(--color-ink); line-height: 1; }
+.home3-step { flex: 1 1 0; min-width: 0; display: flex; align-items: stretch; gap: 10px; }
+.home3-step-arrow { flex-shrink: 0; align-self: center; font-size: 26px; font-weight: 900; color: var(--color-ink); line-height: 1; }
 /* אין מקום לחלון לצד הטבעת (מסך צר, או מסך גבוה ביחס לרוחב): הבמה למעלה והחלון מתחתיה */
 @media (max-width: 1099px), (max-aspect-ratio: 7/5) {
   .home4-hero { height: auto; min-height: 0; }
   .home4-body { flex: 0 0 auto; display: flex; flex-direction: column; }
+  /* עמוד הפתיחה: נגלל. הבמה והחלון, השלבים, ובסוף היתרונות (הפס העליון עובר לסוף העמוד) */
+  .home4-fit { height: auto; min-height: 0; }
+  .home4-fit .home4-hero { flex: 0 0 auto; }
+  .home4-fit .home4-body { container-type: normal; }
+  .home4-fit .home4-panel { --logo-h: min(clamp(72px, 6.4vw, 116px), 13.5vh); --fs-wordmark: min(clamp(34px, 3.4vw, 56px), 7.6vh); max-height: none; padding-block: clamp(14px, 2.6vh, 28px); gap: clamp(8px, 1.5vh, 16px); }
+  .home4-fit .home4-door.holo-button { padding-block: clamp(9px, 1.5vh, 14px); }
+  .home4-fit .home4-doors { gap: 12px; }
+  .home4-how-link { display: inline-flex; }
+  .home4-strip { order: 3; flex-direction: column; justify-content: center; gap: 8px; padding: 6px 14px 20px; background: none; border-bottom: none; }
+  .home4-strip-brand { order: 3; }
+  .home4-band { padding: clamp(22px, 4vh, 40px) clamp(14px, 3vw, 44px) 18px; gap: 12px; }
   .home4-stage { position: relative; inset: auto; height: min(50vh, 78vw); min-height: 300px; border-bottom: var(--border-student); }
   .home4-panel { position: relative; inset: auto; top: auto; transform: none; width: min(460px, calc(100% - 28px)); max-height: none; margin: -22px auto 22px; animation: none; }
   .home4-now { max-width: calc(100% - 20px); bottom: 34px; }
