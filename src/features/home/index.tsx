@@ -175,7 +175,7 @@ export default function Home() {
               </span>
               <span className="home4-door-arrow" aria-hidden="true">←</span>
             </button>
-            <button onClick={() => setShowCodeModal(true)} className="holo-button home4-door" data-home-door="student">
+            <button onClick={() => setShowCodeModal(true)} className="holo-button home4-door" data-home-door="student" data-console-align>
               <span className="home4-door-icon" aria-hidden="true">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />

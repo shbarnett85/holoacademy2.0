@@ -36,15 +36,19 @@ async function open(browser: Browser, w: number, h: number, opts: { splash?: boo
 const STEP_LINE = OPENING_STAGE.stepLine!
 const stepOnScreen = (p: Page): Promise<number> => p.evaluate(([line, h]) => { const w = document.querySelector('.lab-world')!.getBoundingClientRect(); return w.top + line * w.height / h }, [STEP_LINE, OPENING_STAGE.height])
 
-/* הקונסולה שלפני הפורטל: ממורכזת עליו, הקצה העליון שלה לא מתחת למדרגה השנייה, ורק הבליטה שבראשה (עד 30% מגובהה) יכולה לעלות על תחתית הפתח */
-const BUMP_PART = 0.3
+/* הקונסולה שלפני הפורטל: עומדת על הרצפה, ממורכזת על הפורטל, הקצה העליון שלה לא מתחת למדרגה השנייה, והיא מסתירה
+   לכל היותר 30% מגובה הפתח. החלק התחתון שלה מוסתר (לבקשת המשתמש): במסך רחב מאחורי הבאנר שמתחת לבמה, ובמסך צר
+   (deckOnly) מאחורי החלון. המשטח עם המקשים (57% העליונים) תמיד כולו בבמה */
+const OPENING_COVER_MAX = 0.3
+const DECK_PART = 0.57
 type Box = { l: number; t: number; r: number; b: number }
-function consolePlaced(name: string, con: Box | null, portal: Box | null, bottomLimit: number, step: number, launch: string): void {
+function consolePlaced(name: string, con: Box | null, portal: Box | null, bottomLimit: number, step: number, launch: string, deckOnly = false): void {
   const ok = !!con && !!portal
   const over = ok ? portal!.b - con!.t : 0
+  const bottom = ok ? con!.t + DECK_PART * (con!.b - con!.t) : 0
   check(ok && Math.abs((con!.l + con!.r) / 2 - (portal!.l + portal!.r) / 2) <= 2, `${name}: הקונסולה ממורכזת על הפורטל`)
-  check(ok && con!.t <= step + 1.5 && over <= BUMP_PART * (con!.b - con!.t) + 1, `${name}: הקונסולה לפני הפורטל: לא מתחת למדרגה השנייה, ורק הבליטה שלה על תחתית הפתח (${ok ? over.toFixed(0) : '?'} פיקסלים)`)
-  check(ok && con!.b <= bottomLimit - 4, `${name}: הקונסולה כולה בתוך הבמה (${ok ? (bottomLimit - con!.b).toFixed(0) : '?'} פיקסלים מהקצה)`)
+  check(ok && con!.t <= step + 1.5 && over <= OPENING_COVER_MAX * (portal!.b - portal!.t) + 1, `${name}: הקונסולה לפני הפורטל: לא מתחת למדרגה השנייה, ומסתירה לכל היותר 30% מהפתח (${ok ? over.toFixed(0) : '?'} מתוך ${ok ? (portal!.b - portal!.t).toFixed(0) : '?'} פיקסלים)`)
+  check(ok && bottom <= bottomLimit + 1 && con!.b > bottomLimit, `${name}: המשטח של הקונסולה בתוך הבמה, והחלק התחתון שלה מוסתר ${deckOnly ? 'מאחורי החלון' : 'מאחורי הבאנר'} (${ok ? (bottomLimit - bottom).toFixed(0) : '?'} פיקסלים מהקצה)`)
   check(launch === 'שגר אותי!', `${name}: על הקונסולה הכפתור "שגר אותי!" (${launch})`)
 }
 
@@ -60,9 +64,9 @@ async function narrowLayout(p: Page, name: string): Promise<void> {
   const { stage, where, row, card, panel } = g as { [k in keyof typeof g]: NonNullable<(typeof g)[k]> }
   const step = await stepOnScreen(p)
   check(g.play === 0, `${name}: אין כפתור כניסה נפרד (נכנסים בקונסולה או בלחיצה על הפורטל)`)
-  check([where, row].every((b) => b.l >= stage.l && b.r <= stage.r && b.t >= stage.t && b.b <= Math.min(stage.b, panel.t) - 4), `${name}: "איפה אני?" ושם השיעור בתוך הבמה, מעל החלון`)
+  check([where, card].every((b) => b.l >= stage.l && b.r <= stage.r && b.t >= stage.t && b.b <= Math.min(stage.b, panel.t) - 4), `${name}: "איפה אני?" ושם השיעור בתוך הבמה, מעל החלון`)
   check(where.b <= row.t, `${name}: "איפה אני?" מעל שם השיעור, ולא עליו`)
-  consolePlaced(name, row, g.portal, Math.min(stage.b, panel.t), step, g.launch)
+  consolePlaced(name, row, g.portal, Math.min(stage.b, panel.t), step, g.launch, true)
   check(card.l >= row.l && card.r <= row.r && card.t >= row.t && card.b <= row.b, `${name}: שם השיעור בתוך הקונסולה`)
 }
 
@@ -113,7 +117,7 @@ async function home(browser: Browser): Promise<void> {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const vids = [...document.querySelectorAll('video')].map((v) => ({ playing: !v.paused && v.readyState >= 2, src: v.currentSrc.split('/').pop() }))
-      return { panel: r('[data-portal-panel]'), plays: document.querySelectorAll('[data-home-play], .home4-play').length, tryNow: document.querySelectorAll('[data-home-try], [data-portal-caption]').length, con: r('[data-portal-console]'), launch: document.querySelector('[data-portal-launch]')?.textContent?.trim() ?? '', launchLabel: document.querySelector('[data-portal-launch]')?.getAttribute('aria-label') ?? '', strip: (document.querySelector('.pcon__subject') as HTMLElement | null)?.innerText ?? '', portalLabel: document.querySelector('[data-lab-portal-hit]')?.getAttribute('aria-label') ?? '', stage: r('.home4-stage'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), card: r('[data-home-lesson]'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
+      return { panel: r('[data-portal-panel]'), plays: document.querySelectorAll('[data-home-play], .home4-play').length, tryNow: document.querySelectorAll('[data-home-try], [data-portal-caption]').length, con: r('[data-portal-console]'), door: r('[data-home-door=student]'), launch: document.querySelector('[data-portal-launch]')?.textContent?.trim() ?? '', launchLabel: document.querySelector('[data-portal-launch]')?.getAttribute('aria-label') ?? '', strip: (document.querySelector('.pcon__subject') as HTMLElement | null)?.innerText ?? '', portalLabel: document.querySelector('[data-lab-portal-hit]')?.getAttribute('aria-label') ?? '', stage: r('.home4-stage'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), card: r('[data-home-lesson]'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
     check(inside(g.panel), `${w}×${h}: חלון הכניסות כולו במסך הראשון`)
@@ -131,6 +135,7 @@ async function home(browser: Browser): Promise<void> {
       /* הקונסולה (לבקשת המשתמש, במקום כרטיס שם השיעור): חפץ בחדר, לפני הפורטל */
       consolePlaced(`${w}×${h}`, g.con, g.portal, g.stage?.b ?? 0, step, g.launch)
       check(!!g.card && !!g.con && g.card.l >= g.con.l && g.card.r <= g.con.r && g.card.t >= g.con.t && g.card.b <= g.con.b, `${w}×${h}: שם השיעור בתוך הקונסולה`)
+      check(!!g.card && !!g.door && (Math.abs((g.card.t + g.card.b) / 2 - (g.door.t + g.door.b) / 2) <= 2 || g.con!.t + DECK_PART * (g.con!.b - g.con!.t) >= g.stage!.b - 2), `${w}×${h}: השדה הלבן בגובה של הכפתור "כניסת תלמידים" (${g.card && g.door ? ((g.card.t + g.card.b) / 2 - (g.door.t + g.door.b) / 2).toFixed(1) : '?'})`)
     }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
@@ -342,7 +347,7 @@ async function student(browser: Browser): Promise<void> {
       }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
-    check(inside(g.top) && inside(g.panel) && inside(g.under), `${w}×${h}: הפס העליון, החלון ושם השיעור במסך הראשון`)
+    check(inside(g.top) && inside(g.panel) && inside(g.card), `${w}×${h}: הפס העליון, החלון ושם השיעור במסך הראשון`)
     check(g.plays === 0, `${w}×${h}: אין כפתור כניסה נפרד (נכנסים בקונסולה או בלחיצה על הפורטל)`)
     check(g.strip.length > 1, `${w}×${h}: בראש השדה פס המקצוע עם שם המקצוע (${g.strip})`)
     check(!!g.top && !!g.stage && Math.abs(g.stage.t - g.top.b) < 1.5, `${w}×${h}: הבמה מתחילה מתחת לפס העליון`)

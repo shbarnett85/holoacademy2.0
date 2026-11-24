@@ -207,7 +207,7 @@
 .home4-now {
   position: absolute; z-index: 1; left: var(--portal-x, 50%); top: var(--under-top, var(--steps-y, 72%)); transform: translateX(-50%);
   /* רוחב הקונסולה (PortalConsole): לפי רוחב המסך, אבל לא יותר ממה שגובה הבמה מאפשר (אותו חישוב ב-PortalHero: consoleWidth) */
-  width: min(100% - 20px, max(350px, min(760px, 38vw, var(--stage-h, 600px) * .9)));
+  width: min(100% - 20px, max(350px, min(740px, 38vw, var(--stage-h, 600px) * .88)));
   animation: home4-now-in .5s ease .5s both;
 }
 @keyframes home4-now-in { from { opacity: 0; transform: translateX(-50%) translateY(14px); } to { opacity: 1; transform: translateX(-50%); } }

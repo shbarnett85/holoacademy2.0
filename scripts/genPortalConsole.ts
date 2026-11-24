@@ -1,6 +1,6 @@
 /* מייצר את תמונת הקונסולה שלפני הפורטל (public/lab/console.webp) מתוך קובץ המקור שהמשתמש סיפק
-   (design-reference/portal-console-source.webp: הקונסולה על רקע שחור, עם הכיתוב אפוי בכפתור).
-     1. הכיתוב שבכפתור נמחק (כל שורה ממולאת במעבר בין שני הצדדים הנקיים שלה), כי הכיתוב נכתב בקוד, כטקסט אמיתי.
+   (design-reference/portal-console-source.webp: הקונסולה על העמוד שלה, על רקע שחור, עם הכיתוב אפוי בכפתור).
+     1. הכיתוב שבכפתור נמחק (כל עמודה ממולאת במעבר בין הקצה העליון לתחתון), כי הכיתוב נכתב בקוד, כטקסט אמיתי.
      2. הרקע השחור הופך לשקוף: מילוי מהשוליים פנימה דרך הפיקסלים הכהים, והזוהר שמסביב נשאר כזוהר חצי שקוף.
      3. חיתוך לקונסולה עצמה.
    הסקריפט מדפיס את המקומות של השדה, של החצים ושל הכפתור באחוזים מהתמונה החתוכה: אלה הקבועים של PortalConsole.tsx.
@@ -33,22 +33,55 @@ const out = await page.evaluate(async (src) => {
     return { x0: a, y0: b, x1: c, y1: e }
   }
 
-  /* 1. הכיתוב שבכפתור: האותיות הן הפיקסלים הבהירים שבתוך הכפתור */
-  const text = bbox(S(660), S(345), S(1012), S(425), (i) => mn(i) > 150)
-  const pad = S(14), tx0 = text.x0 - pad, tx1 = text.x1 + pad
-  for (let y = text.y0 - pad; y <= text.y1 + pad; y++) {
-    const edge = (x: number, c: number) => { let s = 0; for (let j = -2; j <= 2; j++) s += p[(y * w + x + j) * 4 + c]; return s / 5 }
+  /* המקומות של החלקים (לפני החיתוך). השדה הלבן: האזור הלבן הרצוף הגדול ביותר בתמונה */
+  const white = new Uint8Array(w * h)
+  let field = { x0: 0, y0: 0, x1: 0, y1: 0 }, best = 0
+  for (let s0 = 0; s0 < w * h; s0++) {
+    if (white[s0] || mn(s0 * 4) <= 236) continue
+    const st = [s0]; white[s0] = 1
+    let n = 0, a = w, b = h, c = 0, e = 0
+    while (st.length) {
+      const q = st.pop()!, x = q % w, y = (q - x) / w; n++
+      if (x < a) a = x; if (x > c) c = x; if (y < b) b = y; if (y > e) e = y
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        const nq = ny * w + nx
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && !white[nq] && mn(nq * 4) > 236) { white[nq] = 1; st.push(nq) }
+      }
+    }
+    if (n > best) { best = n; field = { x0: a, y0: b, x1: c, y1: e } }
+  }
+  const fh = field.y1 - field.y0
+  /* שני המקשים (המסגרת הכחולה שלהם): משני צדי השדה, באותו גובה. הכפתור (המסגרת הכתומה): מעל השדה */
+  const blue = (i: number) => p[i + 2] > 200 && p[i] < 120
+  const gap = S(34), reach = S(270), up = Math.round(fh * 0.25)
+  const left = bbox(field.x0 - reach, field.y0 - up, field.x0 - gap, field.y1 + up, blue)
+  const right = bbox(field.x1 + gap, field.y0 - up, field.x1 + reach, field.y1 + up, blue)
+  /* הכפתור: צינור הניאון הכתום. מחפשים אותו מהאמצע החוצה (הקונסולה סימטרית, והכפתור מעל אמצע השדה), כדי שהשתקפויות
+     כתומות על שפת הקונסולה לא ייחשבו: למעלה ולמטה בעמודת האמצע, ואז ימינה ושמאלה בשורת האמצע */
+  const tube = (x: number, y: number) => { const i = (y * w + x) * 4; return p[i] > 200 && p[i + 2] < 140 && p[i] - p[i + 2] > 90 }
+  const fcx = Math.round((field.x0 + field.x1) / 2)
+  let ly1 = field.y0 - S(10); while (ly1 > 0 && !tube(fcx, ly1)) ly1--
+  let ly0 = ly1 - S(40); while (ly0 > 0 && !tube(fcx, ly0)) ly0--
+  while (ly0 > 0 && tube(fcx, ly0 - 1)) ly0--
+  const lcy = Math.round((ly0 + ly1) / 2)
+  let lx0 = fcx; while (lx0 > 0 && !tube(lx0, lcy)) lx0--
+  while (lx0 > 0 && tube(lx0 - 1, lcy)) lx0--
+  let lx1 = fcx; while (lx1 < w - 1 && !tube(lx1, lcy)) lx1++
+  while (lx1 < w - 1 && tube(lx1 + 1, lcy)) lx1++
+  const launch = { x0: lx0, y0: ly0, x1: lx1, y1: ly1 }
+
+  /* 1. הכיתוב שבכפתור */
+  const lh = launch.y1 - launch.y0
+  /* כל פנים הכפתור: כל עמודה ממולאת במעבר בין הקצה העליון הנקי שלה לתחתון (האותיות מגיעות כמעט עד הקצוות המעוגלים,
+     ולכן אין צד נקי למלא ממנו לרוחב) */
+  const tx0 = launch.x0 + Math.round(lh * 0.3), tx1 = launch.x1 - Math.round(lh * 0.3), ty0 = launch.y0 + Math.round(lh * 0.17), ty1 = launch.y1 - Math.round(lh * 0.17)
+  for (let x = tx0; x <= tx1; x++) {
+    const edge = (y: number, c: number) => { let s = 0; for (let j = -3; j <= 3; j++) s += p[(y * w + x + j) * 4 + c]; return s / 7 }
     for (let c = 0; c < 3; c++) {
-      const a = edge(tx0 - 3, c), b = edge(tx1 + 3, c)
-      for (let x = tx0; x <= tx1; x++) p[(y * w + x) * 4 + c] = Math.round(a + (b - a) * (x - tx0) / (tx1 - tx0))
+      const a = edge(ty0 - 1, c), b = edge(ty1 + 1, c)
+      for (let y = ty0; y <= ty1; y++) p[(y * w + x) * 4 + c] = Math.round(a + (b - a) * (y - ty0) / (ty1 - ty0))
     }
   }
-
-  /* המקומות של החלקים (לפני החיתוך): השדה הלבן, שני החצים (המסגרת הכחולה שלהם) והכפתור (המסגרת הכתומה) */
-  const field = bbox(S(430), S(455), S(1245), S(660), (i) => mn(i) > 236)
-  const blue = (i: number) => p[i + 2] > 200 && p[i] < 120
-  const left = bbox(S(240), S(470), S(430), S(630), blue), right = bbox(S(1240), S(470), S(1430), S(630), blue)
-  const launch = bbox(S(600), S(300), S(1070), S(465), (i) => p[i] > 230 && p[i + 1] > 90 && p[i + 1] < 200 && p[i + 2] < 110)
 
   /* 2. הרקע השחור: מילוי מהשוליים דרך הפיקסלים הכהים. פיקסל כהה מקבל שקיפות לפי הבהירות שלו, והצבע שלו מתוקן בהתאם,
         כך שהזוהר שסביב הקונסולה נשאר זוהר ולא הופך לשוליים כהים */

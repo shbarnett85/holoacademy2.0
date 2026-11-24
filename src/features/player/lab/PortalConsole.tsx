@@ -4,6 +4,7 @@
      · השדה הלבן: פס דק בצבע המקצוע עם שם המקצוע, ומתחתיו שם השיעור (טקסט אמיתי, מתחלף בהחלקה)
      · שני המקשים שבצדדים: השיעור הקודם והשיעור הבא (החצים מצוירים בתמונה; הכפתורים שקופים מעליהם)
      · הכפתור שלמעלה: "שגר אותי!" — נכנס לשיעור שבפורטל, כמו לחיצה על הפורטל עצמו
+   מתחת למשטח: העמוד והבסיס שעליהם הקונסולה עומדת על הרצפה (חלק מהתמונה, בלי שום דבר חי).
    כל המידות ביחידות של רוחב הקונסולה (cqw), ולכן היא נראית אותו דבר בכל גודל. הרוחב נקבע מבחוץ (.home4-now).
    הסגנון כאן ולא ב-index.css, כמו שאר הפורטל: זה חלק מהעולם של החדר (זוהר וצבעי ניאון), ולא מהממשק. */
 import type { HTMLAttributes, ReactNode } from 'react'
@@ -12,13 +13,17 @@ import { subjectTagColors } from '../../../shared/lib/subjects'
 import { PORTAL_TEXT } from '../gameFeel/text'
 
 /* רוחב חלקי גובה של התמונה, והמקומות של החלקים באחוזים ממנה (הפלט של genPortalConsole.ts) */
-export const CONSOLE_ASPECT = 3.1532
+export const CONSOLE_ASPECT = 1.87
+/* החלק העליון של התמונה, עד תחתית המשטח עם המקשים: מתחתיו העמוד והבסיס שעליהם הקונסולה עומדת */
+export const CONSOLE_DECK_PART = 0.57
 const AT = {
-  field: { left: 25.02, top: 40.58, width: 49.97, height: 32.3 },
-  left: { left: 12.54, top: 42.86, width: 9.85, height: 25.26 },
-  right: { left: 77.68, top: 42.65, width: 9.85, height: 25.47 },
-  launch: { left: 34.87, top: 7.04, width: 30.14, height: 25.67 },
+  field: { left: 24.59, top: 23.17, width: 50.82, height: 17.61 },
+  left: { left: 9.61, top: 22.81, width: 12.45, height: 16.31 },
+  right: { left: 77.81, top: 22.81, width: 13.46, height: 16.43 },
+  launch: { left: 36.03, top: 5.44, width: 27.56, height: 13.36 },
 }
+/* אמצע השדה הלבן, כחלק מגובה התמונה: לפיו הקונסולה ממוקמת לגובה (PortalHero) */
+export const CONSOLE_FIELD_CENTER = (AT.field.top + AT.field.height / 2) / 100
 const box = (b: { left: number; top: number; width: number; height: number }) => `left: ${b.left}%; top: ${b.top}%; width: ${b.width}%; height: ${b.height}%;`
 /* שם ארוך מזה מוצג בשתי שורות ובאות קטנה יותר */
 const LONG_TITLE = 22
@@ -31,7 +36,7 @@ const CSS = `
 
 /* הכפתור שלמעלה: האותיות עשויות אור, כמו המסגרת הכתומה שסביבן */
 .pcon__launch { ${box(AT.launch)} border-radius: 999px; display: flex; align-items: center; justify-content: center; }
-.pcon__launch-text { font-size: 4.5cqw; font-weight: 900; line-height: 1; letter-spacing: .02em; white-space: nowrap; color: rgb(255 255 255);
+.pcon__launch-text { font-size: 4.1cqw; font-weight: 900; line-height: 1; letter-spacing: .02em; white-space: nowrap; color: rgb(255 255 255);
   text-shadow: 0 0 .12em rgb(255 255 255 / .9), 0 0 .38em rgb(255 110 220 / .95), 0 0 .9em rgb(255 110 220 / .6); }
 .pcon__launch::after, .pcon__key::after { content: ''; position: absolute; inset: 0; border-radius: inherit; opacity: 0; transition: opacity .15s ease; pointer-events: none; }
 .pcon__launch::after { box-shadow: 0 0 2.2cqw .5cqw rgb(255 150 60 / .75), inset 0 0 1.8cqw rgb(255 170 90 / .5); }
@@ -49,13 +54,13 @@ const CSS = `
 /* השדה הלבן: פס המקצוע לאורך הקצה העליון, ומתחתיו שם השיעור */
 .pcon__field { position: absolute; ${box(AT.field)} border-radius: 1.5cqw; overflow: hidden; }
 .pcon__field .swap-slide { width: 100%; height: 100%; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; }
-.pcon__subject { flex: 0 0 auto; height: 3.4cqw; display: flex; align-items: center; justify-content: center; font-size: 2.25cqw; font-weight: 800; line-height: 1; letter-spacing: .03em; white-space: nowrap; }
+.pcon__subject { flex: 0 0 auto; height: 3cqw; display: flex; align-items: center; justify-content: center; font-size: 2.1cqw; font-weight: 800; line-height: 1; letter-spacing: .03em; white-space: nowrap; }
 .pcon__title-box { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 1.6cqw; }
-.pcon__title { color: var(--color-ink); font-size: 3.9cqw; font-weight: 800; line-height: 1.12; text-align: center; text-wrap: balance;
+.pcon__title { color: var(--color-ink); font-size: 3.7cqw; font-weight: 800; line-height: 1.12; text-align: center; text-wrap: balance;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.pcon__title[data-long] { font-size: 3cqw; }
-.pcon__field[data-plain] .pcon__title { font-size: 4.4cqw; }
-.pcon__field[data-plain] .pcon__title[data-long] { font-size: 3.6cqw; }
+.pcon__title[data-long] { font-size: 2.75cqw; }
+.pcon__field[data-plain] .pcon__title { font-size: 4.2cqw; }
+.pcon__field[data-plain] .pcon__title[data-long] { font-size: 3.4cqw; }
 `
 
 export default function PortalConsole({ title, subjectCode, swapKey, dir, onPrev, onNext, onLaunch, launchLabel, fieldProps, titleProps, prevProps, nextProps, children }: {

@@ -16,7 +16,7 @@ import { panelStudent } from '../../../styles/ui'
 import LabStage from './LabStage'
 import PortalCaption, { type PortalCaptionData } from './PortalCaption'
 import { OPENING_STAGE, labCover } from './labComposition'
-import { CONSOLE_ASPECT } from './PortalConsole'
+import { CONSOLE_ASPECT, CONSOLE_DECK_PART, CONSOLE_FIELD_CENTER } from './PortalConsole'
 
 /* ד"ר הולו, בקואורדינטות של תמונת הספרייה: אמצע הדמות לרוחב, וקצת מתחת לקצה העליון שלה */
 const HOLO_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
@@ -31,14 +31,16 @@ const CAPTION_FONT_MIN = 17
 const STEP_LINE = OPENING_STAGE.stepLine ?? PORTAL.y + PORTAL.height + 24
 /* הקצה התחתון של פתח הפורטל: כשאין מקום, הקונסולה עולה עד אליו (ומכסה את שלבי הבמה), ורק אחר כך התמונה כולה עולה */
 const OPENING_BOTTOM = PORTAL.y + PORTAL.height
-/* החלק העליון של הקונסולה (הבליטה עם הכפתור) צר, ולכן מותר לו לעלות על תחתית הפתח: עד החלק הזה מגובה הקונסולה */
-const BUMP_PART = 0.3
+/* הקונסולה עומדת על הרצפה לפני הפורטל, ולכן החלק העליון שלה מסתיר את תחתית הפתח. התמונה לא ממשיכה לעלות בשביל
+   לחשוף את החלק הזה מגובה הקונסולה */
+const BUMP_PART = 0.4
+/* בלי אלמנט ליישר אליו (הבית של התלמיד): אמצע השדה הלבן בגובה הזה מעל תחתית הבמה, כחלק מגובהה. זה המקום שיוצא
+   בעמוד הפתיחה במחשב נייד */
+const FIELD_FROM_BOTTOM = 0.19
 /* כמה מהפתח נשאר מעל הקצה העליון של הבמה לפני שמוותרים ונותנים לבליטה לעלות על תחתיתו */
 const OPENING_TOP_MARGIN = 8
-/* מתחת לקונסולה: הצל שלה ומעט אוויר */
-const UNDER_GAP = 12
 /* רוחב הקונסולה (אותו חישוב כמו ב-index.css: .home4-now), כדי לדעת את הגובה שלה לפני שהיא מוצגת ושהתמונה לא תזוז כשהיא מגיעה */
-const consoleWidth = (stageW: number, stageH: number) => Math.min(stageW - 20, Math.max(350, Math.min(760, window.innerWidth * 0.38, stageH * 0.9)))
+const consoleWidth = (stageW: number, stageH: number) => Math.min(stageW - 20, Math.max(350, Math.min(740, window.innerWidth * 0.38, stageH * 0.88)))
 
 export default function PortalHero({ portalSrc, portalDir, portalNext, portalLabel, onPortalClick, onPortalHover, leaving, onDiveEnd, holoAction, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
   /* התמונה שבפורטל; בלי ערך הפורטל ריק */
@@ -89,9 +91,18 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
       const scale = Math.max(W / OPENING_STAGE.width, H / OPENING_STAGE.height)
       const spare = OPENING_STAGE.height * scale - H
       const portalX = (W - OPENING_STAGE.width * scale) * OPENING_STAGE.focal.x + CAPTION_X * scale
-      const covered = panelBox && panelBox.left < stageBox.left + portalX && panelBox.right > stageBox.left + portalX ? Math.max(0, stageBox.bottom - panelBox.top) : 0
-      const underH = underRef.current?.offsetHeight || consoleWidth(W, H) / CONSOLE_ASPECT
-      const need = underH + UNDER_GAP + covered
+      /* מסך צר: החלון מתחת לבמה (ולא לצד הפורטל), ועולה מעט על הקצה התחתון שלה */
+      const narrow = !!panelBox && panelBox.left < stageBox.left + portalX && panelBox.right > stageBox.left + portalX
+      const covered = narrow ? Math.max(0, stageBox.bottom - panelBox!.top) : 0
+      /* הקונסולה נמוכה במסך, והחלק התחתון שלה מוסתר מתחת לקצה הבמה (לבקשת המשתמש).
+         מסך רחב: השדה הלבן שלה בגובה של האלמנט שהחלון מסמן ב-data-console-align (בעמוד הפתיחה: הכפתור "כניסת תלמידים"),
+         ומה שיורד מתחת לבמה מוסתר מאחורי הבאנר שמתחתיה. מסך צר: העמוד והבסיס מאחורי החלון, ורק המשטח צריך מקום */
+      const fullH = underRef.current?.offsetHeight || consoleWidth(W, H) / CONSOLE_ASPECT
+      const alignBox = narrow ? undefined : panelRef.current?.querySelector('[data-console-align]')?.getBoundingClientRect()
+      const fieldY = alignBox ? (alignBox.top + alignBox.bottom) / 2 - stageBox.top : H * (1 - FIELD_FROM_BOTTOM)
+      const wideTop = Math.max(0, Math.min(H - fullH * CONSOLE_DECK_PART, fieldY - fullH * CONSOLE_FIELD_CENTER))
+      const underH = narrow ? fullH * CONSOLE_DECK_PART : H - wideTop
+      const need = underH + covered
       /* כמה התמונה עולה: עד שהקונסולה כולה מתחת לפתח, אבל לא עד כדי כך שראש הפתח נחתך; במקרה כזה הבליטה שבראש
          הקונסולה עולה על תחתית הפתח, ורק כשגם זה לא מספיק התמונה ממשיכה לעלות */
       const lift = (px: number) => (px + OPENING_BOTTOM * scale - H) / spare
@@ -107,7 +118,7 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
       el.style.setProperty('--holo-x', `${c.x + HOLO_AT.x * c.scale}px`)
       el.style.setProperty('--steps-y', `${c.y + STEP_LINE * c.scale}px`)
       /* הקונסולה: הקצה העליון שלה על קו האור השני כשיש מקום מתחתיו; אחרת היא צמודה לתחתית הבמה ועולה על השלבים */
-      el.style.setProperty('--under-top', `${Math.max(0, Math.min(c.y + STEP_LINE * c.scale, H - need))}px`)
+      el.style.setProperty('--under-top', `${narrow ? Math.max(0, Math.min(c.y + STEP_LINE * c.scale, H - need)) : wideTop}px`)
       el.style.setProperty('--stage-h', `${H}px`)
       const stageTop = stageBox.top
       /* הכפתור שמעל ד"ר הולו: לרוחב באמצע הדמות, והקצה העליון שלו על הקו העליון של החלון */
