@@ -119,6 +119,8 @@ export const gameDataSchema = z
     endingBad: endingSchema.optional(),
     /* מצבי הרוח של ד"ר הולו במסכי המעבדה. לא מפיל ולידציה: ערך לא תקין הופך ל"רגיל" (applyLabPolicy) */
     holoMoods: z.unknown().optional(),
+    /* תמונת העטיפה של השיעור (lib/lessonCover.ts): נוצרת עם שאר התמונות, ולא בפרומפט היצירה */
+    cover: z.object({ imagePrompt: z.string().optional(), imageUrl: z.string().optional() }).optional(),
   })
   .superRefine((data, ctx) => {
     const add = (message: string) => ctx.addIssue({ code: 'custom', message })

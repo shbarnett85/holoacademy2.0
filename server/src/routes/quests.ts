@@ -441,8 +441,10 @@ questsRouter.post('/:id/review-quest', requireStaff, async (req, res, next) => {
     const objectives = concepts.slice(0, 8).map((c, i) => ({ id: `obj_${i + 1}`, text: c.text }))
 
     /* מאגר תמונות למיחזור מהשיעור המקורי */
-    const baseGd = base.game_data as { scenes?: { imageUrl?: string }[]; endingGood?: { imageUrl?: string }; endingBad?: { imageUrl?: string } }
+    const baseGd = base.game_data as { scenes?: { imageUrl?: string }[]; endingGood?: { imageUrl?: string }; endingBad?: { imageUrl?: string }; cover?: { imagePrompt?: string; imageUrl?: string } }
     const imagePool = {
+      /* גם תמונת העטיפה של השיעור המקורי: אותו נושא, ואין סיבה ליצור אחרת */
+      cover: baseGd.cover?.imageUrl ? baseGd.cover : undefined,
       scenes: (baseGd.scenes ?? []).map((s) => s.imageUrl).filter((u): u is string => !!u),
       endingGood: baseGd.endingGood?.imageUrl,
       endingBad: baseGd.endingBad?.imageUrl,
@@ -1259,6 +1261,7 @@ async function generateQuestInBackground(questId: string, params: QuestGeneratio
       gameData.scenes.forEach((sc, i) => { if (!sc.imageUrl) sc.imageUrl = pool[i % pool.length] })
       if (gameData.endingGood && !gameData.endingGood.imageUrl && params.imagePool.endingGood) gameData.endingGood.imageUrl = params.imagePool.endingGood
       if (gameData.endingBad && !gameData.endingBad.imageUrl && params.imagePool.endingBad) gameData.endingBad.imageUrl = params.imagePool.endingBad
+      if (params.imagePool.cover) (gameData as unknown as { cover?: { imagePrompt?: string; imageUrl?: string } }).cover = params.imagePool.cover
     }
 
     /* ניקוד Dicta (רמות ≤6) הועבר לשרשרת הרקע (factCheckInBackground) — חוסך את זמן

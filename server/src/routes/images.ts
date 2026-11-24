@@ -12,6 +12,7 @@ import { AppError } from '../middleware/errors.js'
 import { DR_HOLO_PLACEHOLDER, drHoloWithExpression } from '../prompts/constants.js'
 import { isEstablishingScene, needsSceneImage } from '../lib/questSchemas.js'
 import { requireCreator, ensureQuestAccess } from '../lib/creatorAccess.js'
+import { COVER_SCENE_ID, COVER_SUFFIX, writeCoverPrompt } from '../lib/lessonCover.js'
 
 export const imagesRouter = Router()
 
@@ -146,6 +147,8 @@ interface GameDataRef {
   isHistorical?: boolean
   endingGood?: EndingRef
   endingBad?: EndingRef
+  /* תמונת העטיפה של השיעור (lib/lessonCover.ts) */
+  cover?: { imagePrompt?: string; imageUrl?: string }
 }
 
 const FIXED_LAB_MESSAGE = 'מסכי הפתיחה והסיכום מתרחשים במעבדה קבועה, ולכן אין להם תמונה משלהם'
@@ -159,7 +162,7 @@ const ENDING_SCENE_ID = { good: '__endingGood__', bad: '__endingBad__' } as cons
    כותבת factCheck+תיקוני לשון, מורה עורך סצנה). כתיבת ה-game_data שנטען בתחילת
    הבקשה הייתה דורסת את כולם (lost update — כך כל אצוות הספרייה איבדה את ה-factCheck).
    לכן: טוענים מחדש את השורה, ממזגים אליה **רק** את קישורי התמונות שנוצרו, ושומרים. */
-interface ProducedImage { sceneId: string; kind: 'scene' | 'item'; url: string }
+interface ProducedImage { sceneId: string; kind: 'scene' | 'item' | 'cover'; url: string; prompt?: string }
 
 async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): Promise<string | null> {
   if (produced.length === 0) return null
@@ -168,6 +171,7 @@ async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): P
   if (fetchErr || !fresh?.game_data) return 'טעינת game_data טרי נכשלה: ' + (fetchErr?.message ?? '')
   const gd = fresh.game_data as GameDataRef
   for (const p of produced) {
+    if (p.kind === 'cover') { gd.cover = { ...(gd.cover ?? {}), ...(p.prompt ? { imagePrompt: p.prompt } : {}), imageUrl: p.url }; continue }
     const scene = gd.scenes.find((s) => s.id === p.sceneId)
     if (!scene) continue
     if (p.kind === 'scene') scene.imageUrl = p.url
@@ -176,6 +180,31 @@ async function saveImageUrlsFresh(questId: string, produced: ProducedImage[]): P
   const { error } = await supabaseAdmin.from('quests').update({ game_data: gd }).eq('id', questId)
   return error ? 'שמירת הקישורים נכשלה: ' + error.message : null
 }
+
+/* ── תמונת העטיפה של השיעור (lib/lessonCover.ts): התמונה שמייצגת את השיעור כולו, ב"שער הכניסה" אליו ──
+   הפרומפט נכתב פעם אחת מתוך השיעור ונשמר (game_data.cover.imagePrompt); יצירה מחדש משתמשת בפרומפט השמור.
+   אותה בקרה כמו תמונת סצנה (ניסיון נוסף כשנמצאה טעות בתמונה). unique: כתובת חדשה, כדי שהדפדפן לא יציג תמונה ישנה */
+export interface CoverQuest { id: string; title: string; art_style?: string | null; game_data: unknown }
+export async function produceCover(quest: CoverQuest, opts: { unique?: boolean; style?: string } = {}): Promise<{ url: string; prompt: string; problems: string[] }> {
+  const gd = quest.game_data as GameDataRef
+  const prompt = gd.cover?.imagePrompt || await writeCoverPrompt({ title: quest.title, gameData: gd as never })
+  if (!prompt) throw new Error('לא נכתב פרומפט לתמונת העטיפה')
+  /* בלי שכתוב "הדיוק המדעי" של תמונות הסצנה: הוא מפשט את התמונה לנושא אחד, ועטיפה היא נושא מרכזי עם כמה דברים סביבו.
+     ההנחיות לדיוק כתובות בפרומפט של העטיפה עצמו, והבקרה על התמונה שנוצרה זהה */
+  const base = `${prompt.replace(/[.\s]+$/, '')}, ${COVER_SUFFIX}`
+  const checked = await generateCheckedScene(base, opts.style ?? quest.art_style ?? undefined, gd.isHistorical ? `${HISTORICAL_NEGATIVE}, ${COVER_HISTORICAL_NEGATIVE}` : undefined, { lessonTitle: quest.title })
+  const url = await uploadBase64Image(checked.b64, `holoacademy/${quest.id}`, `cover${opts.unique ? `_${uniqueSuffix()}` : ''}`)
+  return { url, prompt, problems: checked.problems }
+}
+/* שמירת העטיפה (מיזוג אל game_data טרי) ויצירה מחדש של התמונה הממוזערת. מחזיר שגיאה, או null */
+export async function saveCover(questId: string, cover: { url: string; prompt: string }): Promise<string | null> {
+  const err = await saveImageUrlsFresh(questId, [{ sceneId: COVER_SCENE_ID, kind: 'cover', url: cover.url, prompt: cover.prompt }])
+  if (!err) await refreshQuestThumb(questId).catch(() => undefined)
+  return err
+}
+/* בעטיפה של שיעור היסטורי: מודל התמונות מוסיף כלי מעבדה וחפצים מודרניים ליד "ממציא" או "מדען" */
+const COVER_HISTORICAL_NEGATIVE = 'laboratory glassware, flask, beaker, test tube, modern objects, electric light, plastic'
+const COVER_WARNING = 'ייתכן שיש טעות בתמונת העטיפה של השיעור. כדאי לבדוק אותה וליצור אותה מחדש.'
 
 /* הרצת משימות עם מקסימום 2 במקביל */
 async function runPool<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<void> {
@@ -206,6 +235,15 @@ imagesRouter.post('/:id/regenerate-image', requireCreator, async (req, res, next
     await ensureQuestAccess(req, quest as { created_by?: string | null; anon_id?: string | null })
 
     const gameData = quest.game_data as GameDataRef
+
+    /* תמונת העטיפה של השיעור: יצירה מחדש מהפרומפט השמור (או כתיבה שלו, אם עוד אין) */
+    if (sceneId === COVER_SCENE_ID) {
+      const cover = await produceCover(quest as CoverQuest, { unique: true })
+      const saveErr = await saveCover(quest.id, cover)
+      if (saveErr) throw new AppError(500, saveErr)
+      res.json({ sceneId, kind: 'cover', imageUrl: cover.url, warning: cover.problems.length ? COVER_WARNING : undefined })
+      return
+    }
 
     /* מסכי הפתיחה והסיכום מתרחשים במעבדה הקבועה, ולכן אין להם תמונה משלהם */
     if (sceneId === ENDING_SCENE_ID.good || sceneId === ENDING_SCENE_ID.bad) {
@@ -320,7 +358,9 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
       res.write(`data: ${JSON.stringify(payload)}\n\n`)
     }
 
-    const total = tasks.length
+    /* תמונת העטיפה של השיעור: נוצרת יחד עם שאר התמונות (גם בשיעור קיים שעוד אין לו עטיפה) */
+    const wantCover = gameData.scenes.length > 0 && (regenerateAll || !gameData.cover?.imageUrl)
+    const total = tasks.length + (wantCover ? 1 : 0)
     let completed = 0
     const warnings: string[] = []
 
@@ -336,8 +376,21 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
 
     /* יצירה במקביל (2 בו-זמנית) — מעבר לכך Together מחזיר 429. כשל בתמונה בודדת לא מפיל את השאר */
     const produced: ProducedImage[] = []
+    const coverJob = async () => {
+      try {
+        const cover = await produceCover(quest as CoverQuest, { unique: !!regenerateAll, style: artStyle })
+        if (cover.problems.length) warnings.push(COVER_WARNING)
+        produced.push({ sceneId: COVER_SCENE_ID, kind: 'cover', url: cover.url, prompt: cover.prompt })
+        completed++
+        send({ sceneId: COVER_SCENE_ID, kind: 'cover', imageUrl: cover.url, completed, total })
+      } catch (err) {
+        completed++
+        warnings.push(`תמונת העטיפה של השיעור נכשלה: ${err instanceof Error ? err.message : String(err)}`)
+        send({ sceneId: COVER_SCENE_ID, kind: 'cover', failed: true, completed, total })
+      }
+    }
     await runPool(
-      tasks.map((task) => async () => {
+      [...(wantCover ? [coverJob] : []), ...tasks.map((task) => async () => {
         try {
           let b64: string
           if (task.kind === 'item') {
@@ -359,7 +412,7 @@ imagesRouter.post('/:id/generate-images', requireCreator, async (req, res, next)
           warnings.push(`תמונה (${task.kind}) בסצנה ${task.sceneId} נכשלה: ${msg}`)
           send({ sceneId: task.sceneId, kind: task.kind, failed: true, completed, total })
         }
-      }),
+      })],
       2,
     )
 

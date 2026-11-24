@@ -13,6 +13,11 @@ describe('lessonThumbUrl', () => {
     expect(lessonThumbUrl(null)).toBeNull()
     expect(lessonThumbUrl({ scenes: [] })).toBeNull()
   })
+  it('תמונת העטיפה של השיעור קודמת לכל תמונת סצנה; עטיפה בלי תמונה לא נחשבת', () => {
+    expect(lessonThumbUrl({ ...gd, cover: { imageUrl: 'cover.png' } })).toBe('cover.png')
+    expect(lessonThumbUrl({ ...gd, cover: { imageUrl: null } })).toBe('world.png')
+    expect(lessonThumbUrl({ ...gd, cover: null })).toBe('world.png')
+  })
   it('בלי nextSceneId — הסצנה שאחרי הפתיחה לפי הסדר', () => {
     expect(lessonThumbUrl({ entrySceneId: 'a', scenes: [{ id: 'a', imageUrl: 'lab.png' }, { id: 'b', imageUrl: 'world.png' }] })).toBe('world.png')
   })
