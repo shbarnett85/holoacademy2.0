@@ -16,6 +16,7 @@ import { panelStudent } from '../../../styles/ui'
 import LabStage from './LabStage'
 import PortalCaption, { type PortalCaptionData } from './PortalCaption'
 import { OPENING_STAGE, labCover } from './labComposition'
+import { CONSOLE_ASPECT } from './PortalConsole'
 
 /* ד"ר הולו, בקואורדינטות של תמונת הספרייה: אמצע הדמות לרוחב, וקצת מתחת לקצה העליון שלה */
 const HOLO_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
@@ -28,10 +29,16 @@ const CAPTION_FONT = 31
 const CAPTION_FONT_MIN = 17
 /* קו האור השני בשלבי הבמה שלפני הפורטל (step 2): הקו העליון של כרטיס שם השיעור */
 const STEP_LINE = OPENING_STAGE.stepLine ?? PORTAL.y + PORTAL.height + 24
-/* מתחת לכרטיס: הצל הקשיח שלו ומעט אוויר */
+/* הקצה התחתון של פתח הפורטל: כשאין מקום, הקונסולה עולה עד אליו (ומכסה את שלבי הבמה), ורק אחר כך התמונה כולה עולה */
+const OPENING_BOTTOM = PORTAL.y + PORTAL.height
+/* החלק העליון של הקונסולה (הבליטה עם הכפתור) צר, ולכן מותר לו לעלות על תחתית הפתח: עד החלק הזה מגובה הקונסולה */
+const BUMP_PART = 0.3
+/* כמה מהפתח נשאר מעל הקצה העליון של הבמה לפני שמוותרים ונותנים לבליטה לעלות על תחתיתו */
+const OPENING_TOP_MARGIN = 8
+/* מתחת לקונסולה: הצל שלה ומעט אוויר */
 const UNDER_GAP = 12
-/* גובה הכרטיס לפני שהוא מוצג (index.css: .home4-now-card, שתי שורות של שם), כדי שהתמונה לא תזוז כששם השיעור מגיע */
-const underHeightGuess = () => 2 * 1.25 * Math.min(20, Math.max(16, window.innerWidth * 0.0125)) + 20
+/* רוחב הקונסולה (אותו חישוב כמו ב-index.css: .home4-now), כדי לדעת את הגובה שלה לפני שהיא מוצגת ושהתמונה לא תזוז כשהיא מגיעה */
+const consoleWidth = (stageW: number, stageH: number) => Math.min(stageW - 20, Math.max(350, Math.min(760, window.innerWidth * 0.38, stageH * 0.9)))
 
 export default function PortalHero({ portalSrc, portalDir, portalNext, portalLabel, onPortalClick, onPortalHover, leaving, onDiveEnd, holoAction, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
   /* התמונה שבפורטל; בלי ערך הפורטל ריק */
@@ -83,8 +90,13 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
       const spare = OPENING_STAGE.height * scale - H
       const portalX = (W - OPENING_STAGE.width * scale) * OPENING_STAGE.focal.x + CAPTION_X * scale
       const covered = panelBox && panelBox.left < stageBox.left + portalX && panelBox.right > stageBox.left + portalX ? Math.max(0, stageBox.bottom - panelBox.top) : 0
-      const need = (underRef.current?.offsetHeight || underHeightGuess()) + UNDER_GAP + covered
-      const fy = spare > 0.5 ? Math.round(Math.min(1, Math.max(OPENING_STAGE.focal.y, (need + STEP_LINE * scale - H) / spare)) * 1000) / 1000 : OPENING_STAGE.focal.y
+      const underH = underRef.current?.offsetHeight || consoleWidth(W, H) / CONSOLE_ASPECT
+      const need = underH + UNDER_GAP + covered
+      /* כמה התמונה עולה: עד שהקונסולה כולה מתחת לפתח, אבל לא עד כדי כך שראש הפתח נחתך; במקרה כזה הבליטה שבראש
+         הקונסולה עולה על תחתית הפתח, ורק כשגם זה לא מספיק התמונה ממשיכה לעלות */
+      const lift = (px: number) => (px + OPENING_BOTTOM * scale - H) / spare
+      const keepTop = (PORTAL.y * scale - OPENING_TOP_MARGIN) / spare
+      const fy = spare > 0.5 ? Math.round(Math.min(1, Math.max(OPENING_STAGE.focal.y, Math.min(lift(need), Math.max(keepTop, lift(need - BUMP_PART * underH))))) * 1000) / 1000 : OPENING_STAGE.focal.y
       setFocalY((prev) => (prev === fy ? prev : fy))
       const c = labCover(W, H, { ...OPENING_STAGE, focal: { ...OPENING_STAGE.focal, y: fy } })
       const fontSize = Math.max(CAPTION_FONT_MIN, CAPTION_FONT * c.scale)
@@ -94,6 +106,9 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
       el.style.setProperty('--portal-x', `${c.x + CAPTION_X * c.scale}px`)
       el.style.setProperty('--holo-x', `${c.x + HOLO_AT.x * c.scale}px`)
       el.style.setProperty('--steps-y', `${c.y + STEP_LINE * c.scale}px`)
+      /* הקונסולה: הקצה העליון שלה על קו האור השני כשיש מקום מתחתיו; אחרת היא צמודה לתחתית הבמה ועולה על השלבים */
+      el.style.setProperty('--under-top', `${Math.max(0, Math.min(c.y + STEP_LINE * c.scale, H - need))}px`)
+      el.style.setProperty('--stage-h', `${H}px`)
       const stageTop = stageBox.top
       /* הכפתור שמעל ד"ר הולו: לרוחב באמצע הדמות, והקצה העליון שלו על הקו העליון של החלון */
       setActionAt(panelBox ? { left: c.x + HOLO_AT.x * c.scale, top: panelBox.top - stageTop } : null)

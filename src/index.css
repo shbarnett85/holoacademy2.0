@@ -201,29 +201,22 @@
 .where-actions .holo-button { min-height: 46px; padding: 8px 22px; font-family: var(--font-display); font-size: 17px; font-weight: 800; }
 .where-play.holo-button { display: inline-flex; align-items: center; gap: 8px; background: var(--color-human-soft); }
 
-/* על המדרגות של הפורטל (עמוד הפתיחה והבית של התלמיד): השיעור שמוצג בו עכשיו, עם חצים להחלפה.
-   לבקשת המשתמש: ממורכז על הפורטל, והקו העליון של הכרטיס על המדרגה השנייה של הפורטל, בכל גודל מסך.
-   נקודות הייחוס (--portal-x, --steps-y) בקואורדינטות של תמונת הספרייה, נמדדות ב-PortalHero; שם גם דואגים שיהיה לכרטיס
-   מקום מתחת למדרגה. אין כפתור כניסה (הוסר לבקשת המשתמש): נכנסים לשיעור בלחיצה על הפורטל */
+/* הקונסולה שלפני הפורטל (player/lab/PortalConsole: שם השיעור, מקשי הדפדוף והכפתור "שגר אותי!"), ממורכזת על הפורטל.
+   נקודות הייחוס (--portal-x, --under-top, --stage-h) נמדדות ב-PortalHero, בקואורדינטות של תמונת הספרייה: הקצה העליון של
+   הקונסולה על קו האור השני שלפני הפורטל כשיש מקום מתחתיו, ואחרת היא צמודה לתחתית הבמה */
 .home4-now {
-  position: absolute; z-index: 1; left: var(--portal-x, 50%); top: var(--steps-y, 72%); transform: translateX(-50%);
-  width: max-content; max-width: calc(100vw - 2 * (var(--lab-page-w) + 2rem));
-  display: flex; align-items: flex-start; justify-content: center;
+  position: absolute; z-index: 1; left: var(--portal-x, 50%); top: var(--under-top, var(--steps-y, 72%)); transform: translateX(-50%);
+  /* רוחב הקונסולה (PortalConsole): לפי רוחב המסך, אבל לא יותר ממה שגובה הבמה מאפשר (אותו חישוב ב-PortalHero: consoleWidth) */
+  width: min(100% - 20px, max(350px, min(760px, 38vw, var(--stage-h, 600px) * .9)));
   animation: home4-now-in .5s ease .5s both;
 }
 @keyframes home4-now-in { from { opacity: 0; transform: translateX(-50%) translateY(14px); } to { opacity: 1; transform: translateX(-50%); } }
-.home4-now-row { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; max-width: 100%; }
 /* שם השיעור מתחלף בהחלקה (shared/ui/SwapSlide): היוצא מחליק ונמוג, ואז הנכנס מחליק פנימה. --swap-dir: 1 קדימה, -1 אחורה */
 .swap-slide { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
 .swap-slide[data-phase=out] { animation: swap-slide-out .11s ease-in both; }
 .swap-slide[data-phase=in] { animation: swap-slide-in .16s ease-out both; }
 @keyframes swap-slide-out { to { opacity: 0; transform: translateX(calc(var(--swap-dir, 1) * 12px)); } }
 @keyframes swap-slide-in { from { opacity: 0; transform: translateX(calc(var(--swap-dir, 1) * -12px)); } }
-/* רוחב וגובה קבועים (מקום לשתי שורות של שם): כשהשם מתחלף הכרטיס והחצים לא זזים */
-.home4-now-card { --now-fs: clamp(16px, 1.25vw, 20px); min-width: 0; width: clamp(230px, 25vw, 420px); max-width: 100%; min-height: calc(2 * 1.25 * var(--now-fs) + 20px); box-sizing: border-box; justify-content: center; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 7px 14px; border-radius: 14px; background: var(--color-surface); border: var(--border-student); box-shadow: var(--shadow-button); }
-/* שם השיעור: עד שתי שורות, כדי ששם ארוך לא ייחתך */
-.home4-now-title { min-width: 0; font-size: var(--now-fs); font-weight: 800; line-height: 1.25; text-align: center; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.home4-arrow.holo-button { flex-shrink: 0; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; line-height: 1; }
 
 /* ── עמוד הפתיחה במסך אחד (.home4-fit; לבקשת המשתמש, לפי המוקאפ שלו): פס עליון דק, הבמה, ובאנר השלבים מתחתיה.
    הבמה ממלאת את מה שנשאר בין הפס לבאנר. מסך נמוך מדי (מתחת ל-min-height): העמוד נגלל, ושום דבר לא נחתך ── */
@@ -282,9 +275,8 @@
   .home4-strip { order: 3; flex-direction: column; justify-content: center; gap: 8px; padding: 6px 14px 20px; background: none; border-bottom: none; }
   .home4-strip-brand { order: 3; }
   .home4-band { padding: clamp(22px, 4vh, 40px) clamp(14px, 3vw, 44px) 18px; gap: 12px; }
-  .home4-stage { position: relative; inset: auto; height: min(50vh, 85vw); min-height: 328px; border-bottom: var(--border-student); }
+  .home4-stage { position: relative; inset: auto; height: min(54vh, 100vw); min-height: 328px; border-bottom: var(--border-student); }
   .home4-panel { position: relative; inset: auto; top: auto; transform: none; width: min(460px, calc(100% - 28px)); max-height: none; margin: -22px auto 22px; animation: none; }
-  .home4-now { max-width: calc(100% - 20px); }
   /* החלון מתחת לבמה, ולכן "איפה אני?" בראש הבמה: מעל ד"ר הולו כשיש מקום, ואחרת בקצה הבמה */
   .home4-stage { --narrow-left: max(10px, calc(var(--holo-x, 0px) - 80px)); }
   .home4-holo-action { left: var(--narrow-left) !important; top: 10px !important; transform: none; animation: none; }

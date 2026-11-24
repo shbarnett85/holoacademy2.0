@@ -6,7 +6,7 @@ import BrandIcon from '../../shared/ui/BrandIcon'
 import BrandLogo from '../../shared/ui/BrandLogo'
 import LessonThumb from '../../shared/ui/LessonThumb'
 import SubjectTag from '../../shared/ui/SubjectTag'
-import SwapSlide from '../../shared/ui/SwapSlide'
+import PortalConsole from './lab/PortalConsole'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { gemTier } from '../../shared/lib/gemTier'
@@ -376,18 +376,13 @@ export default function StudentHome() {
           </div>
         }
         under={current ? <>
-          <div className="home4-now-row">
-            {n > 1 && <button onClick={() => step(-1)} aria-label={PORTAL_TEXT.prev} className="holo-button holo-button--sm home4-arrow" data-portal-prev><span aria-hidden="true">→</span></button>}
-            <div className="home4-now-card" aria-live="polite" data-portal-lesson={current.id}>
-              <SwapSlide swapKey={current.id} dir={dir}>
-                <span className="home4-now-title" data-lesson-title>{current.title}</span>
-                <SubjectTag code={current.subjectCode} size="sm" />
-              </SwapSlide>
-              {/* לקוראי מסך: המקום ברשימה והמצב (על המסך המצב מוקרן על הפורטל) */}
-              <span className="sr-only" data-portal-position>{PORTAL_TEXT.position(idx + 1, n)} · {statusText(current)}</span>
-            </div>
-            {n > 1 && <button onClick={() => step(1)} aria-label={PORTAL_TEXT.next} className="holo-button holo-button--sm home4-arrow" data-portal-next><span aria-hidden="true">←</span></button>}
-          </div>
+          <PortalConsole title={current.title} subjectCode={current.subjectCode ?? null} swapKey={current.id} dir={dir}
+            onPrev={n > 1 ? () => step(-1) : undefined} onNext={n > 1 ? () => step(1) : undefined}
+            onLaunch={play} launchLabel={`${PORTAL_TEXT.launch} ${current.title}`}
+            fieldProps={{ 'data-portal-lesson': current.id }} titleProps={{ 'data-lesson-title': '' }} prevProps={{ 'data-portal-prev': '' }} nextProps={{ 'data-portal-next': '' }}>
+            {/* לקוראי מסך: המקום ברשימה והמצב (על המסך המצב מוקרן על הפורטל) */}
+            <span className="sr-only" data-portal-position>{PORTAL_TEXT.position(idx + 1, n)} · {statusText(current)}</span>
+          </PortalConsole>
         </> : undefined}
         panelClass="shome-panel"
         panel={<>

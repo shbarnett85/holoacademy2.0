@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
-import SubjectTag from '../../shared/ui/SubjectTag'
 import BrandLogo from '../../shared/ui/BrandLogo'
-import SwapSlide from '../../shared/ui/SwapSlide'
 import WhereAmI from './WhereAmI'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 import { enterGuestStudent } from '../../shared/lib/guestStudent'
 import PortalHero from '../player/lab/PortalHero'
+import PortalConsole from '../player/lab/PortalConsole'
+import { PORTAL_TEXT } from '../player/gameFeel/text'
 import { usePortalDive } from '../player/lab/usePortalDive'
 
 /* שיעור בחלון הראווה — שיעורי ההתנסות ללא הרשמה, שמוצגים בפורטל */
@@ -138,8 +138,6 @@ export default function Home() {
         portalLabel={featured ? `נסו עכשיו: ${featured.title}` : 'נסו עכשיו את שיעור ההתנסות'}
         onPortalClick={play}
         onPortalHover={setPaused}
-        caption={{ tone: 'play', title: 'נסו עכשיו', sub: 'בלי הרשמה' }}
-        captionProps={{ 'data-home-try': '' }}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
         holoAction={
@@ -154,16 +152,9 @@ export default function Home() {
         }}
         under={<>
           {featured && (
-            <div className="home4-now-row" data-home-lesson>
-              {n > 1 && <button onClick={() => step(-1)} aria-label="השיעור הקודם" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">→</span></button>}
-              <div className="home4-now-card" aria-live="polite">
-                <SwapSlide swapKey={featured.id} dir={dir}>
-                  <span className="home4-now-title">{featured.title}</span>
-                  {featured.subject && <SubjectTag code={legacySubjectToCode(featured.subject)} size="sm" />}
-                </SwapSlide>
-              </div>
-              {n > 1 && <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">←</span></button>}
-            </div>
+            <PortalConsole title={featured.title} subjectCode={featured.subject ? legacySubjectToCode(featured.subject) : undefined} swapKey={featured.id} dir={dir}
+              onPrev={n > 1 ? () => step(-1) : undefined} onNext={n > 1 ? () => step(1) : undefined}
+              onLaunch={play} launchLabel={`${PORTAL_TEXT.launch} ${featured.title}`} fieldProps={{ 'data-home-lesson': '' }} />
           )}
         </>}
         panel={<>
