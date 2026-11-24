@@ -249,11 +249,27 @@
   .home4-stage { position: relative; inset: auto; height: min(50vh, 78vw); min-height: 300px; border-bottom: var(--border-student); }
   .home4-panel { position: relative; inset: auto; top: auto; transform: none; width: min(460px, calc(100% - 28px)); max-height: none; margin: -22px auto 22px; animation: none; }
   .home4-now { max-width: calc(100% - 20px); bottom: 34px; }
-  /* החלון מתחת לבמה: אין קו להתיישר אליו. השורה במרכז תחתית הבמה, והכפתור מתחת לשם השיעור */
-  .home4-now[data-layout=row] { left: 50%; top: auto; bottom: 34px; transform: translateX(-50%); max-width: calc(100% - 20px); flex-direction: column; align-items: center; gap: 8px; animation-name: home4-now-in; }
-  .home4-now[data-layout=row] .home4-play-slot { position: static; transform: none; }
-  /* החלון מתחת לבמה ולא לצידה, ולכן אין גובה להתיישר אליו: הכפתור בפינת הבמה */
-  .home4-holo-action { left: 10px !important; top: 10px !important; transform: none; animation: none; }
+  /* החלון מתחת לבמה, ולכן המסגרת היא הבמה עצמה. הצלע השמאלית: מעל ד"ר הולו כשיש מקום, ואחרת בקצה הבמה;
+     ולא קרוב מדי לשם השיעור: נשאר מקום לכפתור הכניסה הארוך ביותר (210px) ולחץ (52px) משמאל לכרטיס */
+  .home4-stage { --narrow-left: max(10px, min(calc(var(--holo-x, 0px) - 80px), calc(var(--portal-x, 50%) - clamp(230px, 25vw, 420px) / 2 - 262px))); }
+  /* שם השיעור (עם החצים) במרכז תחתית הבמה, מתחת לפורטל; כפתור הכניסה על אותו קו, על הצלע השמאלית, כמו במסך רחב.
+     הכפתור אף פעם לא מתחת לשם השיעור (לבקשת המשתמש) */
+  .home4-now[data-layout=row] { left: var(--portal-x, 50%); top: auto; bottom: 34px; transform: translateX(-50%); max-width: calc(100% - 20px); animation-name: home4-now-in; }
+  .home4-now[data-layout=row] .home4-play-slot { left: calc(var(--narrow-left) - var(--portal-x) + 50%); }
+  /* "איפה אני?": בראש הבמה, על אותה צלע שמאלית */
+  .home4-holo-action { left: var(--narrow-left) !important; top: 10px !important; transform: none; animation: none; }
+}
+/* טלפון: אין מקום לכפתור הכניסה ולשם השיעור בשורה אחת. שם השיעור נשאר בתחתית הבמה, וכפתור הכניסה בפינה הימנית
+   העליונה, מול "איפה אני?": שורה אחת למעלה, שורה אחת למטה, והפורטל גלוי ביניהן.
+   השורה והכפתור ממוקמים ישר מול הבמה, ולכן העוטף שלהם בלי מיקום משלו (ובלי אנימציית כניסה, שמזיזה אותו) */
+@media (max-width: 767px) {
+  .home4-now[data-layout=row] { position: static; transform: none; animation: none; max-width: none; }
+  .home4-now[data-layout=row] .home4-now-row { position: absolute; z-index: 1; left: 50%; bottom: 34px; transform: translateX(-50%); max-width: calc(100% - 20px); }
+  .home4-now[data-layout=row] .home4-play-slot { position: absolute; z-index: 1; left: auto; right: 10px; top: 10px; bottom: auto; }
+  .home4-now[data-layout=row] .home4-play.holo-button { min-height: 44px; padding: 6px 16px; font-size: 17px; gap: 8px; }
+}
+@media (max-width: 359px) {
+  .home4-now[data-layout=row] .home4-play.holo-button { padding: 6px 10px; font-size: 15px; gap: 6px; }
 }
 /* במסך בינוני (טאבלט): שתי הכניסות זו לצד זו, כדי ששתיהן ייכנסו במסך הראשון */
 @media (min-width: 600px) and (max-width: 1099px), (min-width: 600px) and (max-aspect-ratio: 7/5) {
@@ -272,6 +288,9 @@
 }
 @media (max-width: 600px) {
   .home4-where.holo-button { min-height: 44px; padding: 6px 14px; font-size: 16px; }
+}
+@media (max-width: 359px) {
+  .home4-where.holo-button { padding: 6px 10px; gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .home4-panel, .home4-holo-action, .home4-now { animation: none; }

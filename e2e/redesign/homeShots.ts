@@ -31,6 +31,26 @@ async function open(browser: Browser, w: number, h: number, opts: { splash?: boo
   return page
 }
 
+/* מסך צר (החלון מתחת לבמה): כפתור הכניסה אף פעם לא מתחת לשם השיעור (לבקשת המשתמש).
+   טלפון: "איפה אני?" וכפתור הכניסה בשורה אחת בראש הבמה, ושם השיעור בתחתית; טאבלט: הכפתור על הקו של שם השיעור, משמאלו */
+async function narrowLayout(p: Page, name: string, playSel: string): Promise<void> {
+  const g = await p.evaluate((sel) => {
+    const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
+    return { stage: r('.home4-stage'), where: r('[data-home-where]'), play: r(sel), row: r('.home4-now-row'), card: r('.home4-now-card'), panel: r('[data-portal-panel]') }
+  }, playSel)
+  const all = !!g.stage && !!g.where && !!g.play && !!g.row && !!g.card && !!g.panel
+  if (!all) { check(false, `${name}: הכפתורים ושם השיעור מוצגים`); return }
+  const { stage, where, play, row, card, panel } = g as { [k in keyof typeof g]: NonNullable<(typeof g)[k]> }
+  const apart = (a: typeof play, b: typeof play) => a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t
+  check(play.t < card.b - 1 && !(play.t >= card.b - 1), `${name}: כפתור הכניסה לא מתחת לשם השיעור`)
+  check([where, play, row].every((b) => b.l >= stage.l && b.r <= stage.r && b.t >= stage.t && b.b <= Math.min(stage.b, panel.t)), `${name}: "איפה אני?", כפתור הכניסה ושם השיעור בתוך הבמה, מעל החלון`)
+  check(apart(play, row) && apart(play, where) && apart(where, row), `${name}: הכפתורים ושם השיעור לא עולים זה על זה`)
+  check(Math.abs((card.l + card.r) / 2 - (stage.l + stage.r) / 2) <= 2, `${name}: שם השיעור ממורכז מתחת לפורטל`)
+  const sameLine = Math.abs(play.b - card.b) <= 1 && play.r <= row.l, topLine = Math.abs(play.t - where.t) <= 1 && play.l >= where.r
+  check(sameLine || topLine, `${name}: כפתור הכניסה ${sameLine ? 'על הקו של שם השיעור, משמאלו' : topLine ? 'בראש הבמה, מול "איפה אני?"' : 'לא במקום'}`)
+  if (sameLine) check(Math.abs(play.l - where.l) <= 1, `${name}: כפתור הכניסה ו"איפה אני?" מתחילים על אותה צלע שמאלית`)
+}
+
 async function splash(browser: Browser): Promise<void> {
   console.log('== splash ==')
   const page = await open(browser, 1366, 768, { splash: true })
@@ -182,13 +202,14 @@ async function home(browser: Browser): Promise<void> {
   await sc.context().close()
 
   /* מסך צר (טלפון לאורך) ומסך 4:3: הבמה למעלה והחלון מתחתיה */
-  for (const [name, w, h] of [['phone', 390, 800], ['tablet-4x3', 1024, 768]] as const) {
+  for (const [name, w, h] of [['phone', 390, 800], ['phone-small', 320, 640], ['tablet-portrait', 768, 1024], ['tablet-4x3', 1024, 768]] as const) {
     const p = await open(browser, w, h)
     await p.waitForSelector('[data-portal-panel]')
     await p.waitForTimeout(3500)
     await p.screenshot({ path: path.join(OUT, `home-${name}.png`), fullPage: false }); console.log('  shot', `home-${name}`)
     const ok = await p.evaluate(() => { const a = document.querySelector('[data-portal-panel]')!.getBoundingClientRect(); const s = document.querySelector('.home4-stage')!.getBoundingClientRect(); return a.top >= s.bottom - 40 && document.documentElement.scrollWidth <= innerWidth + 1 })
     check(ok, `${name}: החלון מתחת לבמה, בלי גלילה לרוחב`)
+    await narrowLayout(p, name, '[data-home-play]')
     await p.context().close()
   }
 
@@ -343,11 +364,19 @@ async function student(browser: Browser): Promise<void> {
   await empty.context().close()
 
   /* טאבלט 4:3 וטלפון לאורך: הבמה למעלה והרשימה מתחתיה */
-  for (const [name, w, h] of [['tablet-4x3', 1024, 768], ['phone', 390, 800]] as const) {
+  for (const [name, w, h] of [['tablet-4x3', 1024, 768], ['tablet-portrait', 768, 1024], ['phone', 390, 800], ['phone-small', 320, 640]] as const) {
     const ph = await openStudent(w, h)
     await ph.screenshot({ path: path.join(OUT, `student-${name}.png`) }); console.log('  shot', `student-${name}`)
     check(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1), `${name}: בלי גלילה לרוחב`)
-    check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const u = document.querySelector('[data-portal-under]')?.getBoundingClientRect(); return !!c && !!u && c.bottom <= u.top + 1 }), `${name}: הטקסט שעל הפורטל מעל השורה שמתחתיו`)
+    check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const u = document.querySelector('.home4-now-row')?.getBoundingClientRect(); return !!c && !!u && c.bottom <= u.top + 1 }), `${name}: הטקסט שעל הפורטל מעל השורה שמתחתיו`)
+    await narrowLayout(ph, name, '[data-portal-play]')
+    {
+      /* גם בשיעור שהופסק באמצע, שבו הכפתור ארוך יותר ("המשיכו לקרוא") */
+      await ph.locator('[data-portal-next]').click(); await ph.waitForTimeout(700)
+      await narrowLayout(ph, `${name}, שיעור שהופסק`, '[data-portal-play]')
+      check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const pl = document.querySelector('[data-portal-play]')?.getBoundingClientRect(); const w = document.querySelector('[data-home-where]')?.getBoundingClientRect(); return !!c && !!pl && !!w && [pl, w].every((b) => b.bottom <= c.top || b.top >= c.bottom || b.right <= c.left || b.left >= c.right) }), `${name}: הכפתורים לא מכסים את הטקסט שעל הפורטל`)
+      await ph.screenshot({ path: path.join(OUT, `student-${name}-paused.png`) })
+    }
     await ph.context().close()
   }
 }
