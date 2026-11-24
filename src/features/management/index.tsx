@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { leaveWith } from '../../shared/lib/leave'
 import { useNavigate } from 'react-router-dom'
 import { apiJson, apiFetch } from '../../shared/lib/api'
 import { useStaffAuth } from '../../shared/hooks/useStaffAuth'
@@ -96,7 +97,7 @@ export default function ManagementPanel() {
           <span className="text-sm rounded-full px-3 py-0.5" style={nameChip}>{user?.name} · {role === 'admin' ? 'מנהל' : role === 'municipal_admin' ? 'מנהל עירוני' : role === 'super_admin' ? 'מנהל-על' : 'מורה'}</span>
           <div className="flex gap-3">
             <button className={rowBtn} onClick={() => navigate('/analytics')}>📊 התקדמות</button>
-            <button className={rowBtn} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
+            <button className={rowBtn} onClick={() => leaveWith(() => { logout(); navigate('/staff/login') })}>יציאה</button>
           </div>
         </div>
         <h1 className="holo-text-glow text-3xl font-black mt-2 text-center">ניהול בית הספר</h1>

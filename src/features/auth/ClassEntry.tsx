@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import PinScreen from './PinScreen'
 import EntryShell, { EntryLogo } from '../../shared/ui/EntryShell'
+import WelcomeBurst from '../../shared/ui/WelcomeBurst'
 import { panelStudent } from '../../styles/ui'
 
 /* שוליים סביב החלון: מקום לצל הקשיח (6px ימינה ולמטה) בתוך המסגרת הגוללת של EntryShell */
@@ -41,11 +42,21 @@ export default function ClassEntry() {
       .catch((e: Error) => setError(e.message))
   }, [urlCode])
 
+  const [welcome, setWelcome] = useState<string | null>(null)
   /* בהצלחה — שמירת token ומעבר למסך התלמיד */
   function handleLoginSuccess(token: string, student: Student) {
     sessionStorage.setItem('holo_token', token)
     sessionStorage.setItem('holo_student_name', student.name)
-    navigate('/student')
+    setWelcome(student.name)
+  }
+
+  /* אחרי כניסה מוצלחת: אותה אנימציית "ברוכים הבאים" של כניסת הצוות (לבקשת המשתמש), ואז הבית של התלמיד */
+  if (welcome !== null) {
+    return (
+      <EntryShell>
+        <WelcomeBurst name={welcome} role="student" onDone={() => navigate('/student')} />
+      </EntryShell>
+    )
   }
 
   if (error) {

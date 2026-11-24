@@ -17,6 +17,7 @@ import LabStage from './LabStage'
 import PortalCaption, { type PortalCaptionData } from './PortalCaption'
 import { OPENING_STAGE, labCover } from './labComposition'
 import { CONSOLE_ASPECT, CONSOLE_DECK_PART } from './PortalConsole'
+import { PORTAL_TEXT } from '../gameFeel/text'
 
 /* ד"ר הולו, בקואורדינטות של תמונת הספרייה: אמצע הדמות לרוחב, וקצת מתחת לקצה העליון שלה */
 const HOLO_AT = { x: OPENING_STAGE.holo.centerX, y: OPENING_STAGE.holo.top + 18 }
@@ -39,7 +40,7 @@ const OPENING_TOP_MARGIN = 8
 /* רוחב הקונסולה (אותו חישוב כמו ב-index.css: .home4-now), כדי לדעת את הגובה שלה לפני שהיא מוצגת ושהתמונה לא תזוז כשהיא מגיעה */
 const consoleWidth = (stageW: number, stageH: number) => Math.min(stageW - 20, Math.max(350, Math.min(740, window.innerWidth * 0.38, stageH * 0.88)))
 
-export default function PortalHero({ portalSrc, portalDir, portalNext, portalLabel, onPortalClick, onPortalHover, leaving, onDiveEnd, holoAction, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
+export default function PortalHero({ portalSrc, portalDir, portalNext, portalLabel, onPortalClick, onPortalHover, leaving, loading, onDiveEnd, holoAction, caption, captionKey, captionProps, under, underProps, panel, panelClass, top }: {
   /* התמונה שבפורטל; בלי ערך הפורטל ריק */
   portalSrc?: string
   /* כיוון המעבר כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה */
@@ -52,6 +53,8 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
   /* העכבר או הפוקוס על הפורטל */
   onPortalHover?: (over: boolean) => void
   leaving?: 'dive'
+  /* השיעור נטען לפני הצלילה פנימה: על הפורטל הכיתוב "טוען" (במקום הכיתוב הרגיל, אם יש) */
+  loading?: boolean
   onDiveEnd?: () => void
   holoAction?: ReactNode
   caption?: PortalCaptionData
@@ -143,7 +146,11 @@ export default function PortalHero({ portalSrc, portalDir, portalNext, portalLab
           {/* ד"ר הולו ממתין ליד הפורטל ולא מדבר: לופ העמידה המחויך (לבקשת המשתמש), ולא "ברוכים הבאים" */}
           <LabStage state="opening" portalSrc={portalSrc} portalDir={portalDir} mood="neutral" holoAnimation="idle" leaving={leaving} onDiveEnd={onDiveEnd} onPortalClick={onPortalClick} onPortalHover={(over) => { setPortalHot(over); onPortalHover?.(over) }} portalLit={launchHot} portalLabel={portalLabel} focalY={focalY} />
           {holoAction && actionAt && <div className="home4-holo-action home4-fade" data-portal-holo-action style={actionAt}>{holoAction}</div>}
-          {caption && captionAt && (
+          {loading && captionAt ? (
+            <div className="home4-caption" role="status" data-portal-loading style={captionAt}>
+              <PortalCaption tone="loading" title={PORTAL_TEXT.loading} />
+            </div>
+          ) : caption && captionAt && (
             <div className="home4-caption home4-fade" aria-hidden="true" data-portal-caption {...captionProps} style={captionAt}>
               <PortalCaption key={captionKey} {...caption} />
             </div>

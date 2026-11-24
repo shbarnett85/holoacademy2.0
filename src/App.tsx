@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { createElement, lazy, Suspense, useEffect, useState } from 'react'
 import Splash from './features/home/Splash'
+import LeaveTransition from './shared/ui/LeaveTransition'
+import { loadPlayer, loadedPlayer } from './shared/lib/playerChunk'
 import MemoryDevHarness from './features/player/MemoryDevHarness'
 import SecretDeck from './features/deck/SecretDeck'
 import ErrorBoundary from './shared/ui/ErrorBoundary'
@@ -18,7 +20,9 @@ const ProtectedRoute = lazy(() => import('./features/auth/ProtectedRoute'))
 const Creator    = lazy(() => import('./features/creator'))
 const Library    = lazy(() => import('./features/creator/Library'))
 const QuestView  = lazy(() => import('./features/creator/QuestView'))
-const Player     = lazy(() => import('./features/player'))
+const LazyPlayer = lazy(loadPlayer)
+/* הנגן שכבר נטען מראש (לפני הצלילה לפורטל) מוצג מיד, בלי מסך הטעינה של הנתיב */
+function Player() { const ready = loadedPlayer(); return ready ? createElement(ready) : <LazyPlayer /> }
 const StudentHome = lazy(() => import('./features/player/StudentHome'))
 const SuperAdmin = lazy(() => import('./features/superadmin'))
 const Management = lazy(() => import('./features/management'))
@@ -106,6 +110,7 @@ export default function App() {
         </Routes>
         </div>
       </Suspense>
+      <LeaveTransition />
       <HoloDialogHost />
       </ErrorBoundary>
     </BrowserRouter>

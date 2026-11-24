@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 import GameScreen from './GameScreen'
 import RotateGate from './RotateGate'
 import LoadingQuest from './LoadingQuest'
+import { clearPreloadedLesson, preloadedLesson } from './lessonPreload'
 import { homePathForRole } from '../../shared/lib/homePath'
 import { recordGuestResult } from '../../shared/lib/guestStudent'
 import { trackFunnel } from '../../shared/lib/funnel'
@@ -29,14 +30,17 @@ export default function Player() {
   const isDemoSlug = !!rawId && DEMO_SLUGS[rawId]
   /* עד שה-slug מתורגם ל-id אמיתי — questId נשאר undefined, כך ש-usePlaySession
      (וה-fetch) לא ינסו לפעול על מחרוזת לא-תקנית ("leonardo" אינו uuid). */
-  const [resolvedId, setResolvedId] = useState<string | undefined>(isDemoSlug ? undefined : rawId)
+  /* השיעור כבר נטען במסך בחירת השיעורים, לפני הצלילה לפורטל (lessonPreload): המשחק מתחיל מיד, בלי מסך טעינה */
+  const [pre] = useState(() => preloadedLesson(rawId))
+  useEffect(() => { clearPreloadedLesson(rawId) }, [rawId])
+  const [resolvedId, setResolvedId] = useState<string | undefined>(pre ? pre.questId : isDemoSlug ? undefined : rawId)
   const questId = resolvedId
-  const [quest, setQuest] = useState<QuestPayload | null>(null)
+  const [quest, setQuest] = useState<QuestPayload | null>(pre ? (pre.quest as unknown as QuestPayload) : null)
   const [error, setError] = useState<string | null>(null)
   /* מחזור חיי ה-session — start בתחילה, complete מרוכז בסיום (best-effort) */
   /* "שחקו שוב": מספר המשחק הנוכחי. מעלה אותו → session חדש ומנוע חדש */
   const [playKey, setPlayKey] = useState(0)
-  const { sessionId, initialState, settled, saveResume, complete, variantGameData, live, effectsLevel } = usePlaySession(questId, playKey)
+  const { sessionId, initialState, settled, saveResume, complete, variantGameData, live, effectsLevel } = usePlaySession(questId, playKey, pre)
   const playAgain = useCallback((saved: Promise<void> | null) => {
     /* מחכים שהמשחק הקודם יישמר (עד 4 שניות), כדי שהשרת יזהה את החדש כמשחק חוזר */
     const timeout = new Promise<void>((resolve) => { window.setTimeout(resolve, 4000) })
@@ -44,7 +48,7 @@ export default function Player() {
   }, [])
 
   useEffect(() => {
-    if (!isDemoSlug) return
+    if (!isDemoSlug || pre) return
     fetch('/api/quests/demo')
       .then(async (res) => {
         if (!res.ok) {
@@ -55,10 +59,10 @@ export default function Player() {
       })
       .then((body) => setResolvedId(body.id))
       .catch((e: Error) => setError(e.message))
-  }, [isDemoSlug])
+  }, [isDemoSlug, pre])
 
   useEffect(() => {
-    if (!questId) return
+    if (!questId || pre) return
     apiFetch(`/api/quests/${questId}`)
       .then(async (res) => {
         if (!res.ok) {
@@ -69,7 +73,7 @@ export default function Player() {
       })
       .then((body) => setQuest(body.quest))
       .catch((e: Error) => setError(e.message))
-  }, [questId])
+  }, [questId, pre])
 
   /* כפתור ההשתקה נשמר לכל תלמיד/ה */
   useEffect(() => { setSoundOwnerFromToken() }, [])
@@ -132,6 +136,7 @@ export default function Player() {
       <GameScreen
         key={playKey}
         questId={questId}
+        instantStart={!!pre && playKey === 0}
         hasSession={!!sessionId}
         effectsLevel={effectsLevel}
         onPlayAgain={playAgain}

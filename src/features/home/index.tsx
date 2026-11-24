@@ -4,11 +4,13 @@ import { trackFunnel } from '../../shared/lib/funnel'
 import BrandIcon from '../../shared/ui/BrandIcon'
 import BrandLogo from '../../shared/ui/BrandLogo'
 import WhereAmI from './WhereAmI'
+import WelcomeBurst from '../../shared/ui/WelcomeBurst'
 import { legacySubjectToCode } from '../../shared/lib/subjects'
 import { fieldStyle, infoChip, modalBackdrop, panelStudent } from '../../styles/ui'
 import { enterGuestStudent } from '../../shared/lib/guestStudent'
 import PortalHero from '../player/lab/PortalHero'
 import PortalConsole from '../player/lab/PortalConsole'
+import { preloadLesson } from '../player/lessonPreload'
 import { PORTAL_TEXT } from '../player/gameFeel/text'
 import { usePortalDive } from '../player/lab/usePortalDive'
 
@@ -64,7 +66,8 @@ const PORTAL_ROTATE_MS = 7000
    הלוגיקה נשמרת: תלמיד → מודאל קוד כיתה → /class/:code; מורה → /staff/login; שיעור התנסות → /play/:id. */
 export default function Home() {
   const navigate = useNavigate()
-  const { leaving, dive, onDiveEnd } = usePortalDive()
+  const { leaving, loading, dive, onDiveEnd } = usePortalDive()
+  const [guestWelcome, setGuestWelcome] = useState(false)
   const [showCodeModal, setShowCodeModal] = useState(false)
   const [classCode, setClassCode] = useState('')
   const [showWhere, setShowWhere] = useState(false)
@@ -97,7 +100,9 @@ export default function Home() {
   function play() {
     if (leaving) return
     if (featured) trackFunnel('showcase_click', featured.id)
-    dive(featured ? `/play/${featured.id}` : '/play/leonardo')
+    /* השיעור נטען כאן, מתחת לכיתוב "טוען", ורק אחר כך הצלילה לפורטל: אחריה המשחק מתחיל מיד */
+    const id = featured ? featured.id : 'leonardo'
+    dive(`/play/${id}`, () => preloadLesson(id))
   }
 
   /* ‏Escape סוגר את מודאל קוד-הכיתה — אותה התנהגות כמו כל חלונות הכניסה */
@@ -139,6 +144,7 @@ export default function Home() {
         onPortalClick={play}
         onPortalHover={setPaused}
         leaving={leaving}
+        loading={loading}
         onDiveEnd={onDiveEnd}
         holoAction={
           <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog" aria-label={PORTAL_TEXT.whereAmI} title={PORTAL_TEXT.whereAmI}>
@@ -219,6 +225,13 @@ export default function Home() {
 
       {showWhere && <WhereAmI onClose={() => setShowWhere(false)} />}
 
+      {/* כניסת אורחים: אותה אנימציית "ברוכים הבאים" של כניסת הצוות (לבקשת המשתמש), ואז הבית של התלמיד */}
+      {guestWelcome && (
+        <div style={modalBackdrop}>
+          <WelcomeBurst name="אורחים" role="guest" onDone={() => navigate('/student')} />
+        </div>
+      )}
+
       {/* מודאל קוד כיתה */}
       {showCodeModal && (
         <div
@@ -265,7 +278,7 @@ export default function Home() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '20px 0 14px', color: 'var(--color-muted)', fontSize: 14 }}>
               <span style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />או<span style={{ flex: 1, height: 1, background: 'var(--color-line-strong)' }} />
             </div>
-            <button onClick={() => { enterGuestStudent('אורחים'); navigate('/student') }} className="holo-button" data-guest-enter
+            <button onClick={() => { enterGuestStudent('אורחים'); setShowCodeModal(false); setGuestWelcome(true) }} className="holo-button" data-guest-enter
               style={{ width: '100%', padding: '12px', borderRadius: 11, fontFamily: 'var(--font-display)', fontSize: 16, fontWeight: 700, background: 'var(--color-surface)' }}>
               כניסת אורחים
             </button>

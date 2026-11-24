@@ -82,6 +82,31 @@
 /* ── ספלאש הפתיחה: הלוגו קופץ למקומו, האותיות נוחתות אחת אחת, ואז המסך נפתח כמו פורטל (עיגול שגדל מהלוגו) אל העמוד.
    --splash-r הוא רדיוס הפתח; רשום כאורך כדי שיהיה אפשר להנפיש אותו (בלי תמיכה: הפתח נפתח בבת אחת, והמסך נמוג) ── */
 @property --splash-r { syntax: '<length>'; inherits: true; initial-value: 0px; }
+/* ── מעבר היציאה מחשבון (shared/ui/LeaveTransition): ההיפוך של הספלאש. המסך נסגר כמו פורטל, מהקצוות אל המרכז, הסימן
+   קופץ למרכז, והמסך נפתח שוב על המסך שאליו יוצאים. --leave-r הוא רדיוס הפתח ── */
+@property --leave-r { syntax: '<length>'; inherits: true; initial-value: 0px; }
+.leave { position: fixed; inset: 0; z-index: 300; --leave-r: 72vmax; }
+.leave-cover {
+  position: absolute; inset: 0; background: var(--color-machine);
+  /* redesign-allow: מסכה (פתח עגול), לא צבע */
+  mask-image: radial-gradient(circle at 50% 50%, transparent var(--leave-r), black calc(var(--leave-r) + 1px));
+  /* redesign-allow: מסכה (פתח עגול), לא צבע */
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent var(--leave-r), black calc(var(--leave-r) + 1px));
+}
+/* שפת הפתח: טבעת דיו ומסביבה טבעת אפרסק */
+.leave-ring { position: absolute; left: 50%; top: 50%; width: calc(var(--leave-r) * 2 + 14px); height: calc(var(--leave-r) * 2 + 14px); transform: translate(-50%, -50%); box-sizing: border-box; border-radius: 50%; border: 7px solid var(--color-ink); box-shadow: 0 0 0 10px var(--color-human); }
+.leave[data-phase=close] { animation: leave-close .48s cubic-bezier(.55, 0, .85, .35) forwards; }
+.leave[data-phase=hold] { --leave-r: 0px; }
+.leave[data-phase=hold] .leave-ring { display: none; }
+.leave[data-phase=open] { animation: leave-open .56s cubic-bezier(.2, .7, .2, 1) forwards; }
+@keyframes leave-close { from { --leave-r: 72vmax; } to { --leave-r: 0px; } }
+@keyframes leave-open { from { --leave-r: 0px; } to { --leave-r: 72vmax; } }
+/* הסימן, באריח לבן עגול (הלוגו רק על לבן) */
+.leave-mark { position: absolute; left: 50%; top: 50%; width: 124px; height: 124px; margin: -62px 0 0 -62px; border-radius: 50%; display: grid; place-items: center; background: var(--color-surface); border: var(--border-student); box-shadow: var(--shadow-student); transform: scale(0); }
+.leave[data-phase=hold] .leave-mark { animation: leave-mark-in .3s cubic-bezier(.2, 1.5, .4, 1) forwards; }
+.leave[data-phase=open] .leave-mark { animation: leave-mark-out .22s ease-in forwards; }
+@keyframes leave-mark-in { from { transform: scale(0) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+@keyframes leave-mark-out { from { transform: scale(1); } to { transform: scale(0); } }
 .splash { position: fixed; inset: 0; z-index: 9999; overflow: hidden; cursor: pointer; background: var(--page-background); display: grid; place-items: center; --splash-at: 50% 44%; }
 /* מדליון: עיגול לבן גדול עם קו דיו וטבעת תכלת, שהגביש והשם יושבים בתוכו. ממנו נפתח המסך */
 .splash-disc { position: absolute; left: 50%; top: 44%; width: min(82vh, 76vw); aspect-ratio: 1; border-radius: 50%; background: var(--color-surface); border: 5px solid var(--color-ink); box-shadow: 10px 12px 0 var(--color-ink); outline: 10px solid var(--color-holo); outline-offset: -22px; transform: translate(-50%, -50%); animation: splash-disc-in .55s cubic-bezier(.2, 1.35, .4, 1) both; }

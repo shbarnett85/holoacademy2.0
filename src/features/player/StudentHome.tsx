@@ -7,6 +7,9 @@ import BrandLogo from '../../shared/ui/BrandLogo'
 import LessonThumb from '../../shared/ui/LessonThumb'
 import SubjectTag from '../../shared/ui/SubjectTag'
 import PortalConsole from './lab/PortalConsole'
+import WelcomeBurst from '../../shared/ui/WelcomeBurst'
+import { leaveWith } from '../../shared/lib/leave'
+import { preloadLesson } from './lessonPreload'
 import { setSoundOwnerFromToken, useSoundSettings } from '../../shared/lib/sound'
 import { GEM_TOTAL } from '../../shared/lib/gemModel'
 import { gemTier } from '../../shared/lib/gemTier'
@@ -143,7 +146,9 @@ export default function StudentHome() {
   const { muted, toggleMuted } = useSoundSettings()
   useEffect(() => { setSoundOwnerFromToken() }, [])
   const navigate = useNavigate()
-  const { leaving, dive, onDiveEnd } = usePortalDive()
+  const { leaving, loading: preparing, dive, onDiveEnd } = usePortalDive()
+  /* כניסת אורחים מהמסך הזה: אנימציית "ברוכים הבאים" ואז הבית של התלמיד */
+  const [guestWelcome, setGuestWelcome] = useState(false)
   const name = sessionStorage.getItem('holo_student_name') ?? (isGuestStudent() ? PORTAL_TEXT.guestName : '')
   const [quests, setQuests] = useState<AssignedQuest[]>([])
   const [loading, setLoading] = useState(true)
@@ -297,8 +302,9 @@ export default function StudentHome() {
           padding: '40px 44px', width: 340, textAlign: 'center',
         }}>
           <div style={{ fontSize: '2.4rem', marginBottom: 8 }}>🔒</div>
+          {guestWelcome && <WelcomeBurst name={PORTAL_TEXT.guestName} role="guest" onDone={() => { setGuestWelcome(false); setGuest(true) }} />}
           <p style={{ color: 'var(--color-ink)', fontSize: 16 }}>{PORTAL_TEXT.notLoggedIn}</p>
-          <button className="holo-button" data-guest-enter onClick={() => { enterGuestStudent(PORTAL_TEXT.guestName); setGuest(true) }}
+          <button className="holo-button" data-guest-enter onClick={() => { enterGuestStudent(PORTAL_TEXT.guestName); setGuestWelcome(true) }}
             style={{ marginTop: 14, fontSize: 17, fontFamily: 'var(--font-display)' }}>{PORTAL_TEXT.guestEnter}</button>
         </div>
       </HoloBackdrop>
@@ -308,7 +314,8 @@ export default function StudentHome() {
   const step = (d: 1 | -1) => { if (n) { setDir(d); setCurId(displayed[(idx + d + n) % n].id) } }
   const done = current?.sessionStatus === 'completed'
   const reading = current?.sessionStatus === 'in_progress'
-  const play = () => { if (current && !leaving) dive(`/play/${current.id}`) }
+  /* השיעור נטען כאן, מתחת לכיתוב "טוען", ורק אחר כך הצלילה לפורטל: אחריה המשחק מתחיל מיד */
+  const play = () => { if (current && !leaving) { const id = current.id; dive(`/play/${id}`, () => preloadLesson(id)) } }
   /* בחירה ברשימה: השיעור עובר לפורטל. במסך צר, שבו הרשימה מתחת לבמה, העמוד חוזר למעלה */
   const choose = (id: string) => {
     setDir(displayed.findIndex((q) => q.id === id) < idx ? -1 : 1)
@@ -338,6 +345,7 @@ export default function StudentHome() {
         portalLabel={current ? `${playLabel}: ${current.title}` : undefined}
         onPortalClick={current ? play : undefined}
         leaving={leaving}
+        loading={preparing}
         onDiveEnd={onDiveEnd}
         holoAction={
           <button className="holo-button home4-where" onClick={() => setShowWhere(true)} data-home-where aria-haspopup="dialog" aria-label={PORTAL_TEXT.whereAmI} title={PORTAL_TEXT.whereAmI}>
@@ -367,7 +375,7 @@ export default function StudentHome() {
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 46, height: 46, padding: 0 }}>
                 <BrandIcon name={muted ? 'speakerOff' : 'speaker'} size={24} />
               </button>
-              <button className="holo-button holo-button--sm" onClick={() => { leaveGuestStudent(); logout(); navigate('/') }}
+              <button className="holo-button holo-button--sm" onClick={() => leaveWith(() => { leaveGuestStudent(); logout(); navigate('/') })}
                 style={{ minHeight: 46, padding: '0 18px', fontSize: 16, fontWeight: 700, fontFamily: 'var(--font-display)' }}>
                 {PORTAL_TEXT.exit}
               </button>

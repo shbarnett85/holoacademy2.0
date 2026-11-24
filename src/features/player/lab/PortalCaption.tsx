@@ -5,7 +5,7 @@
    כשהטקסט מתחלף (שיעור אחר בפורטל) הוא "נדלק" מחדש. בתנועה מופחתת: בלי תנועה (הכלל הגלובלי ב-index.css). */
 import type { CSSProperties } from 'react'
 
-export type CaptionTone = 'done' | 'paused' | 'notDone' | 'play'
+export type CaptionTone = 'done' | 'paused' | 'notDone' | 'play' | 'loading'
 export interface PortalCaptionData {
   tone: CaptionTone
   title: string
@@ -20,6 +20,8 @@ const TONE: Record<CaptionTone, { core: string; glow: string }> = {
   notDone: { core: '230 249 255', glow: '99 207 255' },
   /* עמוד הפתיחה: ההזמנה להיכנס לשיעור שבפורטל ("נסו עכשיו") */
   play: { core: '230 249 255', glow: '99 207 255' },
+  /* השיעור נטען, לפני הצלילה לפורטל */
+  loading: { core: '230 249 255', glow: '99 207 255' },
 }
 
 const CSS = `
@@ -42,13 +44,16 @@ const CSS = `
 .pcap__rule { width: calc(100% + 1.2em); height: 2px; border-radius: 2px; background: linear-gradient(to right, rgb(var(--pc-glow) / 0), rgb(var(--pc-core)) 22% 78%, rgb(var(--pc-glow) / 0)); box-shadow: 0 0 .3em rgb(var(--pc-glow) / .9); }
 .pcap__sub { font-size: .54em; font-weight: 700; letter-spacing: .06em; color: rgb(var(--pc-core)); filter: drop-shadow(0 0 1.5px rgb(2 12 32 / .95)) drop-shadow(0 0 .3em rgb(var(--pc-glow) / .9)); }
 @keyframes pcap-in { from { opacity: 0; transform: scaleY(.15); filter: brightness(2.4); } 55% { opacity: 1; transform: scaleY(1.14); } to { opacity: 1; transform: none; filter: none; } }
+/* בזמן טעינה: הטבעת מסתובבת (פחות מסיבוב בשנייה) */
+.pcap__icon--spin { animation: pcap-spin 1.2s linear infinite; transform-origin: 50% 50%; }
+@keyframes pcap-spin { to { transform: rotate(360deg); } }
 @keyframes pcap-sweep { 0% { background-position: 0 -80%, 0 0; } 38%, 100% { background-position: 0 180%, 0 0; } }
 `
 
 function Icon({ tone }: { tone: CaptionTone }) {
   return (
-    <svg className="pcap__icon" viewBox="0 0 24 24" aria-hidden="true">
-      {tone === 'notDone' ? <circle cx="12" cy="12" r="10" strokeDasharray="3.6 3.4" /> : <circle cx="12" cy="12" r="10" />}
+    <svg className={`pcap__icon${tone === 'loading' ? ' pcap__icon--spin' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+      {tone === 'loading' ? <circle cx="12" cy="12" r="10" strokeDasharray="42 21" /> : tone === 'notDone' ? <circle cx="12" cy="12" r="10" strokeDasharray="3.6 3.4" /> : <circle cx="12" cy="12" r="10" />}
       {tone === 'done' && <path d="M7 12.4l3.4 3.4L17.2 9" />}
       {tone === 'paused' && <path d="M9.4 7.8v8.4M14.6 7.8v8.4" />}
       {tone === 'play' && <path d="M9.8 7.6v8.8l7-4.4z" />}

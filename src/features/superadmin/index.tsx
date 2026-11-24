@@ -1,4 +1,5 @@
 import GenStats from './GenStats'
+import { leaveWith } from '../../shared/lib/leave'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiJson, apiFetch } from '../../shared/lib/api'
@@ -88,7 +89,7 @@ export default function SuperAdminPanel() {
       <header className="w-full">
         <div className="flex items-center justify-between">
           <span className="text-sm rounded-full px-3 py-0.5" style={nameChip}>🛡️ {user?.name} · מנהל-על</span>
-          <button className={rowBtn} onClick={() => { logout(); navigate('/staff/login') }}>יציאה</button>
+          <button className={rowBtn} onClick={() => leaveWith(() => { logout(); navigate('/staff/login') })}>יציאה</button>
         </div>
         <h1 className="holo-text-glow text-3xl font-black mt-2 text-center">ניהול המערכת</h1>
       </header>

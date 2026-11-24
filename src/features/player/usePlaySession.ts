@@ -56,16 +56,41 @@ export interface LiveApi {
    - בתחילה: start (sessionId + resume). אין תיעוד events שוטף ואין קריאות רשת במהלך המשחק.
    - resume נשמר מקומית ב-sessionStorage; השרת אינו מתעדכן תוך כדי משחק.
    - בסיום: complete יחיד עם סיכום האנליטיקה (רקעי, best-effort, retry בטעינה הבאה). */
-export function usePlaySession(questId: string | undefined, playKey = 0): PlaySession {
-  const [state, setState] = useState<{ sessionId: string | null; initialState?: InitialState; settled: boolean; variantGameData?: unknown; effectsLevel?: string }>({
-    sessionId: null,
-    settled: false,
-  })
+type SessionState = { sessionId: string | null; initialState?: InitialState; settled: boolean; variantGameData?: unknown; effectsLevel?: string }
+
+/* המצב של המשחק אחרי שניסיון ההתחלה הסתיים: בלי session (מבקר, אורח או כשל), או עם session ומה שנשמר להמשך */
+function settledState(questId: string, s: SessionStart | null): SessionState {
+  if (!s) return { sessionId: null, settled: true }
+  /* resume — מעדיפים את ה-snapshot המקומי; אם אין, נופלים ל-snapshot מהשרת (אם קיים) */
+  const local = loadResumeLocal(questId, s.sessionId)
+  const snap = local ?? (s.resumed && s.currentSceneId
+    ? { currentSceneId: s.currentSceneId, inventory: s.inventory, visitedScenes: s.visitedScenes, crystals: s.crystals }
+    : null)
+  const initialState: InitialState | undefined = snap?.currentSceneId
+    ? {
+        currentSceneId: snap.currentSceneId,
+        inventory: (snap.inventory as CollectableItem[]) ?? [],
+        visitedScenes: (snap.visitedScenes as string[]) ?? [],
+        challengeResults: ((snap as { challengeResults?: unknown[] }).challengeResults as ChallengeResult[]) ?? [],
+        telemetry: (snap as { telemetry?: TelemetrySnapshot }).telemetry,
+      }
+    : undefined
+  return { sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined, effectsLevel: s.effectsLevel }
+}
+
+/* started: ה-session כבר הותחל לפני הכניסה לנגן (lessonPreload), ולכן המשחק הראשון לא מתחיל אותו שוב ולא מחכה לרשת */
+export function usePlaySession(questId: string | undefined, playKey = 0, started?: { session: SessionStart | null }): PlaySession {
+  const [state, setState] = useState<SessionState>(() => (questId && started ? settledState(questId, started.session) : { sessionId: null, settled: false }))
   const sessionIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!questId) return
     let cancelled = false
+    if (started && playKey === 0) {
+      sessionIdRef.current = started.session?.sessionId ?? null
+      void retryPendingComplete()
+      return
+    }
     sessionIdRef.current = null
     setState({ sessionId: null, settled: false })
 
@@ -74,29 +99,12 @@ export function usePlaySession(questId: string | undefined, playKey = 0): PlaySe
 
     startSession(questId).then((s: SessionStart | null) => {
       if (cancelled) return
-      if (!s) {
-        setState({ sessionId: null, settled: true })
-        return
-      }
-      sessionIdRef.current = s.sessionId
-      /* resume — מעדיפים את ה-snapshot המקומי; אם אין, נופלים ל-snapshot מהשרת (אם קיים) */
-      const local = loadResumeLocal(questId, s.sessionId)
-      const snap = local ?? (s.resumed && s.currentSceneId
-        ? { currentSceneId: s.currentSceneId, inventory: s.inventory, visitedScenes: s.visitedScenes, crystals: s.crystals }
-        : null)
-      const initialState: InitialState | undefined = snap?.currentSceneId
-        ? {
-            currentSceneId: snap.currentSceneId,
-            inventory: (snap.inventory as CollectableItem[]) ?? [],
-            visitedScenes: (snap.visitedScenes as string[]) ?? [],
-            challengeResults: ((snap as { challengeResults?: unknown[] }).challengeResults as ChallengeResult[]) ?? [],
-            telemetry: (snap as { telemetry?: TelemetrySnapshot }).telemetry,
-          }
-        : undefined
-      setState({ sessionId: s.sessionId, initialState, settled: true, variantGameData: s.variantGameData ?? undefined, effectsLevel: s.effectsLevel })
+      sessionIdRef.current = s?.sessionId ?? null
+      setState(settledState(questId, s))
     })
 
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- started נקרא רק במשחק הראשון, והוא קבוע מרגע הכניסה לנגן
   }, [questId, playKey])
 
   /* ── "תצוגה חיה": פעימה כל LIVE_RULES.heartbeatMs + סוף כל אתגר. בלי session — אין כלום ── */

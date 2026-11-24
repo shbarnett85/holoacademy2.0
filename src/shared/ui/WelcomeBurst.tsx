@@ -6,7 +6,7 @@ import { nameChip, panelStaff } from '../../styles/ui'
    מסתיים מעצמו (~2.2ש׳). שטוח: בלי מעברי צבע, בלי זוהר ובלי גליץ'; הטקסט על משטח לבן. */
 const BURST = ['var(--color-human)', 'var(--color-human-soft)', 'var(--color-surface)']
 
-export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?: string; role?: 'teacher' | 'admin' | 'municipal_admin' | 'super_admin'; onDone: () => void }) {
+export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?: string; role?: 'teacher' | 'admin' | 'municipal_admin' | 'super_admin' | 'student' | 'guest'; onDone: () => void }) {
   useEffect(() => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     /* צליל קבלת-הפנים — נורה מיד; ההתחברות עצמה היא ה-user-gesture, אז אין
@@ -16,7 +16,7 @@ export default function WelcomeBurst({ name, role = 'teacher', onDone }: { name?
     return () => window.clearTimeout(t)
   }, [onDone])
 
-  const accessLabel = role === 'teacher' ? 'TEACHER · ACCESS GRANTED' : 'STAFF · ACCESS GRANTED'
+  const accessLabel = role === 'teacher' ? 'TEACHER · ACCESS GRANTED' : role === 'student' ? 'STUDENT · ACCESS GRANTED' : role === 'guest' ? 'GUEST · ACCESS GRANTED' : 'STAFF · ACCESS GRANTED'
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' /* מעל שכבת ההכהיה של EntryShell — הרקע נשאר הדף הראשי */ }}>

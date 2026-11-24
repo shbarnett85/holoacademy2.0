@@ -73,11 +73,13 @@ interface Props {
   /* משחק ללא session (מבקר קר / קישור משותף / מקרן) — מסך הסיום מקבל פוטר המרה:
      שיתוף וואטסאפ ו-CTA למורים ("חזרה לספרייה" מוביל את המבקר לדף הבית, שבו שאר השיעורים). לתלמיד אמיתי (יש session) — בלי פוטר. */
   visitorMode?: boolean
+  /* נכנסו בצלילה לפורטל ממסך בחירת השיעורים, והשיעור כבר נטען שם: בלי מסך טעינה ובלי מעבר הכניסה, המסך הראשון מוצג מיד */
+  instantStart?: boolean
 }
 
 /* כפתור העין — תמיד גלוי (עמום); מסתיר/מציג את ה-UI. זהה במסך המשחק ובמסך הסיום */
 
-export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, onPlayAgain, questId, hasSession = false, effectsLevel, live, backPath = '/creator/library', visitorMode = false }: Props) {
+export default function GameScreen({ gameData, questTitle, initialState, saveResume, onComplete, onPlayAgain, questId, hasSession = false, effectsLevel, live, backPath = '/creator/library', visitorMode = false, instantStart = false }: Props) {
   const engine = useGameEngine(gameData, { initialState })
   const navigate = useNavigate()
   /* עוצמת האפקטים של הכיתה, ומדידת ביצועים בשניות הראשונות של השיעור (מחשב חלש יורד אוטומטית לעדין) */
@@ -124,7 +126,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
      לקנבס ולהבזק) עד אמצע הפלטו הלבן של ההבזק (~830ms: delay 720 + עליית 77
      אל תוך פלטו 77). ההסרה מתרחשת כשהמסך כולו לבן — ולכן ההחלפה בלתי-נראית,
      והלבן "נפתח" ישר אל השקופית הראשונה. */
-  const [entered, setEntered] = useState(false)
+  const [entered, setEntered] = useState(instantStart)
   /* ⚠️ חייב לפני ה-early-return של עמוד הסיכום (engine.finished): hook שמופיע
      אחרי return מותנה מדלג על עצמו ברגע הסיום — "Rendered fewer hooks than
      expected" — וכל ההדמיה קרסה ל-ErrorBoundary בדיוק במעבר לסיכום. */
@@ -163,7 +165,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   }, [curScene.id, pageIdx, engine.finished, recordPageTime])
   useEffect(() => {
     /* בלי חור-תולעת בכניסה (reduced-motion מקצר/משטח את ההבזק) — נכנסים מיד */
-    if (prefersReducedMotion() || engine.transitionType !== 'wormhole') { setEntered(true); return }
+    if (instantStart || prefersReducedMotion() || engine.transitionType !== 'wormhole') { setEntered(true); return }
     const t = window.setTimeout(() => setEntered(true), 830)
     return () => window.clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,6 +279,13 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
   /* דפדוף בין עמודים: הטקסט החדש נכנס אחרי שהיוצא יצא (כ-110ms), ולא מחכה לסוף המעבר של התמונה.
      חור-התולעת (כניסה לשיעור וסיום) מדווח על הסיום שלו בעצמו. תנועה מופחתת: מיד */
   const pageTurn = planPageTurn({ wormhole: engine.transitionType === 'wormhole', reduced: prefersReducedMotion(), level: feelLevel() })
+  /* כניסה מיידית: אין מעבר כניסה שידווח על הסיום שלו, ולכן הרצף של המסך הראשון מתחיל מיד */
+  const skipEntrance = instantStart && engine.transitionKey === 1
+  useEffect(() => {
+    if (!skipEntrance) return
+    const t = window.setTimeout(onTransitionDone, 0)
+    return () => window.clearTimeout(t)
+  }, [skipEntrance, onTransitionDone])
   useEffect(() => {
     if (engine.transitionType === 'wormhole') return
     const t = window.setTimeout(onTransitionDone, pageTextDelayMs(pageTurn))
@@ -766,7 +775,7 @@ export default function GameScreen({ gameData, questTitle, initialState, saveRes
       {/* המעבר עבר אל תוך עמוד התמונה — ראו .holo-image-page */}
 
       {/* חור-התולעת — מלוא המסך (fixed), מעל שני העמודים וה-HUD */}
-      {engine.transitionType === 'wormhole' && (
+      {engine.transitionType === 'wormhole' && !skipEntrance && (
         <WormholeTransition trigger={engine.transitionKey} onComplete={onTransitionDone} />
       )}
 
