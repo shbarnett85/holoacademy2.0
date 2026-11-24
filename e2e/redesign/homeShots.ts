@@ -1,8 +1,8 @@
 /* ──────────────────────────────────────────────────────────────────────────
    צילומי עמוד הפתיחה והספלאש. כלי בדיקה בלבד: קריאה בלבד (שיעורי ההתנסות מהשרת המקומי), בלי כתיבה ל-DB.
    · splash: פריימים של הספלאש לאורך הזמן (האנימציות מושהות ומקודמות ידנית), כולל הפתיחה אל העמוד.
-   · home: העמוד במסך אחד בכמה גדלי מסך (פס עליון, במה, באנר השלבים, בלי גלילה), במסך צר ובתנועה מופחתת; ובדיקות: הכניסות והכפתור "שחקו עכשיו"
-     בתוך המסך הראשון, החלון לא מכסה את הפורטל, והווידאו של הרקע ושל ד"ר הולו מתנגנים.
+   · home: העמוד במסך אחד בכמה גדלי מסך (פס עליון, במה, באנר השלבים, בלי גלילה), במסך צר ובתנועה מופחתת; ובדיקות: הכניסות בתוך המסך הראשון,
+     "נסו עכשיו" מוקרן על הפורטל (אין כפתור "שחקו עכשיו"), שם השיעור על המדרגה השנייה של הפורטל, החלון לא מכסה את הפורטל, והווידאו של הרקע ושל ד"ר הולו מתנגנים.
    · student: הבית של התלמיד (אותה במה, עם /api מדומה): פס עליון עם השלום והסיכום, הפורטל מציג את השיעור האחרון
      שהתקבל ועליו המצב כטקסט הולוגרפי, מתחתיו שם השיעור והחצים, ובחלון הצד רשימת השיעורים עם חיפוש וסינון.
    · guest: כניסת אורחים (תלמיד אורח) מחלון קוד הכיתה: שיעורי ההתנסות בפורטל, הודעה שההתקדמות לא נשמרת,
@@ -13,6 +13,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright-core'
 import { DEFAULT_BASE, findChrome } from '../lib/config.ts'
+import { OPENING_STAGE } from '../../src/features/player/lab/labComposition.ts'
 
 const args = process.argv.slice(2)
 const opt = (n: string, d: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d }
@@ -31,24 +32,26 @@ async function open(browser: Browser, w: number, h: number, opts: { splash?: boo
   return page
 }
 
-/* מסך צר (החלון מתחת לבמה): כפתור הכניסה אף פעם לא מתחת לשם השיעור (לבקשת המשתמש).
-   טלפון: "איפה אני?" וכפתור הכניסה בשורה אחת בראש הבמה, ושם השיעור בתחתית; טאבלט: הכפתור על הקו של שם השיעור, משמאלו */
-async function narrowLayout(p: Page, name: string, playSel: string): Promise<void> {
-  const g = await p.evaluate((sel) => {
+/* המדרגה השנייה שלפני הפורטל, בפיקסלים של המסך: לפי המקום והגודל של תמונת הספרייה על המסך */
+const STEP_LINE = OPENING_STAGE.stepLine!
+const stepOnScreen = (p: Page): Promise<number> => p.evaluate(([line, h]) => { const w = document.querySelector('.lab-world')!.getBoundingClientRect(); return w.top + line * w.height / h }, [STEP_LINE, OPENING_STAGE.height])
+
+/* מסך צר (החלון מתחת לבמה): "איפה אני?" בראש הבמה, ושם השיעור על המדרגה השנייה של הפורטל, כמו במסך רחב. אין כפתור כניסה */
+async function narrowLayout(p: Page, name: string): Promise<void> {
+  const g = await p.evaluate(() => {
     const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
-    return { stage: r('.home4-stage'), where: r('[data-home-where]'), play: r(sel), row: r('.home4-now-row'), card: r('.home4-now-card'), panel: r('[data-portal-panel]') }
-  }, playSel)
-  const all = !!g.stage && !!g.where && !!g.play && !!g.row && !!g.card && !!g.panel
-  if (!all) { check(false, `${name}: הכפתורים ושם השיעור מוצגים`); return }
-  const { stage, where, play, row, card, panel } = g as { [k in keyof typeof g]: NonNullable<(typeof g)[k]> }
-  const apart = (a: typeof play, b: typeof play) => a.r <= b.l || b.r <= a.l || a.b <= b.t || b.b <= a.t
-  check(play.t < card.b - 1 && !(play.t >= card.b - 1), `${name}: כפתור הכניסה לא מתחת לשם השיעור`)
-  check([where, play, row].every((b) => b.l >= stage.l && b.r <= stage.r && b.t >= stage.t && b.b <= Math.min(stage.b, panel.t)), `${name}: "איפה אני?", כפתור הכניסה ושם השיעור בתוך הבמה, מעל החלון`)
-  check(apart(play, row) && apart(play, where) && apart(where, row), `${name}: הכפתורים ושם השיעור לא עולים זה על זה`)
-  check(Math.abs((card.l + card.r) / 2 - (stage.l + stage.r) / 2) <= 2, `${name}: שם השיעור ממורכז מתחת לפורטל`)
-  const sameLine = Math.abs(play.b - card.b) <= 1 && play.r <= row.l, topLine = Math.abs(play.t - where.t) <= 1 && play.l >= where.r
-  check(sameLine || topLine, `${name}: כפתור הכניסה ${sameLine ? 'על הקו של שם השיעור, משמאלו' : topLine ? 'בראש הבמה, מול "איפה אני?"' : 'לא במקום'}`)
-  if (sameLine) check(Math.abs(play.l - where.l) <= 1, `${name}: כפתור הכניסה ו"איפה אני?" מתחילים על אותה צלע שמאלית`)
+    const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
+    return { stage: r('.home4-stage'), where: r('[data-home-where]'), row: r('.home4-now-row'), card: r('.home4-now-card'), panel: r('[data-portal-panel]'), portalBottom: hit?.bottom ?? null, play: document.querySelectorAll('[data-home-play], [data-portal-play], .home4-play').length }
+  })
+  const all = !!g.stage && !!g.where && !!g.row && !!g.card && !!g.panel && g.portalBottom !== null
+  if (!all) { check(false, `${name}: "איפה אני?" ושם השיעור מוצגים`); return }
+  const { stage, where, row, card, panel } = g as { [k in keyof typeof g]: NonNullable<(typeof g)[k]> }
+  const step = await stepOnScreen(p)
+  check(g.play === 0, `${name}: אין כפתור כניסה (נכנסים בלחיצה על הפורטל)`)
+  check([where, row].every((b) => b.l >= stage.l && b.r <= stage.r && b.t >= stage.t && b.b <= Math.min(stage.b, panel.t) - 4), `${name}: "איפה אני?" ושם השיעור בתוך הבמה, מעל החלון`)
+  check(where.b <= row.t, `${name}: "איפה אני?" מעל שם השיעור, ולא עליו`)
+  check(Math.abs((card.l + card.r) / 2 - (stage.l + stage.r) / 2) <= 2, `${name}: שם השיעור ממורכז על הפורטל`)
+  check(Math.abs(card.t - step) <= 1.5 && card.t >= g.portalBottom! - 0.5, `${name}: הקו העליון של שם השיעור על המדרגה השנייה של הפורטל (סטייה ${(card.t - step).toFixed(1)}), מתחת לפתח`)
 }
 
 async function splash(browser: Browser): Promise<void> {
@@ -93,41 +96,40 @@ async function home(browser: Browser): Promise<void> {
     await page.waitForSelector('[data-portal-panel]', { timeout: 30000 })
     await page.waitForTimeout(4500)
     await shot(page, `home-${w}x${h}`)
+    const step = await stepOnScreen(page)
     const g = await page.evaluate(() => {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const vids = [...document.querySelectorAll('video')].map((v) => ({ playing: !v.paused && v.readyState >= 2, src: v.currentSrc.split('/').pop() }))
-      return { panel: r('[data-portal-panel]'), play: r('[data-home-play]'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), card: r('[data-home-lesson] .home4-now-card'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
+      return { panel: r('[data-portal-panel]'), plays: document.querySelectorAll('[data-home-play], .home4-play').length, tryNow: r('[data-home-try] .pcap__main'), tryText: (document.querySelector('[data-home-try]') as HTMLElement | null)?.innerText ?? '', portalLabel: document.querySelector('[data-lab-portal-hit]')?.getAttribute('aria-label') ?? '', stage: r('.home4-stage'), now: r('[data-portal-under]'), bubble: r('[data-portal-bubble]'), lesson: r('[data-home-lesson]'), card: r('[data-home-lesson] .home4-now-card'), where: r('[data-home-where]'), logo: r('[data-home-mark] img'), holoBox: r('[data-lab-holo]'), how: document.querySelector('[data-portal-panel] .holo-link')?.textContent?.trim() ?? '', portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, vids, vh: innerHeight, vw: innerWidth, holo: !!document.querySelector('[data-lab-holo]'), canvas: document.querySelectorAll('.lab-hologram').length }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
     check(inside(g.panel), `${w}×${h}: חלון הכניסות כולו במסך הראשון`)
-    check(inside(g.play), `${w}×${h}: "שחקו עכשיו" במסך הראשון`)
+    check(g.plays === 0, `${w}×${h}: אין כפתור "שחקו עכשיו"`)
+    check(!!g.tryNow && !!g.portal && g.tryText.includes('נסו עכשיו') && g.tryNow.l >= g.portal.l && g.tryNow.r <= g.portal.r && g.tryNow.t >= Math.max(0, g.portal.t) && g.tryNow.b <= g.portal.b && inside(g.tryNow), `${w}×${h}: "נסו עכשיו" מוקרן על הפורטל, בתוך הפתח`)
+    check(g.portalLabel.startsWith('נסו עכשיו'), `${w}×${h}: הפורטל הוא הכניסה לשיעור, עם שם לקוראי מסך (${g.portalLabel})`)
     check(!!g.panel && !!g.portal && g.panel.l >= g.portal.r - 1, `${w}×${h}: החלון לא מכסה את הפורטל`)
     check(!!g.now && !!g.panel && g.now.r <= g.panel.l + 1, `${w}×${h}: שורת השיעור לא נכנסת מתחת לחלון`)
     check(g.vids.length >= 2 && g.vids.every((v) => v.playing), `${w}×${h}: הרקע וד"ר הולו מתנגנים (${g.vids.map((v) => v.src).join(', ')})`)
     check(g.vids.some((v) => v.src === 'idle.mp4') && !g.vids.some((v) => v.src === 'welcome.mp4'), `${w}×${h}: ד"ר הולו בלופ העמידה המחויך (idle), ולא ב"ברוכים הבאים"`)
     check(g.canvas === 1, `${w}×${h}: הפורטל מציג הולוגרמה חיה`)
-    /* "שחקו עכשיו" באותה שורה, משמאל לשם השיעור ולחצים */
-    check(!!g.play && !!g.lesson && g.play.r <= g.lesson.l + 1 && g.play.t < g.lesson.b && g.play.b > g.lesson.t, `${w}×${h}: "שחקו עכשיו" משמאל לשם השיעור, באותה שורה`)
     {
-      /* שם השיעור ממורכז מתחת לפורטל, והקו התחתון של המסגרת שלו בגובה הקו התחתון של החלון; "שחקו עכשיו" על אותו קו, מעל ד"ר הולו */
+      /* שם השיעור ממורכז על הפורטל, והקו העליון של המסגרת שלו על המדרגה השנייה של הפורטל (לבקשת המשתמש), בכל גודל מסך */
       const mid = (b: { l: number; r: number }) => (b.l + b.r) / 2
-      const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.holoBox
-      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל (${ok ? (mid(g.card!) - mid(g.portal!)).toFixed(1) : '?'})`)
-      /* בבמה נמוכה שם השיעור עולה מעט על השפה התחתונה של הפתח (עד עשירית מהגובה שלו), ולא יותר */
-      const lip = ok ? Math.max(0, g.portal!.b - g.card!.t) / (g.portal!.b - g.portal!.t) : 1
-      check(ok && Math.abs(g.card!.b - g.panel!.b) <= 1 && lip <= 0.1, `${w}×${h}: הקו התחתון של שם השיעור בגובה הקו התחתון של החלון (${ok ? (g.card!.b - g.panel!.b).toFixed(1) : '?'}), מתחת לפתח הפורטל (מכסה ${(lip * 100).toFixed(0)}% ממנו)`)
-      check(ok && Math.abs(g.play!.b - g.card!.b) <= 1 && g.play!.l < mid(g.holoBox!) && g.play!.r > mid(g.holoBox!), `${w}×${h}: "שחקו עכשיו" על אותו קו, מעל ד"ר הולו`)
+      const ok = !!g.card && !!g.portal && !!g.stage && !!g.tryNow && !!g.lesson
+      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2, `${w}×${h}: שם השיעור ממורכז על הפורטל (${ok ? (mid(g.card!) - mid(g.portal!)).toFixed(1) : '?'})`)
+      check(ok && Math.abs(g.card!.t - step) <= 1.5, `${w}×${h}: הקו העליון של שם השיעור על המדרגה השנייה של הפורטל (סטייה ${ok ? (g.card!.t - step).toFixed(1) : '?'} פיקסלים)`)
+      check(ok && g.card!.t >= g.portal!.b - 0.5, `${w}×${h}: שם השיעור מתחת לפתח הפורטל, ולא עליו`)
+      check(ok && g.lesson!.b <= g.stage!.b - 8, `${w}×${h}: שם השיעור כולו בתוך הבמה (${ok ? (g.stage!.b - g.lesson!.b).toFixed(0) : '?'} פיקסלים מהקצה)`)
+      check(ok && g.tryNow!.b <= g.card!.t, `${w}×${h}: "נסו עכשיו" מעל שם השיעור`)
     }
     check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
     check(inside(g.where) && !!g.portal && !!g.where && g.where.r <= g.portal.l + 1, `${w}×${h}: הכפתור "איפה אני?" במסך הראשון, ולא על הפורטל`)
     {
-      /* המסגרת: כל הממשק על הצלעות של מלבן אחד. למעלה, למטה ומימין: הקצוות של החלון; משמאל: הקצה השמאלי של "איפה אני?" */
+      /* "איפה אני?": מעל הראש של ד"ר הולו, על הקו העליון של החלון */
       const cx = (b: { l: number; r: number }) => (b.l + b.r) / 2
       const dx = g.where && g.holoBox ? Math.abs(cx(g.where) - cx(g.holoBox)) : 99, dy = g.where && g.panel ? Math.abs(g.where.t - g.panel.t) : 99
       check(dx <= 3 && dy <= 1, `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו, והקצה העליון שלו על הקו העליון של החלון (סטייה ${dx.toFixed(1)}, ${dy.toFixed(1)} פיקסלים)`)
-      const dl = g.where && g.play ? Math.abs(g.play.l - g.where.l) : 99
-      check(dl <= 1, `${w}×${h}: "שחקו עכשיו" מתחיל על הצלע השמאלית של המסגרת, כמו "איפה אני?" (סטייה ${dl.toFixed(1)} פיקסלים)`)
       check(!!g.where && !!g.holoBox && g.where.b <= g.holoBox.t + 40, `${w}×${h}: הכפתור מעל הדמות ולא עליה`)
     }
     {
@@ -160,7 +162,7 @@ async function home(browser: Browser): Promise<void> {
     const tp = await open(browser, 1366, 768)
     await tp.waitForSelector('[data-lab-hologram=on]', { timeout: 20000 }); await tp.waitForTimeout(1500)
     await tp.hover('[data-home-lesson]')
-    const rects = () => tp.evaluate(() => ['[data-home-lesson] .home4-now-card', '[data-home-play]', '.home4-arrow'].map((s) => { const b = document.querySelector(s)!.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(',') }).join(' | '))
+    const rects = () => tp.evaluate(() => ['[data-home-lesson] .home4-now-card', '.home4-arrow'].map((s) => { const b = document.querySelector(s)!.getBoundingClientRect(); return [b.left, b.top, b.width, b.height].map(Math.round).join(',') }).join(' | '))
     const before = await rects()
     const title0 = await tp.locator('.home4-now-title').innerText()
     /* מעקב אחרי ההולוגרמה לאורך המעבר: היא לא נכבית אפילו לרגע */
@@ -174,7 +176,7 @@ async function home(browser: Browser): Promise<void> {
     check(swapOff && seen.off === 0, `המעבר מסתיים, וההולוגרמה לא נכבית באמצע (${seen.off})`)
     check(seen.phases.startsWith('out') && seen.phases.includes('in'), `שם השיעור מחליק החוצה ואז פנימה (${seen.phases})`)
     check(await tp.locator('.home4-now-title').innerText() !== title0, 'אחרי המעבר מוצג שם השיעור הבא')
-    check(await rects() === before, 'הכרטיס, החצים והכפתור לא זזים כשהשם מתחלף')
+    check(await rects() === before, 'הכרטיס והחצים לא זזים כשהשם מתחלף')
     await tp.locator('button[aria-label="השיעור הקודם"]').click()
     check(await tp.waitForSelector('[data-lab-hologram][data-portal-swap=back]', { timeout: 3000 }).then(() => true, () => false), 'חזרה לשיעור הקודם: המעבר בכיוון ההפוך')
     await tp.context().close()
@@ -241,7 +243,7 @@ async function home(browser: Browser): Promise<void> {
     await p.screenshot({ path: path.join(OUT, `home-${name}.png`), fullPage: false }); console.log('  shot', `home-${name}`)
     const ok = await p.evaluate(() => { const a = document.querySelector('[data-portal-panel]')!.getBoundingClientRect(); const s = document.querySelector('.home4-stage')!.getBoundingClientRect(); return a.top >= s.bottom - 40 && document.documentElement.scrollWidth <= innerWidth + 1 })
     check(ok, `${name}: החלון מתחת לבמה, בלי גלילה לרוחב`)
-    await narrowLayout(p, name, '[data-home-play]')
+    await narrowLayout(p, name)
     await p.context().close()
   }
 
@@ -253,15 +255,27 @@ async function home(browser: Browser): Promise<void> {
   check(await rm.evaluate(() => [...document.querySelectorAll('video')].every((v) => v.paused)), 'תנועה מופחתת: שום וידאו לא מתנגן')
   await rm.context().close()
 
-  /* הצלילה לפורטל פותחת את השיעור */
+  /* העכבר על הפורטל: השיעור לא מתחלף מתחת ליד; כשהעכבר יוצא ההחלפה חוזרת */
+  const hv = await open(browser, 1366, 768)
+  await hv.waitForSelector('[data-lab-portal-hit]'); await hv.waitForTimeout(1500)
+  await hv.hover('[data-lab-portal-hit]')
+  const hv0 = await hv.locator('.home4-now-title').innerText()
+  await hv.waitForTimeout(7800)
+  check(await hv.locator('.home4-now-title').innerText() === hv0, 'העכבר על הפורטל: השיעור לא מתחלף')
+  await hv.mouse.move(30, 300)
+  const moved = await hv.waitForFunction((t) => document.querySelector('.home4-now-title')?.textContent !== t, hv0, { timeout: 9000 }).then(() => true, () => false)
+  check(moved, 'העכבר יצא מהפורטל: השיעורים מתחלפים שוב')
+  await hv.context().close()
+
+  /* לחיצה על הפורטל צוללת פנימה ופותחת את השיעור */
   const dv = await open(browser, 1366, 768)
-  await dv.waitForSelector('[data-home-play]')
+  await dv.waitForSelector('[data-lab-portal-hit]')
   await dv.waitForTimeout(2500)
-  await dv.locator('[data-home-play]').click()
+  await dv.locator('[data-lab-portal-hit]').click()
   await dv.waitForTimeout(600)
   await shot(dv, 'home-dive')
   await dv.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
-  check(/\/play\//.test(dv.url()), `"שחקו עכשיו": צלילה לפורטל ואז השיעור נפתח (${new URL(dv.url()).pathname})`)
+  check(/\/play\//.test(dv.url()), `לחיצה על הפורטל: צלילה ואז השיעור נפתח (${new URL(dv.url()).pathname})`)
   await dv.context().close()
 }
 
@@ -297,33 +311,35 @@ async function student(browser: Browser): Promise<void> {
   for (const [w, h] of [[1366, 768], [1366, 620], [1920, 1080]] as const) {
     const page = await openStudent(w, h)
     await shot(page, `student-${w}x${h}`)
+    const step = await stepOnScreen(page)
     const g = await page.evaluate(() => {
       const r = (s: string) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom } }
       const hit = document.querySelector('[data-lab-portal-hit]')?.getBoundingClientRect()
       const list = document.querySelector('[data-lesson-list]')
       return {
-        top: r('[data-portal-top]'), panel: r('[data-portal-panel]'), play: r('[data-portal-play]'), under: r('[data-portal-under]'), caption: r('[data-portal-caption]'), stage: r('.home4-stage'),
+        top: r('[data-portal-top]'), panel: r('[data-portal-panel]'), plays: document.querySelectorAll('[data-portal-play], .home4-play').length, under: r('[data-portal-under]'), caption: r('[data-portal-caption]'), stage: r('.home4-stage'),
         card: r('[data-portal-lesson]'), where: r('[data-home-where]'), holoBox: r('[data-lab-holo]'), bubble: !!document.querySelector('[data-portal-bubble]'),
         portal: hit ? { l: hit.left, t: hit.top, r: hit.right, b: hit.bottom } : null, rows: [...document.querySelectorAll('[data-result]')].filter((e) => { const b = e.getBoundingClientRect(), l = list!.getBoundingClientRect(); return b.top >= l.top - 1 && b.bottom <= l.bottom + 1 }).length,
         vh: innerHeight, vw: innerWidth, pageScroll: document.body.scrollHeight > document.body.clientHeight + 1 && document.querySelector('[data-portal-hero]')!.getBoundingClientRect().bottom > innerHeight + 1,
       }
     })
     const inside = (b: { l: number; t: number; r: number; b: number } | null) => !!b && b.t >= 0 && b.b <= g.vh + 0.5 && b.l >= 0 && b.r <= g.vw + 0.5
-    check(inside(g.top) && inside(g.panel) && inside(g.play), `${w}×${h}: הפס העליון, החלון והכפתור במסך הראשון`)
+    check(inside(g.top) && inside(g.panel) && inside(g.under), `${w}×${h}: הפס העליון, החלון ושם השיעור במסך הראשון`)
+    check(g.plays === 0, `${w}×${h}: אין כפתור כניסה (נכנסים בלחיצה על הפורטל)`)
     check(!!g.top && !!g.stage && Math.abs(g.stage.t - g.top.b) < 1.5, `${w}×${h}: הבמה מתחילה מתחת לפס העליון`)
     check(!!g.panel && !!g.portal && g.panel.l >= g.portal.r - 1, `${w}×${h}: רשימת השיעורים לא מכסה את הפורטל`)
     check(!!g.caption && !!g.portal && g.caption.l >= g.portal.l && g.caption.r <= g.portal.r && g.caption.t >= g.portal.t && g.caption.b <= g.portal.b, `${w}×${h}: המצב מוקרן בתוך הפורטל`)
     check(!!g.caption && !!g.under && g.caption.b <= g.under.t + 1, `${w}×${h}: הטקסט שעל הפורטל לא מוסתר על ידי השורה שמתחתיו`)
     check(g.rows >= 3, `${w}×${h}: ברשימה נראות לפחות שלוש שורות בלי גלילה (${g.rows})`)
     {
-      /* אותו סידור כמו בעמוד הפתיחה (לבקשת המשתמש): הכול על הצלעות של מלבן אחד, בלי בועת דיבור */
+      /* אותו סידור כמו בעמוד הפתיחה (לבקשת המשתמש): שם השיעור על המדרגה השנייה של הפורטל, בלי בועת דיבור ובלי כפתור */
       const mid = (b: { l: number; r: number }) => (b.l + b.r) / 2
-      const ok = !!g.card && !!g.portal && !!g.panel && !!g.play && !!g.where && !!g.holoBox
+      const ok = !!g.card && !!g.portal && !!g.panel && !!g.where && !!g.holoBox && !!g.stage
       check(!g.bubble, `${w}×${h}: אין בועת דיבור`)
-      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2 && Math.abs(g.card!.b - g.panel!.b) <= 1, `${w}×${h}: שם השיעור ממורכז מתחת לפורטל, על הקו התחתון של החלון`)
-      check(ok && Math.abs(g.play!.b - g.panel!.b) <= 1 && Math.abs(g.play!.l - g.where!.l) <= 1, `${w}×${h}: כפתור הכניסה על אותו קו, ומתחיל על הצלע השמאלית כמו "איפה אני?"`)
+      check(ok && Math.abs(mid(g.card!) - mid(g.portal!)) <= 2 && Math.abs(g.card!.t - step) <= 1.5 && g.card!.t >= g.portal!.b - 0.5, `${w}×${h}: שם השיעור ממורכז על הפורטל, והקו העליון שלו על המדרגה השנייה (סטייה ${ok ? (g.card!.t - step).toFixed(1) : '?'})`)
+      check(ok && g.card!.b <= g.stage!.b - 8, `${w}×${h}: שם השיעור כולו בתוך הבמה`)
       check(ok && Math.abs(g.where!.t - g.panel!.t) <= 1 && Math.abs(mid(g.where!) - mid(g.holoBox!)) <= 3 && inside(g.where), `${w}×${h}: "איפה אני?" מעל הראש של ד"ר הולו, על הקו העליון של החלון`)
-      check(ok && g.play!.r <= g.card!.l && g.where!.r <= g.portal!.l + 1, `${w}×${h}: הכפתורים לא על הפורטל ולא על שם השיעור`)
+      check(ok && g.where!.r <= g.portal!.l + 1, `${w}×${h}: "איפה אני?" לא על הפורטל`)
     }
     await page.context().close()
   }
@@ -344,7 +360,7 @@ async function student(browser: Browser): Promise<void> {
   check(await page.locator('.shome-status').count() === 0 && await page.evaluate(() => getComputedStyle(document.querySelector('[data-portal-caption] .pcap')!).backgroundColor === 'rgba(0, 0, 0, 0)'), 'המצב הוא שכבת טקסט, בלי תיבה')
   /* "איפה אני?": אותו חלון הסבר, והכפתור שבו לפי מצב השיעור */
   await page.locator('[data-home-where]').click()
-  check(await page.locator('[data-where-am-i] [data-where-part]').count() === 3 && (await page.locator('[data-where-play]').innerText()).trim() === (await page.locator('[data-portal-play]').innerText()).trim(), 'חלון "איפה אני?": שלושה חלקים, והכפתור כמו כפתור הכניסה לשיעור')
+  check(await page.locator('[data-where-am-i] [data-where-part]').count() === 3 && (await page.locator('[data-lab-portal-hit]').getAttribute('aria-label') ?? '').startsWith((await page.locator('[data-where-play]').innerText()).trim() + ':'), 'חלון "איפה אני?": שלושה חלקים, והכפתור שבו לפי מצב השיעור, כמו השם של הלחיצה על הפורטל')
   await shot(page, 'student-where')
   await page.keyboard.press('Escape')
   check(await page.locator('[data-where-am-i]').count() === 0, 'Escape סוגר את החלון')
@@ -377,9 +393,9 @@ async function student(browser: Browser): Promise<void> {
   await page.locator('[data-result=q3]').click(); await page.waitForTimeout(600)
 
   /* כניסה לשיעור: צלילה לפורטל */
-  await page.locator('[data-portal-play]').click()
+  await page.locator('[data-lab-portal-hit]').click()
   await page.waitForURL(/\/play\/q3/, { timeout: 6000 }).catch(() => undefined)
-  check(/\/play\/q3/.test(page.url()), `הכפתור צולל לפורטל ופותח את השיעור (${new URL(page.url()).pathname})`)
+  check(/\/play\/q3/.test(page.url()), `לחיצה על הפורטל צוללת פנימה ופותחת את השיעור (${new URL(page.url()).pathname})`)
   await page.context().close()
 
   /* גלילה למטה: המסע שלי */
@@ -401,12 +417,12 @@ async function student(browser: Browser): Promise<void> {
     await ph.screenshot({ path: path.join(OUT, `student-${name}.png`) }); console.log('  shot', `student-${name}`)
     check(await ph.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1), `${name}: בלי גלילה לרוחב`)
     check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const u = document.querySelector('.home4-now-row')?.getBoundingClientRect(); return !!c && !!u && c.bottom <= u.top + 1 }), `${name}: הטקסט שעל הפורטל מעל השורה שמתחתיו`)
-    await narrowLayout(ph, name, '[data-portal-play]')
+    await narrowLayout(ph, name)
     {
-      /* גם בשיעור שהופסק באמצע, שבו הכפתור ארוך יותר ("המשיכו לקרוא") */
+      /* גם בשיעור שהופסק באמצע, שבו לטקסט שעל הפורטל יש שורה שנייה */
       await ph.locator('[data-portal-next]').click(); await ph.waitForTimeout(700)
-      await narrowLayout(ph, `${name}, שיעור שהופסק`, '[data-portal-play]')
-      check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const pl = document.querySelector('[data-portal-play]')?.getBoundingClientRect(); const w = document.querySelector('[data-home-where]')?.getBoundingClientRect(); return !!c && !!pl && !!w && [pl, w].every((b) => b.bottom <= c.top || b.top >= c.bottom || b.right <= c.left || b.left >= c.right) }), `${name}: הכפתורים לא מכסים את הטקסט שעל הפורטל`)
+      await narrowLayout(ph, `${name}, שיעור שהופסק`)
+      check(await ph.evaluate(() => { const c = document.querySelector('[data-portal-caption]')?.getBoundingClientRect(); const w = document.querySelector('[data-home-where]')?.getBoundingClientRect(); return !!c && !!w && (w.bottom <= c.top || w.top >= c.bottom || w.right <= c.left || w.left >= c.right) }), `${name}: "איפה אני?" לא מכסה את הטקסט שעל הפורטל`)
       await ph.screenshot({ path: path.join(OUT, `student-${name}-paused.png`) })
     }
     await ph.context().close()
@@ -442,7 +458,7 @@ async function guest(browser: Browser): Promise<void> {
   await page.waitForSelector('[data-portal-lesson]', { timeout: 15000 })
   await page.waitForTimeout(1500)
   check(await page.locator('[data-portal-state=done]').count() === 1 && (await page.locator('[data-portal-state]').innerText()).includes('4 גבישים') && (await page.locator('[data-stat=gems]').innerText()).includes('4'), 'שיעור שהאורח סיים: "הושלם" והגבישים, על הפורטל ובסיכום (מהלשונית בלבד)')
-  await page.locator('[data-portal-play]').click()
+  await page.locator('[data-lab-portal-hit]').click()
   await page.waitForURL(/\/play\//, { timeout: 6000 }).catch(() => undefined)
   check(/\/play\//.test(page.url()), 'האורח נכנס לשיעור דרך הפורטל')
   await page.waitForTimeout(2500)

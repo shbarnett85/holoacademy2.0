@@ -131,8 +131,8 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
    · הפס העליון: השלום לפי השעה ("בוקר טוב, נועה") והסיכום — כמה גבישים נאספו עד היום, כמה שיעורים הושלמו,
      כמה הופסקו באמצע וכמה חדשים; בקצה: השתקה ויציאה.
    · הפורטל: השיעור האחרון שהתקבל. עליו, כשכבת טקסט הולוגרפית, המצב של השיעור (הושלם / הופסק באמצע / לא הושלם).
-   · מתחת לפורטל, כמו בעמוד הפתיחה: שם השיעור והמקצוע עם חצים שמדפדפים בין השיעורים, ממורכזים מתחת לפורטל על הקו התחתון
-     של החלון; כפתור הכניסה על אותו קו, מעל ד"ר הולו (או לחיצה על הפורטל). מעל הראש של ד"ר הולו: "איפה אני?".
+   · על שלבי הבמה שלפני הפורטל, כמו בעמוד הפתיחה: שם השיעור והמקצוע עם חצים שמדפדפים בין השיעורים. אין כפתור כניסה
+     (הוסר לבקשת המשתמש): נכנסים לשיעור בלחיצה על הפורטל. מעל הראש של ד"ר הולו: "איפה אני?".
    · חלון הצד: רשימת השיעורים, עם חיפוש, סינון ומיון. בחירה ברשימה מביאה את השיעור אל הפורטל.
    בגלילה למטה: "המסע שלי". הסינון חל גם על הדפדוף בחצים. הפורטל לא מתחלף מעצמו (כלל 1: בזמן קריאה שום דבר לא זז). */
 export default function StudentHome() {
@@ -345,7 +345,6 @@ export default function StudentHome() {
             <span>{PORTAL_TEXT.whereAmI}</span>
           </button>
         }
-        underProps={{ 'data-layout': 'row' }}
         caption={caption}
         captionKey={current ? `${current.id}:${statusOf(current)}` : undefined}
         captionProps={current ? { 'data-portal-state': statusOf(current) } : undefined}
@@ -388,12 +387,6 @@ export default function StudentHome() {
               <span className="sr-only" data-portal-position>{PORTAL_TEXT.position(idx + 1, n)} · {statusText(current)}</span>
             </div>
             {n > 1 && <button onClick={() => step(1)} aria-label={PORTAL_TEXT.next} className="holo-button holo-button--sm home4-arrow" data-portal-next><span aria-hidden="true">←</span></button>}
-          </div>
-          <div className="home4-play-slot">
-            <button onClick={play} className="holo-button home4-play" data-portal-play>
-              <BrandIcon name="playGem" size={22} />
-              <span>{playLabel}</span>
-            </button>
           </div>
         </> : undefined}
         panelClass="shome-panel"

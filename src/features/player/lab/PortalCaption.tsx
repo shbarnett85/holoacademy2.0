@@ -1,11 +1,11 @@
 /* הסימון שעל הפורטל: שכבת טקסט הולוגרפית שמוקרנת על התמונה שבפורטל, בלי תיבה ובלי רקע לבן.
    האותיות עשויות אור (קווי סריקה בתוך האות, הילה בצבע המצב, שני עותקים צבעוניים שזזים פיקסל לכל צד, כמו בדמות של ד"ר הולו),
    ופס אור אחד שיורד לאט לאורך הטקסט. מאחורי הטקסט הצללה רכה, כדי שייקרא גם על תמונה בהירה.
-   הצבע אף פעם לא לבד: לכל מצב סמל ומילה. הגודל ב-em, והמקום והגודל נקבעים מבחוץ (PortalHero, בקואורדינטות של תמונת הספרייה).
+   הצבע אף פעם לא לבד: לכל מצב סמל ומילה. בעמוד הפתיחה אותה שכבה היא ההזמנה "נסו עכשיו" (במקום כפתור, לבקשת המשתמש). הגודל ב-em, והמקום והגודל נקבעים מבחוץ (PortalHero, בקואורדינטות של תמונת הספרייה).
    כשהטקסט מתחלף (שיעור אחר בפורטל) הוא "נדלק" מחדש. בתנועה מופחתת: בלי תנועה (הכלל הגלובלי ב-index.css). */
 import type { CSSProperties } from 'react'
 
-export type CaptionTone = 'done' | 'paused' | 'notDone'
+export type CaptionTone = 'done' | 'paused' | 'notDone' | 'play'
 export interface PortalCaptionData {
   tone: CaptionTone
   title: string
@@ -18,6 +18,8 @@ const TONE: Record<CaptionTone, { core: string; glow: string }> = {
   done: { core: '222 255 236', glow: '56 226 142' },
   paused: { core: '255 242 220', glow: '255 160 52' },
   notDone: { core: '230 249 255', glow: '99 207 255' },
+  /* עמוד הפתיחה: ההזמנה להיכנס לשיעור שבפורטל ("נסו עכשיו") */
+  play: { core: '230 249 255', glow: '99 207 255' },
 }
 
 const CSS = `
@@ -49,6 +51,7 @@ function Icon({ tone }: { tone: CaptionTone }) {
       {tone === 'notDone' ? <circle cx="12" cy="12" r="10" strokeDasharray="3.6 3.4" /> : <circle cx="12" cy="12" r="10" />}
       {tone === 'done' && <path d="M7 12.4l3.4 3.4L17.2 9" />}
       {tone === 'paused' && <path d="M9.4 7.8v8.4M14.6 7.8v8.4" />}
+      {tone === 'play' && <path d="M9.8 7.6v8.8l7-4.4z" />}
     </svg>
   )
 }

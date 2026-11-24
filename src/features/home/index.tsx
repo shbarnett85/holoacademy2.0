@@ -78,7 +78,8 @@ export default function Home() {
       .catch(() => setShowcase([]))
   }, [])
 
-  /* השיעור שבפורטל: מתחלף מעצמו, ונעצר בריחוף ובפוקוס על השורה שמתחת לפורטל, בתנועה מופחתת ובזמן הצלילה */
+  /* השיעור שבפורטל: מתחלף מעצמו, ונעצר בריחוף ובפוקוס על הפורטל ועל שם השיעור, בתנועה מופחתת ובזמן הצלילה.
+     אין כפתור "שחקו עכשיו" (הוסר לבקשת המשתמש): על הפורטל מוקרן "נסו עכשיו", ולחיצה עליו צוללת לשיעור */
   const [cur, setCur] = useState(0)
   const [paused, setPaused] = useState(false)
   const n = showcase.length
@@ -134,8 +135,11 @@ export default function Home() {
         portalSrc={featured?.thumbUrl ?? undefined}
         portalDir={dir}
         portalNext={showcase.map((q) => q.thumbUrl)}
-        portalLabel={featured ? `שחקו עכשיו: ${featured.title}` : 'שחקו בשיעור ההתנסות'}
+        portalLabel={featured ? `נסו עכשיו: ${featured.title}` : 'נסו עכשיו את שיעור ההתנסות'}
         onPortalClick={play}
+        onPortalHover={setPaused}
+        caption={{ tone: 'play', title: 'נסו עכשיו', sub: 'בלי הרשמה' }}
+        captionProps={{ 'data-home-try': '' }}
         leaving={leaving}
         onDiveEnd={onDiveEnd}
         holoAction={
@@ -145,7 +149,6 @@ export default function Home() {
           </button>
         }
         underProps={{
-          'data-layout': 'row',
           onMouseEnter: () => setPaused(true), onMouseLeave: () => setPaused(false),
           onFocusCapture: () => setPaused(true), onBlurCapture: (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false) },
         }}
@@ -162,13 +165,6 @@ export default function Home() {
               {n > 1 && <button onClick={() => step(1)} aria-label="השיעור הבא" className="holo-button holo-button--sm home4-arrow"><span aria-hidden="true">←</span></button>}
             </div>
           )}
-          {/* באותו קו של שם השיעור, מעל ד"ר הולו (index.css: .home4-play-slot) */}
-          <div className="home4-play-slot">
-            <button onClick={play} className="holo-button home4-play" data-home-play>
-              <BrandIcon name="playGem" size={22} />
-              <span>שחקו עכשיו <small>· בלי הרשמה</small></span>
-            </button>
-          </div>
         </>}
         panel={<>
           <HomeMark />

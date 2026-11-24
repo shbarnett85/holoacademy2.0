@@ -160,7 +160,7 @@ function PortalImage({ src }: { src: string }) {
   )
 }
 
-export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, portalLabel }: {
+export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, onPortalHover, portalLabel, focalY }: {
   state: 'opening' | 'closed' | 'open'
   portalSrc?: string
   /* כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה (כיוון קו האור של המעבר) */
@@ -174,11 +174,16 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
   onDiveEnd?: () => void
   onRevealEnd?: () => void
   onPortalClick?: () => void
+  /* העכבר או הפוקוס על הפורטל (עמוד הפתיחה: השיעור שבפורטל לא מתחלף מתחת ליד) */
+  onPortalHover?: (over: boolean) => void
   /* השם של הפעולה לקוראי מסך ולמקלדת */
   portalLabel?: string
+  /* מוקד אנכי אחר לחיתוך התמונה (PortalHero): אותה קומפוזיציה, והעולם כולו זז למעלה או למטה */
+  focalY?: number
 }) {
   const feel = useGameFeel()
-  const comp = stageFor(state)
+  const base = stageFor(state)
+  const comp = useMemo(() => (focalY === undefined || focalY === base.focal.y ? base : { ...base, focal: { ...base.focal, y: focalY } }), [base, focalY])
   const [videoPlaying, setVideoPlaying] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
   const [fit, setFit] = useState<{ scale: number; x: number; y: number } | null>(null)
@@ -278,7 +283,7 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
               <PortalHologram src={portalSrc} swapDir={portalDir} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
             )}
             {onPortalClick && armed && !leaving && (
-              <button type="button" className="lab-portal-hit" data-lab-portal-hit aria-label={portalLabel} onClick={onPortalClick} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
+              <button type="button" className="lab-portal-hit" data-lab-portal-hit aria-label={portalLabel} onClick={onPortalClick} onMouseEnter={() => onPortalHover?.(true)} onMouseLeave={() => onPortalHover?.(false)} onFocus={() => onPortalHover?.(true)} onBlur={() => onPortalHover?.(false)} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
             )}
             <svg className="lab-rim" viewBox={`0 0 ${comp.width} ${comp.height}`} aria-hidden="true">
               <polygon className="lab-rim__base" points={portalPoints(comp)} />

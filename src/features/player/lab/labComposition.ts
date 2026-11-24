@@ -23,6 +23,8 @@ export interface StageComposition {
   holo: { centerX: number; top: number; height: number }
   /** הפורטל כהולוגרמה (PortalHologram): מרכז הפתח ורדיוסו, וקדמת הבמה (מכאן הרצפה וההשתקפות). בלי ערך: תמונה בלבד */
   hologram?: { cx: number; cy: number; r: number; stageFront: number }
+  /** קו האור השני בשלבי הבמה שלפני הפורטל (step 2), באמצע הרוחב: עליו יושב הקצה העליון של כרטיס שם השיעור (PortalHero) */
+  stepLine?: number
 }
 
 /* עיגול שנחתך מלמטה בקו ישר (הבמה שלפני הפורטל): רשימת x,y שטוחה */
@@ -55,6 +57,8 @@ const libraryStage = (name: string): StageComposition => ({
   holo: { centerX: 250, top: 295, height: 440 },
   /* קדמת הבמה ב-y=545; ההשתקפות האפויה של הטבעת ברצפה מתאימה למראה עם קיצור של 0.85 */
   hologram: { cx: 640, cy: 355, r: 182, stageFront: 545 },
+  /* קווי האור של שלבי הבמה (steps) באמצע הרוחב: 513, 520, 528, 542 (בצדדים הם עולים 2–4 פיקסלים). הקו העליון של הכרטיס (3px) מכסה את השני */
+  stepLine: 518,
 })
 export const LIBRARY: StageComposition = libraryStage('library')
 export const LIBRARY_OPEN: StageComposition = libraryStage('library-open')
