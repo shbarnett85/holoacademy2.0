@@ -12,7 +12,11 @@ export const HOLO_ASPECT = 896 / 706
 
 /* האנימציות הקיימות (קובץ MP4 ותמונה קבועה לכל אחת):
    · welcome — ברוכים הבאים: ידיים פתוחות ודיבור (ברירת המחדל)
-   · worried — מודאג: למצב "מפוחד", וגם ל"כועס" (מדריך מודאג, לא כועס)
+   · worried  — מודאג: ידיים אחוזות מול החזה, מבט הצידה ובחזרה. עדיין לא משויך למצב רוח (אין "מודאג" ברשימת מצבי הרוח)
+   · scared   — פוחד: זרועות חובקות את הגוף, מבט מהיר הצידה. למצב "מפוחד"
+   · troubled — מוטרד: יד על העורף, מבט למטה ובחזרה. למצב "כועס" (מדריך מוטרד, לא כועס)
+   · confused — מבולבל: כפות ידיים פתוחות כלפי מעלה, ראש מוטה. עדיין לא משויך למצב רוח
+   · startled — מופתע, בלי חיוך: כף יד אחת מורמת, גבות מורמות. עדיין לא משויך למצב רוח ("מופתע" מציג את surprised)
    · sad     — עצוב: מבט למטה ובחזרה אל הצופה, בפה סגור (אכזבה קלה שמזמינה לנסות שוב): לסיכום של סיפור שנשאר פתוח
    · thinking    — חושב: יד על הזקן, מבט למעלה ובחזרה אל הצופה
    · happy       — שמח: יד על החזה, חיוך בפה סגור והנהון קטן
@@ -22,11 +26,14 @@ export const HOLO_ASPECT = 896 / 706
      (בחמש האלה תנוחת הידיים שונה בכל אחת, לבקשת המשתמש: בעמידה ובעצוב האצבעות צמודות מול המותן)
    · idle    — עמידה מחויכת עם מעט תנועה (חיוך בפה סגור, אצבעות צמודות, נשימה ומצמוץ): כשד"ר הולו ממתין ולא מדבר.
                לא קשורה למצב רוח: המסך מבקש אותה במפורש (עמוד הפתיחה והבית של התלמיד, PortalHero) */
-export type HoloAnimation = 'welcome' | 'worried' | 'idle' | 'sad' | 'thinking' | 'happy' | 'celebrating' | 'amused' | 'surprised'
+export type HoloAnimation =
+  | 'welcome' | 'idle'
+  | 'thinking' | 'happy' | 'celebrating' | 'amused' | 'surprised'
+  | 'sad' | 'worried' | 'scared' | 'troubled' | 'confused' | 'startled'
 
 /* איזו אנימציה לכל מצב רוח. מצב רוח בלי אנימציה משלו משתמש ב"ברוכים הבאים". אנימציה חדשה למצב רוח = שורה כאן */
 const ANIMATION_OF: Partial<Record<HoloMood, HoloAnimation>> = {
-  scared: 'worried', angry: 'worried', sad: 'sad',
+  scared: 'scared', angry: 'troubled', sad: 'sad',
   thinking: 'thinking', happy: 'happy', celebrating: 'celebrating', amused: 'amused', surprised: 'surprised',
 }
 /* animation: אנימציה שהמסך ביקש במפורש; גוברת על מצב הרוח */
