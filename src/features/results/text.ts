@@ -196,12 +196,16 @@ export const UI = {
   focusedNoteTitle: 'שימו לב',
   reviewSection: 'תרגול חזרה לכל הכיתה',
 
-  /* ── שאלה לדיון (מסך מלא להקרנה, בלי שמות) ── */
-  discussClose: 'חזרה לתוצאות',
-  discussQuestionLabel: 'השאלה',
+  /* ── שאלה לדיון (חלון מעל מסך השיעור, אפשר להקרין אותו; בלי שמות) ── */
+  discussClose: 'סגירה',
+  discussQuestionLabel: 'השאלה מהשיעור',
   discussCommonLabel: 'התשובה שרבים בחרו',
   discussCount: (n: number): string => (n === 1 ? 'תלמיד אחד בחר בה' : `${n} תלמידים בחרו בה`),
-  discussNotFound: 'לא מצאנו את השאלה לדיון. ייתכן שהתוצאות השתנו מאז. חזרו לתוצאות ובחרו שוב.',
+  discussPromptsLabel: 'שאלות לדיון',
+  discussWriting: 'ד״ר הולו כותב שאלות לדיון…',
+  discussAiNote: 'נכתב על ידי ד״ר הולו (AI). כדאי לקרוא את השאלות לפני שמציגים אותן לכיתה.',
+  discussTemplateNote: 'אלה שאלות כלליות: לא הצלחנו לכתוב עכשיו שאלות לפי התוכן של השאלה.',
+  discussMore: 'שאלות אחרות',
 
   /* ── תצוגה חיה ── */
   liveTitle: 'מה קורה עכשיו בשיעור?',

@@ -1,7 +1,7 @@
 /* "מה עושים עם זה" — לכל טעות נפוצה (אותה תשובה שגויה אצל כמה תלמידים) שתי פעולות:
      · שיעור ממוקד ל-N התלמידים — פותח את "שיעור חדש" כשהנושא, המקצוע, השכבה ותיאור הטעות כבר ממולאים.
        המערכת שולחת שיעור לכיתה שלמה (לא לחלק ממנה), ולכן ההערה על כך גלויה ליד הכפתור, לא רק אחרי לחיצה.
-     · שאלה לדיון בכיתה — מסך מלא להקרנה, בלי שמות.
+     · שאלה לדיון בכיתה — חלון מעל המסך (DiscussionDialog), בלי שמות.
    כשכבר קיים שיעור ממוקד לטעות (תפיסה מתויגת + קישור) — מוצג גם כפתור "פתיחת השיעור הממוקד". */
 import { useNavigate } from 'react-router-dom'
 import { FOCUSED_LESSON_WHOLE_CLASS_NOTE, focusedLessonLabel, studentsCountText } from '../../shared/lib/findingsNarrative'
@@ -11,7 +11,7 @@ import { startFocusedLesson } from './focusedLesson'
 import { primaryButton, secondaryButton, soft } from './styles'
 import { UI } from './text'
 
-function ErrorCard({ e, head, discussTo }: { e: CommonErrorRow; head: SubmissionHead; discussTo: string }) {
+function ErrorCard({ e, head, onDiscuss }: { e: CommonErrorRow; head: SubmissionHead; onDiscuss: () => void }) {
   const navigate = useNavigate()
   const n = e.studentIds?.length ?? e.studentsCount
   const canFocus = !!e.wrongText && !!e.sceneId
@@ -33,7 +33,7 @@ function ErrorCard({ e, head, discussTo }: { e: CommonErrorRow; head: Submission
           <Icon name="step" size={18} />
           {focusedLessonLabel(n)}
         </button>
-        <button type="button" data-tu-press data-discuss className={BTN} style={secondaryButton} onClick={() => { void navigate(discussTo) }}>
+        <button type="button" data-tu-press data-discuss className={BTN} style={secondaryButton} onClick={onDiscuss}>
           {UI.discussionButton}
         </button>
         {e.linkedQuest && (
@@ -52,12 +52,12 @@ function ErrorCard({ e, head, discussTo }: { e: CommonErrorRow; head: Submission
   )
 }
 
-export default function CommonErrors({ errors, head, discussHref }: { errors: CommonErrorRow[]; head: SubmissionHead; discussHref: (errorId: string) => string }) {
+export default function CommonErrors({ errors, head, onDiscuss }: { errors: CommonErrorRow[]; head: SubmissionHead; onDiscuss: (errorId: string) => void }) {
   return (
     <div data-common-errors style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <h2 style={{ margin: 0, fontFamily: FONT, fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1.5 }}>{UI.actionsIntro(errors.length)}</h2>
       <ul style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {errors.map((e) => <ErrorCard key={e.id} e={e} head={head} discussTo={discussHref(e.id)} />)}
+        {errors.map((e) => <ErrorCard key={e.id} e={e} head={head} onDiscuss={() => onDiscuss(e.id)} />)}
       </ul>
     </div>
   )

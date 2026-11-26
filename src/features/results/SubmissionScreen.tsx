@@ -9,7 +9,7 @@
    סט הטאבים קבוע בכל שליחה: טאב בלי נתונים נשאר במקומו ומסביר במילים למה ריק ומה יקרה (עיקרון 9) — טאבים לא מופיעים ונעלמים.
    "איך חישבנו?" הוא כפתור אחד בשורת הכותרת (חריץ של ScreenShell). במסך צר (העמוד גולל): ראש, משפט, טאבים, תלמידים — בעמודה אחת.
    הכתובת היא מקור האמת: /results/:id (כיתה) · /results/:id/student/:studentId (תלמיד/ה). ?tab= פותח טאב מסוים. */
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { howWeCalcResultsLines, RESULTS_TEXT } from '../../shared/lib/findingsNarrative'
@@ -18,6 +18,7 @@ import { AiSummaryPanel } from '../aiSummary'
 import { EmptyState, FONT, guestLensParams, ScreenShell, Sentence, T, TabBar, tabPanelProps } from '../teacherUi'
 import type { BreadcrumbItem, TabItem } from '../teacherUi'
 import ClassChallenges from './ClassChallenges'
+import DiscussionDialog from './DiscussionDialog'
 import Actions from './Actions'
 import ErrorPanel from './ErrorPanel'
 import FillArea from './FillArea'
@@ -111,7 +112,9 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   const toList = link('/results')
   const toClass = link(`/results/${enc(submissionId)}`)
   const toLive = link(`/results/${enc(submissionId)}/live`)
-  const discussHref = (errorId: string): string => link(`/results/${enc(submissionId)}/discuss`, { e: errorId })
+  /* שאלה לדיון: חלון מעל המסך (לבקשת המשתמש, במקום מסך נפרד). ?discuss=<מזהה הטעות> פותח אותו ישר (קישור, רענון) */
+  const [discussId, setDiscussId] = useState<string | null>(() => sp.get('discuss'))
+  const closeDiscuss = useCallback(() => setDiscussId(null), [])
   const toStudent = (id: string): void => { void navigate(link(`/results/${enc(submissionId)}/student/${enc(id)}`)) }
   const switchMode = (m: Mode): void => {
     if (m === 'class') { void navigate(toClass); return }
@@ -145,6 +148,7 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
   /* ── תוכן לפי מצב ── */
   let body: ReactNode
   let howLines: readonly string[] | undefined
+  const discussError = mode === 'class' && discussId ? classQ.data?.commonErrors.find((e) => e.id === discussId) ?? null : null
   if (active.error) {
     body = <ErrorPanel error={active.error} scope="submission" backTo={toList} onRetry={active.reload} />
   } else if (mode === 'class' && classQ.data) {
@@ -160,13 +164,13 @@ export default function SubmissionScreen({ submissionId, studentId }: { submissi
           <MainPanel tabs={CLASS_TABS} active={shownTab} onTab={setTab}>
             {shownTab === 'glance' && (
               /* הסיכום המילולי של ד״ר הולו: כרטיס מוטמע בחריץ שמתחת לגרפים (מורה אורח: העדשה נשלחת איתו) */
-              <Glance view={d} onOpenStudent={toStudent} onDiscuss={(id) => { void navigate(discussHref(id)) }} onActions={() => setTab('actions')} summary={<AiSummaryPanel key={d.head.id} compact target={{ scope: 'submission', id: d.head.id }} params={guestLensParams(lensState)} exportName={d.head.title} />} />
+              <Glance view={d} onOpenStudent={toStudent} onDiscuss={setDiscussId} onActions={() => setTab('actions')} summary={<AiSummaryPanel key={d.head.id} compact target={{ scope: 'submission', id: d.head.id }} params={guestLensParams(lensState)} exportName={d.head.title} />} />
             )}
             {shownTab === 'challenges' && <ClassChallenges view={d} />}
             {shownTab === 'objectives' && (d.objectives.length > 0
               ? <Objectives objectives={d.objectives} onOpenStudent={toStudent} />
               : <EmptyState title={UI.objectivesEmpty} whatNext={UI.objectivesEmptyNext} />)}
-            {shownTab === 'actions' && <Actions view={d} discussHref={discussHref} />}
+            {shownTab === 'actions' && <Actions view={d} onDiscuss={setDiscussId} />}
           </MainPanel>
         )} />
     )
@@ -201,6 +205,7 @@ const position = at >= 0 ? UI.studentPosition(at + 1, d.roster.length) : ''
     <ScreenShell active="results" title={title} breadcrumb={shownCrumbs} lensSwitcher={isGuest ? <ResultsLensSwitcher /> : undefined}
       howWeCalc={active.error ? undefined : { lines: howLines ?? howWeCalcResultsLines() }}>
       <FillArea minHeight={FILL_MIN}>{body}</FillArea>
+      {discussError && <DiscussionDialog key={discussError.id} submissionId={submissionId} error={discussError} apiQs={apiQs} onClose={closeDiscuss} />}
     </ScreenShell>
   )
 }

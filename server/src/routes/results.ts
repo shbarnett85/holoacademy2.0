@@ -7,8 +7,9 @@
    ────────────────────────────────────────────────────────────────────────── */
 import { Router } from 'express'
 import type { Request } from 'express'
-import { RESULTS_EP, SetDueRequestSchema } from '../../../src/shared/types/resultsV1.js'
-import { ERR_DUE_INVALID } from '../../../src/shared/lib/findingsNarrative.js'
+import { DiscussionRequestSchema, RESULTS_EP, SetDueRequestSchema } from '../../../src/shared/types/resultsV1.js'
+import { ERR_DISCUSSION_NOT_FOUND, ERR_DUE_INVALID } from '../../../src/shared/lib/findingsNarrative.js'
+import { discussionQuestions } from '../lib/results/discussion.js'
 import { demoResultsProvider } from '../lib/results/demoResults.js'
 import type { ResultsProvider } from '../lib/results/provider.js'
 import { realResultsProvider } from '../lib/results/realResults.js'
@@ -71,6 +72,24 @@ resultsRouter.get('/submission/:id/live', async (req, res, next) => {
 resultsRouter.get('/submission/:id', async (req, res, next) => {
   try {
     res.json(validated(RESULTS_EP.classView.response, await providerFor(req).classView(req, req.params.id)))
+  } catch (e) { next(e) }
+})
+
+/* שאלות לדיון בכיתה על טעות נפוצה. הטעות נשלפת כאן מהשיעור (באותן הרשאות של מסך השיעור: שליחה שאינה גלויה היא 404),
+   ולא מגיעה מהלקוח, כך שלמודל נשלח רק תוכן של שיעור שהמורה רשאי לראות. בלי שמות ובלי מספרי תלמידים */
+resultsRouter.post('/submission/:id/discussion', async (req, res, next) => {
+  try {
+    const body = DiscussionRequestSchema.safeParse(req.body)
+    if (!body.success) throw new AppError(400, ERR_DISCUSSION_NOT_FOUND)
+    const view = await providerFor(req).classView(req, req.params.id)
+    const err = view.commonErrors.find((e) => e.id === body.data.errorId)
+    if (!err?.question || !err.wrongText) throw new AppError(404, ERR_DISCUSSION_NOT_FOUND)
+    const out = await discussionQuestions(
+      { question: err.question, wrongText: err.wrongText, correctText: err.correctText ?? null, lessonTitle: view.head.title, challengeTitle: err.challengeTitle ?? null, subject: view.head.subject?.nameHe ?? null, grade: view.head.gradeLabel ?? null },
+      { userKey: req.staff?.userId ?? 'anon', fresh: body.data.fresh === true },
+    )
+    res.set('Cache-Control', 'private, no-store')
+    res.json(validated(RESULTS_EP.discussion.response, out))
   } catch (e) { next(e) }
 })
 

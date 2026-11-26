@@ -359,6 +359,12 @@ export const SetDueResponseSchema = z.object({ dueAt: Iso })
 /* ── מעטפת + רישום נקודות הקצה ── */
 export const ResultsEnvelope = <T extends z.ZodTypeAny>(data: T) => z.object({ data })
 
+/* שאלות לדיון בכיתה על טעות נפוצה (POST /submission/:id/discussion, גוף: { errorId, fresh? }).
+   source: ai = נכתבו לפי התוכן; template = שאלות הגיבוי הקבועות (findingsNarrative.discussionFallback) */
+export const DiscussionRequestSchema = z.object({ errorId: z.string().min(1).max(300), fresh: z.boolean().optional() })
+export const DiscussionQuestionsSchema = z.object({ questions: z.array(z.string().min(1)).min(1).max(3), source: z.enum(['ai', 'template']) })
+export type DiscussionQuestions = z.infer<typeof DiscussionQuestionsSchema>
+
 export const RESULTS_EP = {
   list: { path: '/api/results/submissions', response: ResultsEnvelope(SubmissionListSchema) },
   classView: { path: '/api/results/submission/:id', response: ResultsEnvelope(ClassSubmissionViewSchema) },
@@ -366,5 +372,6 @@ export const RESULTS_EP = {
   setDue: { path: '/api/results/submission/:id/due', response: ResultsEnvelope(SetDueResponseSchema) },
   live: { path: '/api/results/submission/:id/live', response: ResultsEnvelope(LiveViewSchema) },
   overview: { path: '/api/results/overview', response: ResultsEnvelope(OverviewSchema) },
+  discussion: { path: '/api/results/submission/:id/discussion', response: ResultsEnvelope(DiscussionQuestionsSchema) },
 } as const
 export type ResultsEndpointName = keyof typeof RESULTS_EP

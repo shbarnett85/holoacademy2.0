@@ -93,7 +93,6 @@ export default function App() {
           <Route path="/results"         element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/results/:submissionId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/results/:submissionId/live" element={<ProtectedRoute><Results /></ProtectedRoute>} />
-          <Route path="/results/:submissionId/discuss" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/results/:submissionId/student/:studentId" element={<ProtectedRoute><Results /></ProtectedRoute>} />
           <Route path="/analytics"       element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
           {/* האנליטיקה החדשה מנתבת פנימית בין כיתה לתלמיד; הכתובות האלה מוכנות עבורה */}

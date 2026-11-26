@@ -125,9 +125,9 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: 'results-discuss', group: 'results', who: ['guest-homeroom'],
-    url: '/results/demo-sub-fractions-v2/discuss?e=s1%3A0%3Am%3Amc-frac-add-straight', clicksFromMainTab: 2, ready: '[data-discuss-question]',
-    expect: { present: ['[data-discuss-prompt]'] },
-    note: 'שאלה לדיון בכיתה — מסך מלא להקרנה, בלי שמות. נתיב החזרה הוא הכפתור הגדול "חזרה לתוצאות"',
+    url: '/results/demo-sub-fractions-v2?tab=actions&discuss=s1%3A0%3Am%3Amc-frac-add-straight', clicksFromMainTab: 2, ready: '[data-discuss-prompts] li',
+    expect: { present: ['[data-discuss-question]', '[data-discuss-close]'] },
+    note: 'שאלה לדיון בכיתה — חלון מעל מסך השיעור, בלי שמות: השאלה, התשובה שרבים בחרו, ושלוש שאלות לדיון. "סגירה" ו-Escape סוגרים',
   },
   {
     name: 'results-overview', group: 'results', who: ['guest-admin', 'real-admin'],

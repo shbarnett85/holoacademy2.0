@@ -785,7 +785,33 @@ export const focusedLessonBrief = (d: { lessonTitle: string; challengeTitle: str
     d.misconceptionTitle ? `התפיסה השגויה: ${d.misconceptionTitle}.` : null,
     'שיעור ממוקד שיעזור להבין למה התשובה הזאת אינה נכונה, וייתן הזדמנות לתרגל את הנושא מזוויות חדשות.',
   ].filter((x): x is string => !!x).join('\n')
-export const DISCUSSION_PROMPT = 'איך לדעתכם הגיעו לתשובה הזאת? מה הייתם אומרים למי שבחר בה?'
+/* ── שאלות לדיון בכיתה על טעות נפוצה ──
+   השאלות האמיתיות נכתבות לפי התוכן (server/src/lib/results/discussion.ts). אלה שאלות הגיבוי, כשהכתיבה לא זמינה או נכשלה:
+   שלוש שאלות, אחת מכל סוג (בדיקת התשובה, קריאת השאלה, והסבר לאחרים), שנבחרות לפי התוכן, כך ששתי טעויות שונות לא מקבלות
+   בדיוק אותן שאלות. בלשון רבים, בלי לגלות את התשובה הנכונה, ובלי לקבוע למה בחרו בתשובה */
+export interface DiscussionItem { question: string; wrongText: string }
+const DISCUSSION_CHECK: ((w: string) => string)[] = [
+  (w) => `מה צריך לבדוק כדי לדעת אם ״${w}״ היא התשובה לשאלה?`,
+  (w) => `איזו דוגמה או איזה ציור יכולים להראות אם ״${w}״ מתאימה כאן?`,
+  () => 'איך אפשר לבדוק את התשובה בדרך אחרת מזו שבה פתרתם?',
+]
+const DISCUSSION_READ: ((w: string) => string)[] = [
+  () => 'קראו שוב את השאלה לאט. איזה פרט בה הכי חשוב לתשובה?',
+  (w) => `מה היה צריך להשתנות בשאלה, כדי ש״${w}״ תהיה התשובה?`,
+  () => 'איך הייתם שואלים את אותה שאלה במילים שלכם?',
+]
+const DISCUSSION_EXPLAIN: ((w: string) => string)[] = [
+  (w) => `איך לדעתכם אפשר להגיע לתשובה ״${w}״?`,
+  (w) => `מה הייתם אומרים למי שבחר ב״${w}״?`,
+  () => 'איך הייתם מסבירים את השאלה הזאת למי שלא היה בשיעור?',
+]
+export function discussionFallback(d: DiscussionItem): string[] {
+  let h = 0
+  for (const ch of `${d.question}|${d.wrongText}`) h = (h * 31 + ch.codePointAt(0)!) >>> 0
+  const pick = (pool: ((w: string) => string)[], shift: number) => pool[(h >>> shift) % pool.length](d.wrongText)
+  return [pick(DISCUSSION_CHECK, 0), pick(DISCUSSION_READ, 3), pick(DISCUSSION_EXPLAIN, 6)]
+}
+export const ERR_DISCUSSION_NOT_FOUND = 'לא מצאנו את השאלה לדיון. ייתכן שהתוצאות השתנו מאז.'
 
 /* ── מנהל/ת: שכבה × מקצוע ── */
 export const OVERVIEW_TEXT = {
