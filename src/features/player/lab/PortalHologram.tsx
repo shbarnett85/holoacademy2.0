@@ -150,7 +150,7 @@ export interface PortalGeometry {
   rect: { x: number; y: number; width: number; height: number }
 }
 
-export default function PortalHologram({ src, swapDir = 1, geo, screenScale, focusX = 0.5, agitated, splashKey, gold, onReady }: {
+export default function PortalHologram({ src, swapDir = 1, geo, screenScale, focusX = 0.5, agitated, splashKey, gold, onReady, onSettle }: {
   src: string
   /* הכיוון של המעבר לתמונה הבאה: 1 קדימה (הקו נע משמאל לימין), -1 אחורה */
   swapDir?: 1 | -1
@@ -164,6 +164,9 @@ export default function PortalHologram({ src, swapDir = 1, geo, screenScale, foc
   /* סיפור שנסגר: הצבע עובר לכתום-זהוב */
   gold: boolean
   onReady?: (ready: boolean) => void
+  /* פעם אחת, כשההכנה הכבדה הסתיימה: ההקשר הוקם והתמונה הראשונה הועלתה, או שזה לא יקרה (אין WebGL, תמונה שאוסרת קריאה או שלא נטענה).
+     מסך הסיום מחכה לזה לפני שהתנועה מתחילה (LabStage: hold) */
+  onSettle?: () => void
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null)
   const [ready, setReady] = useState(false)
@@ -180,19 +183,23 @@ export default function PortalHologram({ src, swapDir = 1, geo, screenScale, foc
   useEffect(() => { live.current.src = src; live.current.swapDir = swapDir })
   useEffect(() => { if (splashKey) live.current.splashAt = performance.now() }, [splashKey])
   useEffect(() => { onReady?.(ready) }, [ready, onReady])
+  const settleRef = useRef(onSettle)
+  useEffect(() => { settleRef.current = onSettle })
+  const settled = useRef(false)
+  const settle = () => { if (settled.current) return; settled.current = true; settleRef.current?.() }
 
   useEffect(() => {
     const canvas = ref.current
     const gl = canvas?.getContext('webgl', { alpha: false, antialias: false, powerPreference: 'low-power' }) as WebGLRenderingContext | null
-    if (!canvas || !gl) return
+    if (!canvas || !gl) { settle(); return }
     const vs = compile(gl, gl.VERTEX_SHADER, VERT)
     const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG)
     const program = gl.createProgram()
-    if (!vs || !fs || !program) return
+    if (!vs || !fs || !program) { settle(); return }
     gl.attachShader(program, vs)
     gl.attachShader(program, fs)
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { settle(); return }
     gl.useProgram(program)
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer())
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW)
@@ -281,7 +288,7 @@ export default function PortalHologram({ src, swapDir = 1, geo, screenScale, foc
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img)
         } catch {
           /* התמונה אוסרת קריאה: חוזרים לגרסה הקבועה, שמציגה את התמונה הנכונה */
-          cancelAnimationFrame(raf); cur = -1; setReady(false)
+          cancelAnimationFrame(raf); cur = -1; setReady(false); settle()
           return
         }
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -300,6 +307,7 @@ export default function PortalHologram({ src, swapDir = 1, geo, screenScale, foc
           cancelAnimationFrame(raf)
           raf = requestAnimationFrame(draw)
           setReady(true)
+          settle()
         } else {
           swap = { to, at: performance.now(), dir }
           bind(cur, to)
@@ -307,6 +315,7 @@ export default function PortalHologram({ src, swapDir = 1, geo, screenScale, foc
           canvas.dataset.portalSwap = dir > 0 ? 'forward' : 'back'
         }
       }
+      img.onerror = () => { if (!cancelled && seq === loadSeq) settle() }
       img.src = nextSrc
     }
     asked.current = live.current.src

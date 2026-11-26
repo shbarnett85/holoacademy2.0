@@ -57,6 +57,10 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const portalSrc = labPortalImages(gameData.scenes, gameData.entrySceneId).opening
   const radiant = state === 'radiant'
   const moods = labMoodsOf(gameData.holoMoods)
+  /* go: הבמה מוכנה (LabStage: onSettled), ורק עכשיו הכיסוי הלבן מתחיל לרדת, המצלמה נסוגה, נשמעת התרועה, נורה הקונפטי
+     והחלון והגבישים קופצים. עד אז הכול נבנה מתחת לכיסוי אטום, כך שהעבודה הכבדה של ההחלפה לא נראית כקרטוע.
+     בתנועה מופחתת אין כיסוי ואין תנועה, ולכן מתחילים מיד */
+  const [go, setGo] = useState(reduced)
 
   const moralIds = useMemo(() => new Set(gameData.scenes.filter((s) => s.puzzle?.type === 'moralDilemma').map((s) => s.id)), [gameData])
   const { firstTry, retried } = growthCounts(results, moralIds)
@@ -67,14 +71,15 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   /* צליל סוף פעם אחת, ואחריו כל גביש שנאסף קופץ למקומו עם צליל משלו, כל אחד גבוה מהקודם (GEM_POP_*).
      הקונפטי: שני תותחים וגשם בכניסה, ואז גל קטן כל עוד המסך פתוח (לא בלשונית מוסתרת) */
   useEffect(() => {
+    if (!go) return
     sounds.end(state === 'open' ? 'open' : state === 'radiant' ? 'radiant' : 'closed')
     if (!popIn) return
     const pops = Array.from({ length: whole }, (_, i) => window.setTimeout(() => sounds.pop(i), GEM_POP_START_MS + i * GEM_POP_STEP_MS))
     return () => pops.forEach((t) => window.clearTimeout(t))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [go])
   useEffect(() => {
-    if (state === 'open') return
+    if (!go || state === 'open') return
     const n = cfg().confetti
     if (!n) return
     /* פתיחה חגיגית: שני תותחי קונפטי מהפינות, ומיד אחריהם גשם קונפטי */
@@ -84,7 +89,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
     const t = window.setInterval(() => { if (!document.hidden) confetti(wave) }, 1400)
     return () => window.clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [go])
 
   useEffect(() => {
     if (!hasSession || !questId) return
@@ -114,11 +119,12 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
   const narrative = ending?.narrative ?? (closed ? END_TEXT.narrativeClosed : END_TEXT.narrativeOpen)
 
   return (
-    <div data-end-screen={state} className="relative" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'clamp(12px, 2.5vh, 24px)', overflow: 'auto' }}>
+    <div data-end-screen={state} data-end-go={go ? '' : undefined} className="relative" style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'clamp(12px, 2.5vh, 24px)', overflow: 'auto' }}>
       <style>{`
         @keyframes holo-whiteout { from { opacity: 1; } to { opacity: 0; } }
         .holo-summary-whiteout { position: fixed; inset: 0; z-index: 81; pointer-events: none;
-          background: var(--color-surface); animation: holo-whiteout 0.45s ease-out both; }
+          background: var(--color-surface); }
+        [data-end-go] > .holo-summary-whiteout { animation: holo-whiteout 0.45s ease-out both; }
         @keyframes end-gem-in { from { opacity: 0; transform: translateY(12px) scale(.5); } }
         .end-gem-pop { animation: end-gem-in .5s cubic-bezier(.2,1.5,.4,1) both; }
         /* החלון קופץ פנימה והכותרת "מקפצת" פעם אחת — רגע של חגיגה, ואז הכול עומד (בזמן קריאה שום דבר לא זז) */
@@ -151,15 +157,15 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
       `}</style>
       <div className="holo-summary-whiteout" aria-hidden />
       <div style={{ position: 'fixed', inset: 0 }}>
-        <LabStage state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.back : END_TEXT.playAgain} />
+        <LabStage hold={!go} onSettled={() => setGo(true)} state={closed ? 'closed' : 'open'} portalSrc={portalSrc} mood={closed ? moods.closed : moods.open} human={radiant} onPortalClick={closed ? onHome : onPlayAgain} portalLabel={closed ? END_TEXT.back : END_TEXT.playAgain} />
       </div>
 
       {/* חלון לבן צף מעל המעבדה (קו דיו, פינות עגולות וצל), מימין לפורטל */}
-      <div className={`holo-panel${popIn && closed ? ' end-panel-pop' : ''}`} style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.2vh, 22px)' }}>
+      <div className={`holo-panel${popIn && closed && go ? ' end-panel-pop' : ''}`} style={{ position: 'relative', width: 'calc(50vw - max(20.1vw, 35.7vh) - clamp(12px, 2.5vh, 24px) - 4px)', justifySelf: 'start', maxHeight: 'calc(100dvh - 2 * clamp(12px, 2.5vh, 24px))', overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center', padding: 'clamp(12px, 2.2vh, 22px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, width: '100%', justifyContent: 'center' }}>
           <div data-end-head style={{ minWidth: 0, textAlign: 'start' }}>
             <div data-end-kicker style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', color: state === 'open' ? 'var(--color-human-deep)' : 'var(--color-machine-deep)' }}>{kicker}</div>
-            <h1 className={`holo-text-glow${popIn && closed ? ' end-title-pop' : ''}`} data-end-heading style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2 }}>{END_TEXT.chapterEnd}</h1>
+            <h1 className={`holo-text-glow${popIn && closed && go ? ' end-title-pop' : ''}`} data-end-heading style={{ margin: 0, fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 900, lineHeight: 1.2 }}>{END_TEXT.chapterEnd}</h1>
             {/* הכותרת שהשיעור נתן לסיום שלו */}
             {ending?.title && <h2 data-end-title style={{ margin: '2px 0 0', fontSize: 'clamp(15px, 1.7vw, 19px)', fontWeight: 800, lineHeight: 1.25, color: 'var(--color-ink)', textWrap: 'balance' }}>{ending.title}</h2>}
           </div>
@@ -174,7 +180,7 @@ export default function EndScreen({ gameData, questId, questTitle, results, gemP
           <>
             <div data-end-gems className={state === 'radiant' ? 'end-gems-radiant' : ''} dir="ltr" style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
               {Array.from({ length: GEM_TOTAL }).map((_, i) => (
-                <span key={i} className={popIn ? 'end-gem-pop' : ''} style={{ animationDelay: `${(GEM_POP_START_MS + i * GEM_POP_STEP_MS) / 1000}s`, display: 'block' }}>
+                <span key={i} className={popIn && go ? 'end-gem-pop' : ''} style={{ animationDelay: `${(GEM_POP_START_MS + i * GEM_POP_STEP_MS) / 1000}s`, display: 'block' }}>
                   <Gem fill={gemFill(value, i)} size="clamp(34px, 8vh, 58px)" tier={gemTier(whole)} />
                 </span>
               ))}

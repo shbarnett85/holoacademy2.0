@@ -279,7 +279,7 @@ const confettiColors = palette(['--color-holo', '--color-human', '--color-machin
 const CONFETTI_SHAPES = ['rect', 'star', 'square', 'shard'] as const
 let canvas: HTMLCanvasElement | null = null
 let ctx: CanvasRenderingContext2D | null = null
-let parts: Part[] = []
+const parts: Part[] = []
 let raf = 0
 let W = 0
 let H = 0
@@ -312,13 +312,22 @@ function addPart(p: Part): void {
   parts.push(p)
   if (!raf) raf = requestAnimationFrame(tick)
 }
+/* נקודות הכוכב (רדיוס 1), מחושבות פעם אחת ולא לכל חלקיק בכל פריים */
+const STAR = Array.from({ length: 10 }, (_, k) => { const r = k % 2 ? 0.45 : 1; const a = (k * Math.PI) / 5 - Math.PI / 2; return [Math.cos(a) * r, Math.sin(a) * r] as const })
+/* פריים של חלקיקים. במחשב חלש זה רץ בכל פריים לאורך כל מסך הסיום (גלי קונפטי), ולכן בלי הקצאות ובלי שמירה ושחזור של
+   מצב הציור לכל חלקיק: טרנספורמציה אחת (מיקום וסיבוב) לכל חלקיק, וחלקיק שמחוץ למסך (קונפטי שעוד לא נפל לתוכו) לא מצויר */
 function tick(now: number): void {
   const c = ctx
   if (!c) { raf = 0; return }
   frameLog?.push(now)
+  const dpr = canvas ? canvas.width / Math.max(1, W) : 1
+  c.setTransform(dpr, 0, 0, dpr, 0, 0)
   c.clearRect(0, 0, W, H)
-  parts = parts.filter((p) => p.life < p.max)
-  for (const p of parts) {
+  let alive = 0
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]
+    if (p.life >= p.max) continue
+    parts[alive++] = p
     p.life++
     const d = p.drag ?? 0.98
     p.vx *= d
@@ -326,19 +335,21 @@ function tick(now: number): void {
     p.x += p.vx
     p.y += p.vy
     p.rot += p.vr
+    const m = p.size + 2
+    if (p.y < -m || p.y > H + m || p.x < -m || p.x > W + m) continue
     c.globalAlpha = Math.max(0, Math.min(1, (1 - p.life / p.max) * 1.5))
     c.fillStyle = p.color
-    if (p.shape === 'dot') {
-      c.beginPath(); c.arc(p.x, p.y, p.size, 0, 6.2832); c.fill()
-    } else {
-      c.save(); c.translate(p.x, p.y); c.rotate(p.rot)
-      if (p.shape === 'shard') { c.beginPath(); c.moveTo(0, -p.size); c.lineTo(p.size * 0.6, 0); c.lineTo(0, p.size); c.lineTo(-p.size * 0.6, 0); c.closePath(); c.fill() }
-      else if (p.shape === 'star') { c.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? p.size * 0.45 : p.size; const a = (k * Math.PI) / 5 - Math.PI / 2; c.lineTo(Math.cos(a) * r, Math.sin(a) * r) } c.closePath(); c.fill() }
-      else if (p.shape === 'square') c.fillRect(-p.size / 2, -p.size / 2, p.size, p.size)
-      else c.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2)
-      c.restore()
-    }
+    const cos = Math.cos(p.rot) * dpr, sin = Math.sin(p.rot) * dpr
+    c.setTransform(cos, sin, -sin, cos, p.x * dpr, p.y * dpr)
+    const z = p.size
+    if (p.shape === 'dot') { c.beginPath(); c.arc(0, 0, z, 0, 6.2832); c.fill() }
+    else if (p.shape === 'shard') { c.beginPath(); c.moveTo(0, -z); c.lineTo(z * 0.6, 0); c.lineTo(0, z); c.lineTo(-z * 0.6, 0); c.closePath(); c.fill() }
+    else if (p.shape === 'star') { c.beginPath(); for (const [x, y] of STAR) c.lineTo(x * z, y * z); c.closePath(); c.fill() }
+    else if (p.shape === 'square') c.fillRect(-z / 2, -z / 2, z, z)
+    else c.fillRect(-z / 2, -z / 4, z, z / 2)
   }
+  parts.length = alive
+  c.setTransform(dpr, 0, 0, dpr, 0, 0)
   c.globalAlpha = 1
   raf = parts.length ? requestAnimationFrame(tick) : 0
 }

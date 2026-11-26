@@ -82,6 +82,9 @@ const CSS = `
 }
 `
 
+/* hold של מסך הסיום: לכל היותר כך הבמה מחכה לפני שהתנועה מתחילה */
+const SETTLE_MAX_MS = 1000
+
 /* זוהר הפורטל בצבע אחד (תכלת או כתום-זהוב). בסיפור שנסגר שתי הקבוצות קיימות, והמעבר ביניהן הוא דהייה */
 function PortalGlow({ comp, tone }: { comp: StageComposition; tone: 'cyan' | 'gold' }) {
   const h = comp.hologram
@@ -121,11 +124,16 @@ function PortalStaticLook({ comp, tone }: { comp: StageComposition; tone: 'cyan'
   )
 }
 
-/* הצבע הממוצע של תמונת הפורטל. תמונה שאוסרת קריאה (CORS): נשארים בכחול של המעבדה */
+/* הצבע הממוצע של תמונת הפורטל. תמונה שאוסרת קריאה (CORS): נשארים בכחול של המעבדה.
+   נשמר לפי התמונה: מסך הסיום מציג בפורטל את אותה תמונה כמו מסך הפתיחה, וחישוב חוזר (פענוח התמונה וקריאת הפיקסל)
+   נפל בדיוק על רגע ההחלפה למסך הסיום */
+const tintCache = new Map<string, string>()
+const DEFAULT_TINT = 'rgb(90,184,255)'
 function useAverageColor(src?: string): string {
-  const [color, setColor] = useState('rgb(90,184,255)')
+  const [computed, setColor] = useState<{ src: string; color: string } | null>(null)
+  const cached = src ? tintCache.get(src) : undefined
   useEffect(() => {
-    if (!src) return
+    if (!src || tintCache.has(src)) return
     let cancelled = false
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -138,13 +146,15 @@ function useAverageColor(src?: string): string {
         if (!g) return
         g.drawImage(img, 0, 0, 1, 1)
         const [r, gr, b] = g.getImageData(0, 0, 1, 1).data
-        if (!cancelled) setColor(`rgb(${r},${gr},${b})`)
+        const color = `rgb(${r},${gr},${b})`
+        tintCache.set(src, color)
+        if (!cancelled) setColor({ src, color })
       } catch { /* נשארים עם ברירת המחדל */ }
     }
     img.src = src
     return () => { cancelled = true }
   }, [src])
-  return color
+  return cached ?? (computed && computed.src === src ? computed.color : DEFAULT_TINT)
 }
 
 /* התמונה של הפורטל בגרסה הקבועה (עוצמה עדינה, או בלי WebGL): כשהיא מתחלפת, החדשה נמוגה פנימה מעל הקודמת.
@@ -160,7 +170,7 @@ function PortalImage({ src }: { src: string }) {
   )
 }
 
-export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, onPortalHover, portalLit, portalLabel, focalY }: {
+export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAnimation, human = false, leaving, onDiveEnd, onRevealEnd, onPortalClick, onPortalHover, portalLit, portalLabel, focalY, hold = false, onSettled }: {
   state: 'opening' | 'closed' | 'open'
   portalSrc?: string
   /* כשהתמונה שבפורטל מתחלפת: 1 קדימה, -1 אחורה (כיוון קו האור של המעבר) */
@@ -182,6 +192,13 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
   portalLabel?: string
   /* מוקד אנכי אחר לחיתוך התמונה (PortalHero): אותה קומפוזיציה, והעולם כולו זז למעלה או למטה */
   focalY?: number
+  /* מסך הסיום: הבמה נבנית מתחת לכיסוי לבן ואטום, והתנועה (נסיגת המצלמה, גל האור בפורטל, הופעת ד"ר הולו) מחכה עד ש-hold יורד.
+     בלי זה כל ההכנה הכבדה (בניית המסך, WebGL, העלאת התמונה, הווידאו) קרתה בדיוק כשהמצלמה התחילה לנוע, ובמחשב חלש
+     החלק הראשון והמהיר של הנסיגה "נבלע", והמעבר קרטע */
+  hold?: boolean
+  /* פעם אחת, כשהבמה מוכנה לתנועה: המידות נמדדו, ההולוגרמה בפורטל מוכנה (או שלא תהיה), ושני פריימים צוירו אחרי זה.
+     לכל היותר SETTLE_MAX_MS מהרגע שהבמה נבנתה, כדי שמחשב שבו משהו לא נטען לא יישאר מאחורי הכיסוי */
+  onSettled?: () => void
 }) {
   const feel = useGameFeel()
   const base = stageFor(state)
@@ -197,10 +214,10 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
   /* בסיכום המצלמה מתחילה בתוך הפורטל והוא ממלא את המסך: לחיצה רק אחרי הנסיגה, כדי שלחיצה כפולה על "סיום" לא תוציא מהמסך */
   const [armed, setArmed] = useState(state === 'opening' || !moving)
   useEffect(() => {
-    if (armed) return
+    if (armed || hold) return
     const t = window.setTimeout(() => setArmed(true), comp.camera.pullbackMs)
     return () => window.clearTimeout(t)
-  }, [armed, comp.camera.pullbackMs])
+  }, [armed, hold, comp.camera.pullbackMs])
 
   useLayoutEffect(() => {
     const el = ref.current
@@ -218,11 +235,14 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
     const cam = cameraRef.current
     const el = ref.current
     if (!cam || !el || !moving || leaving || state === 'opening') return
+    /* עד שהכיסוי מתחיל לרדת: המצלמה עומדת בתוך הפורטל (נקודת ההתחלה של הנסיגה) */
+    if (hold) { cam.style.transform = cameraCss(cameraInsidePortal(el.clientWidth, el.clientHeight, comp)); return }
+    cam.style.transform = ''
     const back = cam.animate([{ transform: cameraCss(cameraInsidePortal(el.clientWidth, el.clientHeight, comp)) }, { transform: cameraCss(cameraRest) }], { duration: comp.camera.pullbackMs, easing: 'cubic-bezier(.16,.8,.3,1)' })
     anim.current = back
     return () => anim.current?.cancel()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFit, moving, state])
+  }, [hasFit, moving, state, hold])
 
   useEffect(() => {
     const cam = cameraRef.current
@@ -239,13 +259,33 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
   }, [leaving])
 
   /* גל אור בהולוגרמה: ביציאה מהפורטל בסיכום, וברגע הצלילה אליו */
-  const splashKey = leaving === 'dive' ? 2 : state === 'opening' ? 0 : 1
+  const splashKey = leaving === 'dive' ? 2 : state === 'opening' || hold ? 0 : 1
   const holoWidth = comp.holo.height * HOLO_ASPECT
   const box = comp.portal.box
   const scale = fit?.scale ?? 1
   const liveBg = !!comp.video && moving
   const geo = useMemo(() => hologramGeometry(comp), [comp])
   const [holoLive, setHoloLive] = useState(false)
+  /* מוכנות לתנועה (onSettled): ההולוגרמה בפורטל סיימה להתכונן, או שלא תהיה הולוגרמה בכלל */
+  const expectHolo = !!portalSrc && moving && !!geo
+  const [holoSettled, setHoloSettled] = useState(false)
+  const settledRef = useRef(onSettled)
+  useEffect(() => { settledRef.current = onSettled })
+  const reported = useRef(false)
+  const wantsSettle = !!onSettled
+  /* התקרה נמדדת מהרגע שהבמה נבנתה, ולא מתאפסת כשמשהו מתעדכן בדרך */
+  useEffect(() => {
+    if (!wantsSettle) return
+    const cap = window.setTimeout(() => { if (!reported.current) { reported.current = true; settledRef.current?.() } }, SETTLE_MAX_MS)
+    return () => window.clearTimeout(cap)
+  }, [wantsSettle])
+  useEffect(() => {
+    if (!wantsSettle || reported.current || !hasFit || (expectHolo && !holoSettled)) return
+    const report = () => { if (!reported.current) { reported.current = true; settledRef.current?.() } }
+    let r2 = 0
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(report) })
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
+  }, [wantsSettle, hasFit, holoSettled, expectHolo])
   /* סיפור שנסגר: הפורטל עובר לכתום-זהוב אחרי שהמצלמה נסוגה ממנו */
   const gold = state === 'closed' && armed
   return (
@@ -282,7 +322,7 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
               {portalSrc && geo && <span className="lab-portal__scan" />}
             </div>
             {portalSrc && moving && geo && (
-              <PortalHologram src={portalSrc} swapDir={portalDir} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} />
+              <PortalHologram src={portalSrc} swapDir={portalDir} geo={geo} screenScale={scale} agitated={state === 'open'} splashKey={splashKey} gold={gold} onReady={setHoloLive} onSettle={() => setHoloSettled(true)} />
             )}
             {onPortalClick && armed && !leaving && (
               <button type="button" className="lab-portal-hit" data-lab-portal-hit data-lit={portalLit ? '' : undefined} aria-label={portalLabel} onClick={onPortalClick} onMouseEnter={() => onPortalHover?.(true)} onMouseLeave={() => onPortalHover?.(false)} onFocus={() => onPortalHover?.(true)} onBlur={() => onPortalHover?.(false)} style={{ left: box.x, top: box.y, width: box.width, height: box.height, clipPath: portalClipPath(comp) }} />
@@ -294,7 +334,7 @@ export default function LabStage({ state, portalSrc, portalDir = 1, mood, holoAn
           </div>
           <div className="lab-holo" data-lab-holo style={{ left: comp.holo.centerX - holoWidth / 2, top: comp.holo.top }}>
             {/* האנימציה מתנגנת גם מעל רקע וידאו: הנכס החדש קטן (896×706, H.264) ושני הסרטונים יחד נשארים מעל סף הקצב */}
-            <DrHoloHologram mood={mood} animation={holoAnimation} build video human={human} height={`${comp.holo.height}px`} />
+            <DrHoloHologram mood={mood} animation={holoAnimation} build={!hold} video human={human} height={`${comp.holo.height}px`} />
           </div>
           </div>
         </div>
